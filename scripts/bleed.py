@@ -180,11 +180,14 @@ Publication date: {data['date_str']}
 Issue number: #{data['issue_number']}
 
 THE BLEED's voice: Dry, precise, slightly gothic. It reports on the Academy as a real institution.
-Headlines are specific and factual. The gossip column has a slant. The classifieds are cryptic.
 This is not a parody — it's a real paper. The extraordinary is covered with the same deadpan
-reportage as the ordinary.
+reportage as the ordinary. Specificity is everything. Invent concrete details where needed —
+named corridors, specific times, partial quotes — the kind of texture that makes a place feel real.
 
-DATA FEEDS (synthesize into journalism — do not quote data directly):
+The reader should be able to SETTLE INTO THIS PAPER. Every section except The Barometer,
+The Exchange, The Correction, and The Missing should be substantial, readable prose.
+
+DATA FEEDS (synthesize into journalism — never quote data directly):
 
 SIMULATION ACTIVITY (tick queue):
 {data['tick_queue']}
@@ -209,30 +212,51 @@ HEALTH SIGNALS (map to Academy conditions):
 ---
 
 Write the newspaper in EXACTLY this format. Start with ===HEADLINE=== — no preamble.
-Keep each section SHORT — this is a physical newspaper.
 
 ===HEADLINE===
 Title: [specific, factual headline — 8 words max]
 Subhead: [one sentence expanding the headline]
-Body: [2-3 sentences. Report on the dominant thread or simulation activity. Use Academy setting, not meta-language. No "the simulation" — just "sources report" or "The Observatory has been quiet."]
+Body: [A full front-page article. 5-7 paragraphs of real reporting. Quote sources (unnamed
+is fine: "one second-year student, who declined to be identified"). Give specific details —
+times, locations within the Academy, observations. Report the dominant thread or simulation
+activity as factual news. This is the main story — write it like one.]
 
 ===GOSSIP===
-[3-4 sentences in the voice of W.E. — Wicker Eddies — as social columnist. He reports true things slanted. He always knows more than he lets on. He never mentions himself directly. Byline already added in layout.]
+[The social column, in W.E.'s voice. Write 5-6 separate gossip items — each item is its own
+paragraph of 2-4 sentences. Wicker reports true things slanted. He names names when it suits
+him and withholds them when it doesn't. He is never without an angle. He always knows more
+than he lets on. He never directly identifies himself. Each item should feel like a distinct
+morsel — a different corner of the Academy social world. End with his byline: — W.E.]
+
+===FEATURE===
+[A longer in-world piece: a profile, an investigation, a history, or an opinion column.
+4-6 paragraphs. Choose the most interesting thread or entity from the data and write
+something with depth — not news, but context. Could be: a profile of a figure who's been
+in the news, an investigation into something that's been going on for weeks, a brief history
+of a location, or an opinion piece attributed to a named Academy figure. Give it a title
+and a byline. This is what the reader lingers over.]
 
 ===BAROMETER===
-[Report health/biometric data AS Academy conditions. Steps = distance covered on Academy grounds. Sleep/HRV = student vitality index. Weather from heartbeat = atmospheric pressure in the Labyrinth. 3-4 short lines, like a weather report.]
+[Health/biometric data AS Academy conditions. Steps = distance covered on Academy grounds.
+Sleep/HRV = student vitality index. Weather = atmospheric pressure. 4-6 short lines,
+formatted like a weather/conditions report. Brief is correct here.]
 
 ===EXCHANGE===
-[The Belief Exchange — like a market ticker for narrative influence. List 4-5 entities with Belief scores as prices. Include at least one moving (rising or falling) with a one-word trend indicator. One sentence on overall market conditions.]
+[The Belief Exchange ticker. List ALL significant entities with Belief scores as prices.
+Mark trend: ↑ rising / ↓ falling / — steady. One paragraph of market commentary below
+the ticker — what does the current pattern mean narratively?]
 
 ===CLASSIFIEDS===
-[3 cryptic classified notices. Each under 20 words. Labels: LOST: / FOUND: / NOTICE: / SEEKING: / WARNING: etc. These seed story hooks — things the player might investigate. They should feel like real classifieds from a slightly eerie school.]
+[5-6 classified notices. Each one 2-4 sentences — enough to feel real and slightly eerie.
+Mix labels: LOST: / FOUND: / NOTICE: / SEEKING: / WARNING: / REWARD: / POSITION AVAILABLE: etc.
+These are story seeds. The reader should want to investigate at least two of them.]
 
 ===CORRECTION===
-[One formal correction. The Bleed takes accuracy seriously. Can be from yesterday's edition or a general clarification. Deadpan and specific. 1-2 sentences max.]
+[One dry, formal correction. Deadpan and specific. 1-2 sentences. Brief is correct here.]
 
 ===MISSING===
-[Threads currently dormant or unengaged — reported as "no word from [person/place] this week." 1-3 lines. The quietest column. Only notes absence, never explains it.]"""
+[Threads currently dormant — noted as quiet absence. 2-4 lines.
+The quietest column. Brief is correct here. It only notes absence, never explains it.]"""
 
     raw = call_agent(prompt)
     return parse_sections(raw)
@@ -279,9 +303,21 @@ def nl2br(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>\n")
 
 
+def paragraphs(text: str) -> str:
+    """Wrap double-newline-separated blocks in <p> tags. Single newlines become <br>."""
+    if not text:
+        return ""
+    blocks = re.split(r'\n{2,}', text.strip())
+    return "\n".join(
+        f"<p>{b.strip().replace(chr(10), '<br>')}</p>"
+        for b in blocks if b.strip()
+    )
+
+
 def build_html(sections: dict, sparky: str, meta: dict) -> str:
     hl          = parse_headline(sections.get("HEADLINE", ""))
     gossip      = sections.get("GOSSIP", "")
+    feature     = sections.get("FEATURE", "")
     barometer   = sections.get("BAROMETER", "")
     exchange    = sections.get("EXCHANGE", "")
     classifieds = sections.get("CLASSIFIEDS", "")
@@ -291,7 +327,23 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     date_obj  = datetime.strptime(meta["date_str"], "%Y-%m-%d")
     date_long = date_obj.strftime("%A, %B %-d, %Y")
 
-    sparky_html = nl2br(sparky) if sparky else "<em>(a sleeping dot)</em>"
+    sparky_html = paragraphs(sparky) if sparky else "<p><em>(a sleeping dot)</em></p>"
+
+    # Extract feature title/byline if the LLM included them
+    feature_title = ""
+    feature_byline = ""
+    feature_body = feature
+    if feature:
+        lines = feature.strip().splitlines()
+        if lines and not lines[0].startswith("By ") and len(lines[0]) < 80:
+            feature_title = lines[0].strip().strip("*#").strip()
+            rest = "\n".join(lines[1:]).strip()
+            if rest.startswith("By ") or rest.startswith("*By "):
+                byline_line = rest.splitlines()[0]
+                feature_byline = byline_line.strip().strip("*").strip()
+                feature_body = "\n".join(rest.splitlines()[1:]).strip()
+            else:
+                feature_body = rest
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -305,31 +357,35 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
 
   body {{
     font-family: 'IM Fell English', Georgia, 'Times New Roman', serif;
-    font-size: 9.5pt;
+    font-size: 10pt;
     background: #e8e2d5;
     color: #111;
+    line-height: 1.6;
   }}
 
   .page {{
     width: 8.5in;
     min-height: 11in;
     margin: 0.25in auto;
-    padding: 0.45in 0.5in 0.4in;
+    padding: 0.45in 0.5in 0.5in;
     background: #faf5ea;
     box-shadow: 0 2px 16px rgba(0,0,0,0.25);
   }}
+
+  p {{ margin-bottom: 0.55em; }}
+  p:last-child {{ margin-bottom: 0; }}
 
   /* ── MASTHEAD ── */
   .masthead {{
     text-align: center;
     border-bottom: 3px double #111;
     padding-bottom: 6pt;
-    margin-bottom: 5pt;
+    margin-bottom: 6pt;
   }}
 
   .nameplate {{
     font-family: 'UnifrakturMaguntia', 'IM Fell English', serif;
-    font-size: 52pt;
+    font-size: 54pt;
     line-height: 1;
     letter-spacing: -1px;
     color: #0a0a0a;
@@ -337,7 +393,7 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
 
   .tagline {{
     font-style: italic;
-    font-size: 7.5pt;
+    font-size: 8pt;
     color: #555;
     margin: 3pt 0;
   }}
@@ -345,53 +401,83 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
   .masthead-bar {{
     display: flex;
     justify-content: space-between;
-    font-size: 7.5pt;
+    font-size: 8pt;
     border-top: 1px solid #111;
     border-bottom: 1px solid #111;
-    padding: 2pt 0;
+    padding: 2.5pt 0;
     margin-top: 4pt;
+  }}
+
+  /* ── SECTION LABEL ── */
+  .col-head {{
+    font-family: 'IM Fell English SC', Georgia, serif;
+    font-size: 7.5pt;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #111;
+    padding-bottom: 2pt;
+    margin-bottom: 6pt;
+  }}
+
+  .byline {{
+    font-style: italic;
+    font-size: 8pt;
+    color: #555;
+    margin-bottom: 6pt;
   }}
 
   /* ── ABOVE THE FOLD ── */
   .above-fold {{
     border-bottom: 2px solid #111;
-    padding-bottom: 9pt;
-    margin-bottom: 8pt;
+    padding-bottom: 10pt;
+    margin-bottom: 10pt;
   }}
 
   .headline {{
     font-family: 'IM Fell English SC', Georgia, serif;
-    font-size: 26pt;
+    font-size: 28pt;
     line-height: 1.05;
-    margin-bottom: 4pt;
+    margin-bottom: 5pt;
   }}
 
   .subhead {{
-    font-size: 11pt;
+    font-size: 12pt;
     font-style: italic;
     color: #333;
-    margin-bottom: 6pt;
+    margin-bottom: 8pt;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 6pt;
   }}
 
   .headline-body {{
-    font-size: 9.5pt;
-    line-height: 1.55;
-    column-count: 2;
+    font-size: 10pt;
+    line-height: 1.6;
+    column-count: 3;
     column-gap: 18pt;
+    column-rule: 1px solid #ccc;
   }}
 
-  /* ── BELOW THE FOLD ── */
-  .below-fold {{
+  /* ── MAIN CONTENT GRID ── */
+  /* Row 1: Gossip (wide) | Right rail (narrow) */
+  .content-row {{
     display: grid;
-    grid-template-columns: 2.1fr 1fr 1fr;
     column-gap: 0;
     border-bottom: 1.5px solid #111;
-    margin-bottom: 7pt;
+    margin-bottom: 8pt;
+  }}
+
+  .row-gossip-feature {{
+    grid-template-columns: 3fr 1.1fr;
+  }}
+
+  .row-bottom {{
+    grid-template-columns: 1.5fr 1fr 1.5fr;
+    border-bottom: none;
   }}
 
   .col {{
-    padding: 0 12pt 6pt 0;
-    border-right: 1px solid #999;
+    padding: 8pt 14pt 6pt 0;
+    border-right: 1px solid #aaa;
   }}
 
   .col:last-child {{
@@ -400,67 +486,90 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
   }}
 
   .col + .col {{
-    padding-left: 12pt;
+    padding-left: 14pt;
+    padding-right: 14pt;
   }}
 
-  .col-head {{
+  .col:last-child {{
+    padding-left: 14pt;
+    padding-right: 0;
+  }}
+
+  /* ── GOSSIP ── */
+  .gossip-body p {{
+    margin-bottom: 0.7em;
+  }}
+
+  /* ── FEATURE ── */
+  .feature-title {{
     font-family: 'IM Fell English SC', Georgia, serif;
-    font-size: 7.5pt;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    border-bottom: 1px solid #111;
-    padding-bottom: 2pt;
+    font-size: 13pt;
+    line-height: 1.15;
     margin-bottom: 4pt;
   }}
 
-  .byline {{
-    font-style: italic;
-    font-size: 7.5pt;
-    color: #666;
-    margin-bottom: 4pt;
+  /* ── RIGHT RAIL (barometer + exchange stacked) ── */
+  .rail-section {{
+    margin-bottom: 10pt;
+    padding-bottom: 10pt;
+    border-bottom: 1px solid #ccc;
   }}
 
-  /* ── BOTTOM STRIP ── */
-  .bottom-strip {{
-    display: grid;
-    grid-template-columns: 1fr 1fr 2fr;
-    column-gap: 0;
-  }}
-
-  .bottom-strip .col {{
+  .rail-section:last-child {{
+    border-bottom: none;
+    margin-bottom: 0;
     padding-bottom: 0;
   }}
 
-  .sparky-text {{
+  .rail-body {{
+    font-size: 8.5pt;
+    line-height: 1.6;
+  }}
+
+  .ticker-line {{
+    display: flex;
+    justify-content: space-between;
     font-size: 8pt;
-    line-height: 1.55;
+    line-height: 1.7;
+    font-family: 'IM Fell English SC', Georgia, serif;
+  }}
+
+  .ticker-line .trend {{
+    font-style: normal;
+    color: #444;
+  }}
+
+  /* ── BOTTOM STRIP ── */
+  .sparky-text {{
+    font-size: 8.5pt;
+    line-height: 1.6;
     font-style: italic;
     color: #2a2a2a;
   }}
 
   .correction-box {{
-    font-size: 8pt;
-    line-height: 1.5;
+    font-size: 8.5pt;
+    line-height: 1.55;
     background: #ede7d8;
     border: 1px solid #bbb;
-    padding: 4pt 5pt;
+    padding: 5pt 6pt;
   }}
 
   .missing-text {{
     font-style: italic;
-    font-size: 8.5pt;
+    font-size: 9pt;
     color: #555;
-    line-height: 1.6;
+    line-height: 1.65;
   }}
 
   /* ── FOOTER ── */
   .footer {{
     text-align: center;
-    font-size: 6.5pt;
+    font-size: 7pt;
     color: #999;
     border-top: 1px solid #ccc;
-    padding-top: 4pt;
-    margin-top: 7pt;
+    padding-top: 5pt;
+    margin-top: 8pt;
     font-style: italic;
   }}
 
@@ -484,53 +593,63 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     </div>
   </div>
 
-  <!-- ABOVE THE FOLD -->
+  <!-- ABOVE THE FOLD: headline + full article in 3 columns -->
   <div class="above-fold">
     <div class="headline">{hl['title']}</div>
     <div class="subhead">{hl['subhead']}</div>
-    <div class="headline-body">{nl2br(hl['body'])}</div>
+    <div class="headline-body">{paragraphs(hl['body'])}</div>
   </div>
 
-  <!-- BELOW THE FOLD -->
-  <div class="below-fold">
+  <!-- ROW 1: Gossip (wide left) + right rail -->
+  <div class="content-row row-gossip-feature">
 
-    <div class="col">
+    <div class="col gossip-body">
       <div class="col-head">Gossip &amp; Corridor Whispers</div>
       <div class="byline">Our Social Correspondent, W.E.</div>
-      <p>{nl2br(gossip)}</p>
+      {paragraphs(gossip)}
     </div>
 
+    <div class="col" style="padding-right:0;">
+      <div class="rail-section">
+        <div class="col-head">The Barometer</div>
+        <div class="rail-body">{paragraphs(barometer)}</div>
+      </div>
+      <div class="rail-section">
+        <div class="col-head">The Exchange</div>
+        <div class="rail-body">{paragraphs(exchange)}</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ROW 2: Feature (left) + Classifieds (mid) + Sparky/Correction/Missing (right stack) -->
+  <div class="content-row row-bottom">
+
     <div class="col">
-      <div class="col-head">The Barometer</div>
-      <p style="font-size:8.5pt; line-height:1.55;">{nl2br(barometer)}</p>
-      <br>
-      <div class="col-head">The Exchange</div>
-      <p style="font-size:8pt; line-height:1.6;">{nl2br(exchange)}</p>
+      <div class="col-head">Feature</div>
+      {'<div class="feature-title">' + feature_title + '</div>' if feature_title else ''}
+      {'<div class="byline">' + feature_byline + '</div>' if feature_byline else ''}
+      {paragraphs(feature_body)}
     </div>
 
     <div class="col">
       <div class="col-head">Classifieds</div>
-      <p style="font-size:8.5pt; line-height:1.7;">{nl2br(classifieds)}</p>
+      {paragraphs(classifieds)}
     </div>
 
-  </div>
-
-  <!-- BOTTOM STRIP -->
-  <div class="bottom-strip">
-
-    <div class="col">
-      <div class="col-head">Sparky's Corner</div>
-      <div class="sparky-text">{sparky_html}</div>
-    </div>
-
-    <div class="col">
-      <div class="col-head">The Correction</div>
-      <div class="correction-box">{nl2br(correction)}</div>
-    </div>
-
-    <div class="col">
-      <div class="col-head">The Missing</div>
-      <div class="missing-text">{nl2br(missing)}</div>
+    <div class="col" style="padding-right:0;">
+      <div class="rail-section">
+        <div class="col-head">Sparky's Corner</div>
+        <div class="sparky-text">{sparky_html}</div>
+      </div>
+      <div class="rail-section">
+        <div class="col-head">The Correction</div>
+        <div class="correction-box">{paragraphs(correction)}</div>
+      </div>
+      <div class="rail-section">
+        <div class="col-head">The Missing</div>
+        <div class="missing-text">{paragraphs(missing)}</div>
+      </div>
     </div>
 
   </div>
@@ -538,7 +657,7 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
   <div class="footer">
     The Bleed is published daily at 6pm Academy time. Accuracy is aspired to. The editors regret most errors once they become apparent.
     Belief Exchange rates reflect close of market. Thread pressures subject to simulation. Issue #{meta['issue_number']}.
-    <br><em>The Labyrinth of Stories — Where what you believe becomes what is real.</em>
+    &nbsp;·&nbsp; <em>The Labyrinth of Stories — Where what you believe becomes what is real.</em>
   </div>
 
 </div>
@@ -570,7 +689,14 @@ def build_telegram_text(sections: dict, sparky: str, meta: dict) -> str:
 
     gossip = sections.get("GOSSIP", "")
     if gossip:
-        parts += [f"<b>— Gossip (W.E.) —</b>", esc(gossip), ""]
+        parts += [f"<b>— Gossip (W.E.) —</b>", esc(gossip[:800] + ("…" if len(gossip) > 800 else "")), ""]
+
+    feature = sections.get("FEATURE", "")
+    if feature:
+        lines = feature.strip().splitlines()
+        title = lines[0].strip().strip("*#").strip() if lines else "Feature"
+        body  = "\n".join(lines[1:]).strip()[:600]
+        parts += [f"<b>— {esc(title)} —</b>", esc(body) + "…", ""]
 
     barometer = sections.get("BAROMETER", "")
     if barometer:
