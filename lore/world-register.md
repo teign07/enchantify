@@ -3,12 +3,22 @@
 *The Labyrinth's ledger of all living stories.*
 *Never edit directly — use `python3 scripts/write-entity.py`*
 *Updated by write-entity.py and tick.py. Tick results read from memory/tick-queue.md.*
+*Arc entities managed by `python3 scripts/arc-generator.py --complete / --accept`*
 
 ---
+
+## Live Arc
+
+| Entity | Type | Belief | Notes |
+|---|---|---|---|
+| The Silent Student | Arc | 40 | [thread:main-arc] Phase: SETUP — A student's hollow quiet spreads through Tidecrest; resonance dying. The Nothing is the absence of vibration. SOUTH (SENSE) crisis. |
 
 ## Full Presence (Belief 15+)
 | Entity | Type | Belief | Notes |
 |---|---|---|---|
+| Professor Euphony | NPC | 35 | [thread:main-arc] Professor of Resonance; treats sound as a story's soul; deeply alarmed by the spreading quiet |
+| Archibald | NPC | 28 | [thread:main-arc] First to notice the silence; his blank book fills with descriptions of things that should have made sound |
+| Lara Rourck | NPC | 22 | [thread:main-arc] Tidecrest student; feels the resonance loss in the Keel Room tide-channels |
 | Zara Finch | NPC | 23 | [thread:zara-inkwright] House Riddlewind guide; warm, perceptive; knows more than she lets on |
 | Professor Stonebrook | NPC | 17 | [thread:academy-daily] Observatory keeper; calibrated the Wonder Compass with bj at T12 |
 | The Quillquarium | Location | 15 | [thread:academy-daily] Living-object tank; where bj found the Obsidian Chronograph |
