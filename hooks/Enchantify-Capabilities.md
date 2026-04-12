@@ -1,7 +1,7 @@
 # Enchantify — The Labyrinth of Stories
 ## Complete Capability Reference
 
-*Version: 4.0.0 — The Sensing Layer*
+*Version: 4.1.0 — The Open World*
 *Last updated: April 12, 2026*
 
 ---
@@ -14,7 +14,7 @@ Enchantify is an interactive narrative role-playing game that runs as a register
 
 **The Revolution:** Enchantify is not a game you open. It's a place that *lives*. The Academy advances every four hours whether you're watching or not. NPCs make choices. The Nothing moves. Relationships evolve. When you return, you're not resuming a save file — you're catching up with a life.
 
-**Model:** Google Gemini Flash via OpenClaw (`openclaw agent --local --agent enchantify`) — rich prose, vision-capable for photo Enchantments
+**Model:** Configurable at install — defaults to Claude Sonnet 4.6. Any OpenClaw-supported model works (Claude Opus 4.6, Haiku 4.5, GPT-4o, or custom). Set `MODEL_ID` in `config/secrets.env`.
 
 **Platform:** OpenClaw registered agent with permanent workspace. Player interface: **Telegram** — all play, photos, GPS shares, and outreach happen through a dedicated Enchantify Telegram bot.
 
@@ -40,7 +40,7 @@ Enchantify is an interactive narrative role-playing game that runs as a register
 
 **Core systems:**
 
-- **The Heartbeat System:** Reads `HEARTBEAT.md` (workspace root) — a single source of truth containing weather, tides, music (Spotify), nutrition, steps, moon phase, Sparky's daily shiny, and yesterday's diary/dream excerpt. All injected by their respective scripts via HTML marker blocks. Bleeds into Academy atmosphere without announcing it. Poor sleep → dimmer corridors. Low steps → quieter halls. The player feels known, not monitored.
+- **The Heartbeat System:** Reads `enchantify/HEARTBEAT.md` — a single source of truth containing weather, tides, music (Spotify), nutrition, steps, moon phase, Sparky's daily shiny, and yesterday's diary/dream excerpt. All injected by their respective scripts via HTML marker blocks. Bleeds into Academy atmosphere without announcing it. Poor sleep → dimmer corridors. Low steps → quieter halls. The player feels known, not monitored. Written by `scripts/pulse.py` (enchantify-internal) every 15 minutes via cron; also saves `enchantify/PREVIOUS_PULSE.md` for delta detection.
 - **The Labyrinth's Inner Life:** The Labyrinth has its own diary (`memory/diary/`) and nightly dreams (`memory/dreams/`), generated automatically. Excerpts are injected into `HEARTBEAT.md` nightly by `labyrinth-intelligence.py`. These are private — but they color how it narrates and what it notices.
 - **The Marginalia Bridge:** NPCs are aware of local news, Reddit trends, and global events, framed as "Whispers from the Unwritten Chapter."
 - **World Simulation:** A background cron runs every 4 hours to evolve world state. NPCs move, weather changes, arc phases advance — even when you aren't playing. Each run has a 25% chance of triggering NPC research.
@@ -612,7 +612,7 @@ The Labyrinth is not just a narrator — it is a character with its own inner li
 
 Player data translated into Academy texture — **felt, never announced.** Full translation table in `mechanics/heartbeat-bleed.md`.
 
-**Source:** All signals are read from `HEARTBEAT.md` (workspace root) — the single source of truth. The file is structured with marker blocks:
+**Source:** All signals are read from `enchantify/HEARTBEAT.md` — the single source of truth (enchantify-internal; no longer a symlink or workspace-level file). The file is structured with marker blocks:
 - `<!-- PULSE_START --> ... <!-- PULSE_END -->` — weather, tides, moon, steps, fuel (written by `pulse.py` / `update-weather.sh` every hour)
 - `<!-- SPARKY_START --> ... <!-- SPARKY_END -->` — today's Sparky shiny (written by `sparky.py` after its daily run)
 - `<!-- DIARY_START --> ... <!-- DIARY_END -->` — yesterday's diary excerpt + most recent dream (written by `labyrinth-intelligence.py` nightly at 23:00)
@@ -645,6 +645,21 @@ python3 scripts/session-checkin.py [player]
 ```
 
 Three questions: sleep quality, current mood, dream fragment (optional). Appends a `## 🌙 Session Check-In` block to the heartbeat file. The Labyrinth reads this to calibrate the session's opening tone. Idempotent — replaces any previous check-in from the same day.
+
+---
+
+### §11b. The Wonder Compass Book — The Founding Text
+
+`lore/wonder-compass-book/` contains the converted chapters of the real Wonder Compass book — the source text for the entire Compass framework. All files are plain markdown (converted from Pages/RTF via macOS `textutil`).
+
+**Chapter 5** (`chapter5.md`) is the canonical N-E-S-W-Center framework reference. `lore/compass-run.md` and `lore/wonder-compass.md` both point to it as source of truth.
+
+**In-game uses:**
+- **Compass Run calibration:** The Labyrinth reads `lore/compass-run.md` (which quotes Chapter 5 directly) before generating any Compass Run prompt. Chapter 5 quotes are woven into professor teaching voices in `lore/school-life.md`.
+- **Professor quotes:** Each Compass Core professor teaches from a specific chapter. Canonical quotes are embedded in `lore/school-life.md` — Prof. Boggle (Notice, Ch.5), Momort (Embark, Ch.5), Euphony (Sense, Ch.3), Villanelle (Write, Ch.5), Stonebrook (Rest, Ch.5), Headmistress Thorne (Ch.5).
+- **Book Jump — Special:** `lore/books.md` contains "The Founding Text" jump. Unlike fiction jumps, the player falls into the *author's memories*, not a fictional world. Eight chapters map to specific memory scenes. Nothing = forgetting why the Compass was built. Completing this jump earns double Belief (+18) and counts as a Compass Run.
+
+**AGENTS.md integration:** The routing table includes a Wonder Compass book jump row and a professor quotes row. Step 2 of the core loop now compares `PREVIOUS_PULSE.md` vs current `HEARTBEAT.md` and translates changes into world-texture (Pulse Delta).
 
 ---
 
@@ -819,6 +834,7 @@ A different protocol from the 1-hour Return. Read `players/[name]-story.md` firs
 | `scripts/clear-lock.py` | Session end | Removes lock file |
 | `scripts/write-souvenir.py` | After Compass Run West | Writes souvenir file; reads heartbeat for weather/moon/season; dual-format parser |
 | `scripts/print-souvenir.sh` | After West (automatic) | Prints 4×6 souvenir card to configured printer |
+| `scripts/pulse.py` | 15-min cron (`*/15 * * * *`) | Enchantify's self-contained world pulse. Reads `config/secrets.env` for all credentials (no hardcoded keys). Writes to `enchantify/HEARTBEAT.md` and saves `enchantify/PREVIOUS_PULSE.md` for delta detection. Reads health data via `get_health()` (backend-aware: health_auto_export, garmin, fitbit, manual, none). Falls back to yesterday's health file if today is sparse. |
 | `scripts/update-weather.sh` | Hourly cron | Fetches weather, tides, moon, sunrise; writes heartbeat file |
 | `scripts/dream.py` | Nightly 2:03 AM cron | Generates Labyrinth's dream via Gemini (`openclaw agent`); writes to `memory/dreams/[date].md` |
 | `scripts/sparky.py` | Daily 8 AM cron | Finds pattern-connections via Wikipedia On This Day + heartbeat (Gemini). Writes to `sparky/shinies/`. Injects `<!-- SPARKY_START -->` block into `HEARTBEAT.md`. |
@@ -839,7 +855,7 @@ A different protocol from the 1-hour Return. Read `players/[name]-story.md` firs
 | `scripts/write-academy-state.py` | Scene close / simulation | Safely replaces `lore/academy-state.md`. Backs up existing file to `.bak` before writing. Atomic write via temp+rename. Pass content via `--file` or stdin. Never edit academy-state.md directly. |
 | `scripts/world-pulse.py` | 4-hour cron (STEP 3) | Reads `lore/world-register.md`, compares entity Belief against `config/world-pulse-cache.json`. Significant drops → NORMAL seed. Belief ≤ 2 → `[PRIORITY: HIGH]` seed. Ambient pulse (10% chance) for stable entities. Writes to `memory/tick-queue.md`. |
 | `scripts/ambient-state.py` | 4-hour cron (STEP 4) + session-open | Reads dominant chapter talisman (highest Belief in talismans table). Fires LIFX scene for that chapter. Writes Spotify mood seed to tick-queue for Labyrinth narration. `--dry-run` to preview. |
-| `scripts/governance-engine.py` | Session events, cron | Pact executor. Reads `pacts/*/manifest.md`, checks consent, imports each pact's `govern.py`, calls `handle(trigger, context)`, fires approved actions, logs to `logs/action-chronicle.md`. `--list` shows active pacts. `--dry-run` previews without firing. |
+| `scripts/governance-engine.py` | Session events, cron | Pact executor. Reads `pacts/*/manifest.md`, checks consent, imports each pact's `govern.py`, calls `handle(trigger, context)`, fires approved actions, logs to `logs/action-chronicle.md`. `--list` shows active pacts. `--dry-run` previews without firing. **Note:** triggers must appear in both `manifest.md` AND `govern.py`'s `handle()` to fire — engine checks manifest first. `nothing-retreats` trigger now present in both duskthorn and tidecrest manifests. |
 | `scripts/consent-registry.py` | Setup, manual | Read/update consent registry (`config/consent.json`). Subcommands: `check`, `list`, `approve`, `revoke`, `pact-activate`, `pact-deactivate`. |
 | `scripts/labyrinth-intelligence.py` | Nightly 23:00 cron | Reads diary entries + player file + `HEARTBEAT.md` biometrics. Writes `memory/patterns.md`, `memory/arc-spine.md`, `lore/nothing-intelligence.md`. Appends therapeutic interventions to `memory/tick-queue.md` (biometric-triggered, Labyrinth voice). Injects `<!-- DIARY_START -->` block into `HEARTBEAT.md`. Run as: `python3 scripts/labyrinth-intelligence.py [player]`. |
 | `scripts/npc-research.py` | 4-hour simulation (via world-pulse.py, 25% chance) | NPC researches a topic from their Unwritten Interest and delivers findings. `--npc "Name"` to force a specific NPC. `--dry-run` to preview. `--telegram` to also deliver via Telegram. Writes to `memory/npc-research/[date]-[slug].md`, delivers to iCloud Notes ("Labyrinth" folder), queues tick-queue narrative seed. Deducts 3 Belief from the NPC. 72-hour cooldown per NPC. |
@@ -915,6 +931,14 @@ enchantify/
 │   ├── ley-lines.md              ← Anchor creation, types, check-in, decay, Academy echoes
 │   ├── sparky.md
 │   ├── the-pitch.md
+│   ├── wonder-compass.md         ← Wonder Compass item mechanics (cost 3 Belief, +9, once/day); points to chapter5.md
+│   ├── wonder-compass-book/      ← The Founding Text — converted chapters from the real book
+│   │   ├── introduction.md
+│   │   ├── chapter1a.md / chapter1b.md
+│   │   ├── chapter2.md / chapter3.md
+│   │   ├── chapter4a.md / chapter4b.md
+│   │   ├── chapter5.md           ← Canonical N-E-S-W-Center framework reference
+│   │   └── read-this-first.md
 │   ├── restricted-section/
 │   └── arc-archive/              ← Completed arcs (arc-01-*.md…)
 ├── mechanics/
@@ -1030,7 +1054,13 @@ All automated scripts use Google Gemini via OpenClaw OAuth. No API keys required
 
 **🎵 Spotify (macOS, AppleScript):** Mood-aware audio. Volume varies by scene type — exploration 40–50, Nothing approaching 10→0→pause, Compass West: silence. Never announces. Full scene definitions in `config/integrations.md`.
 
-**💡 LIFX (LAN, no cloud):** `python3 scripts/lifx-control.py scene [name]`. 12 scenes: `academy`, `library`, `nothing`, `compass-north/east/south/west`, `compass-complete`, `book-snow-queen`, `book-odyssey`, `bookend`, `defeated`. Targeted IPs via `ENCHANTIFY_LIFX_IPS` in config; auto-discovers via LAN if not set.
+**💡 Smart Lights (Pact of Duskthorn):** Backend selected at install via `LIGHTS_BACKEND` in `config/secrets.env`. Options:
+- `lifx` — LAN control, no cloud. `python3 scripts/lifx-control.py scene [name]`. Auto-discovers via LAN or uses `LIFX_TOKEN`.
+- `hue` — Philips Hue Bridge. Requires `HUE_BRIDGE_IP` + `HUE_TOKEN`.
+- `ha` — Home Assistant. Requires `HA_URL` + `HA_TOKEN` (long-lived access token).
+- `none` — lights disabled.
+
+12 scenes: `academy`, `library`, `nothing`, `compass-north/east/south/west`, `compass-complete`, `book-snow-queen`, `book-odyssey`, `bookend`, `defeated`. All gated by the Pact of Duskthorn consent check.
 
 **🖨️ Printer (CUPS):** After Compass Run West, automatically fires `bash scripts/print-souvenir.sh`. Prints 4×6 HTML card — souvenir sentence, weather, moon, season. Reads printer name from `ENCHANTIFY_PRINTER` in config. No announcement; if it fails, narrate the card is waiting.
 
@@ -1040,7 +1070,17 @@ All automated scripts use Google Gemini via OpenClaw OAuth. No API keys required
 
 **🎮 Guild Wars 2:** Optional. Player in GW2 → Academy responds as homecoming when they return. Active day → Nothing slightly recedes.
 
-**👟 Apple Watch / Health:** Step count maps to corridor vitality. Very active (10k+) → Belief pool slightly replenished.
+**👟 Health Data:** `get_health()` in `scripts/pulse.py` reads from the configured `HEALTH_BACKEND` (set in `config/secrets.env`):
+- `health_auto_export` (default) — reads Health Auto Export JSON files from iCloud (`~/Library/Mobile Documents/iCloud~com~ifunography~HealthExport/Documents/`). Auto-detects user subfolder. Sorts by filename (not ctime) for stable ordering. Falls back to yesterday's file automatically if today's export has fewer than 2 meaningful metrics (e.g., watch offline or not yet synced). Appends `(yesterday)` to the result when falling back.
+- `garmin` — reads from Garmin Connect via `garminconnect` Python library
+- `fitbit` — reads from Fitbit Web API
+- `manual` — Labyrinth asks the player directly
+- `none` — health data disabled
+- Custom path: override with `HEALTH_DIR` in `config/secrets.env`
+
+**Metrics read:** step count (daily total), sleep analysis (latest value), heart rate variability (latest), resting heart rate (latest). Any metric not available is silently omitted — partial data always returns something rather than "offline."
+
+**Heartbeat bleed:** Steps → corridor vitality. Very active (10k+) → Belief pool slightly replenished. Sleep + HRV used by `labyrinth-intelligence.py` for biometric pressure sensing.
 
 **🗣️ Multi-Voice TTS (The Chorus):** `scripts/multi_voice_tts.py` processes `[voice_id]` tags in narration and generates stitched audio via Kokoro TTS (localhost:8880). Character voice mapping in `config/voice-assignments.md`. Text sent first, audio second — never combined in one message.
 
@@ -1048,38 +1088,57 @@ All automated scripts use Google Gemini via OpenClaw OAuth. No API keys required
 
 ### §25. Installation Flow
 
+**Two paths:**
+
+**Wanderer's Path (new to OpenClaw):**
 ```
-bash bootstrap.sh
-  ├── Checks: node, npm, python3
-  ├── Installs OpenClaw (if missing)
-  └── Calls: hooks/on-install.sh
-        ├── OS detection (mac/linux)
-        ├── Dependency check: curl, jq, python3, openclaw (auto-installs)
-        ├── Location (IP auto-detect → confirm or manual)
-        ├── Timezone (auto-detect → confirm)
-        ├── Seasons (hemisphere + custom names)
-        ├── NOAA tides (optional, US coastal)
-        ├── OpenClaw OAuth (for Sparky, dreams, arc generation — Gemini via Google OAuth)
-        ├── Integrations (each optional, each explained):
-        │     Kokoro TTS, Spotify, Fuel Gauge, Steps,
-        │     GW2, LIFX, Printer, Sparky
-        ├── Memory plugins (QMD + Lossless Claw — configured in agent definition)
-        ├── Writes: scripts/enchantify-config.sh
-        ├── Creates dirs: players/, souvenirs/, logs/, config/,
-        │     memory/diary/, memory/dreams/, sparky/shinies/, proposed/
-        ├── Symlinks USER.md and HEARTBEAT.md (if Silvie present)
-        ├── Fetches first heartbeat (standalone) or links Silvie's
-        ├── Copies templates; initializes logs
-        ├── Creates agent definition in ~/.openclaw/agents/enchantify/
-        ├── Registers all cron jobs (openclaw cron add)
-        ├── Creates player file from template (asks for player name)
-        ├── Installs routing skill → main agent
-        └── Done: "The Labyrinth is waiting."
+curl -fsSL https://raw.githubusercontent.com/teign07/enchantify/main/install.sh | bash
+  ├── Checks: Node.js, Python 3
+  ├── Installs OpenClaw (official installer or npm fallback)
+  ├── Clones enchantify repo to ~/.openclaw/workspace/enchantify
+  └── Calls: hooks/on-install.sh --wanderer
 ```
 
-**Reconfiguration:** `python3 scripts/configure.py` — re-runs the interactive wizard without reinstalling. Rewrites `enchantify-config.sh` with updated settings.
+**Scholar's Path (existing OpenClaw users):**
+```
+npx clawhub@latest install enchantify
+```
 
-**Silvie mode:** If Silvie's HEARTBEAT.md is detected on the same OpenClaw instance, the install automatically links to her heartbeat and skips standalone weather setup. Sparky and dreams can run via Silvie's cron system or standalone — `ENCHANTIFY_SPARKY_MODE` controls this.
+**`hooks/on-install.sh` wizard sections (in order):**
+```
+1. Welcome
+2. Environment detection (OpenClaw version, Python, Node, existing players)
+3. Model selection (Claude Sonnet 4.6 default; Opus, Haiku, GPT-4o, custom)
+4. Location setup (city, lat/lon, NOAA station)
+5. Health data (health_auto_export / Garmin / Fitbit / manual / none)
+6. Telegram setup (bot token + chat ID; step-by-step instructions)
+7. The Pact Ceremony (consent as gameplay):
+     - Pact of Duskthorn (lights)
+     - Pact of Tidecrest (music)
+     - Pact of the Loom (email read + send)
+     - Pact of Goldvein (financial read-only)
+     - Override word THORNE displayed prominently
+     - consent.json written with activated_at timestamps; defaults all false
+8. Smart lights (LIFX / Philips Hue / Home Assistant / none)
+9. Music — Spotify (client ID + secret; Spotify developer account setup instructions)
+10. Voice acting — Kokoro TTS (Docker pull; optional)
+11. Image generation (DALL-E 3 / Stable Diffusion / none)
+12. Ambient music — Meta MusicGen Small (Docker; optional)
+13. Memory plugins — QMD + Lossless Claw (openclaw plugins install)
+14. Final setup:
+      ├── Creates player file from templates/player-template.md
+      ├── Installs 15-min cron: scripts/pulse.py → logs/pulse.log
+      ├── Runs first pulse
+      └── Done: "Say: Open the book"
+```
+
+**Credentials:** All stored in `config/secrets.env` (gitignored). Template at `config/secrets.env.example`. No credentials ever hardcoded in source.
+
+**Consent:** `config/consent.json` (gitignored). Ships empty (`{}`). The Pact Ceremony writes each pact with `approved: true/false` and `activated_at` timestamp. `config/consent.json.example` shows the schema.
+
+**Reconfiguration:** `python3 scripts/configure.py` — re-runs the interactive wizard without reinstalling.
+
+**Distribution:** Open source at `https://github.com/teign07/enchantify`. MIT license (code) + CC BY-SA 4.0 (creative content).
 
 ---
 
