@@ -22,15 +22,27 @@ WORKSPACE_DIR = SCRIPT_DIR.parent
 
 def load_config() -> dict:
     cfg = {}
-    config_path = SCRIPT_DIR / "enchantify-config.sh"
-    if config_path.exists():
-        with open(config_path) as f:
+    # Load from config/secrets.env (new system)
+    secrets_path = WORKSPACE_DIR / "config" / "secrets.env"
+    if secrets_path.exists():
+        with open(secrets_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, val = line.partition("=")
+                cfg[key.strip()] = val.strip().strip('"').strip("'")
+    # Also check old enchantify-config.sh as fallback
+    old_config = SCRIPT_DIR / "enchantify-config.sh"
+    if old_config.exists():
+        with open(old_config) as f:
             for line in f:
                 line = line.strip()
                 if line.startswith("#") or "=" not in line:
                     continue
                 key, _, val = line.partition("=")
-                cfg[key.strip()] = val.strip().strip('"')
+                if key.strip() not in cfg:
+                    cfg[key.strip()] = val.strip().strip('"')
     return cfg
 
 
@@ -42,7 +54,7 @@ def read_file_safe(path: Path, limit_lines: int = 40) -> str:
     return "".join(lines[:limit_lines]).strip()
 
 
-def get_api_key(cfg: dict) -> str | None:
+def get_api_key(cfg: dict):
     return (
         cfg.get("ENCHANTIFY_ANTHROPIC_API_KEY")
         or os.environ.get("ANTHROPIC_API_KEY")
@@ -54,7 +66,7 @@ def build_context(cfg: dict) -> str:
     today = datetime.now()
     yesterday = today - timedelta(days=1)
 
-    heartbeat_path = WORKSPACE_DIR / "HEARTBEAT.md"
+    heartbeat_path = WORKSPACE_DIR / "HEARTBEAT.md"  # enchantify-internal heartbeat
     heartbeat = read_file_safe(heartbeat_path, 60)
 
     arc = read_file_safe(WORKSPACE_DIR / "lore" / "current-arc.md")
@@ -93,12 +105,24 @@ def build_context(cfg: dict) -> str:
     return "\n\n---\n\n".join(parts)
 
 
-def call_gemini(prompt: str) -> str:
+def call_agent(prompt: str) -> str:
     result = subprocess.run(
         ["openclaw", "agent", "--local", "--agent", "enchantify", "-m", prompt],
         capture_output=True, text=True
     )
-    return result.stdout.strip()
+    # Strip ANSI escape codes and plugin/auth noise lines from stdout
+    import re
+    ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+    lines = result.stdout.splitlines()
+    clean = []
+    noise_prefixes = ("[plugins]", "[agents/", "[agent/", "adopted ", "google tool")
+    for line in lines:
+        stripped = ansi_escape.sub("", line).strip()
+        if any(stripped.startswith(p) for p in noise_prefixes):
+            continue
+        if stripped:
+            clean.append(stripped)
+    return "\n".join(clean).strip()
 
 
 def generate_dream(context: str) -> str:
@@ -127,7 +151,7 @@ Rules:
 
 Output only the dream text. No title, no label, no preamble."""
 
-    return call_gemini(prompt)
+    return call_agent(prompt)
 
 
 def main():
