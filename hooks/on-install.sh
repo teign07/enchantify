@@ -251,7 +251,98 @@ fi
 echo ""
 echo "  ✓ Location configured."
 
-# ── 5. Telegram Setup ─────────────────────────────────────────────────────────
+# ── 5. Health Data Setup ──────────────────────────────────────────────────────
+
+section "Health data (optional)"
+
+echo "  The Labyrinth can read your health data — steps, sleep, heart rate —"
+echo "  and weave it into the world. A day with low steps reads differently"
+echo "  than one where you walked for hours."
+echo ""
+echo "  How do you want to connect your health data?"
+echo ""
+echo "    1) Health Auto Export (iPhone app — recommended if you have an iPhone)"
+echo "       Free app, exports automatically to iCloud every hour."
+echo "       App: search 'Health Auto Export' on the App Store"
+echo ""
+echo "    2) Garmin Connect"
+echo "       If you wear a Garmin watch."
+echo ""
+echo "    3) Fitbit"
+echo "       If you use a Fitbit."
+echo ""
+echo "    4) Manual — I'll type my health info when I want to"
+echo "       The Labyrinth will ask you occasionally."
+echo ""
+echo "    5) Skip — no health data"
+echo ""
+
+HEALTH_CHOICE=$(ask "Choose [1-5]" "5")
+
+case "$HEALTH_CHOICE" in
+    1)
+        set_secret "HEALTH_BACKEND" "health_auto_export"
+        echo ""
+        echo "  ── Health Auto Export setup ──────────────────────────────"
+        echo ""
+        echo "  On your iPhone:"
+        echo "    1. Open the App Store and install 'Health Auto Export - JSON+CSV'"
+        echo "    2. Open the app → tap the gear icon (Settings)"
+        echo "    3. Under 'Export' → enable 'Automatic Backup'"
+        echo "    4. Set destination to iCloud Drive"
+        echo "    5. Add these metrics to export:"
+        echo "         • Step Count"
+        echo "         • Sleep Analysis"
+        echo "         • Heart Rate Variability (HRV)"
+        echo "         • Resting Heart Rate"
+        echo "         • Walking + Running Distance"
+        echo "         • Flights Climbed"
+        echo "    6. Set frequency to 'Hourly' or 'Every 30 minutes'"
+        echo ""
+        echo "  The app will create a folder in iCloud Drive automatically."
+        echo "  Enchantify will find it."
+        echo ""
+        echo "  (If your iCloud folder has a custom path, you can set"
+        echo "   HEALTH_DIR in config/secrets.env after setup.)"
+        echo ""
+        echo "  ✓ Health Auto Export configured."
+        ;;
+    2)
+        set_secret "HEALTH_BACKEND" "garmin"
+        echo ""
+        echo "  Garmin Connect integration requires your Garmin credentials."
+        echo "  These are used only to read your daily summary — never stored online."
+        echo ""
+        GARMIN_EMAIL=$(ask "Garmin Connect email" "")
+        GARMIN_PASS=$(ask "Garmin Connect password (stored locally only)" "")
+        [ -n "$GARMIN_EMAIL" ] && set_secret "GARMIN_EMAIL" "$GARMIN_EMAIL"
+        [ -n "$GARMIN_PASS" ] && set_secret "GARMIN_PASSWORD" "$GARMIN_PASS"
+        echo "  ✓ Garmin configured. (Install garminconnect: pip3 install garminconnect)"
+        ;;
+    3)
+        set_secret "HEALTH_BACKEND" "fitbit"
+        echo ""
+        echo "  Fitbit integration uses the Fitbit Web API."
+        echo "  You'll need a Fitbit developer account (free) at dev.fitbit.com"
+        echo ""
+        FITBIT_TOKEN=$(ask "Fitbit OAuth token (or press Enter to skip)" "")
+        [ -n "$FITBIT_TOKEN" ] && set_secret "FITBIT_TOKEN" "$FITBIT_TOKEN"
+        echo "  ✓ Fitbit configured."
+        ;;
+    4)
+        set_secret "HEALTH_BACKEND" "manual"
+        echo ""
+        echo "  Manual mode — you can tell the Labyrinth how you're doing"
+        echo "  at any time. It will ask sometimes."
+        echo "  ✓ Manual health tracking configured."
+        ;;
+    *)
+        set_secret "HEALTH_BACKEND" "none"
+        echo "  Health data skipped."
+        ;;
+esac
+
+# ── 6. Telegram Setup (dup-fix) ───────────────────────────────────────────────
 
 section "Telegram — messages while you're away"
 

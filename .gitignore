@@ -61,6 +61,11 @@ souvenirs/*.md
 scripts/fuel-log.txt
 iphone-location.txt
 
+# ─── Runtime / dev ────────────────────────────────────────────────────────────
+.openclaw/
+workspace/
+test-app.js
+
 # ─── macOS ────────────────────────────────────────────────────────────────────
 .DS_Store
 **/.DS_Store

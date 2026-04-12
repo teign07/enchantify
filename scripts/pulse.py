@@ -533,20 +533,102 @@ def get_finances():
     except: return "Bank sync pending..."
 
 def get_health():
-    HEALTH_DIR = os.path.expanduser("~/Library/Mobile Documents/iCloud~com~ifunography~HealthExport/Documents/BJ")
+    health_dir_cfg = _cfg_get("HEALTH_DIR", "")
+    if health_dir_cfg:
+        HEALTH_DIR = os.path.expanduser(health_dir_cfg)
+    else:
+        # Default: Health Auto Export app via iCloud
+        HEALTH_DIR = os.path.expanduser(
+            "~/Library/Mobile Documents/iCloud~com~ifunography~HealthExport/Documents"
+        )
+        # Auto-detect subdirectory (user-named folder inside Documents)
+        if os.path.isdir(HEALTH_DIR):
+            subdirs = [d for d in os.listdir(HEALTH_DIR)
+                       if os.path.isdir(os.path.join(HEALTH_DIR, d)) and not d.startswith('.')]
+            if subdirs:
+                HEALTH_DIR = os.path.join(HEALTH_DIR, subdirs[0])
+
     try:
-        files =[os.path.join(HEALTH_DIR, f) for f in os.listdir(HEALTH_DIR) if f.endswith('.json')]
-        if not files: return "Watch data offline."
-        latest = max(files, key=os.path.getctime)
-        with open(latest, 'r') as f:
-            d = json.load(f)
-            data_node = d.get('data', [])
-            m = data_node[0].get('metrics', []) if isinstance(data_node, list) and data_node else data_node.get('metrics', []) if isinstance(data_node, dict) else []
-            
-            sleep = next((i.get('value', i.get('qty', '??')) for i in m if i.get('name') == 'sleep_analysis'), "??")
-            hrv = next((i.get('value', i.get('qty', '??')) for i in m if i.get('name') == 'heart_rate_variability'), "??")
-        return f"Sleep: {sleep}h | HRV: {hrv}ms"
-    except: return "Watch data offline."
+        files = [os.path.join(HEALTH_DIR, f) for f in os.listdir(HEALTH_DIR) if f.endswith('.json')]
+        if not files:
+            return "Watch data offline."
+
+        # Sort by filename (date-named), most recent first
+        files_sorted = sorted(files, key=lambda p: os.path.basename(p), reverse=True)
+
+        def load_metrics(path):
+            with open(path, 'r') as f:
+                d = json.load(f)
+            data_node = d.get('data', {})
+            if isinstance(data_node, list):
+                return data_node[0].get('metrics', []) if data_node else []
+            return data_node.get('metrics', [])
+
+        def is_sparse(metrics):
+            """Fewer than 2 meaningful metrics with actual data entries."""
+            meaningful = [m for m in metrics
+                          if m.get('name') in ('step_count', 'sleep_analysis',
+                                               'heart_rate_variability', 'resting_heart_rate',
+                                               'walking_running_distance', 'flights_climbed')
+                          and m.get('data')]
+            return len(meaningful) < 2
+
+        # Try today's file; fall back to yesterday's if today is sparse
+        metrics = load_metrics(files_sorted[0])
+        used_file = files_sorted[0]
+        is_yesterday = False
+        if is_sparse(metrics) and len(files_sorted) > 1:
+            metrics = load_metrics(files_sorted[1])
+            used_file = files_sorted[1]
+            is_yesterday = True
+
+        def metric_total(name):
+            """Sum all qty values for a metric across the day's hourly entries."""
+            m = next((x for x in metrics if x.get('name') == name), None)
+            if not m:
+                return None
+            total = sum(e.get('qty', 0) for e in m.get('data', []) if e.get('qty') is not None)
+            return round(total, 1) if total else None
+
+        def metric_latest(name):
+            """Most recent single value for a metric (sleep, HRV, resting HR)."""
+            m = next((x for x in metrics if x.get('name') == name), None)
+            if not m:
+                return None
+            entries = m.get('data', [])
+            if not entries:
+                return None
+            val = entries[-1].get('qty', entries[-1].get('value'))
+            return round(val, 1) if val is not None else None
+
+        parts = []
+
+        steps = metric_total('step_count')
+        if steps is not None:
+            parts.append(f"Steps: {int(steps):,}")
+
+        sleep = metric_latest('sleep_analysis')
+        if sleep is not None:
+            parts.append(f"Sleep: {sleep}h")
+
+        hrv = metric_latest('heart_rate_variability')
+        if hrv is not None:
+            parts.append(f"HRV: {hrv}ms")
+
+        rhr = metric_latest('resting_heart_rate')
+        if rhr is not None:
+            parts.append(f"RHR: {int(rhr)}bpm")
+
+        if not parts:
+            return "Watch data syncing..."
+
+        result = " | ".join(parts)
+        if is_yesterday:
+            result += " (yesterday)"
+        return result
+
+    except Exception:
+        return "Watch data offline."
 
 # — HEARTBEAT WRITER —
 
