@@ -622,27 +622,48 @@ def send_telegram(text: str, cfg: dict):
 
 # ── CUPS print ────────────────────────────────────────────────────────────────
 
+CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+
+
+def html_to_pdf(html_path: Path) -> Path:
+    """Convert HTML to PDF. Tries wkhtmltopdf, then Chrome headless."""
+    pdf_path = html_path.with_suffix(".pdf")
+
+    if shutil.which("wkhtmltopdf"):
+        r = subprocess.run(
+            ["wkhtmltopdf", "--page-size", "Letter", "--quiet",
+             str(html_path), str(pdf_path)],
+            capture_output=True, timeout=30
+        )
+        if r.returncode == 0:
+            return pdf_path
+
+    chrome = CHROME_PATH if os.path.exists(CHROME_PATH) else shutil.which("google-chrome") or shutil.which("chromium")
+    if chrome:
+        r = subprocess.run(
+            [chrome, "--headless", "--disable-gpu", "--no-sandbox",
+             f"--print-to-pdf={pdf_path}",
+             "--print-to-pdf-no-header",
+             str(html_path)],
+            capture_output=True, timeout=45
+        )
+        if r.returncode == 0 and pdf_path.exists():
+            return pdf_path
+
+    return html_path  # fallback: return original HTML
+
+
 def print_to_cups(html_path: Path, cfg: dict):
     printer = cfg.get("BLEED_PRINTER", "")
     if not printer:
         print("  ℹ CUPS print not configured (BLEED_PRINTER) — skipping.")
         return
 
-    print_file = str(html_path)
-
-    # Prefer PDF via wkhtmltopdf if available
-    if shutil.which("wkhtmltopdf"):
-        pdf_path = html_path.with_suffix(".pdf")
-        result = subprocess.run(
-            ["wkhtmltopdf", "--page-size", "Letter", "--quiet",
-             str(html_path), str(pdf_path)],
-            capture_output=True, timeout=30
-        )
-        if result.returncode == 0:
-            print_file = str(pdf_path)
+    print("  Converting to PDF...")
+    print_file = html_to_pdf(html_path)
 
     result = subprocess.run(
-        ["lp", "-d", printer, "-o", "media=Letter", print_file],
+        ["lp", "-d", printer, "-o", "media=Letter", str(print_file)],
         capture_output=True, text=True, timeout=15
     )
     if result.returncode == 0:
