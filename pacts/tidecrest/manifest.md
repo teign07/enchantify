@@ -7,6 +7,7 @@ belief_threshold: 0
 talisman: Tide Glass
 triggers:
   - session-open
+  - scene-change
   - compass-direction
   - nothing-encounter
   - nothing-retreats

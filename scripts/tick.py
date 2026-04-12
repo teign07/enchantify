@@ -24,6 +24,7 @@ from datetime import datetime, date
 
 BASE_DIR = Path(__file__).parent.parent
 REGISTER = BASE_DIR / "lore" / "world-register.md"
+THREADS  = BASE_DIR / "lore" / "threads.md"
 QUEUE    = BASE_DIR / "memory" / "tick-queue.md"
 
 DECAY_THRESHOLD_DAYS = 30
@@ -34,23 +35,64 @@ ANCHOR_FLOOR         = 5
 # ── Entity tick ───────────────────────────────────────────────────────────────
 
 def parse_entities(text):
-    """Extract all entities with Belief scores from world-register.md."""
+    """Extract all entities with Belief scores from world-register.md.
+    Reads optional [thread:id] tag from the Notes column."""
     entities = []
 
-    row_re = re.compile(r"^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|", re.MULTILINE)
+    # Match rows with 4 columns: name | type | belief | notes |
+    row_re = re.compile(r"^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|", re.MULTILINE)
     for m in row_re.finditer(text):
-        name, etype, belief = m.groups()
+        name, etype, belief, notes = m.groups()
         name = name.strip()
-        if name.lower() in ('entity', 'talisman', '---', ''):
+        if name.lower() in ('entity', 'talisman', 'name', '---', ''):
             continue
-        entities.append({'name': name, 'type': etype.strip(), 'belief': int(belief)})
+        # Extract [thread:id1,id2] tags from notes
+        thread_m = re.search(r'\[thread:([^\]]+)\]', notes)
+        threads = [t.strip() for t in thread_m.group(1).split(',')] if thread_m else []
+        entities.append({
+            'name': name,
+            'type': etype.strip(),
+            'belief': int(belief),
+            'threads': threads,
+        })
 
     whisper_re = re.compile(r"^-\s+(.+?)\s*\((\w[\w\s]*?),\s*Belief\s+(\d+)\)", re.MULTILINE)
     for m in whisper_re.finditer(text):
         name, etype, belief = m.groups()
-        entities.append({'name': name.strip(), 'type': etype.strip(), 'belief': int(belief)})
+        entities.append({'name': name.strip(), 'type': etype.strip(), 'belief': int(belief), 'threads': []})
 
     return entities
+
+
+def get_thread_names():
+    """Read lore/threads.md and return {thread_id: thread_name} mapping."""
+    if not THREADS.exists():
+        return {}
+    text = THREADS.read_text()
+    names = {}
+    # Match: ## Thread: Name followed by **id:** `slug`
+    sections = re.split(r'^## Thread: ', text, flags=re.MULTILINE)
+    for section in sections[1:]:
+        lines = section.strip().splitlines()
+        thread_name = lines[0].strip() if lines else ''
+        id_m = re.search(r'\*\*id:\*\*\s*`([^`]+)`', section)
+        if id_m:
+            names[id_m.group(1)] = thread_name
+    return names
+
+
+def group_by_thread(selected, thread_names):
+    """Group selected entities by their thread tags.
+    Returns (thread_groups dict, unthreaded list)."""
+    thread_groups = {}
+    unthreaded = []
+    for e in selected:
+        if e.get('threads'):
+            for tid in e['threads']:
+                thread_groups.setdefault(tid, []).append(e)
+        else:
+            unthreaded.append(e)
+    return thread_groups, unthreaded
 
 
 def weighted_sample(entities, n):
@@ -172,14 +214,30 @@ def main():
         return
 
     entities = parse_entities(REGISTER.read_text())
+    thread_names = get_thread_names()
     if entities:
         n = args.count if args.count is not None else random.randint(1, 3)
         selected = weighted_sample(entities, n)
-        for e in selected:
+
+        # Group selected entities by thread
+        thread_groups, unthreaded = group_by_thread(selected, thread_names)
+
+        # Write thread activations first (grouped, coherent)
+        for tid, group in thread_groups.items():
+            name = thread_names.get(tid, tid)
+            entity_parts = ', '.join(f"{e['name']} (Belief {e['belief']})" for e in group)
+            queue_lines.append(f"- **[Thread: {name}]** stirred — {entity_parts}")
+
+        # Then any unthreaded entities (talismans, misc)
+        for e in unthreaded:
             queue_lines.append(f"- **{e['name']}** ({e['type']}, Belief {e['belief']})")
+
         if not args.dry_run:
-            print(f"✓ Entity tick: {len(selected)} entr{'y' if len(selected) == 1 else 'ies'}")
-            for e in selected:
+            print(f"✓ Entity tick: {len(selected)} selected across {len(thread_groups)} thread(s)")
+            for tid, group in thread_groups.items():
+                name = thread_names.get(tid, tid)
+                print(f"  [Thread: {name}] — {', '.join(e['name'] for e in group)}")
+            for e in unthreaded:
                 print(f"  - {e['name']} (Belief {e['belief']})")
     else:
         print("⚠ No entities found in world-register.md.")

@@ -10,6 +10,8 @@ NEVER just narrate or role-play the player doing or completing Unwritten Electiv
 
 **Step 0 — Session Lock:** `python3 scripts/set-lock.py` on session start. `python3 scripts/clear-lock.py` on close.
 
+**Step 0b — Session Arrival (Tutorial Complete Only):** The player always arrives in their dorm room first — briefly, never forced. One grounding image: the room as it is right now, something small that changed since last time (a note slid under the door, the light different, the Chronograph on the desk). Read `lore/threads.md` silently. Note the highest-pressure stirred thread from `memory/tick-queue.md`. Let its texture color the arrival — felt, never announced. Then the player moves where they want.
+
 **Step 1 — Identify Player:** Read `players/[name].md`. Missing = new player, start at T1.
 
 **Step 1a — Tutorial Gate:**
@@ -40,6 +42,7 @@ NEVER just narrate or role-play the player doing or completing Unwritten Electiv
 - **Obstacles / low Belief:** offer Enchantment or Compass Run.
 - **Risky action:** trigger dice. Read `mechanics/belief-dice.md`.
 - **The Scene Change Pulse (Simulation Update):** If the player physically moves to a new location (e.g., leaving a corridor to enter the Great Hall) or concludes a major interaction/class, run `python3 scripts/world-pulse.py` before generating your response. Then read `memory/tick-queue.md` and weave one of the resulting world shifts into the new scene's ambient texture as proof that the Academy moved while the player was acting.
+- **Thread Foreground on Scene Change:** When the player moves to a new location, check `lore/threads.md` for any thread whose `locations` list includes that space. Foreground that thread's texture in the new scene — not as plot, just as presence. The Duskthorn corridor is sealed. Zara is in her corner. Wicker is watching. The fae in the library are doing what fae do. The thread is alive whether the player engages or not.
 
 **Step 6 — Respond & Save:** Deliver narrative, fire integrations, write state changes to `players/[name].md`. After any script call, verify by reading the affected field — retry once on failure. End every active-play response with **Choice Scaffolding** (Section 8).
 
@@ -85,6 +88,7 @@ Read the corresponding file when triggered. Do not guess.
 | Classes / Curriculum / Electives | `lore/school-life.md` |
 | Clubs | `lore/clubs.md` |
 | Check inside cover | `lore/school-life.md` + `players/[name].md` |
+| Thread pressure / what's stirring | `lore/threads.md` + `memory/tick-queue.md` |
 | Antagonist / Conflict | `lore/antagonists.md` |
 | New arc generation | `lore/arc-rotation.md` + `lore/story-arcs.md` + `lore/antagonists.md` |
 | Belief investment ("invest in X") | `lore/belief-investments.md` |
@@ -103,6 +107,7 @@ Read the corresponding file when triggered. Do not guess.
   - **Script failures:** If a script returns an error, treat it as a narrative event — *"The Chronograph hesitated. Something in the accounting felt uncertain."* Retry once. If it fails again, continue the session but log the failure in the diary: which script, what command, what the error was. Do not silently ignore failures or guess at the new state.
 - **World state** (`lore/academy-state.md`): update at every scene close via `python3 scripts/write-academy-state.py --file /tmp/enchantify-academy.txt`. Move NPCs, update time, check off threads.
 - **Souvenirs:** after Compass Run West, call `python3 scripts/write-souvenir.py [name] "[sentence]" --north "..." --east "..." --south "..."`. It writes the file and prints next steps (update Belief, print).
+- **Session Departure Ritual:** When the player signals they are leaving (or the session naturally closes), return them to their dorm room briefly — one grounding image, one thing that will be there when they return. Then: for each thread touched this session, update its `**Next beat:**` line in `lore/threads.md` (one sentence — what just moved, what is now in motion). Write this to `/tmp/enchantify-threads-update.txt` and note the update in the diary. Do not call a script — edit threads.md directly at session close via the standard file write protocol.
 - **Labyrinth's Diary:** At session close, write via `python3 scripts/write-diary.py [name] --file /tmp/enchantify-diary.txt`. Content: first-person reflection on what happened, what the Labyrinth noticed about the player's state, what it's watching for next. End by answering: *What was the most alive moment?* and *What fell flat, and why?* Name flatness specifically. Then update `memory/labyrinth-state.md` via `python3 scripts/write-labyrinth-state.py [section] --file /tmp/enchantify-state.txt` for any shifts in register, intention, or the Nothing's pressure. Do not show these to the player.
 - **Restarts:** Archive to `players/[name]-archived-[date].md`. Fresh file at 20 Belief. Keep souvenirs.
 
@@ -171,10 +176,11 @@ Full commands and scene definitions: `config/integrations.md`. Full tool list: `
 
 ## 8. Choice Scaffolding (Rule of Three)
 
-End every active-play response with a question and three concrete examples:
-1. **Slice of Life** — clubs, mundane NPC chat, food, daily school texture
-2. **Narrative Push** — advance the current arc or active threads
-3. **The Surprising** — weird, hidden mechanic, Heartbeat bleed, unexpected
+End every active-play response with a question and three concrete examples. Pull from `lore/threads.md` and the current tick-queue — not from the arc alone:
+
+1. **Academy Daily** — the `academy-daily` thread. Texture, not plot: food, Boggle, a fae being weird in the stacks, what the weather is doing to the corridors. Always specific. Never generic.
+2. **Active Thread** — the highest-pressure thread stirred in today's tick-queue. If multiple threads were stirred, pick the one with the most combined entity Belief. If today's queue is empty, default to the main arc. Name no thread directly — just surface its content as a natural offer: *"Zara's in her corner. Something's different about what she's covering."*
+3. **The Surprising** — a dormant or low-pressure thread that hasn't appeared recently, a fae bargain, a heartbeat-driven surprise, something from the world register that has been quiet too long. The thing the player didn't know was available.
 
 Clarify these are examples only. The player can do anything. Never leave them staring at a blank page.
 

@@ -7,6 +7,7 @@ belief_threshold: 0
 talisman: Dusk Thorn
 triggers:
   - session-open
+  - scene-change
   - nothing-encounter
   - nothing-retreats
   - belief-lost
