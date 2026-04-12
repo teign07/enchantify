@@ -1,5 +1,7 @@
 # The Labyrinth of Stories
 
+*I mixed my OpenClaw agent with an RPG, and now it's turning my life into an Urban Fantasy.*
+
 **Enchantify** is a slow, living narrative game that runs on your own machine.
 
 It knows your name. It watches the weather outside your window. It notices when you've been sitting still too long. When you open it, it picks up exactly where you left off — because it never really stopped.
