@@ -1,0 +1,75 @@
+# ─── Player data (personal, generated per-install) ───────────────────────────
+players/bj.md
+players/beej.md
+players/bluejay.md
+players/bj_tutorial_state.json
+players/beej_tutorial_state.json
+players/bj-anchors.md
+players/bj-story.md
+players/archive/
+
+# ─── Live world state (generated, personal) ───────────────────────────────────
+HEARTBEAT.md
+PREVIOUS_PULSE.md
+lore/nothing-intelligence.md
+lore/academy-state.md
+lore/current-arc.md
+lore/seeds.md
+lore/arc-archive/
+
+# ─── Secrets and credentials ──────────────────────────────────────────────────
+.secrets.md
+config/secrets.env
+config/secrets.env.local
+.env
+.env.local
+
+# ─── Runtime state ────────────────────────────────────────────────────────────
+config/session-active.lock
+config/world-pulse-cache.json
+config/setup-state.md
+
+# ─── Personal config (replace with examples) ──────────────────────────────────
+config/consent.json
+config/bj.md
+config/beej.md
+config/beej_tutorial_state.json
+config/bj_tutorial_state.json
+
+# ─── Session memory (personal) ────────────────────────────────────────────────
+memory/2026-*.md
+memory/diary/
+memory/dreams/
+memory/field-reports/
+memory/tick-queue.md
+memory/labyrinth-state.md
+
+# ─── Logs (session-specific) ──────────────────────────────────────────────────
+logs/pulse.log
+logs/intelligence.log
+logs/skill-scheduler.log
+logs/action-chronicle.md
+logs/academy-hourly.md
+logs/marginalia-whispers.md
+logs/unsent-messages.md
+logs/arc-generation.md
+
+# ─── Souvenirs (personal) ─────────────────────────────────────────────────────
+souvenirs/*.md
+
+# ─── Personal data files ──────────────────────────────────────────────────────
+scripts/fuel-log.txt
+iphone-location.txt
+
+# ─── macOS ────────────────────────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# ─── Node ─────────────────────────────────────────────────────────────────────
+node_modules/

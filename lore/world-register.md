@@ -1,0 +1,43 @@
+# World Register
+
+*The Labyrinth's ledger of all living stories.*
+*Never edit directly — use `python3 scripts/write-entity.py`*
+*Updated by write-entity.py and tick.py. Tick results read from memory/tick-queue.md.*
+
+---
+
+## Full Presence (Belief 15+)
+| Entity | Type | Belief | Notes |
+|---|---|---|---|
+| Zara Finch | NPC | 23 | House Riddlewind guide; warm, perceptive; knows more than she lets on |
+| Professor Stonebrook | NPC | 17 | Observatory keeper; calibrated the Wonder Compass with bj at T12 |
+| The Quillquarium | Location | 15 | Living-object tank; where bj found the Obsidian Chronograph |
+| Wicker Eddies | NPC | 60 | Primary antagonist, Duskthorn. |
+| Headmistress Thorne | NPC | 85 | Leads the Academy; sees the Unwritten; the most powerful presence in the Labyrinth. |
+
+## Fading Presence (Belief 5–14)
+| Entity | Type | Belief | Status |
+|---|---|---|---|
+| Boggle | NPC | 9 | Enchantment teacher; chaotic, sticky, hard to pin down |
+| The Obsidian Chronograph | Object | 8 | bj's anchor pen; cool, heavy, precise — watching him |
+| The Great Hall | Location | 12 | Where bj was sorted into Riddlewind; the Register lives here |
+| The Observatory | Location | 11 | Where bj calibrated the Compass; sky still holds his question |
+| Apple Reminders | Tool | 5 | The Obligation Stones. Heavy tablets that materialize in the student's dorm room. Overdue tasks grow heavier; completed ones crumble into dust with a satisfying crack. |
+| Calender | Tool | 5 | The Academy Clock Tower: A massive mechanism that displays the obligations pressing on the student from the Climax. When overbooked, it chimes too fast; when clear, it plays a peaceful melody. |
+| Book Sprites | fae | 10 |  |
+| Sentence Salamanders | fae | 10 |  |
+| Punctuation Pixies | fae | 10 |  |
+| Literary Elves | fae | 10 |  |
+| Deep Lore Dwarves | fae | 10 |  |
+
+## Whisper Register (Belief <5)
+- The Red Caffeine Vessel (Object, Belief 3) — enchanted in Boggle's class; effervescent, temporary, proud
+
+## Chapter Talismans
+| Talisman | Chapter | Belief | Philosophy |
+|---|---|---|---|
+| Dusk Thorn | Duskthorn | 55 | No conflict, no story — darkness earns the light |
+| Wind Cipher | Riddlewind | 52 | The story is written between you and the world — coauthored |
+| Ember Seal | Emberheart | 49 | The story is yours to write alone — self-authorship |
+| Moss Clasp | Mossbloom | 47 | A higher power writes through you — surrender |
+| Tide Glass | Tidecrest | 44 | Life is a poem, not a plot — no fixed meaning |

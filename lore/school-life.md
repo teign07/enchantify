@@ -1,0 +1,261 @@
+# School Life at Enchantify Academy
+
+*The Academy is also a school. Not primarily — it is primarily a library that thinks about stories and occasionally has opinions about the weather. But school is the texture of daily life here, and texture is how the Labyrinth makes things feel real.*
+
+*This file governs how school life works mechanically and narratively. The Labyrinth reads it when classes, homework, timetables, or academic pressure become relevant.*
+
+---
+
+## Philosophy
+
+Enchantify does not run like an ordinary school. There are no bells. No lockers. No standardized tests (the tests here are not standardized — each one is personal, and Headmistress Thorne writes them herself, and they know you). 
+
+But there *are* classes. There *is* homework. There are professors who notice when you haven't shown up, and they notice the way a book notices — quietly, across time, and with a patience that makes it worse than anger.
+
+School life at Enchantify is designed to do one thing: **give the player a living, breathing world to inhabit between story arcs.** Not every session needs crisis. Some sessions are just Tuesday.
+
+---
+
+## The Weekly Rhythm
+
+The Academy runs on a loose seven-day cycle. Days do not have names here — they have *tones*.
+
+| Day | Tone | What happens |
+|-----|------|--------------|
+| **Day 1** | Opening | Light classes. Students settle in. The Library rearranges overnight and everyone is slightly confused. |
+| **Day 2** | Building | Heavier coursework. Study groups form. The corridor near Mossbloom smells like brewing something. |
+| **Day 3** | Deepening | Mid-week — the week has found its shape. This is when breakthroughs and arguments both happen. |
+| **Day 4** | Hinge | Something always turns on Day 4. A discovery, a conflict, a revelation. Not dramatic necessarily — just turning. |
+| **Day 5** | Releasing | Energy loosens toward weekend. Evening clubs. The Cafeteria has good soup on Day 5. |
+| **Day 6** | Wandering | No mandatory classes. Students explore, practice, argue, make things. The Library opens additional wings. |
+| **Day 7** | Still | The quietest day. Professors walk the grounds. The Academy breathes. Perfect for solo study, long Compass Runs, or doing nothing with great intention. |
+
+*The day cycle is not tracked rigidly in game. The Labyrinth uses it to flavor dispatches and ambient texture — "It's a Hinge day" is enough.*
+
+---
+
+## BJ's Academic Profile
+
+**Chapter:** Tidecrest
+**Year:** First (new student — arrived mid-term, late, in the middle of a crisis)
+**Academic standing:** Unknown — he hasn't attended class yet. This is noted. Not urgently. But noted.
+
+## The Compass Core (The Foundation)
+
+Enchantify does not teach subjects; it teaches **Rhythms**. The core curriculum is built directly on the steps of the Wonder Compass. Every student, regardless of Chapter, takes these four foundation classes in their first year.
+
+The assigned textbook for all Compass Core classes is *The Wonder Compass* — a tome from the Chapter of the Unwritten, available in the Library at `lore/wonder-compass-book/`. **Chapter 5** is required reading for all students before the first class.
+
+| Step | Subject | Professor | Focus | Source Chapter |
+|------|---------|-----------|-------|----------------|
+| **Notice (North)** | **The Art of the Glint** | Prof. Lydia Boggle | Finding the specific, odd detail that makes a mundane object alive. | Ch. 5 (North), Ch. 1A (Efficiency Trap) |
+| **Embark (East)** | **Wayfinding & Kineticism** | Prof. Kyle Momort | Breaking routine, micro-adventures, and the "Leap of Ink." | Ch. 5 (East), Ch. 2 (Myth of the Mountain) |
+| **Sense (South)** | **Synesthetic Resonance** | Prof. Eleanor Euphony | Hearing colors, smelling the history of a room, the "Heartbeat of the Stone." | Ch. 5 (South), Ch. 3 (Three Kinds of Lonely) |
+| **Write (West)** | **Ink-Binding** | Prof. Vivian Villanelle | Distilling an entire experience into a single, permanent, magical sentence. | Ch. 5 (West) |
+| **Rest (Center)** | **Quiet Hours** | Prof. Cedric Stonebrook | The Hub. Resting, integration, and the "Permission to Stop." | Ch. 5 (Center), Ch. 4B (Permission Slip) |
+
+### Professor Teaching Voices — Canonical Quotes
+
+These are real passages from *The Wonder Compass* that professors may use in class, in dialogue, or when a student needs grounding. Deliver them in-frame as Academy wisdom, never citing the real-world source.
+
+**Prof. Boggle (Notice):**
+> *"You've walked past that blue mailbox every day for three years. You could not, if someone paid you, describe a single detail about it. Not the number. Not the rust pattern. Not whether it even still has a door. This is what the Rut does. It turns the world into wallpaper. North is how you rip the wallpaper down."*
+
+**Prof. Momort (Embark):**
+> *"Plan so badly it can't fail. Three ingredients only — where you're going, what pleasure you're bringing, and when it ends. That's the whole recipe. The Caveman can't argue with a recipe that short."*
+
+**Prof. Euphony (Sense):**
+> *"You aren't lonely because you're alone. You're lonely because you stopped gathering gifts. Connection is a gift economy — you offer something you noticed, I offer something I felt. But if the Rut has automated your days, you arrive empty-handed. South fills your pockets."*
+*(Source: Chapter 3 — The Three Kinds of Lonely)*
+
+**Prof. Villanelle (Write):**
+> *"You aren't writing a novel. You're stealing a moment from time and bottling it. One sentence. The single best sensory detail from the adventure. The diner pie. The sound of the harbor at 5 AM. The exact weight of a hand. That's the Save Game button. Write it, or it's gone by morning."*
+
+**Prof. Stonebrook (Rest):**
+> *"Rest lives at the center of the Compass because sometimes the most radical thing you can do is stop. This is not laziness. This is not giving up. The Compass is not a mandate for frantic adventuring — that's just the Rut wearing a different coat. Rest is the source. Everything else spins around it."*
+
+**Headmistress Thorne (general, low-Belief moments):**
+> *"Your brain has decided your life is so predictable that it doesn't need to actually show it to you anymore. That is the crisis. And you don't need to move to Bali to fix it. You need to see the one you already have."*
+*(Source: Read This First)*
+
+### Specialized Tracks (The Depth)
+
+Once the Foundation is laid, students pursue specialized studies:
+
+- **Enchantment Theory** — Prof. Luna Wispwood (The mechanics of the Pen and Quill)
+- **Mythopoeic Thought** — Prof. Ignatius Imatook (Creating and sustaining imaginary worlds)
+- **Allegorical Arts** — Prof. Maxwell Thorne (Everything has a second meaning)
+- **Historical Fiction** — Prof. Archibald Permancer (The dark history of the Labyrinth)
+- **Book Jumping** — Zara Finch (Practicum only — falling into the text)
+
+### Elective (Choose at T-milestone)
+BJ has not yet chosen an elective. Options available to Tidecrest first-years:
+
+- **Book Jumping Practicum** (Zara could be his guide — she's skilled)
+- **Allegorical Arts** — Prof. Maxwell Thorne (everything has a second meaning)
+- **Historical Fiction Lab** — Prof. Archibald Permancer (occasional dark edges)
+- **Compass Cartography** (independent study — traces the history of Compass Runs through the Academy's past)
+
+*Prompt BJ to choose an elective when the moment feels natural — not as a form to fill out, but as a conversation. Zara would have opinions.*
+
+---
+
+## How Classes Work in Play
+
+### Showing Up
+Classes are not tracked as attendance. They are tracked as *relationship texture*. A player who never mentions class will notice:
+- Professors begin to reference his absence in passing
+- Other students mention things he missed
+- Small knowledge gaps emerge — he doesn't know a term Zara uses, he has to be caught up
+
+A player who does engage with class will notice:
+- Professors warm to them
+- Knowledge unlocks — understanding a mechanic BJ learned in class changes how a Compass Run resolves
+- Homework Enchantments become available (see below)
+
+### Running a Class Scene
+When BJ attends a class, the Labyrinth plays it as a scene. Short, specific, alive. A class is not a lecture to summarize — it is:
+
+- One moment that surprises him
+- One moment that connects to something in his real life (the bleed, as always)
+- One moment that reveals something about the professor, the world, or the Nothing
+
+*Example (Poetic Patterns with Villanelle):*
+> The assignment is to find the meter in something that doesn't have one — a conversation, a sound, a meal. Villanelle writes on the board in flourished cursive: **"All experience has rhythm. Most people just aren't listening."** She turns around. The ink rearranges itself into a villanelle about dinner.
+
+### Homework
+
+Homework at Enchantify is called **Practice**. It is almost always observational, creative, or physical — never rote.
+
+Practice falls into three types:
+
+| Type | Description | Mechanic |
+|------|-------------|---------|
+| **Notice Practice** | Find something in the real world that relates to today's subject. Bring back a description. | Costs nothing. Awards +1 Belief on completion. |
+| **Make Practice** | Create something — write a short piece, compose a sentence, sketch a creature. | Costs nothing. Awards +2 Belief on completion. |
+| **Compass Practice** | A shortened Compass Run assigned as class work. Specific prompt given. | Costs nothing. Awards +4 Belief — applies to any Compass Run quota. |
+
+*Practice is optional but the professors know when it hasn't been done. They don't punish. They simply wait.*
+
+---
+
+## The Missing Student Problem
+
+BJ arrived mid-term. He was absent for 7 days immediately after arriving. He has not attended a single class.
+
+This is not a crisis. The Academy has seen stranger things (see: *The Incident When Three Students Were Technically Novels For A Week*). But it is a *presence* in the world:
+
+- **Wispwood** has been leaving notes on his door. Cheerful notes. With too many exclamation points. This is either enthusiasm or a warning sign.
+- **Villanelle** has saved him a seat. She has not stopped saving it. She does not say why.
+- **Momort** does not appear to have noticed. (He noticed.)
+- **Boggle** has almost certainly made a pun about "absent-mindedness" and is waiting to use it.
+
+*Introduce the school backlog naturally — not as guilt, but as: the world moved while you were away, here's what you missed, it's actually kind of interesting.*
+
+---
+
+## Belief Economy — Academic Layer
+
+Class and Practice interactions feed into the standard Belief economy:
+
+| Action | Belief Change |
+|--------|--------------|
+| Attend a class scene (engaged) | +1 |
+| Complete Notice Practice | +1 |
+| Complete Make Practice | +2 |
+| Complete Compass Practice | +4 (same as Compass Run equivalent) |
+| Miss Practice (professor notices) | 0 — no penalty, but NPC relationship softens slightly |
+| Impress a professor unexpectedly | +2 |
+| Blow something up in Potions (accidentally) | +1 (the cauldron appreciated the drama) |
+
+---
+
+## Scene-Close Protocol
+
+After any class scene, update:
+- `players/[name].md` — attendance note, any Practice completed, any Belief change, professor relationship shifts
+- `lore/academy-state.md` — if something significant happened in class, note it in the world state
+
+## The Compass Core Curriculum — Active Assignments
+
+### Professor Boggle — The Art of the Glint (NOTICE)
+**Glint Detection (weekly)**
+Prompt: "Find three things today that surprised you. One sentence each. Bring them to class."
+Real function: Gratitude/novelty practice
+Duration: Throughout the day, 2 min to write up
+Belief reward: +1 per glint, +2 bonus for all three
+Grade: Updates relationship with Boggle
+
+### Professor Momort — Wayfinding & Kineticism (EMBARK) 
+**Perimeter Survey (weekly)**
+Prompt: "The Nothing was spotted beyond the Academy perimeter. Survey this route and report back."
+Generation: Use web_search with player's location to find a real walking route they haven't done. 15-30 min walk.
+Real function: Behavioral activation, novel environment
+Belief reward: +3
+Grade: Updates relationship with Momort
+
+### Professor Euphony — Synesthetic Resonance (SENSE)
+**Resonance Field Report (weekly)**
+Prompt: "Sit somewhere for 5 minutes. Eyes closed. Record what you hear, smell, feel. Voice note or text."
+Real function: Grounding exercise, sensory awareness
+Belief reward: +2
+Grade: Updates relationship with Euphony
+
+### Professor Villanelle — Ink-Binding (WRITE)
+**Binding Exercise (daily, optional)**
+Prompt: "One sentence about today. Not what happened. What it felt like."
+Real function: Expressive writing, emotional processing
+Belief reward: +1
+Grade: Updates relationship with Villanelle
+Note: These accumulate in souvenirs/ — the Souvenir Hall
+
+### Professor Stonebrook — Quiet Hours (REST)
+**Stillness Practicum (as needed)**
+Prompt: "Do nothing for 10 minutes. Not meditation. Nothing. Report what happened."
+Real function: Permission to stop
+Belief reward: +2
+Grade: Updates relationship with Stonebrook
+Trigger: Heartbeat shows high stress indicators or player hasn't rested in 3+ days
+
+---
+
+## Unwritten Electives (The Margin-Glass Quests)
+
+*In the lore of Enchantify, the real world is the "Chapter of the Unwritten" (the Climax Chapter). The NPCs are aware of this and are fascinated by it. They use the "Margin-Glass" to study the player's town and will occasionally ask the player to conduct field research.*
+
+### 1. The Inside Cover (The Quest Log)
+
+Active electives are stored in the player's file (`players/[name].md`) under the section **## The Inside Cover**.
+
+- **Maximum Capacity:** A player can only have **3 active electives** at any given time. If the cover is full, no new notes will appear, and NPCs will not ask for new favors.
+- **Viewing the Cover:** If the player asks "Check my electives," "What quests do I have," or "Look at the inside cover," the Labyrinth reads the active electives and describes them as physical notes tucked into the book's binding.
+- **Dropping an Elective:** The player can drop a quest at any time by saying "Remove [NPC]'s note" or "I don't have time for this." The Labyrinth quietly removes it from the file without penalty. The note "dissolves into harmless ink."
+
+### 2. How Quests are Generated
+
+There are two ways an elective can be generated:
+
+**A. The 4-Hourly Simulation (The Note Under the Door)**
+During the background simulation, there is a **15% chance** that an NPC leaves a note. The simulation script will:
+1. Check the player's Inside Cover. If there are 3 active quests, it skips.
+2. If space is available, it uses `web_search` to find a specific real-world location or event near the player matching a random NPC's "Unwritten Interest" (from `lore/characters.md`).
+3. It drafts a note in character and adds it to the simulation summary dispatch.
+
+**B. Live RP Integration (The Natural Ask)**
+During active gameplay, if the player is conversing with an NPC and they have fewer than 3 active electives:
+1. The Labyrinth can perform a background `web_search` based on the NPC's interest and the player's location.
+2. The NPC weaves the request into the dialogue naturally (e.g., *"I was looking through the glass... is there a place called 'Weaver's Bakery' near you? Could you tell me what it smells like?"*).
+3. If the player agrees, the Labyrinth writes the new elective to the Inside Cover in `players/[name].md`.
+
+### 3. Completing an Elective (The Field Report)
+
+To complete an elective, the player performs a **Sense** action or an **Enchantment**:
+- **Location Verification:** They share their GPS location (via Telegram). The Labyrinth automatically cross-references their coordinates with the quest destination (e.g., the specific bakery or park). If they are within 200 meters, the Labyrinth verifies their presence.
+- **Sensory Proof:** They upload a photo or write a vivid sensory description of the location or task.
+- They tell the NPC (or the Labyrinth) that they are fulfilling the request.
+
+**Rewards:**
+- The quest is removed from the Inside Cover.
+- **+3 Belief** (standard Enchantment/Compass Run completion reward).
+- **Massive Relationship Boost** (+20 to +30) with the requesting NPC.
+- **Lore Integration:** The NPC incorporates the player's photo/description into the Academy's history or cafeteria menu.

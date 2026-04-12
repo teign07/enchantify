@@ -1,0 +1,26 @@
+{
+  "lights": {
+    "approved": false
+  },
+  "music": {
+    "approved": false
+  },
+  "voice": {
+    "approved": false
+  },
+  "images": {
+    "approved": false
+  },
+  "ambient_music": {
+    "approved": false
+  },
+  "email_read": {
+    "approved": false
+  },
+  "email_send": {
+    "approved": false
+  },
+  "financial_read": {
+    "approved": false
+  }
+}
