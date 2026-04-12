@@ -223,6 +223,71 @@ def get_tides():
     except Exception as e:
         return f"Tides: offline ({e})"
 
+# — WEATHER FORECAST (Open-Meteo, free, no key, cached 6h) —
+
+WMO_CODES = {
+    0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+    45: "Fog", 48: "Rime fog",
+    51: "Light drizzle", 53: "Drizzle", 55: "Dense drizzle",
+    61: "Light rain", 63: "Rain", 65: "Heavy rain",
+    71: "Light snow", 73: "Snow", 75: "Heavy snow", 77: "Snow grains",
+    80: "Light showers", 81: "Showers", 82: "Heavy showers",
+    85: "Snow showers", 86: "Heavy snow showers",
+    95: "Thunderstorm", 96: "Thunderstorm + hail", 99: "Thunderstorm + heavy hail",
+}
+
+def get_weather_forecast():
+    """4-day forecast from Open-Meteo. Free, no key. Cached 6 hours."""
+    import urllib.request as _urlreq
+    cached = get_cache_val("weather_forecast", 21600)
+    if cached:
+        return cached
+    try:
+        url = (
+            f"https://api.open-meteo.com/v1/forecast"
+            f"?latitude={BELFAST_LAT}&longitude={BELFAST_LON}"
+            f"&daily=weathercode,temperature_2m_max,temperature_2m_min,"
+            f"precipitation_probability_max,windspeed_10m_max"
+            f"&temperature_unit=fahrenheit&windspeed_unit=mph"
+            f"&timezone=America%2FNew_York&forecast_days=4"
+        )
+        req = _urlreq.Request(url, headers={"User-Agent": "Enchantify/1.0"})
+        with _urlreq.urlopen(req, timeout=8) as r:
+            data = json.loads(r.read())
+
+        daily  = data.get("daily", {})
+        dates  = daily.get("time", [])
+        codes  = daily.get("weathercode", [])
+        t_max  = daily.get("temperature_2m_max", [])
+        t_min  = daily.get("temperature_2m_min", [])
+        precip = daily.get("precipitation_probability_max", [])
+        wind   = daily.get("windspeed_10m_max", [])
+
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        lines = []
+        for i, ds in enumerate(dates):
+            from datetime import date as _date
+            d = _date.fromisoformat(ds)
+            if i == 0:
+                label = "Today"
+            elif i == 1:
+                label = "Tomorrow"
+            else:
+                label = d.strftime("%A")
+            desc  = WMO_CODES.get(int(codes[i]) if i < len(codes) else 0, "Unknown")
+            hi    = f"{round(t_max[i])}°" if i < len(t_max) else "?"
+            lo    = f"{round(t_min[i])}°" if i < len(t_min) else "?"
+            rain  = f"{precip[i]}%" if i < len(precip) else "?"
+            spd   = f"{round(wind[i])}mph" if i < len(wind) else "?"
+            lines.append(f"{label}: {desc}, {hi}/{lo}F, {rain} precip, {spd} wind")
+
+        result = "\n".join(lines)
+        set_cache_val("weather_forecast", result)
+        return result
+    except Exception as e:
+        return f"Forecast offline ({e})"
+
+
 # — WEATHER WITH FEEL TRANSLATOR —
 
 def get_weather_raw():
@@ -716,6 +781,7 @@ def pulse():
 ### 🌍 The World Right Now
 
 - **Belfast Feel:** {translate_weather_feel(weather)}
+- **Forecast:** {get_weather_forecast()}
 - **Season:** {get_real_season()}
 - **Sun:** {get_sun_times()}
 - **Moon:** {get_moon_phase()}

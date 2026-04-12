@@ -126,6 +126,95 @@ def get_thread_summary() -> str:
     return "\n".join(lines)
 
 
+def get_weather_forecast_from_heartbeat() -> str:
+    """Pull the Forecast line from the pulse section of HEARTBEAT.md."""
+    heartbeat = read_file_safe(WORKSPACE_DIR / "HEARTBEAT.md", 120)
+    pulse = extract_pulse_section(heartbeat)
+    lines = []
+    capture = False
+    for line in pulse.splitlines():
+        if "**Forecast:**" in line:
+            # First line: strip the label
+            first = line.split("**Forecast:**", 1)[-1].strip()
+            if first:
+                lines.append(first)
+            capture = True
+        elif capture:
+            # Forecast is multi-line until next bullet or blank section header
+            if line.startswith("- **") or line.startswith("###"):
+                break
+            if line.strip():
+                lines.append(line.strip().lstrip("- "))
+    return "\n".join(lines) if lines else ""
+
+
+def calculate_market_odds() -> list:
+    """Derive predictions market odds from thread + entity data. Pure math, no LLM."""
+    threads_text = read_file_safe(WORKSPACE_DIR / "lore" / "threads.md")
+    register_text = read_file_safe(WORKSPACE_DIR / "lore" / "world-register.md")
+
+    # Sum belief per thread from world register [thread:id] tags
+    thread_belief = {}
+    row_re = re.compile(r"^\|\s*[^|]+\s*\|\s*[^|]+\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|", re.MULTILINE)
+    for m in row_re.finditer(register_text):
+        belief, notes = int(m.group(1)), m.group(2)
+        tid_m = re.search(r'\[thread:([^\]]+)\]', notes)
+        if tid_m:
+            for tid in tid_m.group(1).split(','):
+                tid = tid.strip()
+                thread_belief[tid] = thread_belief.get(tid, 0) + belief
+
+    # Parse thread phases and nothing pressure
+    odds_list = []
+    for section in re.split(r'^## Thread: ', threads_text, flags=re.MULTILINE)[1:]:
+        slines = section.strip().splitlines()
+        name = slines[0].strip() if slines else "?"
+        if name.startswith("Ley Line") or name.startswith("Adding"):
+            continue
+
+        id_m      = re.search(r'\*\*id:\*\*\s*`([^`]+)`', section)
+        phase_m   = re.search(r'\*\*phase:\*\*\s*(.+)', section)
+        nothing_m = re.search(r'\*\*Nothing pressure:\*\*\s*(.+)', section)
+        beat_m    = re.search(r'\*\*Next beat:\*\*\s*(.+)', section)
+
+        tid     = id_m.group(1).strip() if id_m else ""
+        phase   = phase_m.group(1).strip().lower() if phase_m else ""
+        nothing = nothing_m.group(1).strip().lower() if nothing_m else ""
+        beat    = beat_m.group(1).strip()[:100] if beat_m else ""
+
+        belief = thread_belief.get(tid, 0)
+        if belief == 0 and tid == "main-arc":
+            belief = 80  # main arc always has pressure
+
+        # Base probability from combined belief (log-ish curve: 10 belief = 10%, 100 = 90%)
+        base = min(90, max(10, int(belief * 0.8)))
+
+        # Phase modifier
+        phase_mod = {
+            "escalating": +15, "setup": +5, "quiet": -5,
+            "dormant": -20, "permanent": +0,
+        }.get(phase.split()[0] if phase else "", 0)
+
+        # Nothing pressure modifier
+        nothing_mod = -10 if "high" in nothing else (-5 if "medium" in nothing else +3)
+
+        pct = max(5, min(95, base + phase_mod + nothing_mod))
+
+        if name not in ("Academy Daily Life",):  # skip slice-of-life, always active
+            odds_list.append({
+                "name": name,
+                "tid": tid,
+                "phase": phase,
+                "belief": belief,
+                "yes": pct,
+                "no": 100 - pct,
+                "beat": beat,
+            })
+
+    odds_list.sort(key=lambda x: -x["belief"])
+    return odds_list
+
+
 def get_entity_standings() -> str:
     content = read_file_safe(WORKSPACE_DIR / "lore" / "world-register.md")
     entities = []
@@ -206,6 +295,9 @@ PLAYER STATUS:
 ENVIRONMENTAL (heartbeat):
 {data['pulse']}
 
+WEATHER FORECAST (4-day, real data — use these exact conditions):
+{data['forecast']}
+
 HEALTH SIGNALS (map to Academy conditions):
 {data['health']}
 
@@ -250,6 +342,34 @@ the ticker — what does the current pattern mean narratively?]
 [5-6 classified notices. Each one 2-4 sentences — enough to feel real and slightly eerie.
 Mix labels: LOST: / FOUND: / NOTICE: / SEEKING: / WARNING: / REWARD: / POSITION AVAILABLE: etc.
 These are story seeds. The reader should want to investigate at least two of them.]
+
+===WEATHER===
+[The Academy Meteorological Society's 4-day outlook, written entirely in Academy terms.
+Rain = the Unwritten pressing through the membrane. Clear sky = the Labyrinth open and legible.
+Fog = the Nothing is close. Wind = narrative pressure. Temperature = the ambient emotional register.
+Use the actual forecast data provided to you — do not invent temperatures or conditions.
+Write it as if it were a real forecast from a school publication, 4-5 lines, one per day.
+A brief final line: what this weather means for the Labyrinth's mood this week.]
+
+===FORECAST===
+[The Story Forecast — written exactly like a weather forecast, but for narrative.
+Use thread pressures and phases to predict what story conditions will prevail this week.
+Format: probability + what to expect, for each major thread. Be specific. Quote odds.
+Example: "70% chance of significant antagonist activity by Thursday; Wicker's Campaign
+is in escalating phase and his crew's silence suggests something is being positioned."
+4-6 lines. End with an overall narrative outlook for the week: volatile, settled, building, etc.
+This is journalism forecasting narrative weather — dry, specific, slightly ominous.]
+
+===MARKET===
+[The Thread Futures Market — a predictions market for story outcomes.
+You are given pre-calculated odds (YES% / NO%). Format as a proper market listing.
+Each line: the question | YES: X | NO: Y | one-word trend (RISING/FALLING/STEADY/VOLATILE)
+Below the ticker: 2-3 sentences of market commentary. What does the current pattern suggest
+about where the story is going? Who is overvalued? What is the market not pricing in?
+This is the most analytical column — precise, slightly clinical, the newspaper's quant desk.]
+
+MARKET ODDS DATA (pre-calculated from entity belief and thread phase):
+{data['market_odds_formatted']}
 
 ===CORRECTION===
 [One dry, formal correction. Deadpan and specific. 1-2 sentences. Brief is correct here.]
@@ -321,6 +441,9 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     barometer   = sections.get("BAROMETER", "")
     exchange    = sections.get("EXCHANGE", "")
     classifieds = sections.get("CLASSIFIEDS", "")
+    weather     = sections.get("WEATHER", "")
+    forecast    = sections.get("FORECAST", "")
+    market      = sections.get("MARKET", "")
     correction  = sections.get("CORRECTION", "")
     missing     = sections.get("MISSING", "")
 
@@ -539,6 +662,28 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     color: #444;
   }}
 
+  /* ── FORECAST ROW ── */
+  .row-forecasts {{
+    grid-template-columns: 1fr 1fr 1fr;
+    border-bottom: 1.5px solid #111;
+    margin-bottom: 8pt;
+  }}
+
+  .weather-body {{
+    font-size: 9pt;
+    line-height: 1.65;
+    font-style: italic;
+  }}
+
+  .market-ticker {{
+    font-family: 'IM Fell English SC', Georgia, serif;
+    font-size: 8pt;
+    line-height: 1.8;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 5pt;
+    padding-bottom: 5pt;
+  }}
+
   /* ── BOTTOM STRIP ── */
   .sparky-text {{
     font-size: 8.5pt;
@@ -623,6 +768,27 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
   </div>
 
   <!-- ROW 2: Feature (left) + Classifieds (mid) + Sparky/Correction/Missing (right stack) -->
+  <!-- ROW 3: Weather | Story Forecast | Predictions Market -->
+  <div class="content-row row-forecasts">
+
+    <div class="col">
+      <div class="col-head">Academy Meteorological Society</div>
+      <div class="weather-body">{paragraphs(weather)}</div>
+    </div>
+
+    <div class="col">
+      <div class="col-head">Story Forecast</div>
+      {paragraphs(forecast)}
+    </div>
+
+    <div class="col" style="padding-right:0;">
+      <div class="col-head">Thread Futures Market</div>
+      <div class="market-ticker">{paragraphs(market)}</div>
+    </div>
+
+  </div>
+
+  <!-- ROW 2 (now Row 4): Feature + Classifieds + right stack -->
   <div class="content-row row-bottom">
 
     <div class="col">
@@ -712,6 +878,14 @@ def build_telegram_text(sections: dict, sparky: str, meta: dict) -> str:
 
     if sparky:
         parts += [f"<b>Sparky:</b>", f"<i>{esc(sparky)}</i>", ""]
+
+    forecast = sections.get("FORECAST", "")
+    if forecast:
+        parts += [f"<b>Story Forecast</b>", esc(forecast[:600]) + "…", ""]
+
+    market = sections.get("MARKET", "")
+    if market:
+        parts += [f"<b>Thread Futures</b>", esc(market[:500]) + "…", ""]
 
     missing = sections.get("MISSING", "")
     if missing:
@@ -830,16 +1004,28 @@ def main():
     thread_summary   = get_thread_summary()
     entity_standings = get_entity_standings()
     sparky           = get_sparky_shiny(date_str)
+    forecast         = get_weather_forecast_from_heartbeat()
+    market_odds      = calculate_market_odds()
+
+    # Format market odds for prompt injection
+    market_odds_formatted = "\n".join(
+        f"- {o['name']} ({o['phase']}, combined Belief {o['belief']}): "
+        f"Will this thread significantly stir this week? YES: {o['yes']}% / NO: {o['no']}%"
+        + (f"  Next beat: {o['beat']}" if o['beat'] else "")
+        for o in market_odds
+    ) or "(no thread data available)"
 
     data = {
-        "date_str":        date_str,
-        "issue_number":    issue_number,
-        "player":          player_data,
-        "pulse":           pulse,
-        "health":          health,
-        "tick_queue":      tick_queue or "(no simulation activity since last session)",
-        "thread_summary":  thread_summary,
-        "entity_standings": entity_standings,
+        "date_str":              date_str,
+        "issue_number":          issue_number,
+        "player":                player_data,
+        "pulse":                 pulse,
+        "health":                health,
+        "forecast":              forecast or "(forecast not yet loaded — check pulse)",
+        "tick_queue":            tick_queue or "(no simulation activity since last session)",
+        "thread_summary":        thread_summary,
+        "entity_standings":      entity_standings,
+        "market_odds_formatted": market_odds_formatted,
     }
 
     # ── Generate content ─────────────────────────────────────────────────────
