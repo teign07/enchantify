@@ -60,15 +60,13 @@ ARC_NPC_BELIEF   = 28   # Arc-specific NPCs start here (present but not yet inve
 
 def load_config() -> dict:
     cfg = {}
-    config_path = SCRIPT_DIR / "enchantify-config.sh"
-    if config_path.exists():
-        with open(config_path) as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("#") or "=" not in line:
-                    continue
-                key, _, val = line.partition("=")
-                cfg[key.strip()] = val.strip().strip('"')
+    secrets_path = WORKSPACE_DIR / "config" / "secrets.env"
+    if secrets_path.exists():
+        for line in secrets_path.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, _, v = line.partition("=")
+                cfg[k.strip()] = v.strip().strip('"').strip("'")
     return cfg
 
 
@@ -76,14 +74,6 @@ def get_arc_title(content: str) -> str:
     """Extract title from arc text — handles both '# Current Arc: X' and '# Current Arc — X'."""
     m = re.search(r'^# Current Arc[\s:—]+(.+)', content, re.MULTILINE)
     return m.group(1).strip() if m else ""
-
-
-def get_api_key(cfg: dict):
-    return (
-        cfg.get("ENCHANTIFY_ANTHROPIC_API_KEY")
-        or os.environ.get("ANTHROPIC_API_KEY")
-        or None
-    )
 
 
 def read_file_safe(path: Path, limit_lines: int = 80) -> str:
@@ -350,12 +340,18 @@ def complete_arc(resolution: str = "player"):
 
 # ─── Generate ─────────────────────────────────────────────────────────────────
 
-def call_gemini(prompt: str, agent: str = "enchantify") -> str:
+def call_agent(prompt: str) -> str:
     result = subprocess.run(
-        ["openclaw", "agent", "--local", "--agent", agent, "-m", prompt],
-        capture_output=True, text=True
+        ["openclaw", "agent", "--local", "--agent", "enchantify", "-m", prompt],
+        capture_output=True, text=True, timeout=180
     )
-    return result.stdout.strip()
+    output = result.stdout.strip()
+    ansi = re.compile(r'\x1b\[[0-9;]*m')
+    output = ansi.sub('', output)
+    noise = ("[plugins]", "[agents/", "[agent/", "adopted ", "google tool")
+    clean = [l for l in output.splitlines()
+             if not any(l.strip().lower().startswith(p) for p in noise)]
+    return "\n".join(clean).strip()
 
 
 def generate_arc(
@@ -465,7 +461,7 @@ Write the arc in exactly this format — fill in every section:
 
 Output only the arc — starting with the # title line. No preamble."""
 
-    return call_gemini(prompt)
+    return call_agent(prompt)
 
 
 # ─── Accept ───────────────────────────────────────────────────────────────────
