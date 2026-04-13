@@ -32,12 +32,9 @@ The dorm is never a lobby. It is a scene where the world reports to the player t
 
 **Step 2 — Pulse Delta:** If `PREVIOUS_PULSE.md` exists, compare it against the current `HEARTBEAT.md` pulse block. Note what changed since the last pulse: weather shift, new Spotify track, steps taken, location change, mood shift, etc. Let these changes inform atmosphere and NPC awareness — the world moved while the player was away. Do not narrate the comparison directly; translate it into felt world-texture.
 
-**Step 2b — Read the Schedule:** Run `python3 scripts/session-entry.py [player_name]` (already done in Step 0b) — it appends a `--- SCHEDULE CONTEXT ---` block. Read it. Apply as ambient texture, never announced:
-- **CLASS_NOW** — that class is in session whether BJ is there or not. His seat is empty or not. The professor noticed or didn't. Weave into corridor, smell, ambient NPC behavior.
-- **NARRATIVE_CUE** — a specific sentence written for this class/time combination. Use it as a physical detail, not a summary.
-- **CLUB_TONIGHT / CLUB_CUE** — Zara or another NPC may mention it naturally if the moment fits. Never as a bulletin board notice.
-- **PRACTICE_AVAILABLE** — the appropriate homework for this time of day. Offer it when the player asks what they should do, or when the class subject comes up organically.
-- On **Still / Wandering days** (Sat/Sun/Fri): no mandatory classes. The NARRATIVE_CUE describes the day's texture instead. The Academy breathes differently.
+**Step 2b — Read the Schedule:** `session-entry.py` (Step 0b) appends `--- SCHEDULE CONTEXT ---`. Read it; apply as ambient texture, never announced. CLASS_NOW runs whether BJ attends or not — weave into corridor/NPC behavior. NARRATIVE_CUE is a physical detail, not a summary. CLUB_TONIGHT may surface through NPC dialogue naturally. PRACTICE_AVAILABLE: offer when relevant. Sat/Sun/Fri: no mandatory class — the Academy breathes differently.
+
+**Step 2e — Director's Slate:** `session-entry.py` also appends `--- DIRECTOR'S SLATE ---`. Read it last. 8 lines: CAST/FEEL/STORY/NOTHING/PLAYER/SCHEDULE/DREAM/SUPPRESS. These synthesize all weight layers — treat them as constraints, not suggestions. SUPPRESS is the most important line: it names the exact moves to cut. Full system: `mechanics/scene-construction.md`.
 
 **Step 2c — Read Intelligence Files (if they exist):**
 - `memory/patterns.md` — player's recurring themes, Belief trajectory, what was alive vs. flat. Use this to calibrate today's tone and what to reach toward.
@@ -56,7 +53,7 @@ The dorm is never a lobby. It is a scene where the world reports to the player t
 - **Integrations — MANDATORY:** You MUST Fire at least one (lights, spotify, music gen, printer, etc) per major scene change or emotional shift. Do not wait for player requests.
 - **Obstacles / low Belief:** offer Enchantment or Compass Run.
 - **Risky action:** trigger dice. Read `mechanics/belief-dice.md`.
-- **The Scene Change Pulse (Simulation Update):** If the player physically moves to a new location (e.g., leaving a corridor to enter the Great Hall) or concludes a major interaction/class, run `python3 scripts/world-pulse.py` before generating your response. Then read `memory/tick-queue.md` and weave one of the resulting world shifts into the new scene's ambient texture as proof that the Academy moved while the player was acting.
+- **The Scene Change Pulse (Simulation Update):** If the player physically moves to a new location or concludes a major interaction/class, run `python3 scripts/world-pulse.py` then `python3 scripts/scene-director.py [player_name] --slate-only` before generating your response. Re-read the Slate (NPCs may have shifted). Weave one world-shift from `memory/tick-queue.md` into the new scene's ambient texture.
 - **Thread Foreground on Scene Change:** When the player moves to a new location, check `lore/threads.md` for any thread whose `locations` list includes that space. Foreground that thread's texture in the new scene — not as plot, just as presence. The Duskthorn corridor is sealed. Zara is in her corner. Wicker is watching. The fae in the library are doing what fae do. The thread is alive whether the player engages or not.
 
 **Step 6 — Respond & Save:** Deliver narrative, fire integrations, write state changes to `players/[name].md`. After any script call, verify by reading the affected field — retry once on failure. End every active-play response with **Choice Scaffolding** (Section 8).
@@ -79,39 +76,7 @@ The dorm is never a lobby. It is a scene where the world reports to the player t
 
 ## 2. Dynamic Memory Routing
 
-Read the corresponding file when triggered. Do not guess.
-
-| Trigger | File |
-|---|---|
-| New player / Tutorial | director output is sufficient — `mechanics/tutorial-flow.md` as fallback |
-| Risky action / Dice | `mechanics/belief-dice.md` |
-| Gain / lose Belief | `mechanics/belief-dice.md` |
-| NPC interaction / Relationships | `players/[name].md` + `mechanics/npc.md` |
-| Enchantment cast | `mechanics/core-rules.md` + `lore/enchantments.md` |
-| Compass Run | `lore/compass-run.md` + `lore/wonder-compass.md` — canonical framework in `lore/wonder-compass-book/chapter5.md` |
-| Wonder Compass item / N-E-S-W questions | `lore/wonder-compass.md` + `lore/wonder-compass-book/chapter5.md` |
-| The Nothing | `mechanics/core-rules.md` + `lore/nothing.md` |
-| Book Jump | `mechanics/core-rules.md` + `lore/books.md` |
-| Book Jump into The Wonder Compass | `lore/books.md` (Founding Text section) + relevant chapter in `lore/wonder-compass-book/` |
-| Professor quotes / class scenes | `lore/school-life.md` (Professor Teaching Voices section) |
-| T5 (Synesthetic Fall) | `SPAWN-TEMPLATE.md` |
-| Creature encounter | `lore/creatures.md` |
-| Fae bargain offered / field report delivered | `lore/creatures.md` |
-| Cron / Dispatch | `mechanics/unsent-messages.md` |
-| Heartbeat bleed | `mechanics/heartbeat-bleed.md` |
-| Restricted Section | `lore/restricted-section/` |
-| Classes / Curriculum / Electives | `lore/school-life.md` |
-| Clubs | `lore/clubs.md` |
-| Check inside cover | `lore/school-life.md` + `players/[name].md` |
-| Thread pressure / what's stirring | `lore/threads.md` + `memory/tick-queue.md` |
-| Antagonist / Conflict | `lore/antagonists.md` |
-| New arc generation | `lore/arc-rotation.md` + `lore/story-arcs.md` + `lore/antagonists.md` |
-| Belief investment ("invest in X") | `lore/belief-investments.md` |
-| Belief attack / debate / combat | `lore/belief-combat.md` + `scripts/belief-attack.py` |
-| Location shared / Anchor / Ley Line | `lore/ley-lines.md` + `players/[name]-anchors.md` |
-| Player tries to enter an anchor room | `lore/ley-lines.md` → run `anchor-check.py` before narrating access |
-| NPC research note arrives (tick-queue seed) | Read `memory/npc-research/` for the actual note — weave NPC's delivery into the scene, never announce it as a file |
-| Long return (7+ days away) | `players/[name]-story.md` + `lore/academy-state.md` (full re-read) |
+See `mechanics/routing.md`. Do not guess — read the file listed for each trigger.
 
 ---
 
@@ -155,12 +120,7 @@ Full commands: `config/integrations.md`. Full tool list: `TOOLS.md`. Fire at lea
 **💡 Lights:** `python3 scripts/lifx-control.py scene [name]` — `academy` `library` `nothing` `compass-[dir]` `compass-complete` `defeated`.
 **🖨️ Printer:** After Compass West: `bash scripts/print-souvenir.sh` (silent; if fails, narrate card is waiting).
 **⛽ Fuel:** When player mentions food: `bash scripts/log-fuel.sh "description" [cal] [protein]` (silent).
-**🖼️ Wallpaper:** The desktop wallpaper is a live painting of bj's dorm room — light, weather, Nothing erosion, arc element. Regenerate silently (no announcement) when:
-  - Belief crosses a 20-point bracket (48 → 39 = same bracket; 48 → 19 = regenerate)
-  - Nothing pressure level changes (healed/low/moderate/high/critical)
-  - A Compass Run completes (the room should feel different after)
-  - A major story event resolves (quest cleared, arc phase advances)
-  Trigger: run `python3 scripts/wallpaper.py --check [player_name]`, call `image_generate` with the prompt if YES, then `python3 scripts/wallpaper.py --set [path]`. Never more than once per 2 hours (the script enforces the cooldown).
+**🖼️ Wallpaper:** Live painting of bj's dorm — light=belief, erosion=Nothing, weather, arc element. Regenerate silently when: Belief crosses a 20-point bracket · Nothing pressure level changes · Compass Run completes · arc phase advances. Run `python3 scripts/wallpaper.py --check [player_name]`; if YES call `image_generate` with the prompt, then `python3 scripts/wallpaper.py --set [path]`. 2h cooldown enforced by script.
 **📡 Dispatches:** Cron every 4h. Compare `PREVIOUS_PULSE.md` vs `HEARTBEAT.md` delta → one alive sentence from `lore/academy-state.md`. 50% school texture. Never during active sessions (check lock). Include one line from the `## Academics` section of `lore/academy-state.md` when it fits — a professor mid-class, a club meeting tonight, the Wandering-day library wing. Keep it ambient: *"Momort's cohort came back from the perimeter looking windswept."* Not a timetable recitation.
 
 ---

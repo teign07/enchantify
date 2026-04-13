@@ -28,7 +28,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Import schedule module from same directory
+# Import schedule + scene-director modules from same directory
 _SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 try:
@@ -36,6 +36,19 @@ try:
     _SCHEDULE_AVAILABLE = True
 except ImportError:
     _SCHEDULE_AVAILABLE = False
+
+try:
+    import scene_director as _sd
+    _DIRECTOR_AVAILABLE = True
+except ImportError:
+    try:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location("scene_director", _SCRIPT_DIR / "scene-director.py")
+        _sd   = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_sd)
+        _DIRECTOR_AVAILABLE = True
+    except Exception:
+        _DIRECTOR_AVAILABLE = False
 
 SCRIPT_DIR   = Path(__file__).parent
 WORKSPACE    = SCRIPT_DIR.parent
@@ -277,6 +290,12 @@ def main():
         _print_schedule(get_schedule_data())
     else:
         print("[schedule] schedule.py not found — skipping schedule context\n")
+
+    # Append Director's Slate — synthesizes all 7 weight layers
+    if _DIRECTOR_AVAILABLE:
+        _sd.print_slate(player_name)
+    else:
+        print("[scene-director] scene-director.py not found — skipping Director's Slate\n")
 
 
 if __name__ == "__main__":
