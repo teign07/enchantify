@@ -1,8 +1,8 @@
 # Enchantify — The Labyrinth of Stories
 ## Complete Capability Reference
 
-*Version: 4.1.0 — The Open World*
-*Last updated: April 12, 2026*
+*Version: 4.4.0 — The Living School*
+*Last updated: April 13, 2026*
 
 ---
 
@@ -1349,6 +1349,39 @@ Interventions are **never clinical**. The Labyrinth does not know about steps or
 - ✅ **Session lifecycle updated** — §26 reflects script-based writes, staleness check, One Alive Detail, and Long-Gap Return.
 - ✅ **PLAYER-GUIDE.md** — Comprehensive player guide (newbie to pro) in `hooks/`. Covers all systems with worked examples.
 
+### v4.4.0 — The Living School (April 13, 2026)
+
+- ✅ **Academic schedule system** — `scripts/schedule.py`. Reads real-world day/time, maps to Academy timetable (Day 1–7 tones, 9 time blocks), outputs `SCHEDULE CONTEXT` directive: class in session, next class, tonight's club, practice prompt, pre-written narrative cue per professor. Zero LLM — pure data. Appended to every `session-entry.py` output so the Labyrinth always knows what's happening academically right now.
+- ✅ **Time-aware class schedule** — Canonical timetable in `lore/school-life.md`: Mon–Thu have two Compass Core classes per day + evening club; Fri is Wandering (one class, Book Jumpers); Sat Still; Sun Compass Society. Real weekdays map to Academy day tones transparently.
+- ✅ **Narrative cues per professor** — Pre-written, day-hashed sentences the Labyrinth uses as ambient texture when a class is in session: *"Boggle's class is mid-session in Wing 4. BJ's seat is empty. She glanced at it once."* Rotate daily per professor so they never repeat back-to-back.
+- ✅ **Academics section in academy-state.md** — `schedule.py --update-state` injects/replaces the `## Academics` section with current block, class in session, next class, club tonight, and active practice. Updated every 4 hours via cron.
+- ✅ **Bleed timetable column** — "Today at the Academy" appears in The Bleed's right rail: current/next class, tonight's club, active practice. Pure data from `schedule.py`, no LLM.
+- ✅ **world-pulse.py added to cron** — Was documented but missing from the actual crontab. Now runs every 4 hours (at :30) alongside `tick.py`.
+- ✅ **Living Academy wallpaper** — `scripts/wallpaper.py`. The player's desktop wallpaper is bj's dorm room — same composition, changing details. Belief drives the light (warm amber at high → one stubborn candle in grey at critical). The Nothing appears as edge erasure (blank book spines at low pressure → corners dissolving toward white at high → the center fighting to stay vivid at critical). The window carries real weather and moon in ink-world terms (rain = ink rivulets down the glass; fog = pages drifting in mist). One arc element embedded as a background detail; one NPC trace from the tick queue.
+- ✅ **Wallpaper state machine** — `--check` outputs `REGENERATE: YES/NO` + full prompt; Labyrinth reads at session open, calls `image_generate` if yes, then `--set [path]`. Triggers: session open (if state changed or >8h stale), belief bracket crossing (every 20 points), Nothing pressure level change, Compass Run complete, arc phase advance. Minimum 2-hour cooldown enforced in script. No cron — event-driven, cost-conscious.
+- ✅ **Wallpaper archive** — `wallpapers/` keeps last 10 dated images. The directory becomes a visual diary of the room over time: high belief, Nothing at the edges, the night before a Compass Run.
+- ✅ **Session entry system** — `scripts/session-entry.py`. Three entry modes based on time away: `in_media_res` (<1h, scene still warm), `dorm_brief` (1–8h, one or two things to notice), `dorm_full` (>8h, full dorm arrival with dynamic objects). Dynamic objects translate tick-queue and thread state into physical dorm evidence — Zara's note under the door, a book not where it was left, edged light.
+- ✅ **Permanent dorm room generation** — `scripts/dorm-generate.py`. Runs once at T13. Calls the Labyrinth agent with all player data (appearance, chapter, anchor, snack, traits, core belief, enchanted objects). Generates a STATIC description (4–6 sentences, always true regardless of season) and DESK objects. Written permanently into `players/[name].md`. The room is never improvised — it is generated once and is canon.
+- ✅ **clear-lock.py player-aware** — Now accepts `[player_name]` arg. Writes `players/[name]-session.json` with `last_end` ISO timestamp and session count on close. Used by `session-entry.py` to calculate away hours.
+
+### v4.2.0 — The Bleed & Arc Physics (April 12–13, 2026)
+
+- ✅ **The Bleed** — `scripts/bleed.py`. Daily Academy student newspaper published at 6pm. Broadsheet HTML → Chrome headless PDF → CUPS print + Telegram text edition. Seven columns: front-page article (3-column layout), Gossip & Corridor Whispers, The Barometer, The Exchange, Feature, Classifieds, Sparky's Corner, The Correction, The Missing. Issue numbers tracked in `bleed/issue-number.txt`. Saved to `bleed/issues/YYYY-MM-DD.html`.
+- ✅ **Story Forecast column** — LLM-generated narrative weather forecast: which threads are rising, which are dormant, what the arc's next beat looks like, written as in-world meteorology.
+- ✅ **Thread Futures Market column** — Pure-math odds for each active thread. Belief sum per thread from world-register → phase modifier → Nothing pressure modifier → YES%/NO% sorted by confidence. No LLM involved.
+- ✅ **Weather forecast in Bleed & Heartbeat** — `pulse.py` fetches 4-day forecast from Open-Meteo (free, no key, cached 6h). Injected into `HEARTBEAT.md` as `- **Forecast:**` line. Separate Academy Meteorological Society column in The Bleed translates real forecast into in-world atmospheric prose.
+- ✅ **Arc participates in world physics** — Arc entity added to `lore/world-register.md` as type "Arc" with Belief score (starts 40). Arc NPCs also registered in Full Presence. Tick selects the arc like any other entity. Arc now has belief mass the Nothing can erode.
+- ✅ **Arc co-option** — Existing NPCs can be co-opted into the arc via comma-separated thread IDs in world-register Notes: `[thread:main-arc,wicker-schemes]`. No code change — just the tagging convention. Preserved correctly by `remove_arc_from_register()`.
+- ✅ **World-state-aware arc succession** — `arc-generator.py` reads world-register.md + threads.md before generating. Entity standings feed into the prompt so the next arc emerges from current world state rather than a blank slate.
+- ✅ **arc-generator.py uses openclaw** — Removed all Anthropic API calls. All generation via `openclaw agent --local --agent enchantify -m [prompt]`. Consistent with the rest of the game.
+- ✅ **Arc complete flow** — `--complete --resolution [player|nothing|simulation]` archives arc, removes from register (preserving co-opted NPCs), harvests seeds into `lore/seeds.md`, writes tick-queue note, logs to `logs/arc-generation.md`.
+
+### v4.1.0 — The Open World (April 12, 2026)
+
+- ✅ **Tutorial complete (T15)** — Tutorial is fully playable end-to-end. T15 awards 3 Belief, reveals the story arc hint, shows the title card, and transitions to open-world mode. Arc seeds generated internally.
+- ✅ **`tutorial_director.py`** — Extracts and injects the active T-step at session open. Never advance multiple T-steps in one response. Reads `mechanics/tutorial-flow.md` as canonical source.
+- ✅ **Open-world session lifecycle** — Steps 0–5 in AGENTS.md govern every post-tutorial session. Step 2a (One Alive Detail), Step 2b (Schedule Context), Step 2c (Intelligence Files), Step 2d (PRIORITY: HIGH handling) all formalized.
+
 ### v2.1.0 — The Ink Well & Ley Lines (April 8, 2026)
 
 - ✅ **Belief Investment (The Ink Well)** — Players permanently invest Belief into NPCs, objects, threads, rooms, or real-world Anchors. Investment is irreversible; what grows is worth more. Tier system (1–5 Presence → 31+ Anchor status) felt in narrative texture, never announced. `lore/belief-investments.md`
@@ -1422,5 +1455,5 @@ Interventions are **never clinical**. The Labyrinth does not know about steps or
 
 ---
 
-*Version 4.0.0 — The Sensing Layer*
-*Updated: April 12, 2026*
+*Version 4.4.0 — The Living School*
+*Updated: April 13, 2026*
