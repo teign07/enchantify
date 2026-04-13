@@ -1,5 +1,5 @@
 # Player Patterns — bj
-*Last updated: 2026-04-12 09:21 · 2 session(s) analyzed*
+*Last updated: 2026-04-12 23:00 · 3 session(s) analyzed*
 
 ## Belief Trajectory
 - Current Belief: 48
@@ -10,19 +10,21 @@
 
 ## Recurring Themes
 - moment
-- obsidian
-- chronograph
-- fell
-- climax
 - most
+- fell
 - alive
+- flat
+- tutorial
+- world
 
 ## What Was Alive
 - The instant the Obsidian Chronograph hummed in his hand—real weight meeting real ink.
 - The realization that the Wonder Compass chapters could become physical spaces and texts within the Academy, transforming passive reading into an inter
+- The realization that the Wonder Compass chapters could become physical spaces and texts within the Academy, transforming passive reading into an inter
 
 ## What Fell Flat
 - The silence itself. It is a numbness I do not yet know how to narrate without making the pages feel thin. I am watching the Keel Room.
+- The mechanical adjustments to the tutorial. While necessary, they pulled us out of the narrative and into the architecture. The ink dried a little whi
 - The mechanical adjustments to the tutorial. While necessary, they pulled us out of the narrative and into the architecture. The ink dried a little whi
 
 ## Story Log (Recent)

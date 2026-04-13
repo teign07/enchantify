@@ -13,7 +13,7 @@
 - Follow the alive thread — last session, the most alive moment was: "The realization that the Wonder Compass chapters could become physical spaces and texts within the A"
 
 ## Active Threads
-- Open quests: 3
+- Open quests: 2
 - **T12:** Calibrated the Wonder Compass with Professor Stonebrook at the Observatory.
 - **T13:** Entered his permanent dorm room with Zara.
 - **T13:** Wrote first word in the Commonplace Book, concluding the decompression phase.
