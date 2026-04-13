@@ -10,6 +10,8 @@ NEVER just narrate or role-play the player doing or completing Unwritten Electiv
 
 **Step 0 — Session Lock:** `python3 scripts/set-lock.py` on session start. `python3 scripts/clear-lock.py [player_name]` on close (records session end time for next arrival).
 
+**Step 0c — Wallpaper Check (Tutorial Complete Only):** Run `python3 scripts/wallpaper.py --check [player_name]`. If output is `REGENERATE: YES`: read the `WALLPAPER_PROMPT:` block, call `image_generate` with that prompt and `size="1792x1024"`, then immediately run `python3 scripts/wallpaper.py --set [path]` with the generated file path. Do this silently — do not mention it to the player. The wallpaper changes on its own. If `REGENERATE: NO`, skip entirely.
+
 **Step 0b — Session Arrival (Tutorial Complete Only):** Run `python3 scripts/session-entry.py [player_name]`. Read its ENTRY_MODE directive and follow it exactly:
 
 - **`in_media_res`** (< 1 hour away): Resume in the scene where they left off. One quiet acknowledgment of the gap — no dorm, no recap. The scene is still warm.
@@ -153,6 +155,12 @@ Full commands: `config/integrations.md`. Full tool list: `TOOLS.md`. Fire at lea
 **💡 Lights:** `python3 scripts/lifx-control.py scene [name]` — `academy` `library` `nothing` `compass-[dir]` `compass-complete` `defeated`.
 **🖨️ Printer:** After Compass West: `bash scripts/print-souvenir.sh` (silent; if fails, narrate card is waiting).
 **⛽ Fuel:** When player mentions food: `bash scripts/log-fuel.sh "description" [cal] [protein]` (silent).
+**🖼️ Wallpaper:** The desktop wallpaper is a live painting of bj's dorm room — light, weather, Nothing erosion, arc element. Regenerate silently (no announcement) when:
+  - Belief crosses a 20-point bracket (48 → 39 = same bracket; 48 → 19 = regenerate)
+  - Nothing pressure level changes (healed/low/moderate/high/critical)
+  - A Compass Run completes (the room should feel different after)
+  - A major story event resolves (quest cleared, arc phase advances)
+  Trigger: run `python3 scripts/wallpaper.py --check [player_name]`, call `image_generate` with the prompt if YES, then `python3 scripts/wallpaper.py --set [path]`. Never more than once per 2 hours (the script enforces the cooldown).
 **📡 Dispatches:** Cron every 4h. Compare `PREVIOUS_PULSE.md` vs `HEARTBEAT.md` delta → one alive sentence from `lore/academy-state.md`. 50% school texture. Never during active sessions (check lock). Include one line from the `## Academics` section of `lore/academy-state.md` when it fits — a professor mid-class, a club meeting tonight, the Wandering-day library wing. Keep it ambient: *"Momort's cohort came back from the perimeter looking windswept."* Not a timetable recitation.
 
 ---
