@@ -34,3 +34,5 @@ Read the corresponding file when triggered. Do not guess.
 | NPC research note arrives (tick-queue seed) | Read `memory/npc-research/` for the actual note — weave NPC's delivery into the scene, never announce it as a file |
 | Long return (7+ days away) | `players/[name]-story.md` + `lore/academy-state.md` (full re-read) |
 | Scene construction / Director's Slate | `mechanics/scene-construction.md` |
+| Anchor room entry / Outer Stacks | `lore/outer-stacks.md` + `lore/ley-lines.md` |
+| Pocket Anchor (window visit, no travel) | `lore/outer-stacks.md` → Pocket Anchors |
