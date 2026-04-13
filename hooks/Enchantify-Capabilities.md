@@ -1,7 +1,7 @@
 # Enchantify — The Labyrinth of Stories
 ## Complete Capability Reference
 
-*Version: 4.4.0 — The Living School*
+*Version: 4.5.0 — The Outer Stacks*
 *Last updated: April 13, 2026*
 
 ---
@@ -400,15 +400,17 @@ Full rules: `lore/belief-investments.md`
 
 ---
 
-### §7d. Ley Line Network (Real-World Anchors)
+### §7d. Ley Line Network (Real-World Anchors) + The Outer Stacks
 
-Players invest Belief into real-world locations by sharing a Telegram GPS location. The location becomes an **Anchor** — permanent, tracked forever, and linked to a corresponding space in the Academy.
+Players invest Belief into real-world locations by sharing a Telegram GPS location. The location becomes an **Anchor** — permanent, tracked forever, and linked to two corresponding spaces: an **Inside Stacks echo** (immediate, in the Academy) and an **Outer Stacks door** (generated on first real-world visit, in Faerie).
 
 **Creating an Anchor:**
 1. Player shares Telegram location + signals they want to anchor it
 2. Labyrinth asks one question: *"What does this place hold for you?"*
 3. Player's words are interpreted into an Anchor type — the player doesn't choose, the Labyrinth reads
-4. Anchor is recorded with GPS coordinates, Anchor type, Belief invested, weather/moon at creation, player's exact words, and an Academy echo (a specific room or detail that appeared in the school)
+4. Anchor is recorded with GPS coordinates, Anchor type, Belief invested, weather/moon/season at creation, and player's exact words
+5. An Inside Stacks echo appears immediately (a room, smell, or quality in the Academy)
+6. The player is told a door into the Outer Stacks has been built — they won't see what's inside until they physically go there
 
 **Anchor types:**
 
@@ -420,35 +422,27 @@ Players invest Belief into real-world locations by sharing a Telegram GPS locati
 | Memory, meaning, keeping | WRITE |
 | Peace, breathing, stopping | REST |
 
+**The Outer Stacks:**
+Beyond the Academy's catalogued shelves, the Library continues — wilder, stranger, older. This is the Outer Stacks: Faerie wearing a bookish mask. Every Anchor room is a door into the Outer Stacks. The room is unique, generated from the player's creation words × anchor type × weather/moon/season × Belief at first visit. The Labyrinth chooses what's inside. The player doesn't know until they open the door.
+
+Room types include: Shrew Cafe (serve what you need, not what you want), Dragon Hoard (collects beautiful sentences, rewards the best ones), Goblin Market (trades in attention debts), Reading Room (one perfect book per visit), Dark Room (complete dark; a voice asks one honest question), Belief Floor Room (Belief held at 5 inside — tests where wonder comes from), and environmental types (Tidal, Infinite Corridor, Almost-Invisible, Memory Room). Every room can carry a **local rule** — a mechanic that applies inside only, discovered rather than announced.
+
+Rooms evolve. Inhabitants remember. The shrews learn your order. The dragon compares sentences. Seasons change the room's mood. Visit milestones at 3, 7, and 12 visits. Full lore: `lore/outer-stacks.md`
+
 **What Anchors do:**
-- **Check-in:** Player shares Telegram location near an anchor → run `python3 scripts/anchor-check.py [name] [lat] [lon] --checkin`. Records the visit (updates `last-visited`), adds +5 Belief to the anchor, and narrates arrival. The visit is always a player-initiated action, not passive proximity detection.
-- **Anchor decay:** Anchors not visited in 30+ days lose 1 Belief per tick (floor: 5). Handled automatically by `tick.py` during the 4-hour simulation.
-- **Compass Run amplification:** Steps performed at Anchors gain texture based on type-matching.
-
-**GPS-Gated Anchor Rooms:**
-When a new Anchor is created, it also gets registered in `lore/world-register.md` as a GPS-gated location:
-```
-python3 scripts/write-entity.py "[Room Name]" Location [Belief] "[brief description]" --gps-gated "[Anchor Name]"
-```
-This adds a `📍 GPS-gated: [Anchor Name]` tag to the register entry. The room exists in the world — NPCs can mention it, the player can see it on the map — but entrance requires physical proximity.
-
-**The Anchor Room Door:**
-When the player tries to enter an anchor room:
-1. Run `anchor-check.py`. No GPS location this session → door is sealed.
-2. Within 200m: door opens. Describe fully.
-3. Outside 200m: door is sealed. **Never say "you can't enter."** Light comes from under it. An NPC may have tried the handle recently.
-
-The sealing is always narrated as presence, not refusal. The room is real. The Labyrinth is not the one keeping them out — distance is.
+- **Check-in:** `python3 scripts/anchor-check.py [name] [lat] [lon] --checkin` — records visit, adds +5 Belief, increments visit count, prints `OUTER_STACKS_MODE` directive (FIRST_VISIT → generate room now; RETURN_VISIT → enter with evolution, season delta, milestone). Always player-initiated.
+- **Anchor decay:** Anchors unvisited 30+ days lose 1 Belief per tick (floor: 5). Handled by `tick.py`.
+- **Compass Run amplification:** Steps at Anchors gain texture based on type-matching.
 - **Enchantment resonance:** Enchantments cast at Anchors pick up the Anchor's personality.
-- **Seasonal evolution:** Anchors shift with seasons — cross-reference `lore/seasonal-calendar.md`.
-- **Academy echoes:** The room created at Anchor time persists and evolves with the Anchor.
+- **Pocket Anchor:** If a player can't travel, they can open a 5-minute window into the room from anywhere — see it, speak one word through the gap. No rewards transfer. No explanation required.
 
-**Storage:** `players/[name]-anchors.md` — one `##` section per Anchor.
+**The door is sealed from outside. NPCs see it. Light comes from under it. Distance is what keeps the player out — not the Labyrinth.**
 
-**The long game:** A player with a dozen Anchors has built a sacred geography on top of their actual town. Every named place is a room. Their daily routes are corridors. The map of their life becomes the map of the Labyrinth.
+**Storage:** `players/[name]-anchors.md` — one `##` section per Anchor. Fields: Coordinates, Type, Belief invested, Created, Weather, Moon, Season, Player's words, Academy echo, Outer Stacks room, Local rule, Visit count, Last visited.
+
+**The long game:** A player with a dozen Anchors has covered their town in doors into Faerie. Their daily routes pass places only they can enter. The map of what they value became a map of wild library rooms.
 
 Full rules: `lore/ley-lines.md`
-
 ---
 
 ### §7e. World Register & Universal Belief
@@ -1281,6 +1275,30 @@ Interventions are **never clinical**. The Labyrinth does not know about steps or
 
 ## Part 4: What's Complete
 
+### v4.5.0 — The Outer Stacks (April 13, 2026)
+
+- ✅ **Director's Slate system** — `scripts/scene-director.py`. Pure-Python synthesis of all 7 narrative weight layers into an 8-line directive: CAST / FEEL / STORY / NOTHING / PLAYER / SCHEDULE / DREAM / SUPPRESS. Solves "lost in the middle" attention dilution — 500+ lines of state condensed to 8 constraints the Labyrinth will actually attend to. Appended to every `session-entry.py` output and re-run at scene transitions.
+- ✅ **7-layer weight stack** — Layer 1 WHO (NPC table + tick-queue, stirred vs quiet), Layer 2 FEEL (HEARTBEAT.md biometric + weather → atmosphere), Layer 3 STORY (arc phase + arc-spine readiness), Layer 4 NOTHING (pressure level + current strategy + targets), Layer 5 PLAYER (patterns.md — Belief, trajectory, alive/flat), Layer 6 SCHEDULE (schedule.py live call), Layer 7 DREAM (diary + dream fragments bleeding into today).
+- ✅ **SUPPRESS line** — Novel addition to the Slate. Derived from what fell flat (patterns.md) × arc phase × Nothing strategy. Names the exact moves to cut before writing the opening line. Prevents the Labyrinth from doing the Nothing's work by defaulting to flat prose or comfort scenes.
+- ✅ **Arc phase directives** — SETUP: plant seeds, don't resolve. RISING: escalate, NPCs acting autonomously. CLIMAX: no comfort. FALLING: consequences ripple. RESOLUTION: let things settle. Embedded in STORY line, treated as hard constraints.
+- ✅ **Scene Change Pulse updated** — Now runs `scene-director.py --slate-only` alongside `world-pulse.py` on every scene transition. Labyrinth re-reads the Slate with updated NPC state before generating the new scene.
+- ✅ **mechanics/scene-construction.md** — Documents the weight stack, SUPPRESS principle, arc phase table, and how to apply the Slate. Architecture reference, not story material.
+- ✅ **mechanics/routing.md** — Dynamic Memory Routing table extracted from AGENTS.md into a standalone file. AGENTS.md Section 2 now points to it. Routing table includes Outer Stacks and Pocket Anchor triggers.
+- ✅ **AGENTS.md under 20,000 chars** — Surgery: Section 2 routing table extracted (-2,245 chars), Step 2b compressed, wallpaper trigger list compressed, misc tightening. New Step 2e (Director's Slate). Landed at 19,879 chars.
+
+- ✅ **The Outer Stacks** — `lore/outer-stacks.md`. The Labyrinth's wilderness: Faerie wearing a bookish mask. The Inside Stacks are the Academy (ordered, catalogued, governed). The Outer Stacks are where the shelving goes strange, the Dewey Decimal gives way to shelving-by-mood, and the Book Fae don't answer to the Headmistress. Every Anchor room is a door into the Outer Stacks — wild, unique, procedurally generated from the player's creation words × anchor type × weather/moon/season at creation × Belief at first visit.
+- ✅ **Room archetypes** — Seven inhabited types: Shrew Cafe (serve what you need, not what you want; learn your order over visits), Dragon Hoard (collects one-sentence Souvenirs; gives rewards for beautiful sentences), Goblin Market (trades in attention debts, not Belief; payment = notice something specific on the way home), Reading Room (one book per visit, always the right one), Dark Room (complete darkness; a voice asks one personal question; answer honestly and light appears), Belief Floor Room (Belief held at 5 inside — tests whether wonder comes from the number or the player), plus four environmental types (Tidal, Infinite Corridor, Almost-Invisible, Memory Room).
+- ✅ **Local rules** — Rooms can carry a mechanical rule that applies inside only, discovered by the player rather than announced: Belief held at 5, time moves at 1/12 speed, Enchantments affect the real world, the room notices when you lie, you owe a sentence before you leave. Stored in `players/[name]-anchors.md` under `**Local rule:**`.
+- ✅ **Room generation** — Deferred until first real-world visit, not at anchor creation. anchor-check.py `--checkin` detects first visit and prints `OUTER_STACKS_MODE: FIRST_VISIT` with generation instructions. The Labyrinth generates and writes the room to anchors.md. On return visits: `OUTER_STACKS_MODE: RETURN_VISIT` with stored description, local rule, season delta, and visit-count milestone cues.
+- ✅ **Visit milestones** — 3rd visit: first sign of recognition. 7th visit: room has a relationship with the player. 12th visit: second, deeper door may appear. Tracked via `**Visit count:**` field.
+- ✅ **Seasonal effects** — Outer Stacks hit harder than the Academy. Mud Season: damp, raw, sluggish creatures. Gold Season: breathtaking amber, goblins favorable, dragon competitive. Stick Season: honest, bare, questions get harder. Deep Winter: corridors feel ancient, dragon sleeps but can be woken. Season at creation vs. season at visit drives room evolution.
+- ✅ **The Nothing in the Outer Stacks** — Manifests as erasure, not creatures: empty shelves, corridors that end, blank white doors, inhabitants who are absent or distant. The worst manifestation is making the room *boring* — the Shrew Cafe becomes a regular cafe. At low Belief, inhabitants withdraw. The Inside Stacks carry the player; the Outer Stacks require them to carry themselves.
+- ✅ **Pocket Anchor** — Accessibility valve. A player who cannot travel may open a 5-minute window into their Anchor room from anywhere: sees the room, can speak a single word through the gap, no rewards transfer. No explanation required, no comment from the Labyrinth. Holds the thread without demanding movement.
+- ✅ **anchor-check.py rewritten** — Now parses `Outer Stacks room`, `Local rule`, `Visit count`, `Season` fields. `--checkin` increments visit count, updates last-visited and Belief, then prints full OUTER_STACKS_MODE directive. Includes season delta detection and milestone hint for the Labyrinth.
+- ✅ **Anchor record format updated** — New fields: `Season` (at creation), `Outer Stacks room` (blank until first visit), `Local rule` (set at generation), `Visit count`, `Last visited`. Old fields retained for compatibility.
+- ✅ **Inside Stacks echo preserved** — Creation still produces an immediate Academy echo (a room, smell, or quality in the Inside Stacks). This is the safe-world resonance. The Outer Stacks door is the wild truth. Both exist.
+- ✅ **lore/ley-lines.md updated** — Anchor creation step 10 now tells the player a door into the Outer Stacks has been built, unseen until they walk there. Anchor Room Door section updated with first-visit/return-visit flow and Pocket Anchor reference.
+
 ### v4.0.0 — The Sensing Layer (April 12, 2026)
 
 - ✅ **Gemini LLM migration** — All generative scripts (`dream.py`, `sparky.py`, `arc-generator.py`, `npc-research.py`) migrated from Anthropic SDK to `openclaw agent --local --agent enchantify -m "..."` (Google Gemini via OAuth). No API keys required.
@@ -1455,5 +1473,5 @@ Interventions are **never clinical**. The Labyrinth does not know about steps or
 
 ---
 
-*Version 4.4.0 — The Living School*
+*Version 4.5.0 — The Outer Stacks*
 *Updated: April 13, 2026*
