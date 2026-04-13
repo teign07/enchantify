@@ -472,15 +472,33 @@ def generate_via_agent(prompt: str, size: str = "1792x1024"):
     # Strip ANSI
     output = re.sub(r'\x1b\[[0-9;]*m', '', output)
 
+    # Try the explicit WALLPAPER_PATH marker first
     m = re.search(r'WALLPAPER_PATH:\s*(\S+)', output)
     if m:
         path = m.group(1).strip()
         if Path(path).exists():
             return path
-        print(f"[wallpaper] Agent returned path that doesn't exist: {path}")
-    else:
-        print(f"[wallpaper] Agent output did not contain WALLPAPER_PATH. Output:\n{output[:300]}")
 
+    # Fall back: scan known openclaw image storage locations for the most recent PNG
+    search_dirs = [
+        Path.home() / ".openclaw" / "media" / "tool-image-generation",
+        Path.home() / ".openclaw" / "media" / "generated",
+        Path("/tmp"),
+    ]
+    candidates = []
+    for d in search_dirs:
+        if d.exists():
+            candidates.extend(d.glob("*.png"))
+
+    if candidates:
+        newest = max(candidates, key=lambda p: p.stat().st_mtime)
+        # Only use if it was created in the last 5 minutes
+        age_minutes = (datetime.now().timestamp() - newest.stat().st_mtime) / 60
+        if age_minutes < 5:
+            print(f"[wallpaper] Found recent image at: {newest}")
+            return str(newest)
+
+    print(f"[wallpaper] Could not locate generated image. Agent output:\n{output[:400]}")
     return None
 
 
