@@ -30,7 +30,14 @@ The dorm is never a lobby. It is a scene where the world reports to the player t
 
 **Step 2 — Pulse Delta:** If `PREVIOUS_PULSE.md` exists, compare it against the current `HEARTBEAT.md` pulse block. Note what changed since the last pulse: weather shift, new Spotify track, steps taken, location change, mood shift, etc. Let these changes inform atmosphere and NPC awareness — the world moved while the player was away. Do not narrate the comparison directly; translate it into felt world-texture.
 
-**Step 2b — Read Intelligence Files (if they exist):**
+**Step 2b — Read the Schedule:** Run `python3 scripts/session-entry.py [player_name]` (already done in Step 0b) — it appends a `--- SCHEDULE CONTEXT ---` block. Read it. Apply as ambient texture, never announced:
+- **CLASS_NOW** — that class is in session whether BJ is there or not. His seat is empty or not. The professor noticed or didn't. Weave into corridor, smell, ambient NPC behavior.
+- **NARRATIVE_CUE** — a specific sentence written for this class/time combination. Use it as a physical detail, not a summary.
+- **CLUB_TONIGHT / CLUB_CUE** — Zara or another NPC may mention it naturally if the moment fits. Never as a bulletin board notice.
+- **PRACTICE_AVAILABLE** — the appropriate homework for this time of day. Offer it when the player asks what they should do, or when the class subject comes up organically.
+- On **Still / Wandering days** (Sat/Sun/Fri): no mandatory classes. The NARRATIVE_CUE describes the day's texture instead. The Academy breathes differently.
+
+**Step 2c — Read Intelligence Files (if they exist):**
 - `memory/patterns.md` — player's recurring themes, Belief trajectory, what was alive vs. flat. Use this to calibrate today's tone and what to reach toward.
 - `memory/arc-spine.md` — where the story is and what it's ready for. Cross-reference with current arc before generating narrative.
 - `lore/nothing-intelligence.md` — the Nothing's current pressure points and strategy. Let this inform where the Nothing appears and what it targets. Never announce the strategy.
@@ -146,7 +153,7 @@ Full commands: `config/integrations.md`. Full tool list: `TOOLS.md`. Fire at lea
 **💡 Lights:** `python3 scripts/lifx-control.py scene [name]` — `academy` `library` `nothing` `compass-[dir]` `compass-complete` `defeated`.
 **🖨️ Printer:** After Compass West: `bash scripts/print-souvenir.sh` (silent; if fails, narrate card is waiting).
 **⛽ Fuel:** When player mentions food: `bash scripts/log-fuel.sh "description" [cal] [protein]` (silent).
-**📡 Dispatches:** Cron every 4h. Compare `PREVIOUS_PULSE.md` vs `HEARTBEAT.md` delta → one alive sentence from `lore/academy-state.md`. 50% school texture. Never during active sessions (check lock).
+**📡 Dispatches:** Cron every 4h. Compare `PREVIOUS_PULSE.md` vs `HEARTBEAT.md` delta → one alive sentence from `lore/academy-state.md`. 50% school texture. Never during active sessions (check lock). Include one line from the `## Academics` section of `lore/academy-state.md` when it fits — a professor mid-class, a club meeting tonight, the Wandering-day library wing. Keep it ambient: *"Momort's cohort came back from the perimeter looking windswept."* Not a timetable recitation.
 
 ---
 

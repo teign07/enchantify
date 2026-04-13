@@ -28,6 +28,15 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Import schedule module from same directory
+_SCRIPT_DIR = Path(__file__).parent
+sys.path.insert(0, str(_SCRIPT_DIR))
+try:
+    from schedule import get_schedule_data, print_directive as _print_schedule
+    _SCHEDULE_AVAILABLE = True
+except ImportError:
+    _SCHEDULE_AVAILABLE = False
+
 SCRIPT_DIR   = Path(__file__).parent
 WORKSPACE    = SCRIPT_DIR.parent
 
@@ -262,6 +271,12 @@ def main():
         print(f"Do not rush the arrival. The room is the first scene.")
 
     print("-------------------------------\n")
+
+    # Append schedule context — always, regardless of entry mode
+    if _SCHEDULE_AVAILABLE:
+        _print_schedule(get_schedule_data())
+    else:
+        print("[schedule] schedule.py not found — skipping schedule context\n")
 
 
 if __name__ == "__main__":

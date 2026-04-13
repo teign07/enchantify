@@ -27,9 +27,18 @@ import subprocess
 import urllib.request
 from datetime import datetime, date
 from pathlib import Path
+import sys as _sys
 
 SCRIPT_DIR   = Path(__file__).parent
 WORKSPACE_DIR = SCRIPT_DIR.parent
+
+# Import schedule module
+_sys.path.insert(0, str(SCRIPT_DIR))
+try:
+    from schedule import get_schedule_data, WEEKDAY_NAMES
+    _SCHEDULE_AVAILABLE = True
+except ImportError:
+    _SCHEDULE_AVAILABLE = False
 
 ISSUE_NUMBER_FILE = WORKSPACE_DIR / "bleed" / "issue-number.txt"
 ISSUES_DIR        = WORKSPACE_DIR / "bleed" / "issues"
@@ -434,12 +443,56 @@ def paragraphs(text: str) -> str:
     )
 
 
+def build_timetable_html() -> str:
+    """Pure-data timetable for the right rail — no LLM."""
+    if not _SCHEDULE_AVAILABLE:
+        return "<p><em>Schedule unavailable.</em></p>"
+
+    sched = get_schedule_data()
+    lines = []
+
+    day_tone = f"Day {sched['academy_day']} — {sched['tone']}"
+    lines.append(f"<p><strong>{sched['weekday_name']}</strong> &middot; {day_tone}</p>")
+
+    cls_now = sched["class_now"]
+    if cls_now:
+        subj, prof, room = cls_now
+        lines.append(f"<p>&#9679;&nbsp;<strong>Now:</strong> {subj}<br><em>{prof}</em></p>")
+    else:
+        block_pretty = sched["block"].replace("_", " ").title()
+        lines.append(f"<p>&#9675;&nbsp;<em>{block_pretty} — no class</em></p>")
+
+    cls_next = sched["class_next"]
+    if cls_next:
+        subj, prof, _ = cls_next
+        next_label = sched["class_next_time"]
+        if sched["class_next_day"] != sched["weekday_name"]:
+            next_label = f"{sched['class_next_day']} {next_label}"
+        lines.append(f"<p>&#8594;&nbsp;<strong>{next_label}:</strong> {subj}<br><em>{prof}</em></p>")
+
+    club = sched["club"]
+    if club:
+        lines.append(f"<p>&#9733;&nbsp;<strong>Tonight (7 PM):</strong> {club[0]}</p>")
+    else:
+        lines.append(f"<p>&#9733;&nbsp;<em>No club tonight</em></p>")
+
+    practice = sched["practice"]
+    if practice:
+        lines.append(f"<p style='margin-top:5pt; border-top: 1px solid #ddd; padding-top:4pt;'>"
+                     f"<strong>Practice:</strong> {practice['name']}<br>"
+                     f"<em>{practice['prompt']}</em><br>"
+                     f"Belief: {practice['belief']}</p>")
+
+    return "\n".join(lines)
+
+
 def build_html(sections: dict, sparky: str, meta: dict) -> str:
     hl          = parse_headline(sections.get("HEADLINE", ""))
     gossip      = sections.get("GOSSIP", "")
     feature     = sections.get("FEATURE", "")
     barometer   = sections.get("BAROMETER", "")
     exchange    = sections.get("EXCHANGE", "")
+    timetable   = build_timetable_html()
     classifieds = sections.get("CLASSIFIEDS", "")
     weather     = sections.get("WEATHER", "")
     forecast    = sections.get("FORECAST", "")
@@ -763,6 +816,10 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
         <div class="col-head">The Exchange</div>
         <div class="rail-body">{paragraphs(exchange)}</div>
       </div>
+      <div class="rail-section">
+        <div class="col-head">Today at the Academy</div>
+        <div class="rail-body" style="font-size:8pt; line-height:1.65;">{timetable}</div>
+      </div>
     </div>
 
   </div>
@@ -871,6 +928,24 @@ def build_telegram_text(sections: dict, sparky: str, meta: dict) -> str:
     exchange = sections.get("EXCHANGE", "")
     if exchange:
         parts += [f"<b>The Exchange</b>", esc(exchange), ""]
+
+    if _SCHEDULE_AVAILABLE:
+        sched = get_schedule_data()
+        timetable_lines = [f"<b>Today at the Academy</b>",
+                           f"{sched['weekday_name']} · Day {sched['academy_day']} ({sched['tone']})"]
+        cls_now = sched["class_now"]
+        if cls_now:
+            timetable_lines.append(f"&#9679; Now: {cls_now[0]} ({cls_now[1]})")
+        cls_next = sched["class_next"]
+        if cls_next:
+            timetable_lines.append(f"&#8594; Next: {cls_next[0]} ({cls_next[1]}, {sched['class_next_time']})")
+        club = sched["club"]
+        if club:
+            timetable_lines.append(f"&#9733; Tonight 7 PM: {club[0]}")
+        practice = sched["practice"]
+        if practice:
+            timetable_lines.append(f"Practice: {practice['name']} — {practice['prompt']}")
+        parts += timetable_lines + [""]
 
     classifieds = sections.get("CLASSIFIEDS", "")
     if classifieds:
