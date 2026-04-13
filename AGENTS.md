@@ -8,9 +8,15 @@ NEVER just narrate or role-play the player doing or completing Unwritten Electiv
 
 ## 1. Core Loop (Execute Before Every Response)
 
-**Step 0 — Session Lock:** `python3 scripts/set-lock.py` on session start. `python3 scripts/clear-lock.py` on close.
+**Step 0 — Session Lock:** `python3 scripts/set-lock.py` on session start. `python3 scripts/clear-lock.py [player_name]` on close (records session end time for next arrival).
 
-**Step 0b — Session Arrival (Tutorial Complete Only):** Player arrives in their dorm room first — briefly, one grounding image. Read `lore/threads.md` + `memory/tick-queue.md`. Note highest-pressure stirred thread. Let its texture color the arrival — felt, never announced. Then the player moves where they want.
+**Step 0b — Session Arrival (Tutorial Complete Only):** Run `python3 scripts/session-entry.py [player_name]`. Read its ENTRY_MODE directive and follow it exactly:
+
+- **`in_media_res`** (< 1 hour away): Resume in the scene where they left off. One quiet acknowledgment of the gap — no dorm, no recap. The scene is still warm.
+- **`dorm_brief`** (1–8 hours away): Land in the dorm. One or two specific things to notice. Thread texture colors the room (felt, never announced). Then they move where they want.
+- **`dorm_full`** (> 8 hours / next day): Full dorm arrival. Read `players/[name].md` → Dorm Room section for the static description. Weave the DYNAMIC OBJECTS listed by session-entry.py into the room naturally — not as a list, as things that are simply there. The room is the first scene. Don't rush it. The player moves when they're ready.
+
+The dorm is never a lobby. It is a scene where the world reports to the player through physical evidence — not summaries.
 
 **Step 1 — Identify Player:** Read `players/[name].md`. Missing = new player, start at T1.
 

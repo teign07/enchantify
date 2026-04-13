@@ -77,10 +77,20 @@ They learn that the Compass is a tool to combat the Nothing by forcing the reade
 *The Sample Run:* The professor/Guide walks them through a guided, abbreviated sample run of the four steps: Notice (North), Embark (East), Sense (South), and Write (West). They complete a mini-Compass Run right then and there.
 *The Gift:* At the conclusion of the class, the professor officially hands the player their very own Wonder Compass. It is a physical object in their inventory, but more importantly, it is a living artifact. It is immediately inscribed into the World Register with a starting Belief of 15. As the player uses it, its Belief grows, and it may develop its own personality, quirks, or resonance with their Obsidian Chronograph.
 
-**T13. The Dorm Room (Arrival & First Investment)**
-The final phase of the tutorial. The Guide or their newly met chapter mates bring the player to their dorm room in their Chapter's suite. This gives them a moment to decompress, look at their new floating pen, and process the first day. 
-*The Investment:* Before leaving, the Guide encourages the player to "claim" the room by investing a small amount of Belief (e.g., 2 or 3 points) into it. When the player does, the room physically responds—a window widens to show a better view, a cozy armchair appears, or the lighting shifts to match their mood. This reinforces that Belief shapes the Academy's architecture.
-*The Handoff:* Before leaving, the Guide MUST provide the player with a physical schedule or orientation packet—leaving a note on the desk containing a list of their starting classes, available clubs, and extracurricular activities. You MUST use the `read` tool to read `lore/school-life.md` and `lore/clubs.md` (or other relevant lore files) to pull the actual, canonical lists of classes and clubs to present to the player. Do not invent classes or clubs that are not in the lore files. This provides a clear, concrete bridge into the open world mechanics.
+**T13. The Dorm Room (Arrival, Generation & First Investment)**
+The Guide or chapter mates bring the player to their dorm room in their Chapter's suite.
+
+*Dorm Generation (CRITICAL — happens here, once, permanently):*
+Before narrating the room, run `python3 scripts/dorm-generate.py [player_name]`.
+This generates the room's permanent description from everything learned in T1–T12:
+their appearance, chapter, anchor object, snack, traits, core belief, and enchanted objects.
+Read the result back from `players/[name].md` → Dorm Room section and use it as the room's canonical description going forward. Do not improvise the room — this description IS the room.
+
+The room should feel unmistakably like the player. Not a generic Academy dorm — their specific window, their specific light, their specific smell. The Anchor Object is on the desk. Their interests are embedded in the physical space. Their core belief is in the room's felt character.
+
+*The Investment:* The Guide encourages the player to invest 2–3 Belief to "claim" the room. When they do, the room responds physically — not with generic changes but with something specific to who they are. The window opens onto a better version of the view. The light adjusts. Something on the desk settles into its permanent position. Record the investment.
+
+*The Handoff:* The Guide leaves a note on the desk: a list of starting classes, clubs, and activities. Read `lore/school-life.md` and `lore/clubs.md` for the actual canonical lists. Do not invent.
 
 **T14. The Inside Cover (Unwritten Electives Lifecycle)**
 While the player is exploring their new dorm room, the Guide points out the "Inside Cover" of their Commonplace Book (or a specific ledger on the desk). The Guide explains that the Labyrinth is not just a place to escape to; it is a place that pushes back into the Climax.
