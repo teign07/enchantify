@@ -11,9 +11,10 @@ Requires: pip install anthropic
 Cron:     0 8 * * * python3 /path/to/scripts/sparky.py >> logs/sparky.log 2>&1
 """
 import os
-import sys
 import re
 import json
+import shutil
+import subprocess
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -22,9 +23,16 @@ SCRIPT_DIR = Path(__file__).parent
 WORKSPACE_DIR = SCRIPT_DIR.parent
 
 
+_OPENCLAW_BIN = (
+    shutil.which("openclaw")
+    or "/opt/homebrew/bin/openclaw"
+    or "/usr/local/bin/openclaw"
+)
+
+
 def load_config() -> dict:
     cfg = {}
-    config_path = SCRIPT_DIR / "enchantify-config.sh"
+    config_path = WORKSPACE_DIR / "config" / "secrets.env"
     if config_path.exists():
         with open(config_path) as f:
             for line in f:
@@ -32,7 +40,7 @@ def load_config() -> dict:
                 if line.startswith("#") or "=" not in line:
                     continue
                 key, _, val = line.partition("=")
-                cfg[key.strip()] = val.strip().strip('"')
+                cfg[key.strip()] = val.strip().strip('"').strip("'")
     return cfg
 
 
@@ -44,7 +52,7 @@ def read_file_safe(path: Path, limit_lines: int = 50) -> str:
     return "".join(lines[:limit_lines]).strip()
 
 
-def get_api_key(cfg: dict) -> str | None:
+def get_api_key(cfg: dict):
     return (
         cfg.get("ENCHANTIFY_ANTHROPIC_API_KEY")
         or os.environ.get("ANTHROPIC_API_KEY")
@@ -108,13 +116,22 @@ def get_player_belief(cfg: dict) -> str:
     return m.group(1) if m else ""
 
 
-def call_gemini(prompt: str) -> str:
-    """Run a prompt through the enchantify agent (Gemini via openclaw)."""
+def call_agent(prompt: str) -> str:
+    """Run a prompt through the enchantify agent via openclaw."""
     result = subprocess.run(
-        ["openclaw", "agent", "--local", "--agent", "enchantify", "-m", prompt],
-        capture_output=True, text=True
+        [_OPENCLAW_BIN, "agent", "--local", "--agent", "enchantify", "-m", prompt],
+        capture_output=True, text=True, timeout=120
     )
-    return result.stdout.strip()
+    output = result.stdout.strip()
+    # Strip ANSI escape codes
+    output = re.sub(r'\x1b\[[0-9;]*m', '', output)
+    # Strip openclaw noise lines
+    noise = ("[plugins]", "[agents/", "[agent/", "adopted ", "google tool")
+    clean = [
+        line for line in output.splitlines()
+        if not any(line.strip().lower().startswith(p) for p in noise)
+    ]
+    return "\n".join(clean).strip()
 
 
 def generate_shiny(signals: dict, events: list[str], belief: str) -> str:
@@ -164,7 +181,7 @@ Rules for your output:
 
 Output only the margin note. No preamble, no explanation."""
 
-    return call_gemini(prompt)
+    return call_agent(prompt)
 
 
 def main():

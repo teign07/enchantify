@@ -281,7 +281,7 @@ _NOTHING_EFFECTS = {
 _NPC_TRACES = {
     "Zara":       "A folded note is visible, slid halfway under the door. Her handwriting on the outside.",
     "Boggle":     "A faint dusting of chalk near the window — she stopped by.",
-    "Thorne":     "The Commonplace Book on the desk has been opened to a different page than before.",
+    "Thorne":     "The Labyrinth of Stories on the desk has been opened to a different page than before.",
     "Momort":     "A hand-drawn map, roughed out on a scrap of paper, has been left on the chair.",
     "Euphony":    "A small tuning fork rests on the windowsill, still faintly vibrating.",
     "Villanelle": "A scrap of paper near the Chronograph with one unfinished sentence.",

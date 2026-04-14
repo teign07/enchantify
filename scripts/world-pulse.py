@@ -18,7 +18,10 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-BASE_DIR   = Path(os.environ.get("ENCHANTIFY_BASE_DIR", Path(__file__).parent.parent))
+BASE_DIR    = Path(os.environ.get("ENCHANTIFY_BASE_DIR", Path(__file__).parent.parent))
+_SCRIPT_DIR = Path(__file__).parent
+sys.path.insert(0, str(_SCRIPT_DIR))
+import world_context
 TICK_QUEUE = BASE_DIR / "memory" / "tick-queue.md"
 CACHE_PATH = BASE_DIR / "config" / "world-pulse-cache.json"
 SKILL_ID   = "world-pulse"
@@ -107,11 +110,29 @@ STABLE_SEEDS = [
     "{name} holds. The Nothing has been near, but hasn't found purchase.",
 ]
 
+# Night-specific seeds — used when the pulse fires during the 22:00–05:00 block.
+# The tone is slower, colder, less witnessed.
+NIGHT_FADE_SEEDS = [
+    "While the Academy slept, something in {name} went a little quieter — not vanished, just less insisted upon.",
+    "The Nothing moves in the hours no one is watching. {name} is slightly thinner than it was at nightfall.",
+]
 
-def generate_events(entities: list[dict], cache: dict) -> list[dict]:
+NIGHT_RISE_SEEDS = [
+    "Something in {name} strengthened in the night hours. It woke up more certain of itself.",
+    "While the corridors were empty, {name} accumulated weight. By morning it will be harder to overlook.",
+]
+
+NIGHT_STABLE_SEEDS = [
+    "{name} held through the night. The Nothing passed near. It did not stop.",
+    "The night was quiet around {name}. Whatever threat was circling didn't find purchase.",
+]
+
+
+def generate_events(entities: list[dict], cache: dict, ctx: dict = None) -> list[dict]:
     events  = []
     states  = cache.setdefault("entity_states", {})
     now_iso = datetime.now().isoformat()
+    night   = world_context.is_night(ctx) if ctx else False
 
     for entity in entities:
         if entity["belief"] is None:
@@ -122,38 +143,47 @@ def generate_events(entities: list[dict], cache: dict) -> list[dict]:
         prev    = states.get(name, {})
         prev_b  = prev.get("belief")
 
-        # Crisis — entity near erasure
+        # Enrich with NPC location if known
+        npc_state = world_context.get_npc_state(name, entity.get("presence", "NPC"), ctx)
+        location_note = npc_state.get("note")
+
+        raw_suffix = f" [{location_note}]" if location_note else ""
+
+        # Crisis — entity near erasure (no time of day filter — Nothing doesn't clock out)
         if belief <= 2:
             seed = random.choice(CRISIS_SEEDS).format(name=name)
             events.append({
-                "raw":      f"{name}: Belief {belief} (critical)",
+                "raw":      f"{name}: Belief {belief} (critical){raw_suffix}",
                 "seed":     seed,
                 "priority": "HIGH",
             })
 
         # Significant drop since last pulse
         elif prev_b is not None and belief <= prev_b - 4:
-            seed = random.choice(FADE_SEEDS).format(name=name)
+            seeds = NIGHT_FADE_SEEDS if night else FADE_SEEDS
+            seed  = random.choice(seeds).format(name=name)
             events.append({
-                "raw":      f"{name}: Belief dropped {prev_b} → {belief}",
+                "raw":      f"{name}: Belief dropped {prev_b} → {belief}{raw_suffix}",
                 "seed":     seed,
                 "priority": "NORMAL",
             })
 
         # Significant rise since last pulse
         elif prev_b is not None and belief >= prev_b + 4:
-            seed = random.choice(RISE_SEEDS).format(name=name)
+            seeds = NIGHT_RISE_SEEDS if night else RISE_SEEDS
+            seed  = random.choice(seeds).format(name=name)
             events.append({
-                "raw":      f"{name}: Belief rose {prev_b} → {belief}",
+                "raw":      f"{name}: Belief rose {prev_b} → {belief}{raw_suffix}",
                 "seed":     seed,
                 "priority": "NORMAL",
             })
 
         # Ambient pulse (10% chance per entity, max one per run)
         elif not events and random.random() < 0.10:
-            seed = random.choice(STABLE_SEEDS).format(name=name)
+            seeds = NIGHT_STABLE_SEEDS if night else STABLE_SEEDS
+            seed  = random.choice(seeds).format(name=name)
             events.append({
-                "raw":      f"{name}: Belief {belief} (ambient pulse)",
+                "raw":      f"{name}: Belief {belief} (ambient pulse){raw_suffix}",
                 "seed":     seed,
                 "priority": "AMBIENT",
             })
@@ -166,8 +196,8 @@ def generate_events(entities: list[dict], cache: dict) -> list[dict]:
         }
 
     # Cap output — don't flood the queue
-    high   = [e for e in events if e["priority"] == "HIGH"]
-    normal = [e for e in events if e["priority"] == "NORMAL"]
+    high    = [e for e in events if e["priority"] == "HIGH"]
+    normal  = [e for e in events if e["priority"] == "NORMAL"]
     ambient = [e for e in events if e["priority"] == "AMBIENT"]
 
     # Always include high-priority; fill up to 3 total
@@ -177,12 +207,15 @@ def generate_events(entities: list[dict], cache: dict) -> list[dict]:
 
 # ─── Write to tick-queue ──────────────────────────────────────────────────────
 
-def write_to_queue(events: list[dict]) -> None:
+def write_to_queue(events: list[dict], ctx: dict = None) -> None:
     if not events:
         print(f"[{SKILL_ID}] No world events this pulse.")
         return
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    tag       = world_context.time_tag(ctx) if ctx else ""
+    prefix    = world_context.time_seed_prefix(ctx) if ctx else ""
+
     TICK_QUEUE.parent.mkdir(parents=True, exist_ok=True)
 
     if not TICK_QUEUE.exists():
@@ -194,8 +227,13 @@ def write_to_queue(events: list[dict]) -> None:
     with TICK_QUEUE.open("a") as f:
         for event in events:
             priority_tag = f" [PRIORITY: HIGH]" if event["priority"] == "HIGH" else ""
+            header_tag   = f" [{tag}]" if tag else ""
             f.write(
-                f"\n## [{SKILL_ID}]{priority_tag} {timestamp}\n"
+                f"\n## [{SKILL_ID}]{priority_tag}{header_tag} {timestamp}\n"
+            )
+            if prefix:
+                f.write(f"*{prefix}*\n")
+            f.write(
                 f"*Raw: {event['raw']}*\n"
                 f"Narrative seed: {event['seed']}\n"
             )
@@ -235,11 +273,12 @@ if __name__ == "__main__":
     try:
         register = load_text(BASE_DIR / "lore" / "world-register.md")
         cache    = load_cache()
+        ctx      = world_context.get_time_context()
 
         entities = parse_entities(register)
-        events   = generate_events(entities, cache)
+        events   = generate_events(entities, cache, ctx)
 
-        write_to_queue(events)
+        write_to_queue(events, ctx)
 
         cache["last_pulse"]  = datetime.now().isoformat()
         cache["pulse_count"] = cache.get("pulse_count", 0) + 1

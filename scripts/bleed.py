@@ -249,10 +249,16 @@ def extract_health_from_pulse(pulse: str) -> str:
 
 # ── Agent call ────────────────────────────────────────────────────────────────
 
+_OPENCLAW_BIN = (
+    shutil.which("openclaw")
+    or "/opt/homebrew/bin/openclaw"
+    or "/usr/local/bin/openclaw"
+)
+
 def call_agent(prompt: str) -> str:
     result = subprocess.run(
-        ["openclaw", "agent", "--local", "--agent", "enchantify", "-m", prompt],
-        capture_output=True, text=True, timeout=120
+        [_OPENCLAW_BIN, "agent", "--local", "--agent", "enchantify", "-m", prompt],
+        capture_output=True, text=True, timeout=240
     )
     output = result.stdout.strip()
 
@@ -329,29 +335,6 @@ him and withholds them when it doesn't. He is never without an angle. He always 
 than he lets on. He never directly identifies himself. Each item should feel like a distinct
 morsel — a different corner of the Academy social world. End with his byline: — W.E.]
 
-===FEATURE===
-[A longer in-world piece: a profile, an investigation, a history, or an opinion column.
-4-6 paragraphs. Choose the most interesting thread or entity from the data and write
-something with depth — not news, but context. Could be: a profile of a figure who's been
-in the news, an investigation into something that's been going on for weeks, a brief history
-of a location, or an opinion piece attributed to a named Academy figure. Give it a title
-and a byline. This is what the reader lingers over.]
-
-===BAROMETER===
-[Health/biometric data AS Academy conditions. Steps = distance covered on Academy grounds.
-Sleep/HRV = student vitality index. Weather = atmospheric pressure. 4-6 short lines,
-formatted like a weather/conditions report. Brief is correct here.]
-
-===EXCHANGE===
-[The Belief Exchange ticker. List ALL significant entities with Belief scores as prices.
-Mark trend: ↑ rising / ↓ falling / — steady. One paragraph of market commentary below
-the ticker — what does the current pattern mean narratively?]
-
-===CLASSIFIEDS===
-[5-6 classified notices. Each one 2-4 sentences — enough to feel real and slightly eerie.
-Mix labels: LOST: / FOUND: / NOTICE: / SEEKING: / WARNING: / REWARD: / POSITION AVAILABLE: etc.
-These are story seeds. The reader should want to investigate at least two of them.]
-
 ===WEATHER===
 [The Academy Meteorological Society's 4-day outlook, written entirely in Academy terms.
 Rain = the Unwritten pressing through the membrane. Clear sky = the Labyrinth open and legible.
@@ -379,6 +362,29 @@ This is the most analytical column — precise, slightly clinical, the newspaper
 
 MARKET ODDS DATA (pre-calculated from entity belief and thread phase):
 {data['market_odds_formatted']}
+
+===BAROMETER===
+[Health/biometric data AS Academy conditions. Steps = distance covered on Academy grounds.
+Sleep/HRV = student vitality index. Weather = atmospheric pressure. 4-6 short lines,
+formatted like a weather/conditions report. Brief is correct here.]
+
+===EXCHANGE===
+[The Belief Exchange ticker. List ALL significant entities with Belief scores as prices.
+Mark trend: ↑ rising / ↓ falling / — steady. One paragraph of market commentary below
+the ticker — what does the current pattern mean narratively?]
+
+===FEATURE===
+[A longer in-world piece: a profile, an investigation, a history, or an opinion column.
+4-6 paragraphs. Choose the most interesting thread or entity from the data and write
+something with depth — not news, but context. Could be: a profile of a figure who's been
+in the news, an investigation into something that's been going on for weeks, a brief history
+of a location, or an opinion piece attributed to a named Academy figure. Give it a title
+and a byline. This is what the reader lingers over.]
+
+===CLASSIFIEDS===
+[5-6 classified notices. Each one 2-4 sentences — enough to feel real and slightly eerie.
+Mix labels: LOST: / FOUND: / NOTICE: / SEEKING: / WARNING: / REWARD: / POSITION AVAILABLE: etc.
+These are story seeds. The reader should want to investigate at least two of them.]
 
 ===CORRECTION===
 [One dry, formal correction. Deadpan and specific. 1-2 sentences. Brief is correct here.]

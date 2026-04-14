@@ -19,10 +19,14 @@ import re
 import random
 import shutil
 import argparse
+import sys
 from pathlib import Path
 from datetime import datetime, date
 
-BASE_DIR = Path(__file__).parent.parent
+BASE_DIR   = Path(__file__).parent.parent
+_SCRIPT_DIR = Path(__file__).parent
+sys.path.insert(0, str(_SCRIPT_DIR))
+import world_context
 REGISTER = BASE_DIR / "lore" / "world-register.md"
 THREADS  = BASE_DIR / "lore" / "threads.md"
 QUEUE    = BASE_DIR / "memory" / "tick-queue.md"
@@ -198,6 +202,26 @@ def check_anchor_decay(dry_run=False):
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+def tag_entities_with_context(entities, ctx):
+    """
+    Add 'stirrable' and 'location_note' fields to each entity dict.
+    Sleeping NPCs get stirrable=False; all other entity types remain stirrable.
+    """
+    for e in entities:
+        state = world_context.get_npc_state(e["name"], e.get("type", "NPC"), ctx)
+        e["stirrable"]     = state["stirrable"]
+        e["location_note"] = state["note"]
+    return entities
+
+
+def build_queue_line(e):
+    """Format a single entity into a tick-queue line with optional location note."""
+    base = f"- **{e['name']}** ({e['type']}, Belief {e['belief']})"
+    if e.get("location_note"):
+        return f"{base} — {e['location_note']}"
+    return base
+
+
 def main():
     parser = argparse.ArgumentParser(description="World simulation tick")
     parser.add_argument('--count', type=int, default=None,
@@ -205,8 +229,17 @@ def main():
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
 
+    # ── Time context ──────────────────────────────────────────────────────────
+    ctx      = world_context.get_time_context()
+    night    = world_context.is_night(ctx)
+    tag      = world_context.time_tag(ctx)
+    prefix   = world_context.time_seed_prefix(ctx)
+
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    queue_lines = [f"\n## Tick {timestamp}"]
+    header    = f"\n## Tick {timestamp} [{tag}]"
+    if prefix:
+        header += f"\n*{prefix}*"
+    queue_lines = [header]
 
     # ── 1. Entity tick ────────────────────────────────────────────────────────
     if not REGISTER.exists():
@@ -214,31 +247,59 @@ def main():
         return
 
     entities = parse_entities(REGISTER.read_text())
+    tag_entities_with_context(entities, ctx)
     thread_names = get_thread_names()
+
     if entities:
-        n = args.count if args.count is not None else random.randint(1, 3)
-        selected = weighted_sample(entities, n)
+        # Night: only 1 entity, prefer low-belief (Nothing is hunting while everyone sleeps).
+        # Remove sleeping NPCs from pool unless they're at crisis level (Belief ≤ 2).
+        def is_available(e):
+            if e["stirrable"]:
+                return True
+            return e["belief"] <= 2  # crisis entities stir even at night
+
+        pool = [e for e in entities if is_available(e)]
+        if not pool:
+            pool = entities  # fallback: nothing suppressed everything
+
+        if night:
+            n = args.count if args.count is not None else 1
+            # Prefer low-belief entities at night (most vulnerable to Nothing)
+            pool.sort(key=lambda e: e["belief"])
+        else:
+            n = args.count if args.count is not None else random.randint(1, 3)
+
+        selected = weighted_sample(pool, n)
 
         # Group selected entities by thread
         thread_groups, unthreaded = group_by_thread(selected, thread_names)
 
         # Write thread activations first (grouped, coherent)
         for tid, group in thread_groups.items():
-            name = thread_names.get(tid, tid)
-            entity_parts = ', '.join(f"{e['name']} (Belief {e['belief']})" for e in group)
-            queue_lines.append(f"- **[Thread: {name}]** stirred — {entity_parts}")
+            tname = thread_names.get(tid, tid)
+            parts = []
+            for e in group:
+                line = f"{e['name']} (Belief {e['belief']})"
+                if e.get("location_note"):
+                    line += f" — {e['location_note']}"
+                parts.append(line)
+            queue_lines.append(f"- **[Thread: {tname}]** stirred — {', '.join(parts)}")
 
         # Then any unthreaded entities (talismans, misc)
         for e in unthreaded:
-            queue_lines.append(f"- **{e['name']}** ({e['type']}, Belief {e['belief']})")
+            queue_lines.append(build_queue_line(e))
 
         if not args.dry_run:
-            print(f"✓ Entity tick: {len(selected)} selected across {len(thread_groups)} thread(s)")
+            suppressed = len(entities) - len(pool)
+            print(f"✓ Entity tick [{tag}]: {len(selected)} selected across {len(thread_groups)} thread(s)")
+            if suppressed > 0:
+                print(f"  ({suppressed} sleeping NPC(s) excluded from pool)")
             for tid, group in thread_groups.items():
-                name = thread_names.get(tid, tid)
-                print(f"  [Thread: {name}] — {', '.join(e['name'] for e in group)}")
+                tname = thread_names.get(tid, tid)
+                print(f"  [Thread: {tname}] — {', '.join(e['name'] for e in group)}")
             for e in unthreaded:
-                print(f"  - {e['name']} (Belief {e['belief']})")
+                loc = f" [{e['location_note']}]" if e.get("location_note") else ""
+                print(f"  - {e['name']} (Belief {e['belief']}){loc}")
     else:
         print("⚠ No entities found in world-register.md.")
 
