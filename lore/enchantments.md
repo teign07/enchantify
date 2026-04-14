@@ -33,6 +33,21 @@ Same flow, but at step 5, ask the player to describe what they see in words. Pro
 - **Net gain:** +2 Belief per Enchantment
 - The Compass Run (cost 0, reward 9) is intentionally more rewarding to incentivize the full cycle.
 
+## Enchantment Progression
+
+Enchantments are not all available from the start. They are revealed through play, Belief growth, and specific encounters. The Labyrinth never announces tiers — they are discovered.
+
+| Tier | Unlock Condition | Enchantments |
+|---|---|---|
+| **Foundation** | Tutorial | Everything Speaks, Everything's Poetry, Everything's Magic, Everything's Wonderful, Everything's Stories |
+| **Practitioner** | Belief 20+ | Everything's a Haiku, Everything's Nice, Mirror Mirror, Everything's Van Gogh, Everything's Monet |
+| **Artisan** | Belief 40+ | Everything's Shakespeare, Everything's Anime, Everything's Puzzling, Everything's Connected |
+| **Journeyman** | Specific discovery (fae bargains, story events) | Everything's Astral, Everything's Roasted, Everything's Punny, Everything's a Joke |
+
+*Journeyman enchantments are never offered — they emerge from encounters. Everything's Roasted is earned at the Goblin Market. Everything's Punny comes from a Punctuation Pixie bargain. Everything's Astral requires a successful Book Jump. Everything's a Joke requires something the Labyrinth will not reveal in advance.*
+
+---
+
 ## The Enchantment Catalog
 
 ### Everything Speaks

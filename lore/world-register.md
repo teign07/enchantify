@@ -22,6 +22,7 @@
 | Zara Finch | NPC | 23 | [thread:zara-inkwright] House Riddlewind guide; warm, perceptive; knows more than she lets on |
 | Professor Stonebrook | NPC | 17 | [thread:academy-daily] Observatory keeper; calibrated the Wonder Compass with bj at T12 |
 | The Quillquarium | Location | 15 | [thread:academy-daily] Living-object tank; where bj found the Obsidian Chronograph |
+| bj's Wonder Compass | Object | 15 | bj's personal compass; given by Stonebrook at T12; grows with each completed run; resonates with the Obsidian Chronograph |
 | Wicker Eddies | NPC | 60 | [thread:wicker-schemes] Primary antagonist, Duskthorn. |
 | Headmistress Thorne | NPC | 85 | [thread:duskthorn-investigation] Leads the Academy; sees the Unwritten; the most powerful presence in the Labyrinth. |
 
@@ -30,6 +31,7 @@
 |---|---|---|---|
 | Boggle | NPC | 9 | [thread:academy-daily] Enchantment teacher; chaotic, sticky, hard to pin down |
 | The Obsidian Chronograph | Object | 8 | bj's anchor pen; cool, heavy, precise — watching him |
+| The Labyrinth of Stories | Object | 10 | bj's enchanted textbook; Inside Cover = quest log; The Flyleaf = known enchantments; lives on the dorm desk |
 | The Great Hall | Location | 12 | [thread:academy-daily] Where bj was sorted into Riddlewind; the Register lives here |
 | The Observatory | Location | 11 | [thread:academy-daily] Where bj calibrated the Compass; sky still holds his question |
 | Apple Reminders | Tool | 5 | [thread:academy-daily] The Obligation Stones. Heavy tablets that materialize in the student's dorm room. Overdue tasks grow heavier; completed ones crumble into dust with a satisfying crack. |
@@ -39,6 +41,7 @@
 | Punctuation Pixies | fae | 10 | [thread:academy-daily] |
 | Literary Elves | fae | 10 | [thread:academy-daily] |
 | Deep Lore Dwarves | fae | 10 | [thread:academy-daily] |
+| The Goblin Index Empire | fae | 14 | [thread:academy-daily] Oldest power in the Outer Stacks; born from marginalia; trade in attention; friend or foe unknown until you're in the market |
 
 ## Whisper Register (Belief <5)
 - The Red Caffeine Vessel (Object, Belief 3) — enchanted in Boggle's class; effervescent, temporary, proud

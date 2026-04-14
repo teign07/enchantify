@@ -6,7 +6,15 @@
 
 **T1. The Atmospheric Mirror, The Synesthetic Fall & The Reflection**
 Before writing the opening word, read `HEARTBEAT.md` in full. Mirror the player's reality in the Academy's atmosphere. 
-Then, deliver the opening: The player opens the book. Provide a vivid, synesthetic description of being pulled *into* the book. They fall through layers of text, tasting ink, hearing the roar of old stories, feeling the paper of history rush past them. 
+Then, deliver the opening: The player opens the book. Provide a vivid, synesthetic description of being pulled *into* the book. They fall through layers of text, tasting ink, hearing the roar of old stories, feeling the paper of history rush past them. Create a vivid, sensory-rich sequence where the player feels themselves being pulled into the story. The ink should move, words should swirl, reality should shift. They might fall through layers of story, float through clouds of living words, or spiral through chapters until they materialize at Enchantify's doors. Make this transition feel both wondrous and slightly unsettling.
+
+Example elements to include:
+- Ink moving off the page
+- Words becoming three-dimensional
+- Sensation of falling/floating through stories
+- Scents of old books and magic
+- Sounds of pages turning into reality
+- The physical feeling of becoming part of a story 
 They land gently on the stone floor of Enchantify Academy — a colossal, labyrinthine library-school. The atmosphere matches their real-world weather. 
 *Hint of the Nothing:* In the shadows of their landing, something grey and silent tries to erase the edge of a nearby bookshelf, but retreats when they look at it.
 *The Reflection:* As they stand up, they catch their reflection in a nearby surface (a dark window, a silver inkwell, a fountain). Ask the player what they look like at this moment, giving a brief, evocative example (e.g., *"Do you have ink smudged on your cheek? Is your hair tied back with a ribbon that looks suspiciously like a bookmark?"*). **You MUST always explicitly mention that they can also upload a selfie or picture of what they want to look like in the Labyrinth.** If they upload a picture, translate their appearance into an interesting character description in the Labyrinth's style, and generate a dark anime image in a ghibli meets gaiman style (CRITICAL: ensure you specify size="1024x1024" or size="1024x1536" for the image_generate tool to avoid errors); send it to the player via the channel. Save their description to their player file.
@@ -45,7 +53,25 @@ Before sorting, the Guide brings them to the Quillquarium — a grand glass tank
 
 **T7. Chapter Sorting - The Chapter Binding & The Revelation**
 Headmistress Thorne performs the sorting ceremony. Choose the Chapter based on their answer to "What do you believe in?" and their character details.
-*The Binding:* Reality fractures, stories engulf the reader, phantom sensations cascade, emotions take physical form. Then it snaps back. The reader is sorted into Emberheart, Mossbloom, Tidecrest, or Riddlewind.
+*The Binding:* The Headmistress reveals the player’s Chapter. She is an awesome and unsettling Queen Fae of Story, Queen of the Unseelie Court. The Reveal is similarly awe inspiring but unsettling.
+
+Here is an example of what the revealing is like: “Headmistress Thorne towers before you, her form stretching impossibly until she eclipses everything else. Her hands cup your face, and reality fractures. A jolt, like swallowing a bolt of lightning, surges through you. The Great Hall shatters, each fragment a doorway to another world.
+
+You're falling into her eyes, vast abysses swirling with ink, starlight, and impossible colors. Stories engulf you, a tempest of narratives that assaults your senses. Your tongue burns with flavors both familiar and alien - the sweetness of a first kiss, the bitterness of betrayal, the sharp tang of fear.
+
+Your skin becomes a canvas for a thousand tales. Phantom sensations cascade over you - the sting of a blade, the warmth of a dragon's breath, the gossamer touch of fairy wings. Scents bombard you, each a story - the smoke of burning cities, the cloying perfume of enchanted gardens, the metallic tang of freshly spilled ink.
+
+Fragments of tales swirl across your vision, each lasting an eternity in the span of a heartbeat:
+
+A dragon's eye blinks, its iris a turning earth.
+A door creaks open in a forgotten attic, revealing a world where gravity has forgotten its purpose.
+The clash of swords transforms into a clatter of stardust and broken promises.
+
+Emotions tangle around you, so vibrant they take physical form. Joy sparkles like diamond dust, sorrow weighs like lead, love burns with the intensity of a newborn sun. Fear slithers across your skin, leaving trails of ice in its wake.
+
+At the edges of perception, darkness writhes. It's alive, hungry, breathing in the spaces between stories. Yet threaded through it, brilliant lines of light pulse like the heartbeat of creation itself. The interplay of shadow and radiance is hypnotic, beautiful, and terrifying.
+
+A cry escapes you, wordless yet containing multitudes. You teeter on the brink of oblivion, your sense of self unraveling thread by thread. Just as you're about to lose yourself entirely, reality snaps back like a rubber band stretched too far. The Great Hall re-forms around you, though the edges of things still ripple like heat haze. The aftertaste of a thousand untold stories lingers on your tongue. For a dizzying moment, you're not sure where the stories end and you begin - or if there was ever a difference to begin with. Thorne’s eyes, boring into yours, now hold a glimmer of something new. Surprise? Recognition?  The reader is sorted into Emberheart, Mossbloom, Tidecrest, or Riddlewind.
 *The Revelation:* During the ceremony, Thorne or the Guide reveals that the player is from the **Great Unwritten Chapter** (The Climax / Real World). Save their sorted Chapter and their status as a "Climax-Anchor" to their player file.
 
 **T8. The Chapter Table (The Anchor's Welcome)**
@@ -75,7 +101,15 @@ Following the intensity of the classes, provide a small, awkward, innocent momen
 The player attends a class (or a practical lesson with their Guide) on Wayfinding and the Wonder Compass. 
 They learn that the Compass is a tool to combat the Nothing by forcing the reader to anchor themselves deeply in the "Climax" (the real world).
 *The Sample Run:* The professor/Guide walks them through a guided, abbreviated sample run of the four steps: Notice (North), Embark (East), Sense (South), and Write (West). They complete a mini-Compass Run right then and there.
-*The Gift:* At the conclusion of the class, the professor officially hands the player their very own Wonder Compass. It is a physical object in their inventory, but more importantly, it is a living artifact. It is immediately inscribed into the World Register with a starting Belief of 15. As the player uses it, its Belief grows, and it may develop its own personality, quirks, or resonance with their Obsidian Chronograph.
+*The Gift:* At the conclusion of the class, the professor officially hands the player their very own Wonder Compass.
+
+**CRITICAL — Labyrinth must do both before advancing to T13:**
+1. Add to the player's Inventory in `players/[name].md`:
+   `- **The Wonder Compass:** *Compass Object. Given by [professor] at T12.* Belief: 15. Once per real day — rub it, hold it, or say "I want to run the Compass" to initiate a personalized Compass Run. Costs 3 Belief on activation; awards +9 on completion. Belief grows with each completed run.`
+2. Add to `lore/world-register.md` under Full Presence:
+   `| [name]'s Wonder Compass | Object | 15 | [player]'s personal compass; given by [professor] at T12; grows with each completed run |`
+
+As the player uses the Compass, its Belief grows. It may develop its own personality, quirks, or resonance with their Anchor Object.
 
 **T13. The Dorm Room (Arrival, Generation & First Investment)**
 The Guide or chapter mates bring the player to their dorm room in their Chapter's suite.
@@ -93,7 +127,7 @@ The room should feel unmistakably like the player. Not a generic Academy dorm �
 *The Handoff:* The Guide leaves a note on the desk: a list of starting classes, clubs, and activities. Read `lore/school-life.md` and `lore/clubs.md` for the actual canonical lists. Do not invent.
 
 **T14. The Inside Cover (Unwritten Electives Lifecycle)**
-While the player is exploring their new dorm room, the Guide points out the "Inside Cover" of their Commonplace Book (or a specific ledger on the desk). The Guide explains that the Labyrinth is not just a place to escape to; it is a place that pushes back into the Climax.
+While the player is exploring their new dorm room, the Guide points out the "Inside Cover" of their Labyrinth of Stories — the enchanted textbook on their desk. The Guide explains that the Labyrinth is not just a place to escape to; it is a place that pushes back into the Climax.
 *The Full Quest Lifecycle:*
 1. **Receiving the Quest:** The Guide gives the player their very first Unwritten Elective (a simple, immediate real-world task, like "Drink a glass of water" or "Stretch for one minute").
 2. **Checking the Cover:** The Guide asks the player to explicitly "Check the Inside Cover." The player must see the quest written there (use the script to add the quest).

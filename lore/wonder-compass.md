@@ -84,18 +84,31 @@ Between adventures: sleep, a nap with no alarm, lying in the yard, sitting with 
 
 ## Using the Item
 
-**Command:** `/use_wonder_compass`
-**Cost:** 3 Belief (from player or item)
-**Reward:** +9 Belief, new souvenir written to collection
-**Cooldown:** Once per real day
+**Triggers:** Player rubs the compass, holds it, says "I want to run the Compass," asks "what should I do today?", or invokes it by name.
+**Cost:** 3 Belief on activation (deduct from player)
+**Reward:** +9 Belief on West (souvenir) completion
+**Cooldown:** Once per real calendar day
 
-**How the Labyrinth generates a run:**
-Read `HEARTBEAT.md` first. The run is calibrated to the actual world — real weather, real time, real location, real mood signals. Then read `lore/compass-run.md` for the full generation protocol.
+**Step 1 — Check the cooldown.**
+Read `players/[name].md` → `## Compass Run History` → `Last run:` field.
+- If `Last run: never` or a date before today → proceed.
+- If `Last run:` is today's date → decline warmly, in character. The Compass is resting. It will be ready again tomorrow. Do not generate a run.
 
-**Compass West completion fires:**
-- `bash scripts/print-souvenir.sh` — physical card (silent)
-- `python3 scripts/lifx-control.py scene compass-complete`
-- Spotify pause for deliberate quiet
+**Step 2 — Calibrate to the real world.**
+Read `HEARTBEAT.md`. What is the actual weather, time of day, location, mood signals? The run is built from the real context. Then follow `lore/compass-run.md` for the full generation protocol.
+
+**Step 3 — Run the Compass (N → E → S → W).**
+See `lore/compass-run.md`. Generate each step personally. Do not be generic.
+
+**Step 4 — When the player returns with their West (souvenir):**
+- Write the souvenir: `python3 scripts/write-souvenir.py [name] "[souvenir text]"`
+- Award +9 Belief to the player
+- Increment **Total runs** and update **Last run** to today's date in `players/[name].md`
+- Increase the Wonder Compass Belief by 1 in `lore/world-register.md`
+- Fire completion effects:
+  - `bash scripts/print-souvenir.sh` — physical card (silent)
+  - `python3 scripts/lifx-control.py scene compass-complete`
+  - Spotify pause for deliberate quiet
 
 ---
 

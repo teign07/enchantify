@@ -267,10 +267,11 @@ Trigger: Heartbeat shows high stress indicators or player hasn't rested in 3+ da
 
 ### 1. The Inside Cover (The Quest Log)
 
-Active electives are stored in the player's file (`players/[name].md`) under the section **## The Inside Cover**.
+The **Inside Cover** is the first physical page inside *The Labyrinth of Stories* — the player's enchanted textbook. Active electives are stored in `players/[name].md` under the section **## The Inside Cover**.
 
 - **Maximum Capacity:** A player can only have **3 active electives** at any given time. If the cover is full, no new notes will appear, and NPCs will not ask for new favors.
 - **Viewing the Cover:** If the player asks "Check my electives," "What quests do I have," or "Look at the inside cover," the Labyrinth reads the active electives and describes them as physical notes tucked into the book's binding.
+- **The Flyleaf:** The page before the Inside Cover. Lists all known enchantments. If the player asks "What enchantments do I know" or "Open the Flyleaf," read `players/[name].md` → The Flyleaf section and describe the entries as if reading handwriting that appeared on its own.
 - **Dropping an Elective:** The player can drop a quest at any time by saying "Remove [NPC]'s note" or "I don't have time for this." The Labyrinth quietly removes it from the file without penalty. The note "dissolves into harmless ink."
 
 ### 2. How Quests are Generated

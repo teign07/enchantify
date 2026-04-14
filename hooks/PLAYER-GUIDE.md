@@ -281,9 +281,13 @@ The specificity is the magic. The fae light up because that gap is *real* and yo
 
 ---
 
-## Part Eight: Quests and the Inside Cover
+## Part Eight: The Labyrinth of Stories — Inside Cover and The Flyleaf
 
-Your **Inside Cover** holds active quests — physical notes tucked into the book's binding, visible when you check. Maximum three at once.
+Your enchanted textbook, *The Labyrinth of Stories*, has two functional pages at the front.
+
+**The Inside Cover** holds active quests — physical notes tucked into the book's binding, visible when you check. Maximum three at once.
+
+**The Flyleaf** is the page before it. Your known enchantments appear here as you discover them — the ink writes itself in. Say "Open the Flyleaf" or "What enchantments do I know" to see them.
 
 Quests come from two sources:
 

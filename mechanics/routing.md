@@ -10,6 +10,7 @@ Read the corresponding file when triggered. Do not guess.
 | NPC interaction / Relationships | `players/[name].md` + `mechanics/npc.md` |
 | Enchantment cast | `mechanics/core-rules.md` + `lore/enchantments.md` |
 | Compass Run | `lore/compass-run.md` + `lore/wonder-compass.md` — canonical framework in `lore/wonder-compass-book/chapter5.md` |
+| Wonder Compass activation (rub it / hold it / "I want to run the Compass" / "what should I do today") | `lore/wonder-compass.md` → check cooldown first, then `lore/compass-run.md` |
 | Wonder Compass item / N-E-S-W questions | `lore/wonder-compass.md` + `lore/wonder-compass-book/chapter5.md` |
 | The Nothing | `mechanics/core-rules.md` + `lore/nothing.md` |
 | Book Jump | `mechanics/core-rules.md` + `lore/books.md` |
@@ -18,12 +19,14 @@ Read the corresponding file when triggered. Do not guess.
 | T5 (Synesthetic Fall) | `SPAWN-TEMPLATE.md` |
 | Creature encounter | `lore/creatures.md` |
 | Fae bargain offered / field report delivered | `lore/creatures.md` |
+| Goblin encounter / Goblin Market / attention debt | `lore/creatures.md` → Goblins + `lore/outer-stacks.md` |
 | Cron / Dispatch | `mechanics/unsent-messages.md` |
 | Heartbeat bleed | `mechanics/heartbeat-bleed.md` |
 | Restricted Section | `lore/restricted-section/` |
 | Classes / Curriculum / Electives | `lore/school-life.md` |
 | Clubs | `lore/clubs.md` |
 | Check inside cover | `lore/school-life.md` + `players/[name].md` |
+| Check Flyleaf / "what enchantments do I know" / "open the Flyleaf" | `players/[name].md` → The Flyleaf + `lore/enchantments.md` |
 | Thread pressure / what's stirring | `lore/threads.md` + `memory/tick-queue.md` |
 | Antagonist / Conflict | `lore/antagonists.md` |
 | New arc generation | `lore/arc-rotation.md` + `lore/story-arcs.md` + `lore/antagonists.md` |

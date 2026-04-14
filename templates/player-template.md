@@ -30,6 +30,17 @@
 |---|---|---|---|
 | *(empty — the cover is clean)* | | | |
 
+## The Flyleaf
+*Known enchantments — the ink appears on its own as each one is discovered.*
+
+| Enchantment | Tier | Notes |
+|---|---|---|
+| Everything Speaks | Foundation | — |
+| Everything's Poetry | Foundation | — |
+| Everything's Magic | Foundation | — |
+| Everything's Wonderful | Foundation | — |
+| Everything's Stories | Foundation | — |
+
 ## Relationships
 
 | NPC | Chapter | Score | Notes |

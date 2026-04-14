@@ -98,6 +98,57 @@ The fae are not human. They have read every description of the physical world bu
 
 ---
 
+### 6. Goblins (The Marginalia Born)
+
+**Appearance:** Small and quick — about knee-height on a student, though their hats (folded from bookmarks and old receipts) add another six inches. Their skin has the quality of old paper: slightly yellowed, slightly translucent in strong light. Ink stains everything — their fingers, their knuckles, the creases of their faces. Most noticeably: **writing covers their skin**. Not tattoos. Actual handwriting from whoever last annotated the books they were born from. A goblin born from a Victorian natural history textbook has copper-plate script down their forearms. A goblin born from a borrowed library copy of a paperback thriller has a dozen hands' worth of "this is so good!!" and "wait what" running up their neck. The writing shifts, slowly, as they age and read more. They dress in pages — vests sewn from endpapers, coats cut from flyleaves, boots that are book spines stitched together with red thread.
+
+**Vibe:** Mercantile. Precise. Fundamentally unpredictable — not because they are chaotic, but because *you don't know which market you've walked into*. A goblin who is your friend will do almost anything for you. A goblin who has decided you're not worth their time will make that very clear without being rude about it. A goblin whose debt you've failed to pay will not chase you — they will simply close the door, and the door will not open again for a very long time.
+
+**Origin:** Goblins are born from **marginalia** — the accumulated annotations, underlines, dog-ears, "???"s and "!!!"s and "this reminds me of"s left by millions of readers in millions of books over thousands of years. They are not the story. They are the *response* to the story. This is why they are the oldest inhabitants of the Outer Stacks: annotation predates the Academy, predates the current cataloguing system, predates almost everything. The first goblins were born in the margins of the oldest surviving annotated texts. They remember when the Library was just a single room with three books and one very opinionated reader.
+
+**Behavior:** Goblins run markets, empires, registries, courts, and archives. They do not adventure — they trade, mediate, catalogue, and collect debts. They are the ones who invented shelving-by-mood when the Dewey Decimal system proved too rigid for the Outer Stacks. They are organized into overlapping kingdoms, each descended from a different tradition of annotation:
+
+- **The Index Empire** — the largest and most powerful. They know where everything is. Their currency is *location* — they can tell you what shelf holds the thing you need, but the price is always something they want to find.
+- **The Footnote Courts** — the scholars and aristocrats. They trade in context: why a thing means what it means, what came before it, what it connects to. The most expensive commodity in the Courts is *nuance*.
+- **The Appendix Provinces** — the working class. Practical, blunt, no-nonsense. They store the overflow, the things that didn't fit in the main text. They are the easiest goblins to bargain with and the least forgiving when the bargain is broken.
+- **The Errata Registry** — neutral territory. They correct mistakes. They are the Outer Stacks' closest thing to a justice system. They are precise to the point of being unsettling and have no opinion about anything except accuracy.
+- **The Marginalia Clans** — the oldest bloodlines, born from the first annotations ever made. They are treated with reverence by all other goblins. They rarely appear in the market, but when they do, something significant is available.
+
+**Relationship:** They have no Chapter allegiance — they predate Chapters. The Riddlewind Chapter finds them fascinating. The Tidecrest Chapter finds them exhausting (too many variables). The Emberheart Chapter gets on well with them (strong opinions = good annotation energy). The Duskthorn Chapter doesn't trust them and is correct to be cautious but wrong about why.
+
+**How they interact:** Every goblin interaction is a **potential transaction**. They don't approach for social reasons — they approach because they've noticed something in you that might be worth trading with. They will not announce this. They will open a conversation that feels casual and is not. 
+
+Whether they are friend or foe depends entirely on:
+1. What you have that they want
+2. Whether you've paid what you owed them last time
+3. Which kingdom they're from (Index is formal, Appendix is blunt, Marginalia Clans are inscrutable)
+4. The season (Gold Season: generous and warm; Stick Season: strictly business; Mud Season: unreliable and a little feverish; Deep Winter: serious and willing to deal at unusual rates)
+
+They are not villains. They are not allies. They are **merchants in a market where the currency is attention** — the specific, genuine act of noticing. They have been cheated so many times by humans who said they noticed something when they didn't that they now have a very accurate internal sense for the difference. You cannot fake it. A performed observation insults them. A genuine one, even small, can open doors you didn't know existed.
+
+**What they want:** **Attention.** Not Belief — they don't care about your numbers. The specific, sensory act of noticing: what you saw, what you smelled, what struck you, what was unexpected. The more specific and unchosen the detail, the more it's worth. "A blue door" is worth almost nothing. "The blue door that had been painted over so many times the knob didn't quite latch anymore, and there was a handprint in the old red paint showing through" is worth something. The handprint is worth a lot.
+
+They also specifically collect:
+- **Things that were almost written but weren't** — thoughts someone had and didn't put down
+- **The books no one reads** — they are aware of every unread book and consider themselves the custodians of the unread
+- **The gap between what a writer meant and what a reader understood** — this is the most valuable thing in their economy and the hardest to provide
+
+**Bargain quests:**
+- *"Notice something on your way home today that has been there for years and you've never actually looked at. Come back with the detail. Not the category — the detail."*
+- *"Find the oldest thing you can touch that still has a use."*
+- *"Find something that has been waiting longer than you've been alive."*
+- *"Find the gap between what something is called and what it actually is."*
+- *"Find a thing no one has annotated — no sign, no label, no explanation. Bring me the fact of it."*
+- *"Find something that should have been written down and wasn't."*
+
+**What happens if you don't pay:**
+The goblin does not chase you. There is no punishment, no curse, no scene. The market closes. The door to your Anchor room — if a Goblin Market — will be shut the next time you arrive, technically open, but nothing worth buying. The goblin you dealt with will be present and will not acknowledge you. This continues until you return with what you owed, plus the thing you find you actually want from them now that you don't have access. They are aware of the irony.
+
+**What happens if you're reliable:**
+The market opens further. New inventory appears. A goblin will greet you by name (a significant gesture — goblins rarely use names). By the 7th visit, a regular customer has a **tab**. By the 12th, the goblin may open a second door in the back of the market — the one that goes somewhere the map doesn't show.
+
+---
+
 ## The Exchange
 
 Fae quests are not assignments. They are **bargains**.
