@@ -31,9 +31,15 @@ REGISTER = BASE_DIR / "lore" / "world-register.md"
 THREADS  = BASE_DIR / "lore" / "threads.md"
 QUEUE    = BASE_DIR / "memory" / "tick-queue.md"
 
-DECAY_THRESHOLD_DAYS = 30
-DECAY_AMOUNT         = 1
-ANCHOR_FLOOR         = 5
+DECAY_THRESHOLD_DAYS   = 30
+DECAY_AMOUNT           = 1
+ANCHOR_FLOOR           = 5
+
+INVESTMENT_CHANCE      = 0.25   # probability a stirred NPC invests per tick
+INVESTMENT_MIN         = 1      # minimum Belief invested per event
+INVESTMENT_MAX         = 3      # maximum Belief invested per event
+NPC_INVESTMENT_FLOOR   = 8      # NPCs never drop below this from investing
+TALISMAN_CAP           = 200    # Chapter Talismans can grow to 200
 
 
 # ── Entity tick ───────────────────────────────────────────────────────────────
@@ -114,6 +120,83 @@ def weighted_sample(entities, n):
                 pool.pop(i)
                 break
     return selected
+
+
+# ── NPC Talisman Investment ───────────────────────────────────────────────────
+
+def get_belief_in_text(text, name):
+    """Return current Belief for a named entity in world-register text, or None."""
+    row_re = re.compile(
+        r"^\|\s*" + re.escape(name) + r"\s*\|\s*[^|]+\s*\|\s*(\d+)\s*\|",
+        re.MULTILINE
+    )
+    m = row_re.search(text)
+    return int(m.group(1)) if m else None
+
+
+def set_belief_in_text(text, name, new_belief):
+    """Return (new_text, changed) with updated Belief for the named entity row."""
+    row_re = re.compile(
+        r"^(\|\s*" + re.escape(name) + r"\s*\|\s*[^|]+\s*\|\s*)\d+(\s*\|)",
+        re.MULTILINE
+    )
+    new_text, n = row_re.subn(rf"\g<1>{new_belief}\g<2>", text, count=1)
+    return new_text, n > 0
+
+
+def run_npc_talisman_investments(selected, register_text, dry_run=False):
+    """
+    For each stirred NPC with a chapter affiliation, roll INVESTMENT_CHANCE to
+    invest 1–3 Belief into their chapter's talisman.
+
+    Returns (investment_seeds: list[str], modified_text: str).
+    Belief changes are applied in-memory; caller writes the file if needed.
+    """
+    seeds = []
+    text  = register_text
+
+    for e in selected:
+        if e['type'].lower() not in ('npc', 'creature'):
+            continue
+        chapter  = world_context.CHAPTER_MAP.get(e['name'])
+        talisman = world_context.CHAPTER_TALISMAN.get(chapter) if chapter else None
+        if not talisman:
+            continue
+
+        if random.random() > INVESTMENT_CHANCE:
+            continue
+
+        npc_b = get_belief_in_text(text, e['name'])
+        tal_b = get_belief_in_text(text, talisman)
+        if npc_b is None or tal_b is None:
+            continue
+        if npc_b <= NPC_INVESTMENT_FLOOR:
+            continue    # too drained to give
+        if tal_b >= TALISMAN_CAP:
+            continue    # talisman already maxed
+
+        amount = random.randint(INVESTMENT_MIN, INVESTMENT_MAX)
+        amount = min(amount, npc_b - NPC_INVESTMENT_FLOOR)
+        amount = min(amount, TALISMAN_CAP - tal_b)
+        if amount <= 0:
+            continue
+
+        new_npc_b = npc_b - amount
+        new_tal_b = tal_b + amount
+
+        if not dry_run:
+            text, _ = set_belief_in_text(text, e['name'], new_npc_b)
+            text, _ = set_belief_in_text(text, talisman,  new_tal_b)
+
+        seeds.append(
+            f"- *[Talisman Investment]* **{e['name']}** ({chapter}) channels "
+            f"{amount} Belief into the **{talisman}** (now {new_tal_b})"
+        )
+        if dry_run:
+            print(f"  [dry-run] {e['name']} → {talisman}: "
+                  f"NPC {npc_b}→{new_npc_b}, Talisman {tal_b}→{new_tal_b}")
+
+    return seeds, text
 
 
 # ── Anchor decay ──────────────────────────────────────────────────────────────
@@ -246,7 +329,8 @@ def main():
         print(f"❌ {REGISTER} not found.")
         return
 
-    entities = parse_entities(REGISTER.read_text())
+    register_text = REGISTER.read_text()
+    entities = parse_entities(register_text)
     tag_entities_with_context(entities, ctx)
     thread_names = get_thread_names()
 
@@ -302,6 +386,25 @@ def main():
                 print(f"  - {e['name']} (Belief {e['belief']}){loc}")
     else:
         print("⚠ No entities found in world-register.md.")
+
+    # ── 1b. NPC Talisman Investments ──────────────────────────────────────────
+    if selected:
+        invest_seeds, modified_register = run_npc_talisman_investments(
+            selected, register_text, dry_run=args.dry_run
+        )
+        if invest_seeds:
+            queue_lines.append("")
+            queue_lines.extend(invest_seeds)
+            if not args.dry_run:
+                backup = REGISTER.with_suffix(".md.bak")
+                shutil.copy2(REGISTER, backup)
+                tmp = REGISTER.with_suffix(".md.tmp")
+                tmp.write_text(
+                    modified_register if modified_register.endswith("\n")
+                    else modified_register + "\n"
+                )
+                tmp.rename(REGISTER)
+                print(f"✓ Talisman investments: {len(invest_seeds)} NPC(s) invested.")
 
     # ── 2. Anchor decay ───────────────────────────────────────────────────────
     print("Checking anchor decay...")

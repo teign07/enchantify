@@ -42,15 +42,65 @@
 | Literary Elves | fae | 10 | [thread:academy-daily] |
 | Deep Lore Dwarves | fae | 10 | [thread:academy-daily] |
 | The Goblin Index Empire | fae | 14 | [thread:academy-daily] Oldest power in the Outer Stacks; born from marginalia; trade in attention; friend or foe unknown until you're in the market |
+| Headmaster Orion Blackthorn | NPC | 5 | [thread:academy-daily] Emberheart. Visionary, harsh, individualistic. |
+| Aria Silverthorn | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Ellie Moons | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Cedric Widden | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Serenity Lightfeather | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Felix Quimby | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Lyra Stanford | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Soren Ng | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Orlando “Oracle” Scrollstone | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Felicity “Fable” Grimmhaven | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Wilbur “Wordplay” Lexi | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Damien Nights | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Finn Bridges | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Brianna Clarke | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Isolde Firare | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Rowan Laraway | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Lila Woods | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Astra Sonseur | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Caspian Shan | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Melisande Blackwood | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Lysander Mosswood | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Raven Hearts | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Min-seo Kim | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Anton Smith | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Ivy Liversedge | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Jasper Blum | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Briar Merlock | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Astrid Natsune | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Clarissa “Clio” Quibblesnatch | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Gwendolyn Mythwright | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Serenity Brown | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Selene Moonfall | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Aurora Whispers | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Orion Watson | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Marina Clockhouse | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Dylan Williamson | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Octavius “Ode” Quillenchant | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Ignatius “Inkwell” Scribblesnap | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Evelyn Riad | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Quentin Pagester | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Letitia Windings | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Erik Forgeton | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Sylvia Deep | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Harry Ono | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Eleanor Whitewood | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Victor Ebonheart | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Bibliomancer Bella | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Sir Footnote the Curious | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
+| Madame Metaphor | NPC | 5 | [thread:academy-daily] Routine Academy presence. |
 
 ## Whisper Register (Belief <5)
 - The Red Caffeine Vessel (Object, Belief 3) — enchanted in Boggle's class; effervescent, temporary, proud
 
 ## Chapter Talismans
-| Talisman | Chapter | Belief | Philosophy |
+*Belief cap: 200. NPCs invest in their chapter's talisman automatically during world ticks (tick.py). The dominant talisman (highest Belief) sets the Labyrinth's ambient philosophical tone.*
+| Talisman | Chapter | Belief | Philosophy & Goal |
 |---|---|---|---|
-| Dusk Thorn | Duskthorn | 55 | [thread:duskthorn-investigation] No conflict, no story — darkness earns the light |
-| Wind Cipher | Riddlewind | 52 | The story is written between you and the world — coauthored |
-| Ember Seal | Emberheart | 49 | The story is yours to write alone — self-authorship |
-| Moss Clasp | Mossbloom | 47 | A higher power writes through you — surrender |
-| Tide Glass | Tidecrest | 44 | Life is a poem, not a plot — no fixed meaning |
+| Dusk Thorn | Duskthorn | 55 | [thread:duskthorn-investigation] Goal: Introduce conflict, obstacles, or drama. Philosophy: No conflict, no story. |
+| Wind Cipher | Riddlewind | 52 | Goal: Force collaborative puzzles or shared encounters. Philosophy: Coauthored story. |
+| Ember Seal | Emberheart | 49 | Goal: Generate Embark opportunities for self-agency. Philosophy: Self-authorship. |
+| Moss Clasp | Mossbloom | 47 | Goal: Enhance receptive experiences and quiet reflection. Philosophy: Surrender/higher power. |
+| Tide Glass | Tidecrest | 44 | Goal: Inject spontaneity and unpredictable changes. Philosophy: Life is a poem/unscripted. |

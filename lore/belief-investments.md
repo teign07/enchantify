@@ -1,6 +1,6 @@
 # The Ink Well — Belief Investments
 
-*Read this file when a player says "I want to invest in [thing]" or equivalent.*
+*Read this file when a player says "I want to invest in [thing]" or equivalent, or when the simulation runs NPC talisman investments.*
 
 ---
 
@@ -45,6 +45,25 @@ When a player signals they want to invest:
 | 31+ | Anchor status — the thing becomes load-bearing in the story |
 
 These are felt, not announced. The player should notice the difference in texture, not receive a tier notification.
+
+---
+
+## NPC Investment
+
+NPCs invest Belief exactly as players do. The rules above apply to them without exception: investment is devotion, it doesn't come back, and what grows in its place is worth more.
+
+**The primary NPC investment target is their chapter's talisman.** Every NPC with a chapter affiliation has an implicit goal to strengthen their chapter's philosophical anchor. This happens automatically during the world tick (`scripts/tick.py`) — when an NPC is stirred, there is a 25% chance they invest 1–3 Belief into their chapter's talisman. NPCs never drop below Belief 8 from investing.
+
+**Talismans have a Belief cap of 200** — higher than any NPC or player can reach, because they represent centuries of accumulated philosophical pressure. A talisman growing slowly through collective NPC investment is the Labyrinth's long game. The dominant talisman (highest Belief) sets the ambient philosophical tone.
+
+**Wicker Eddies and Headmistress Thorne** invest in the Dusk Thorn rather than a student chapter. Their alignment is confirmed in the world register. This is the only case where an NPC's world-register notes override their apparent student-chapter affiliation.
+
+NPCs can also invest in:
+- Each other (deepening a friendship or rivalry — done through narration, not the tick)
+- Story threads (during active arcs — the Labyrinth narrates this as NPC initiative)
+- Academy rooms (rare; requires Belief ≥ 20 in the NPC)
+
+Player-to-NPC investment and NPC-to-player investment both work. An NPC investing in the player raises the player's Belief investment table; a player investing in an NPC raises that NPC's world-register Belief and deepens their narrative initiative.
 
 ---
 

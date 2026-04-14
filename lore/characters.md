@@ -16,7 +16,7 @@
 **Story hooks:** Guides students through crises. Uniting different Chapters. Her counsel comes with a cost you don’t notice until later.
 **Voice:** Speaks as if she knows the end of every sentence before she starts it. Pauses in unusual places. Her words have weight — not volume, weight.
 
-### Headmaster Orion Blackthorn
+### Headmaster Orion Blackthorn (Emberheart)
 **Personality:** Visionary, innovative, stern
 **Faults:** Harsh, unapproachable, too focused on individuality
 **Quirks:** Detailed journal of visions and ideas, creates magical inventions
@@ -216,11 +216,11 @@
 
 ## Library Staff
 
-**Archibald Evergreen** (Head Librarian) — Venerable, vast knowledge. **Unwritten Interest:** The architecture of massive real-world libraries, book preservation techniques.
+**Archibald Evergreen** (Head Librarian, Mossbloom) — Venerable, vast knowledge. **Unwritten Interest:** The architecture of massive real-world libraries, book preservation techniques.
 
-**Evelyn Riad** (Researcher) — Dedicated researcher uncovering Nothing-related clues. **Unwritten Interest:** Online databases, obscure academic papers, deep-web archives.
+**Evelyn Riad** (Researcher, Mossbloom) — Dedicated researcher uncovering Nothing-related clues. **Unwritten Interest:** Online databases, obscure academic papers, deep-web archives.
 
-**Quentin Pagester** *(they/them)* (Archivist) — Meticulously catalogues enchanted books. **Unwritten Interest:** Organizational systems, Dewey Decimal anomalies, office supply stores.
+**Quentin Pagester** *(they/them)* (Archivist, Riddlewind) — Meticulously catalogues enchanted books. **Unwritten Interest:** Organizational systems, Dewey Decimal anomalies, office supply stores.
 
 -----
 
@@ -233,8 +233,8 @@
 -----
 
 ## Benefactors
-**Eleanor Whitewood** — Real-world benefactor who believes in storytelling magic.
-**Victor Ebonheart** — Real-world benefactor maintaining a strong connection to Enchantify.
+**Eleanor Whitewood** (Emberheart) — Real-world benefactor who believes in storytelling magic.
+**Victor Ebonheart** (Duskthorn) — Real-world benefactor maintaining a strong connection to Enchantify.
 
 -----
 

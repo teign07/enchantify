@@ -27,6 +27,115 @@ WEEKDAY_NAMES = _sched.WEEKDAY_NAMES
 DAY_TONES     = _sched.DAY_TONES
 
 
+# ── Chapter membership ────────────────────────────────────────────────────────
+# Maps NPC names (as they appear in world-register.md) to their chapter.
+# Used by tick.py to route talisman investments.
+# Wicker and Thorne map to Duskthorn (confirmed in register notes).
+# Momort/Thickets map to their public chapter (secret Duskthorn = plot, not mechanic).
+
+CHAPTER_MAP = {
+    # Headmasters
+    "Headmistress Thorne":        "Duskthorn",
+    "Thorne":                     "Duskthorn",
+    "Headmaster Orion Blackthorn":"Emberheart",
+    "Orion Blackthorn":           "Emberheart",
+    # Professors
+    "Professor Euphony":          "Tidecrest",
+    "Eleanor Euphony":            "Tidecrest",
+    "Euphony":                    "Tidecrest",
+    "Professor Stonebrook":       "Mossbloom",
+    "Cedric Stonebrook":          "Mossbloom",
+    "Stonebrook":                 "Mossbloom",
+    "Professor Boggle":           "Riddlewind",
+    "Lydia Boggle":               "Riddlewind",
+    "Boggle":                     "Riddlewind",
+    "Professor Villanelle":       "Tidecrest",
+    "Vivian Villanelle":          "Tidecrest",
+    "Villanelle":                 "Tidecrest",
+    "Professor Momort":           "Emberheart",   # publicly; secretly Duskthorn
+    "Kyle Momort":                "Emberheart",
+    "Momort":                     "Emberheart",
+    "Professor Nightshade":       "Emberheart",
+    "Elara Nightshade":           "Emberheart",
+    "Professor Thickets":         "Riddlewind",   # publicly; secretly Duskthorn
+    "Wellend Thickets":           "Riddlewind",
+    "Professor Maxwell Thorne":   "Emberheart",
+    "Maxwell Thorne":             "Emberheart",
+    "Professor Imatook":          "Mossbloom",
+    "Ignatius Imatook":           "Mossbloom",
+    "Professor Permancer":        "Mossbloom",
+    "Archibald Permancer":        "Mossbloom",
+    "Professor Mook":             "Riddlewind",
+    "Thaddeus Mook":              "Riddlewind",
+    # Riddlewind students
+    "Aria Silverthorn":           "Riddlewind",
+    "Ellie Moons":                "Riddlewind",
+    "Cedric Widden":              "Riddlewind",
+    "Serenity Lightfeather":      "Riddlewind",
+    "Felix Quimby":               "Riddlewind",
+    "Lyra Stanford":              "Riddlewind",
+    "Soren Ng":                   "Riddlewind",
+    'Orlando "Oracle" Scrollstone':"Riddlewind",
+    'Felicity "Fable" Grimmhaven': "Riddlewind",
+    'Wilbur "Wordplay" Lexi':      "Riddlewind",
+    "Damien Nights":              "Riddlewind",
+    # Emberheart students
+    "Finn Bridges":               "Emberheart",
+    "Wicker Eddies":              "Duskthorn",   # confirmed in register notes
+    "Brianna Clarke":             "Emberheart",
+    "Isolde Firare":              "Emberheart",
+    "Rowan Laraway":              "Emberheart",
+    "Lila Woods":                 "Emberheart",
+    "Astra Sonseur":              "Emberheart",
+    "Caspian Shan":               "Emberheart",
+    "Melisande Blackwood":        "Emberheart",
+    # Mossbloom students
+    "Lysander Mosswood":          "Mossbloom",
+    "Raven Hearts":               "Mossbloom",
+    "Min-seo Kim":                "Mossbloom",
+    "Anton Smith":                "Mossbloom",
+    "Ivy Liversedge":             "Mossbloom",
+    "Jasper Blum":                "Mossbloom",
+    "Briar Merlock":              "Mossbloom",
+    "Thorn Thomas":               "Mossbloom",
+    "Astrid Natsune":             "Mossbloom",
+    'Clarissa "Clio" Quibblesnatch':"Mossbloom",
+    "Gwendolyn Mythwright":       "Mossbloom",
+    # Tidecrest students
+    "Zara Finch":                 "Tidecrest",
+    "Serenity Brown":             "Tidecrest",
+    "Selene Moonfall":            "Tidecrest",
+    "Aurora Whispers":            "Tidecrest",
+    "Orion Watson":               "Tidecrest",
+    "Marina Clockhouse":          "Tidecrest",
+    "Dylan Williamson":           "Tidecrest",
+    "Lara Rourck":                "Tidecrest",
+    'Octavius "Ode" Quillenchant': "Tidecrest",
+    'Ignatius "Inkwell" Scribblesnap':"Tidecrest",
+    # Library staff (assigned)
+    "Archibald Evergreen":        "Mossbloom",
+    "Evelyn Riad":                "Mossbloom",
+    "Quentin Pagester":           "Riddlewind",
+    # Enchantment Guardians
+    "Letitia Windings":           "Riddlewind",
+    "Erik Forgeton":              "Emberheart",
+    "Sylvia Deep":                "Mossbloom",
+    "Harry Ono":                  "Tidecrest",
+    # Benefactors
+    "Eleanor Whitewood":          "Emberheart",
+    "Victor Ebonheart":           "Duskthorn",
+    # Legendary / historical — no chapter investment (not mapped)
+}
+
+# Maps chapter name → its talisman name (as it appears in world-register.md)
+CHAPTER_TALISMAN = {
+    "Emberheart": "Ember Seal",
+    "Mossbloom":  "Moss Clasp",
+    "Riddlewind": "Wind Cipher",
+    "Tidecrest":  "Tide Glass",
+    "Duskthorn":  "Dusk Thorn",
+}
+
 # ── Block labels ──────────────────────────────────────────────────────────────
 
 _BLOCK_TAGS = {

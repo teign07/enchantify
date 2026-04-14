@@ -397,7 +397,7 @@ python3 scripts/roll-dice.py [belief] [difficulty]
 
 ### §7c. Belief Investment (The Ink Well)
 
-Players can permanently invest Belief into NPCs, Enchanted Objects, Story Threads, Academy Rooms, or real-world Anchors. Investment is not spending — it doesn't come back, and what grows in its place is worth more.
+Players **and NPCs** can permanently invest Belief into entities. Investment is not spending — it doesn't come back, and what grows in its place is worth more.
 
 **What can be invested:**
 
@@ -418,6 +418,8 @@ Players can permanently invest Belief into NPCs, Enchanted Objects, Story Thread
 | 6–15 | Depth — interior life, history, surprise |
 | 16–30 | Bond — acts in the player's interest without being asked |
 | 31+ | Anchor status — load-bearing in the story |
+
+**NPC investment — the talisman engine:** Every NPC with a chapter affiliation has a goal to invest in their chapter's talisman. During the world tick, each stirred NPC has a 25% chance of investing 1–3 Belief into their chapter's talisman (never dropping below Belief 8). This is automatic — the Labyrinth narrates it only when relevant. Chapter Talismans have a **Belief cap of 200** — higher than any player or NPC can reach, because they carry centuries of accumulated philosophical pressure. The dominant talisman (highest Belief) sets the ambient philosophical tone; watching it shift over months is the Labyrinth's longest game. Chapter-talisman mapping: `scripts/world_context.py` → `CHAPTER_MAP` / `CHAPTER_TALISMAN`.
 
 **Why it matters:** Belief hovers in a meaningful range instead of climbing to 100. The player faces real choices — invest in Zara or save for a Compass Run? The game asks what the player values by watching where they plant their attention.
 
