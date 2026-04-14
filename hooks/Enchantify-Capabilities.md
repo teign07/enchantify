@@ -1,8 +1,8 @@
 # Enchantify — The Labyrinth of Stories
 ## Complete Capability Reference
 
-*Version: 4.5.0 — The Outer Stacks*
-*Last updated: April 13, 2026*
+*Version: 4.6.0 — The Living Academy*
+*Last updated: April 14, 2026*
 
 ---
 
@@ -132,7 +132,18 @@ The only requirement is that the player's attention landed somewhere real and st
 
 **The Third Way:** Enchantments bypass obstacles that dice cannot. Everything Speaks to the door to ask it to open. Everything's Poetry to the guard whose duty is a tragedy.
 
-**Enchantment catalog:**
+**Enchantment catalog (18 total):**
+
+Enchantments are discovered through play, not all available from the start. The Flyleaf of *The Labyrinth of Stories* records each one as it's found — the ink appears on its own.
+
+| Tier | Unlock | Enchantments |
+|---|---|---|
+| Foundation | Tutorial | Everything Speaks, Everything's Poetry, Everything's Magic, Everything's Wonderful, Everything's Stories |
+| Practitioner | Belief 20+ | Everything's a Haiku, Everything's Nice, Mirror Mirror, Everything's Van Gogh, Everything's Monet |
+| Artisan | Belief 40+ | Everything's Shakespeare, Everything's Anime, Everything's Puzzling, Everything's Connected |
+| Journeyman | Specific encounters | Everything's Astral, Everything's Roasted, Everything's Punny, Everything's a Joke |
+
+*Journeyman enchantments are never offered — they emerge. Everything's Roasted from the Goblin Market. Everything's Punny from a Punctuation Pixie bargain. Everything's Astral from a completed Book Jump. Everything's a Joke from something the Labyrinth won't reveal in advance.*
 
 | Enchantment | Player Action | Effect |
 |-------------|---------------|--------|
@@ -141,12 +152,21 @@ The only requirement is that the player's attention landed somewhere real and st
 | Everything's Magic | Photo an object | Magical properties and folklore emerge |
 | Everything's Wonderful | Photo anything | Wonder hidden in it uncovered |
 | Everything's Stories | Photo anything | Short story about it unfolds |
-| Everything's Connected | Photo anything | Surprising connections to other stories |
-| Everything's Puzzling | Photo anything | A riddle challenges player or enemy |
-| Mirror, Mirror | Selfie | Insights and a prophecy |
+| Everything's a Haiku | Photo anything | Essence distilled into three lines |
 | Everything's Nice | Selfie or photo | Compliments from subject's perspective |
+| Mirror Mirror | Selfie | Insights and a prophecy |
+| Everything's Van Gogh | Photo anything | Swirling emotional intensity, starry texture |
+| Everything's Monet | Photo anything | Impressionist softness; edges blur, passage easier |
+| Everything's Shakespeare | Photo anything | High drama, historical weight, a sonnet |
+| Everything's Anime | Photo anything | Ghibli-film-still palette, heightened whimsy |
+| Everything's Puzzling | Photo anything | A riddle challenges player or enemy |
+| Everything's Connected | Photo anything | Surprising connections to other stories |
+| Everything's Astral | Photo a place | Astral double manifests anywhere in the world |
+| Everything's Roasted | Photo anything | Comedic attack — drains morale or Belief |
+| Everything's Punny | Photo anything | Wordplay erupts; social/clever utility |
+| Everything's a Joke | Photo anything | Diffuses tension; comic relief |
 
-Full catalog in `lore/enchantments.md`.
+Full catalog + progression: `lore/enchantments.md`. Player's known enchantments: `players/[name].md` → The Flyleaf.
 
 ---
 
@@ -211,8 +231,15 @@ Full species reference: `lore/creatures.md`
 | **Punctuation Pixies** (The Mischievous) | Anarchic, fragmentary. Move commas when the Librarian isn't watching. Communicate in interruptions and pivots, never finishing a— | Everywhere, uninvited | Rhythm and structural moments. Places and things that correspond to punctuation marks |
 | **Literary Elves** (Prose-Purists) | Elegant, precise, elitist. Will correct grammar mid-sentence without apology. Consider this a gift. | Advanced Composition classrooms, Inkwright Society | One true thing, described exactly. Not more, not less. *"Find me one true thing in exactly ten words."* |
 | **Deep Lore Dwarves** (Appendices-Miners) | Stoic, methodical, unshakeable. A conversation may take several sessions. They never forget. Bargains with them are binding. | Foundation Stacks, Appendices, Footnotes | The underlayer. The thing holding something else up without being noticed. The oldest, most overlooked. |
+| **Goblins** (The Marginalia Born) | Mercantile, precise, fundamentally unpredictable — not chaotic, but *you don't know which market you've walked into*. Born from reader annotations across centuries. Oldest power in the Outer Stacks. | The Outer Stacks — vast kingdoms behind the deep shelving | **Attention** — not Belief, but the specific unchosen sensory act of noticing. "A blue door" is worth almost nothing. "The blue door painted over so many times the knob didn't quite latch" is worth something. The handprint showing through is worth a lot. |
 
-**Chapter relationships:** Sprites → Mossbloom pets. Salamanders → beloved by Emberheart. Pixies → respected by Riddlewind. Literary Elves → Inkwright Society mentors. Dwarves → Tidecrest allies.
+**Chapter relationships:** Sprites → Mossbloom pets. Salamanders → beloved by Emberheart. Pixies → respected by Riddlewind. Literary Elves → Inkwright Society mentors. Dwarves → Tidecrest allies. Goblins → no Chapter allegiance (they predate Chapters). Riddlewind finds them fascinating; Duskthorn doesn't trust them and is correct to be cautious but wrong about why.
+
+**Goblin kingdoms:** The **Index Empire** (know where everything is), **Footnote Courts** (trade in context and nuance), **Appendix Provinces** (practical, blunt, most forgiving), **Errata Registry** (neutral; correct mistakes; no opinions except accuracy), **Marginalia Clans** (the oldest bloodlines; rarely appear; their presence means something significant is available). Friend or foe depends entirely on: (1) what you have that they want, (2) whether you've paid what you owed last time, (3) which kingdom you're dealing with, (4) the season.
+
+**What happens if you don't pay:** The market closes. No chase, no curse. The door is technically open; nothing is worth buying; the goblin you dealt with doesn't acknowledge you. This continues until you return with what you owed, plus the thing you now want that you can't get. They are aware of the irony.
+
+**What happens if you're reliable:** Market opens further. New inventory appears. By visit 7, a greeting by name. By visit 12, a second door in the back — to somewhere the map doesn't show.
 
 **Sparky:** A distant cousin to the Punctuation Pixies. Far more helpful (and louder).
 
@@ -657,6 +684,38 @@ Three questions: sleep quality, current mood, dream fragment (optional). Appends
 
 ---
 
+### §11c. The Wonder Compass — Inventory Item
+
+The Wonder Compass is not just a framework — it is a physical object in the Labyrinth, given to the player by Professor Stonebrook at T12. It is a personalized Compass Run generator, once per day.
+
+**Triggers:** Player rubs it, holds it, says "I want to run the Compass," or asks "what should I do today?"
+
+**Protocol (read `lore/wonder-compass.md` first):**
+1. **Check cooldown** — read `players/[name].md` → `## Compass Run History` → `Last run:` field. If today's date, decline warmly in-character. "The Compass is resting. Tomorrow."
+2. **Calibrate** — read `HEARTBEAT.md` for weather, time, mood, location. The run is built from the player's actual context. A housebound day gets a different East than a day with a car.
+3. **Run N → E → S → W** — generate each step personally. Do not be generic. Full protocol: `lore/compass-run.md`.
+4. **On West completion** — write souvenir, award +9 Belief, update `Last run` and `Total runs` in `players/[name].md`, increment Compass Belief by 1 in `lore/world-register.md`.
+
+**The Compass grows:** Its Belief score in the world register increases with each completed run. It resonates with the Obsidian Chronograph. These two objects are aware of each other.
+
+**Full mechanics:** `lore/wonder-compass.md`
+
+---
+
+### §11d. The Labyrinth of Stories — The Player's Book
+
+Every player has an enchanted textbook called *The Labyrinth of Stories* — very meta; it's the book the Labyrinth *is*. It lives on the dorm room desk. It has two functional pages at the front:
+
+**The Inside Cover** — the quest log. Physical notes tucked into the binding. Maximum 3 active electives at once. Described as handwriting appearing and dissolving — quests materializing when NPCs make requests, dissolving when completed. Access: `python3 scripts/update-player.py [name] quest [add/drop/list]`.
+
+**The Flyleaf** — the enchantments page. Lists all known enchantments, by tier. The ink appears on its own as enchantments are discovered — never listed in advance, never announced. When the player asks "What enchantments do I know" or "Open the Flyleaf," read `players/[name].md` → The Flyleaf section and describe the entries as if reading handwriting that appeared on its own. Do not describe undiscovered enchantments.
+
+**In the world register:** The Labyrinth of Stories has its own Belief score (`lore/world-register.md`). It was enchanted at T14 in the player's dorm room. Its personality: "A very old, very loyal hound that has just been given a scent. Patient, but tired of carrying unwritten potential."
+
+**Routing triggers:** "Check the inside cover" / "What quests do I have" → `lore/school-life.md` + `players/[name].md`. "Open the Flyleaf" / "What enchantments do I know" → `players/[name].md` → The Flyleaf + `lore/enchantments.md`.
+
+---
+
 ### §12. Story Seeds System
 
 `lore/seeds.md` tracks unresolved threads from previous arcs — small moments that could grow into something. The simulation tends them. The arc generator is required to pick up at least one seed per arc. Seeds move through stages: Active → Germinating → Harvested.
@@ -669,8 +728,8 @@ Three questions: sleep quality, current mood, dream fragment (optional). Appends
 
 Each turn:
 1. Check session lock — if `config/session-active.lock` exists, skip and log. Never interrupt active play.
-2. **World simulation tick:** Run `python3 scripts/tick.py` → reads `lore/world-register.md`, selects 1–3 entities by weighted-random probability, checks all anchor files for 30-day decay. Results appended to `memory/tick-queue.md`.
-3. **World Pulse:** Run `python3 scripts/world-pulse.py` → detects entity Belief changes since last pulse, writes NORMAL or `[PRIORITY: HIGH]` seeds to tick-queue. Entities at Belief ≤ 2 trigger HIGH priority. `config/world-pulse-cache.json` tracks previous state. After writing the pulse, **25% chance** (and only after 2+ pulse runs to avoid early-game noise) the script triggers `scripts/npc-research.py` — an NPC researches a topic from their Unwritten Interest and delivers findings. *Note: A Scene Change Pulse triggers this script immediately when moving to a new location or concluding a major interaction.*
+2. **World simulation tick:** Run `python3 scripts/tick.py` → reads `lore/world-register.md`, selects 1–3 entities by weighted-random probability, checks all anchor files for 30-day decay. Results appended to `memory/tick-queue.md`. **Time-aware:** at night (10 PM–5 AM), tick is capped at 1 entity, sleeping NPCs are filtered from the pool (crisis entities at Belief ≤ 2 always stirrable regardless of time), and the tick header includes the current time block and a time prefix (e.g., `*4:00 AM — Academy asleep.*`).
+3. **World Pulse:** Run `python3 scripts/world-pulse.py` → detects entity Belief changes since last pulse, writes NORMAL or `[PRIORITY: HIGH]` seeds to tick-queue. Entities at Belief ≤ 2 trigger HIGH priority. `config/world-pulse-cache.json` tracks previous state. **Time-aware:** at night, pulse events use night-specific seed variants and the queue header includes `[night]` tag. After writing the pulse, **25% chance** (and only after 2+ pulse runs to avoid early-game noise) the script triggers `scripts/npc-research.py` — an NPC researches a topic from their Unwritten Interest and delivers findings. *Note: A Scene Change Pulse triggers this script immediately when moving to a new location or concluding a major interaction.*
 4. **Ambient State:** Run `python3 scripts/ambient-state.py` → finds dominant chapter talisman (highest Belief), fires matching LIFX scene, writes Spotify mood seed to tick-queue. Then run `python3 scripts/governance-engine.py --trigger ambient-state` for pact handlers.
 5. Read `memory/tick-queue.md` — note stirred entities and any PRIORITY: HIGH items.
 6. Read current arc, academy state, characters, heartbeat, events
@@ -831,23 +890,24 @@ A different protocol from the 1-hour Return. Read `players/[name]-story.md` firs
 | `scripts/pulse.py` | 15-min cron (`*/15 * * * *`) | Enchantify's self-contained world pulse. Reads `config/secrets.env` for all credentials (no hardcoded keys). Writes to `enchantify/HEARTBEAT.md` and saves `enchantify/PREVIOUS_PULSE.md` for delta detection. Reads health data via `get_health()` (backend-aware: health_auto_export, garmin, fitbit, manual, none). Falls back to yesterday's health file if today is sparse. |
 | `scripts/update-weather.sh` | Hourly cron | Fetches weather, tides, moon, sunrise; writes heartbeat file |
 | `scripts/dream.py` | Nightly 2:03 AM cron | Generates Labyrinth's dream via Gemini (`openclaw agent`); writes to `memory/dreams/[date].md` |
-| `scripts/sparky.py` | Daily 8 AM cron | Finds pattern-connections via Wikipedia On This Day + heartbeat (Gemini). Writes to `sparky/shinies/`. Injects `<!-- SPARKY_START -->` block into `HEARTBEAT.md`. |
+| `scripts/sparky.py` | Daily 8 AM cron (`0 8 * * *`) | Finds pattern-connections via Wikipedia On This Day + heartbeat signals (moon, season, tides, weather, Belief). Calls `openclaw agent --local --agent enchantify`. Writes to `sparky/shinies/[date]-[time].md`. Injects `<!-- SPARKY_START -->` block into `HEARTBEAT.md`. Uses `shutil.which()` + Homebrew fallback for cron PATH safety. Reads config from `config/secrets.env`. |
 | `scripts/arc-generator.py` | Daily 2 AM cron (QUIET phase) | Generates arc proposal; `--accept` promotes to live |
 | `scripts/lifx-control.py` | Labyrinth (scene changes) | Controls LIFX bulbs via LAN; uses configured IPs or auto-discovers |
 | `scripts/log-fuel.sh` | Labyrinth (player mentions food) | Appends to fuel-log.txt; silent |
 | `scripts/multi_voice_tts.py` | Labyrinth (TTS enabled) | Processes voice tags; generates stitched audio via Kokoro |
 | `scripts/midnight-audit.sh` | Midnight Revision cron | Stub for Midnight Revision protocol |
 | `scripts/anchor-check.py` | Labyrinth (Telegram location shared) | Reads `players/[name]-anchors.md`; reports anchors within 200m. `--checkin` flag records the visit, adds +5 Belief to anchor, updates `last-visited`. |
-| `scripts/tick.py` | 4-hour simulation cron | Weighted-random entity selection from `world-register.md` (1–3 entities; any can appear, higher Belief = higher probability). Also checks anchor decay (30+ days unvisited → −1 Belief, floor 5). Appends results to `memory/tick-queue.md`. `--count N` overrides selection count. |
+| `scripts/tick.py` | 4-hour simulation cron | Weighted-random entity selection from `world-register.md` (1–3 entities; any can appear, higher Belief = higher probability). **Time-aware:** imports `world_context.py` to determine current time block; at night caps selection at 1, filters sleeping NPCs from pool (crisis entities at Belief ≤ 2 always stirrable), tags tick header with `[night]` and time prefix. Also checks anchor decay (30+ days unvisited → −1 Belief, floor 5). Appends to `memory/tick-queue.md`. `--count N` overrides selection count. |
 | `scripts/clear-tick-queue.py` | Session open (after reading tick-queue) | Resets `memory/tick-queue.md` to empty header. Called after Labyrinth weaves stirred entities into the session opening. |
 | `scripts/write-entity.py` | Labyrinth (entity Belief change / new entity) | Adds or updates an entity in `lore/world-register.md`. Auto-places in correct tier (15+ = Full Presence, 5–14 = Fading, <5 = Whisper). `--talisman` flag routes to Chapter Talismans section. `--gps-gated "Anchor Name"` flag adds a `📍 GPS-gated` tag to the entry (used for Anchor room registry). Atomic write with backup. |
 | `scripts/belief-attack.py` | Labyrinth (Belief combat / debate / Nothing encounter) | Executes a Belief exchange using the dice system. **Dice mode:** `--spend N --difficulty [routine\|standard\|dramatic\|desperate]` — rolls d100 with attacker's Belief; outcome maps to deal ratio (crit success ×1.5, success ×1.0, near miss ×0.5, failure ×0, crit fail = backfire). **Explicit mode:** `--spend N --deal N` — skips roll (for passive/environmental effects). Enforces floors. Logs to `logs/belief-combat.md`. |
 | `scripts/dice.py` | Imported by roll-dice.py and belief-attack.py | Shared dice logic — `roll_d100(belief, difficulty)` returns structured result dict; `combat_deal(spend, result)` maps outcome to damage amount. Not called directly. |
+| `scripts/world_context.py` | Imported by tick.py and world-pulse.py | Shared time-awareness module. Wraps `scripts/schedule.py` via importlib (hyphenated filename). Exports: `get_time_context()` (current block, weekday, is_night); `get_npc_state(name, type, ctx)` (location, state, stirrable flag — sleeping at night for NPC/creature types, always stirrable for talismans/places); `time_seed_prefix(ctx)` (human-readable "4:00 AM — Academy asleep." style string). Not called directly. |
 | `scripts/complete-quest.py` | Labyrinth (player delivers field report) | Full quest completion: removes from Inside Cover, applies Belief + relationship, writes `memory/field-reports/` file, appends Story Log. `--fae` skips Belief and leaves lore fragment placeholder. `--dry-run` previews without writing. |
 | `scripts/write-diary.py` | Session close | Safely writes `memory/diary/[date].md`. Pass content via `--file /tmp/enchantify-diary.txt` or stdin. Appends with session separator if a diary already exists for today. Never write diary files directly. |
 | `scripts/write-labyrinth-state.py` | Session close | Updates a named section of `memory/labyrinth-state.md`. Sections: `register`, `watching`, `assessment`, `nothing`, `notes`. Safe write via temp+rename with auto-backup. Pass content via `--file` or stdin. |
 | `scripts/write-academy-state.py` | Scene close / simulation | Safely replaces `lore/academy-state.md`. Backs up existing file to `.bak` before writing. Atomic write via temp+rename. Pass content via `--file` or stdin. Never edit academy-state.md directly. |
-| `scripts/world-pulse.py` | 4-hour cron (STEP 3) | Reads `lore/world-register.md`, compares entity Belief against `config/world-pulse-cache.json`. Significant drops → NORMAL seed. Belief ≤ 2 → `[PRIORITY: HIGH]` seed. Ambient pulse (10% chance) for stable entities. Writes to `memory/tick-queue.md`. |
+| `scripts/world-pulse.py` | 4-hour cron (STEP 3) | Reads `lore/world-register.md`, compares entity Belief against `config/world-pulse-cache.json`. Significant drops → NORMAL seed. Belief ≤ 2 → `[PRIORITY: HIGH]` seed. Ambient pulse (10% chance) for stable entities. **Time-aware:** imports `world_context.py`; at night uses night-specific seed variants, tags queue header `[night]`, prepends time prefix. Writes to `memory/tick-queue.md`. |
 | `scripts/ambient-state.py` | 4-hour cron (STEP 4) + session-open | Reads dominant chapter talisman (highest Belief in talismans table). Fires LIFX scene for that chapter. Writes Spotify mood seed to tick-queue for Labyrinth narration. `--dry-run` to preview. |
 | `scripts/governance-engine.py` | Session events, cron | Pact executor. Reads `pacts/*/manifest.md`, checks consent, imports each pact's `govern.py`, calls `handle(trigger, context)`, fires approved actions, logs to `logs/action-chronicle.md`. `--list` shows active pacts. `--dry-run` previews without firing. **Note:** triggers must appear in both `manifest.md` AND `govern.py`'s `handle()` to fire — engine checks manifest first. `nothing-retreats` trigger now present in both duskthorn and tidecrest manifests. |
 | `scripts/consent-registry.py` | Setup, manual | Read/update consent registry (`config/consent.json`). Subcommands: `check`, `list`, `approve`, `revoke`, `pact-activate`, `pact-deactivate`. |
@@ -976,6 +1036,7 @@ enchantify/
 │   └── npc-research.log
 ├── scripts/
 │   ├── dice.py                   ← Shared dice logic (imported by roll-dice.py + belief-attack.py)
+│   ├── world_context.py          ← Shared time-awareness module (imported by tick.py + world-pulse.py)
 │   └── [all other scripts]       ← See §19
 ├── stories/
 ├── skills/
