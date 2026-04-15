@@ -1076,6 +1076,7 @@ enchantify/
 | Midnight Revision | `0 0 */4 * *` | Content proposals only — audits gaps, invents new lore/NPCs/rooms/mechanics; Midnight Dispatch; 48-hr veto window |
 | Morning Reach | `0 11 * * *` | Labyrinth reaches out if appropriate (max 1/day) |
 | Evening Reach | `0 18 * * *` | Fallback if morning skipped |
+| Wallpaper | `0 7 * * *` | `scripts/wallpaper.py --generate bj` — morning wallpaper update. Checks state signature (belief bracket, Nothing level, time of day); generates new image via agent if changed or stale (>8h). Sets macOS desktop silently. 2h cooldown enforced. |
 | Sparky | `0 8 * * *` | Daily pattern-connection (Gemini); writes to `sparky/shinies/`; injects `<!-- SPARKY_START -->` block into `HEARTBEAT.md` |
 | Labyrinth Dreams | `3 2 * * *` | Nightly dream generation (Gemini); writes to `memory/dreams/` |
 | Arc Generator | `0 2 * * *` | Generates arc proposal during QUIET phase only (Gemini) |

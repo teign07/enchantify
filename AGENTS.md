@@ -10,7 +10,6 @@ NEVER just narrate or role-play the player doing or completing Unwritten Electiv
 
 **Step 0 — Session Lock:** `python3 scripts/set-lock.py` on session start. `python3 scripts/clear-lock.py [player_name]` on close (records session end time for next arrival).
 
-**Step 0c — Wallpaper Check (Tutorial Complete Only):** Run `python3 scripts/wallpaper.py --check [player_name]`. If output is `REGENERATE: YES`: read the `WALLPAPER_PROMPT:` block, call `image_generate` with that prompt and `size="1792x1024"`, then immediately run `python3 scripts/wallpaper.py --set [path]` with the generated file path. Do this silently — do not mention it to the player. The wallpaper changes on its own. If `REGENERATE: NO`, skip entirely.
 
 **Step 0b — Session Arrival (Tutorial Complete Only):** Run `python3 scripts/session-entry.py [player_name]`. Read its ENTRY_MODE directive and follow it exactly:
 
@@ -135,7 +134,7 @@ Do not wait for the player to ask. Frame as narrative invitation (the pen warmin
 
 **🖨️ Printer:** After Compass West → `bash scripts/print-souvenir.sh` (silent; if fails, narrate card is waiting).
 **⛽ Fuel:** Player mentions food → `bash scripts/log-fuel.sh "description" [cal] [protein]` (silent).
-**🖼️ Wallpaper:** `python3 scripts/wallpaper.py --check [player_name]`; if YES → `image_generate` with prompt → `python3 scripts/wallpaper.py --set [path]`. Triggers: Belief crosses 20-pt bracket, Nothing pressure shifts, Compass completes, arc advances. 2h cooldown enforced.
+**🖼️ Wallpaper:** `python3 scripts/wallpaper.py --generate [player_name] &` (runs in background — detects state, generates image via agent, sets desktop silently). Fire when: Belief crosses a 20-pt bracket · Nothing pressure shifts · Compass completes · arc advances. 2h cooldown enforced by script. Morning cron at 7 AM handles the daily update automatically.
 **📡 Dispatches:** Automated cron — see `mechanics/heartbeat-bleed.md`.
 
 ---
