@@ -27,6 +27,11 @@ BASE_DIR   = Path(__file__).parent.parent
 _SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 import world_context
+import importlib.util as _ilu
+_pe_spec = _ilu.spec_from_file_location("pact_engine", _SCRIPT_DIR / "pact-engine.py")
+pact_engine = _ilu.module_from_spec(_pe_spec)
+_pe_spec.loader.exec_module(pact_engine)
+
 REGISTER = BASE_DIR / "lore" / "world-register.md"
 THREADS  = BASE_DIR / "lore" / "threads.md"
 QUEUE    = BASE_DIR / "memory" / "tick-queue.md"
@@ -40,6 +45,10 @@ INVESTMENT_MIN         = 1      # minimum Belief invested per event
 INVESTMENT_MAX         = 3      # maximum Belief invested per event
 NPC_INVESTMENT_FLOOR   = 8      # NPCs never drop below this from investing
 TALISMAN_CAP           = 200    # Chapter Talismans can grow to 200
+
+NPC_BELIEF_CAP         = 100    # NPCs cap at 100 (same ceiling as players)
+NPC_STIR_GAIN_MIN      = 1      # Belief gained from being stirred (min)
+NPC_STIR_GAIN_MAX      = 2      # Belief gained from being stirred (max)
 
 
 # ── Entity tick ───────────────────────────────────────────────────────────────
@@ -60,10 +69,11 @@ def parse_entities(text):
         thread_m = re.search(r'\[thread:([^\]]+)\]', notes)
         threads = [t.strip() for t in thread_m.group(1).split(',')] if thread_m else []
         entities.append({
-            'name': name,
-            'type': etype.strip(),
-            'belief': int(belief),
+            'name':    name,
+            'type':    etype.strip(),
+            'belief':  int(belief),
             'threads': threads,
+            'notes':   notes.strip(),
         })
 
     whisper_re = re.compile(r"^-\s+(.+?)\s*\((\w[\w\s]*?),\s*Belief\s+(\d+)\)", re.MULTILINE)
@@ -122,7 +132,7 @@ def weighted_sample(entities, n):
     return selected
 
 
-# ── NPC Talisman Investment ───────────────────────────────────────────────────
+# ── NPC Belief Gain + Talisman Investment ────────────────────────────────────
 
 def get_belief_in_text(text, name):
     """Return current Belief for a named entity in world-register text, or None."""
@@ -142,6 +152,37 @@ def set_belief_in_text(text, name, new_belief):
     )
     new_text, n = row_re.subn(rf"\g<1>{new_belief}\g<2>", text, count=1)
     return new_text, n > 0
+
+
+def run_npc_stir_gains(selected, register_text, dry_run=False):
+    """
+    Each stirred NPC gains NPC_STIR_GAIN_MIN–MAX Belief from being noticed.
+    Being called into the narrative is the energizing act.
+
+    Returns (modified_text, gain_count). Gain is applied silently — no queue entries.
+    """
+    text  = register_text
+    count = 0
+
+    for e in selected:
+        if e['type'].lower() not in ('npc', 'creature'):
+            continue  # Thread, Object, Location, Talisman — no stir gain
+
+        current = get_belief_in_text(text, e['name'])
+        if current is None or current >= NPC_BELIEF_CAP:
+            continue
+
+        gain  = random.randint(NPC_STIR_GAIN_MIN, NPC_STIR_GAIN_MAX)
+        new_b = min(NPC_BELIEF_CAP, current + gain)
+
+        if dry_run:
+            print(f"  [dry-run] Stir gain: {e['name']}  {current} → {new_b}")
+        else:
+            text, changed = set_belief_in_text(text, e['name'], new_b)
+            if changed:
+                count += 1
+
+    return text, count
 
 
 def run_npc_talisman_investments(selected, register_text, dry_run=False):
@@ -298,7 +339,20 @@ def tag_entities_with_context(entities, ctx):
 
 
 def build_queue_line(e):
-    """Format a single entity into a tick-queue line with optional location note."""
+    """Format a single entity into a tick-queue line with optional location note.
+    Thread entities produce beat-advancement prompts instead of standard lines.
+    Talisman pact actions are handled separately in main() after entity selection."""
+    if e['type'].lower() == 'thread':
+        id_m = re.search(r'\[id:([^\]]+)\]', e.get('notes', ''))
+        thread_id = id_m.group(1) if id_m else e['name'].lower().replace(' ', '-')
+        return (
+            f"- **[Beat: {e['name']}]** (Thread, Belief {e['belief']}) — "
+            f"Labyrinth: advance this thread. Read `lore/threads.md` entry `{thread_id}`, "
+            f"deliver the next beat, and update its **Next beat:** line."
+        )
+    if e['name'] in pact_engine.TALISMAN_TO_CHAPTER:
+        # Pact action handled in step 1c — this line is a fallback only
+        return f"- **{e['name']}** (Talisman, Belief {e['belief']}) — stirs in its housing"
     base = f"- **{e['name']}** ({e['type']}, Belief {e['belief']})"
     if e.get("location_note"):
         return f"{base} — {e['location_note']}"
@@ -387,24 +441,104 @@ def main():
     else:
         print("⚠ No entities found in world-register.md.")
 
-    # ── 1b. NPC Talisman Investments ──────────────────────────────────────────
+    # ── 1b. NPC Stir Gains + Talisman Investments ────────────────────────────
+    modified_register = register_text   # default; updated in 1b if selected
+    stir_count  = 0
+    invest_seeds = []
     if selected:
-        invest_seeds, modified_register = run_npc_talisman_investments(
+        # Stir gain first — being noticed energizes NPCs before they invest
+        modified_register, stir_count = run_npc_stir_gains(
             selected, register_text, dry_run=args.dry_run
         )
+
+        # Then investments — some energy flows to the chapter talisman
+        invest_seeds, modified_register = run_npc_talisman_investments(
+            selected, modified_register, dry_run=args.dry_run
+        )
+
         if invest_seeds:
             queue_lines.append("")
             queue_lines.extend(invest_seeds)
-            if not args.dry_run:
-                backup = REGISTER.with_suffix(".md.bak")
-                shutil.copy2(REGISTER, backup)
-                tmp = REGISTER.with_suffix(".md.tmp")
-                tmp.write_text(
-                    modified_register if modified_register.endswith("\n")
-                    else modified_register + "\n"
+
+        # Talisman costs and pact seeds computed in 1c (below) — they modify
+        # modified_register in-place, so the atomic write happens after 1c.
+        # (Placeholder — actual write moved to after step 1c block)
+
+    # ── 1c. Talisman Actions (pact war / narrative / suggestion / reality bleed)
+    # Note: talisman table uses Chapter as the type column, so detect by name.
+    # Belief costs are applied to world-register.md in the same pass as 1b.
+    talisman_costs = []   # always defined so 1d can reference it
+    if selected:
+        stirred_talismans = [e for e in selected if e['name'] in pact_engine.TALISMAN_TO_CHAPTER]
+        if stirred_talismans:
+            pact_context = pact_engine.build_context(
+                overall_belief=0,   # placeholder; overridden per-talisman below
+                selected_entities=selected,
+                time_ctx=ctx,
+            )
+            pact_seeds = []
+            for e in stirred_talismans:
+                pact_context["overall_belief"] = e["belief"]
+                line, atype, belief_cost, register_delta = pact_engine.run_talisman_action(
+                    e["name"], e["belief"], context=pact_context, dry_run=args.dry_run
                 )
-                tmp.rename(REGISTER)
-                print(f"✓ Talisman investments: {len(invest_seeds)} NPC(s) invested.")
+                if line:
+                    pact_seeds.append(line)
+
+                # Talisman spends its own Belief
+                if belief_cost > 0:
+                    old_b = get_belief_in_text(modified_register, e["name"])
+                    if old_b is not None:
+                        new_b = max(pact_engine.TALISMAN_WAR_FLOOR, old_b - belief_cost)
+                        if new_b != old_b:
+                            talisman_costs.append((e["name"], old_b, new_b))
+                            if not args.dry_run:
+                                modified_register, _ = set_belief_in_text(
+                                    modified_register, e["name"], new_b
+                                )
+
+                # World investment: add Belief to the target entity
+                if register_delta:
+                    target_name, delta_amount = register_delta
+                    target_b = get_belief_in_text(modified_register, target_name)
+                    if target_b is not None and not args.dry_run:
+                        new_target_b = target_b + delta_amount
+                        modified_register, _ = set_belief_in_text(
+                            modified_register, target_name, new_target_b
+                        )
+
+                if args.dry_run:
+                    cost_str = f" (costs {belief_cost} Belief)" if belief_cost else ""
+                    print(f"  [dry-run] {e['name']} → {atype}{cost_str}")
+
+            if talisman_costs and args.dry_run:
+                for name, old_b, new_b in talisman_costs:
+                    print(f"  [dry-run] War cost: {name}  {old_b} → {new_b}")
+
+            if pact_seeds:
+                queue_lines.append("")
+                queue_lines.extend(pact_seeds)
+                if not args.dry_run:
+                    print(f"✓ Talisman actions: {len(pact_seeds)} acted.")
+            if talisman_costs and not args.dry_run:
+                print(f"✓ Talisman war costs: {len(talisman_costs)} talisman(s) spent Belief.")
+
+    # ── 1d. Atomic write — NPC gains + investments + talisman war costs ──────
+    if selected and not args.dry_run:
+        needs_write = stir_count > 0 or invest_seeds or talisman_costs
+        if needs_write:
+            backup = REGISTER.with_suffix(".md.bak")
+            shutil.copy2(REGISTER, backup)
+            tmp = REGISTER.with_suffix(".md.tmp")
+            tmp.write_text(
+                modified_register if modified_register.endswith("\n")
+                else modified_register + "\n"
+            )
+            tmp.rename(REGISTER)
+        if stir_count > 0:
+            print(f"✓ Stir gains: {stir_count} NPC(s) gained Belief from being noticed.")
+        if invest_seeds:
+            print(f"✓ Talisman investments: {len(invest_seeds)} NPC(s) invested.")
 
     # ── 2. Anchor decay ───────────────────────────────────────────────────────
     print("Checking anchor decay...")

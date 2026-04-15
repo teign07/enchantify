@@ -9,15 +9,22 @@
 
 ## How Threads Work
 
-A thread is any story with mass. Mass = the combined Belief of all entities tagged to it.
+A thread is any story with mass. Mass = the combined Belief of all entities tagged to it, plus the thread entity's own Belief in the world register.
 
-- **High Belief entities** → high thread pressure → pulled into narrative by the tick
-- **Nothing attacks** → targets high-Belief entities → the most invested stories dim first
-- **Player invests Belief in Zara** → Zara's thread rises → her story comes to them
-- **Player ignores a thread** → its entities don't decay (they have their own momentum) — but the thread runs without the player, and returns changed
+- **Thread entities live in `lore/world-register.md`** (`## Active Threads` section) with their own Belief scores, stirred by the tick like any other entity
+- **High Belief threads** → stirred more often → story advances more frequently
+- **Players and NPCs can invest Belief directly into threads** — see `lore/belief-investments.md`
+- **Threads decay if ignored** — Belief drops toward zero if no one invests; the story runs without the player, but more quietly
+- **Nothing attacks** → targets high-Belief entities and threads → the most invested stories dim first
 
-The world simulation advances ALL threads every 4 hours, not just the main arc.
-The tick selects entities by Belief weight and groups them by thread — so the queue always reads as *"Thread X is stirring"* not *"random entity appeared."*
+**When tick.py stirs a Thread entity**, it writes a beat-advancement prompt to `memory/tick-queue.md`:
+> *"[Beat: Thread Name] — Labyrinth: advance this thread. Read `lore/threads.md`, deliver the next beat, and update its **Next beat:** line."*
+
+The Labyrinth reads this at session open and delivers the beat. Phase is narrative-driven but tracks with Belief:
+- Belief 5–14: **setup** — something is beginning; low pressure; the player might not notice yet
+- Belief 15–29: **rising** — momentum building; NPCs are affected; the thread is hard to ignore
+- Belief 30–49: **climax** — urgent; every session should feel this thread's weight
+- Belief 50+: **resolution** — the thread is reaching its conclusion, one way or another
 
 At session open: read this file + `memory/tick-queue.md`. The highest-pressure stirred thread colors the atmosphere. The player is not told which thread is pressing — they feel it.
 
@@ -142,9 +149,14 @@ At session close: update each touched thread's `**Next beat:**` line.
 
 ## Adding New Threads
 
-When a new subplot, mystery, or character goal emerges with enough Belief to sustain itself, add a section here. Minimum requirements for a new thread:
+When a new subplot, mystery, or character goal emerges with enough Belief to sustain itself:
+
+1. Add a `## Thread: Name` section below with all required fields
+2. Add a `Thread` entity row to `lore/world-register.md` → `## Active Threads` with a starting Belief of 5–10
+3. Tag all associated world-register entities with `[thread:new-id]` in their Notes field
+
+**Minimum requirements for a new thread:**
 - One named NPC anchor or location anchor with Belief ≥ 10
 - A legible next beat (one sentence: what would advance this)
 - A Nothing pressure assessment
-
-Tag all associated world-register entities with `[thread:new-id]` in their Notes field.
+- An entry in `## Active Threads` in world-register.md with `[id:slug]` in notes

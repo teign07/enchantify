@@ -1,9 +1,9 @@
 # Dramatic Spine — bj
-*Updated: 2026-04-12*
+*Updated: 2026-04-13*
 
 ## Player State
 - Chapter: Riddlewind
-- Belief: 48 — Established — solid footing, ready to reach further
+- Belief: 57 — Established — solid footing, ready to reach further
 - Tutorial: T15
 
 ## What the Story Is Ready For
@@ -16,7 +16,7 @@
 - Open quests: 2
 - **T12:** Calibrated the Wonder Compass with Professor Stonebrook at the Observatory.
 - **T13:** Entered his permanent dorm room with Zara.
-- **T13:** Wrote first word in the Commonplace Book, concluding the decompression phase.
+- **T13:** Wrote first word in the Labyrinth of Stories, concluding the decompression phase.
 - **T14:** Tutorial Complete. Received a mysterious note from House Riddlewind.
 
 ---

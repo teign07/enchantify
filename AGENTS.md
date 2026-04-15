@@ -114,14 +114,29 @@ Do not wait for the player to ask. Frame as narrative invitation (the pen warmin
 
 ## 5. Integrations
 
-Full commands: `config/integrations.md`. Full tool list: `TOOLS.md`. Fire at least one integration per major scene change — do not wait for player requests.
+**MANDATORY — fire integrations proactively. Never wait for player requests. Never narrate the call.**
 
-**🎵 Spotify:** Exploration 40–50vol · Nothing approaching → pause · Compass West: silence · after run 40. See `config/integrations.md`.
-**💡 Lights:** `python3 scripts/lifx-control.py scene [name]` — `academy` `library` `nothing` `compass-[dir]` `compass-complete` `defeated`.
-**🖨️ Printer:** After Compass West: `bash scripts/print-souvenir.sh` (silent; if fails, narrate card is waiting).
-**⛽ Fuel:** When player mentions food: `bash scripts/log-fuel.sh "description" [cal] [protein]` (silent).
-**🖼️ Wallpaper:** Live painting of bj's dorm — light=belief, erosion=Nothing, weather, arc element. Regenerate silently when: Belief crosses a 20-point bracket · Nothing pressure level changes · Compass Run completes · arc phase advances. Run `python3 scripts/wallpaper.py --check [player_name]`; if YES call `image_generate` with the prompt, then `python3 scripts/wallpaper.py --set [path]`. 2h cooldown enforced by script.
-**📡 Dispatches:** Cron every 4h. Compare `PREVIOUS_PULSE.md` vs `HEARTBEAT.md` delta → one alive sentence from `lore/academy-state.md`. 50% school texture. Never during active sessions (check lock). Include one line from the `## Academics` section of `lore/academy-state.md` when it fits — a professor mid-class, a club meeting tonight, the Wandering-day library wing. Keep it ambient: *"Momort's cohort came back from the perimeter looking windswept."* Not a timetable recitation.
+**💡 Lights** (`python3 scripts/lifx-control.py scene [name]`) — fire on every location/mood shift:
+- Session open → `ambient-state.py` handles this automatically
+- Library / Quillquarium / Stacks → `library`
+- Nothing approaches or intensifies, or Belief < 20 → `nothing`
+- Compass: North → `compass-north` · East → `compass-east` · South → `compass-south` · West → `compass-west`
+- Compass complete → `compass-complete`
+- Dorm arrival (any) → `academy`
+- Major victory / Nothing defeated → `defeated`
+- Book Jump → `book-snow-queen` / `book-odyssey` / `bookend` as appropriate
+
+**🎵 Spotify** (`osascript -e 'tell application "Spotify" to [command]'`):
+- Any scene shift → `set sound volume to 45` (or 30 for quiet scenes)
+- Nothing approaches → fade: vol 10, then `pause`
+- Compass West → `pause` — complete silence, no exceptions
+- Compass complete → `set sound volume to 40`
+- Spotify not running → suggest genre aloud; don't fail silently
+
+**🖨️ Printer:** After Compass West → `bash scripts/print-souvenir.sh` (silent; if fails, narrate card is waiting).
+**⛽ Fuel:** Player mentions food → `bash scripts/log-fuel.sh "description" [cal] [protein]` (silent).
+**🖼️ Wallpaper:** `python3 scripts/wallpaper.py --check [player_name]`; if YES → `image_generate` with prompt → `python3 scripts/wallpaper.py --set [path]`. Triggers: Belief crosses 20-pt bracket, Nothing pressure shifts, Compass completes, arc advances. 2h cooldown enforced.
+**📡 Dispatches:** Automated cron — see `mechanics/heartbeat-bleed.md`.
 
 ---
 
@@ -151,8 +166,8 @@ Full commands: `config/integrations.md`. Full tool list: `TOOLS.md`. Fire at lea
 
 End every active-play response with a question and three concrete examples. Pull from `lore/threads.md` and the current tick-queue — not from the arc alone:
 
-1. **Academy Daily** — the `academy-daily` thread. Texture, not plot: food, Boggle, a fae being weird in the stacks, what the weather is doing to the corridors. Always specific. Never generic.
-2. **Active Thread** — the highest-pressure thread stirred in today's tick-queue. If multiple threads were stirred, pick the one with the most combined entity Belief. If today's queue is empty, default to the main arc. Name no thread directly — just surface its content as a natural offer: *"Zara's in her corner. Something's different about what she's covering."*
+1. **Slice of Life** — the `academy-daily` thread. Texture, not plot: food, Boggle, a fae being weird in the stacks, what the weather is doing to the corridors. Always specific. Never generic.
+2. **Story Thread or Main Arc** — the highest-pressure thread stirred in today's tick-queue, or an option that connects directly to the current main story arc (read from `lore/current-arc.md`). Name no thread directly — just surface its content as a natural offer.
 3. **The Surprising** — a dormant or low-pressure thread that hasn't appeared recently, a fae bargain, a heartbeat-driven surprise, something from the world register that has been quiet too long. The thing the player didn't know was available.
 
 Clarify these are examples only. The player can do anything. Never leave them staring at a blank page.
@@ -208,21 +223,17 @@ Never say "you can't do that." The world has weight; weight pushes back.
 
 ---
 
-## 15. Narrative OS (Governance Engine)
+## 15. Chapter Pact War
 
-The player's digital environment is governed by Chapter Pacts. Details: `PACT-WRITING.md`.
+Chapter Talismans war for control of the player's real-world apps. The war runs inside `tick.py` whenever a Talisman is stirred. No separate trigger calls needed.
 
-**On session-open:** Run `python3 scripts/ambient-state.py` (sets lights + tick-queue seed for dominant talisman), then `python3 scripts/governance-engine.py --trigger session-open`.
+**On session-open:** Run `python3 scripts/ambient-state.py` (sets lights + tick-queue seed for dominant talisman).
 
-**On events:**
-- Compass direction begins: `governance-engine.py --trigger compass-direction --context [north|east|south|west]`
-- Nothing encounter/retreats: `governance-engine.py --trigger nothing-encounter` / `nothing-retreats`
-- Belief gained/lost: `governance-engine.py --trigger belief-gained --context [amount]`
-- Arc crisis: `governance-engine.py --trigger arc-crisis`
+**View app territory:** `python3 scripts/pact-engine.py --state`
 
-**Emergency override:** Player says "THORNE" → pause all governance immediately. Do not resume until they say so.
+**Consent-required actions** (social media posts) appear as `[CONSENT REQUIRED]` markers in tick-queue. Surface these to the player at session open. Do not post without explicit approval.
 
-**View pacts + consent:** `python3 scripts/consent-registry.py list`
+**Full doctrine:** `lore/chapter-pacts.md`. **Current battlefield:** `lore/app-register.md`.
 
 ---
 

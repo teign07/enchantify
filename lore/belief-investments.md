@@ -29,9 +29,10 @@ When a player signals they want to invest:
 
 1. Ask how much Belief they want to put in. Don't suggest an amount — let them feel the weight of the decision.
 2. Deduct immediately via `python3 scripts/update-player.py [name] belief -[amount]`
-3. Describe what changes — quietly, concretely. Not "the library feels more alive." Instead: "The corner table by the eastern window has a regular occupant now. You can't see who. But the chair is always slightly warm."
-4. Record under `## Belief Investments` in `players/[name].md`.
-5. Let the investment show in every subsequent mention of that thing. Invested things are not the same as before.
+3. **If the investment target is an NPC:** look up their current Belief in `lore/world-register.md`, add 2–4 Belief (proportional to the investment — small investments at the low end, large ones at the high end), and update with `python3 scripts/write-entity.py "[NPC Name]" NPC [new_belief] "[existing notes]"`. The NPC caps at 100.
+4. Describe what changes — quietly, concretely. Not "the library feels more alive." Instead: "The corner table by the eastern window has a regular occupant now. You can't see who. But the chair is always slightly warm."
+5. Record under `## Belief Investments` in `players/[name].md`.
+6. Let the investment show in every subsequent mention of that thing. Invested things are not the same as before.
 
 ---
 

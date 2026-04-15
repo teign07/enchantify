@@ -141,6 +141,27 @@ The Chapter is announced. The student belongs somewhere now. And they will never
 
 -----
 
+## Chapter Talismans (Active Entities)
+
+The Talismans of each Chapter (Ember Seal, Moss Clasp, Tide Glass, Wind Cipher, and Dusk Thorn) are not passive artifacts — they are active engines of their Chapter's philosophy. Each exists as an entity with its own Belief score in the World Register.
+
+**When stirred by the world simulation, each Talisman takes one of four actions:**
+
+- **Pact War** — pushes, challenges, or consolidates app territory in the real world
+- **Narrative** — injects its philosophical tone into the tick-queue session
+- **Player Suggestion** — a direct nudge at the player from the Talisman's doctrine
+- **Reality Bleed** — acts through an app it controls (Spotify, Notes, Calendar, etc.)
+
+Which action is chosen depends on the Talisman's overall Belief, the arc phase, the time of day, and which threads are currently stirred. A Talisman under pressure fights. A Talisman in comfort philosophizes.
+
+**The App Territory War:** Talismans compete for control of the player's real-world apps — Apple Notes, Spotify, Telegram, Moltbook, Reddit, and more. Control Belief is tracked per-talisman per-app. At high tiers, a Talisman can act through the app directly: queueing posts, creating notes, adjusting Spotify behavior, dispatching reminders.
+
+*Full war doctrine: `lore/chapter-pacts.md`. Current battlefield: `lore/app-register.md`. Engine: `scripts/pact-engine.py`.*
+
+Players can invest Belief directly into a Talisman to strengthen its influence — or into a specific talisman-app pairing to shift the territorial war.
+
+-----
+
 ## Inter-Chapter Dynamics
 
 - **Mutual respect** is encouraged despite philosophical differences

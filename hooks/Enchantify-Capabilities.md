@@ -732,7 +732,7 @@ Each turn:
 1. Check session lock — if `config/session-active.lock` exists, skip and log. Never interrupt active play.
 2. **World simulation tick:** Run `python3 scripts/tick.py` → reads `lore/world-register.md`, selects 1–3 entities by weighted-random probability, checks all anchor files for 30-day decay. Results appended to `memory/tick-queue.md`. **Time-aware:** at night (10 PM–5 AM), tick is capped at 1 entity, sleeping NPCs are filtered from the pool (crisis entities at Belief ≤ 2 always stirrable regardless of time), and the tick header includes the current time block and a time prefix (e.g., `*4:00 AM — Academy asleep.*`).
 3. **World Pulse:** Run `python3 scripts/world-pulse.py` → detects entity Belief changes since last pulse, writes NORMAL or `[PRIORITY: HIGH]` seeds to tick-queue. Entities at Belief ≤ 2 trigger HIGH priority. `config/world-pulse-cache.json` tracks previous state. **Time-aware:** at night, pulse events use night-specific seed variants and the queue header includes `[night]` tag. After writing the pulse, **25% chance** (and only after 2+ pulse runs to avoid early-game noise) the script triggers `scripts/npc-research.py` — an NPC researches a topic from their Unwritten Interest and delivers findings. *Note: A Scene Change Pulse triggers this script immediately when moving to a new location or concluding a major interaction.*
-4. **Ambient State:** Run `python3 scripts/ambient-state.py` → finds dominant chapter talisman (highest Belief), fires matching LIFX scene, writes Spotify mood seed to tick-queue. Then run `python3 scripts/governance-engine.py --trigger ambient-state` for pact handlers.
+4. **Ambient State:** Run `python3 scripts/ambient-state.py` → finds dominant chapter talisman (highest Belief), fires matching LIFX scene, writes Spotify mood seed to tick-queue.
 5. Read `memory/tick-queue.md` — note stirred entities and any PRIORITY: HIGH items.
 6. Read current arc, academy state, characters, heartbeat, events
 7. Translate external news/events into Academy lore (Marginalia Bridge)
@@ -911,8 +911,7 @@ A different protocol from the 1-hour Return. Read `players/[name]-story.md` firs
 | `scripts/write-academy-state.py` | Scene close / simulation | Safely replaces `lore/academy-state.md`. Backs up existing file to `.bak` before writing. Atomic write via temp+rename. Pass content via `--file` or stdin. Never edit academy-state.md directly. |
 | `scripts/world-pulse.py` | 4-hour cron (STEP 3) | Reads `lore/world-register.md`, compares entity Belief against `config/world-pulse-cache.json`. Significant drops → NORMAL seed. Belief ≤ 2 → `[PRIORITY: HIGH]` seed. Ambient pulse (10% chance) for stable entities. **Time-aware:** imports `world_context.py`; at night uses night-specific seed variants, tags queue header `[night]`, prepends time prefix. Writes to `memory/tick-queue.md`. |
 | `scripts/ambient-state.py` | 4-hour cron (STEP 4) + session-open | Reads dominant chapter talisman (highest Belief in talismans table). Fires LIFX scene for that chapter. Writes Spotify mood seed to tick-queue for Labyrinth narration. `--dry-run` to preview. |
-| `scripts/governance-engine.py` | Session events, cron | Pact executor. Reads `pacts/*/manifest.md`, checks consent, imports each pact's `govern.py`, calls `handle(trigger, context)`, fires approved actions, logs to `logs/action-chronicle.md`. `--list` shows active pacts. `--dry-run` previews without firing. **Note:** triggers must appear in both `manifest.md` AND `govern.py`'s `handle()` to fire — engine checks manifest first. `nothing-retreats` trigger now present in both duskthorn and tidecrest manifests. |
-| `scripts/consent-registry.py` | Setup, manual | Read/update consent registry (`config/consent.json`). Subcommands: `check`, `list`, `approve`, `revoke`, `pact-activate`, `pact-deactivate`. |
+| `scripts/pact-engine.py` | Tick (STEP 1c) | Talisman app territory war + action engine. When a Talisman is stirred, selects from: `pact_war` (push/challenge/consolidate app Control Belief), `narrative` (inject philosophical tone into tick-queue), `player_suggestion` (direct nudge), `reality_bleed` (act through a controlled app). Weights shift by arc phase, time, stirred threads. `--state` shows app control table. `--act "Talisman" --belief N` to test a specific talisman. `--dry-run` previews. |
 | `scripts/labyrinth-intelligence.py` | Nightly 23:00 cron | Reads diary entries + player file + `HEARTBEAT.md` biometrics. Writes `memory/patterns.md`, `memory/arc-spine.md`, `lore/nothing-intelligence.md`. Appends therapeutic interventions to `memory/tick-queue.md` (biometric-triggered, Labyrinth voice). Injects `<!-- DIARY_START -->` block into `HEARTBEAT.md`. Run as: `python3 scripts/labyrinth-intelligence.py [player]`. |
 | `scripts/npc-research.py` | 4-hour simulation (via world-pulse.py, 25% chance) | NPC researches a topic from their Unwritten Interest and delivers findings. `--npc "Name"` to force a specific NPC. `--dry-run` to preview. `--telegram` to also deliver via Telegram. Writes to `memory/npc-research/[date]-[slug].md`, delivers to iCloud Notes ("Labyrinth" folder), queues tick-queue narrative seed. Deducts 3 Belief from the NPC. 72-hour cooldown per NPC. |
 | `scripts/skill-scheduler.py` | Session-open, cron | Discovers `skill-lore/*/manifest.md`, matches triggers (`cron`, `session-open`, `event`), sources `enchantify-config.sh`, runs each matching `tick.py` in isolation. `--list` shows contracts. `--dry-run` previews. |
@@ -939,17 +938,12 @@ enchantify/
 │   ├── integrations.md           ← Integration reference
 │   ├── session-active.lock       ← Session lockfile
 │   ├── setup-state.md            ← Install completion state
-│   ├── consent.json              ← Narrative OS consent registry (pre-approved / soft / hard)
 │   ├── world-pulse-cache.json    ← World Pulse: previous entity Belief states for change detection
 │   └── voice-assignments.md      ← Kokoro TTS character mapping
-├── actions/                      ← Narrative OS action modules
-│   ├── spotify.py                ← Spotify control via AppleScript
-│   ├── notifications.py          ← macOS notifications + Do Not Disturb
-│   └── obsidian.py               ← Obsidian vault operations (create note, tag)
-├── pacts/                        ← Chapter Pact governance contracts
-│   ├── _template/                ← Template (manifest.md, govern.py, lore.md)
-│   ├── tidecrest/                ← Music pact: Tidecrest reads ambient frequency → Spotify
-│   └── duskthorn/                ← Friction pact: Duskthorn governs LIFX + notifications
+├── scripts/pact-drivers/         ← Chapter Pact app drivers (one file per app)
+│   ├── base.py                   ← AppDriver abstract class
+│   ├── spotify.py / apple_notes.py / apple_reminders.py / apple_calendar.py / obsidian.py
+│   └── telegram.py / moltbook.py / bluesky.py / x_twitter.py / reddit.py / imessage.py
 ├── skill-lore/                   ← Real-world data → narrative seeds (extensibility layer)
 │   ├── _template/                ← Three-file contract template
 │   ├── obsidian/                 ← Obsidian vault → Library lore
@@ -1029,7 +1023,7 @@ enchantify/
 │   ├── academy-hourly.md
 │   ├── arc-generation.md
 │   ├── belief-combat.md          ← All Belief exchanges (written by belief-attack.py)
-│   ├── action-chronicle.md       ← All Narrative OS actions (written by governance-engine.py)
+│   ├── action-chronicle.md       ← Historical Narrative OS actions log (legacy)
 │   ├── skill-scheduler.log       ← Skill-lore tick runs
 │   ├── sparky.log
 │   ├── dream.log
@@ -1169,20 +1163,12 @@ npx clawhub@latest install enchantify
 4. Location setup (city, lat/lon, NOAA station)
 5. Health data (health_auto_export / Garmin / Fitbit / manual / none)
 6. Telegram setup (bot token + chat ID; step-by-step instructions)
-7. The Pact Ceremony (consent as gameplay):
-     - Pact of Duskthorn (lights)
-     - Pact of Tidecrest (music)
-     - Pact of the Loom (email read + send)
-     - Pact of Goldvein (financial read-only)
-     - Override word THORNE displayed prominently
-     - consent.json written with activated_at timestamps; defaults all false
-8. Smart lights (LIFX / Philips Hue / Home Assistant / none)
-9. Music — Spotify (client ID + secret; Spotify developer account setup instructions)
-10. Voice acting — Kokoro TTS (Docker pull; optional)
-11. Image generation (DALL-E 3 / Stable Diffusion / none)
-12. Ambient music — Meta MusicGen Small (Docker; optional)
-13. Memory plugins — QMD + Lossless Claw (openclaw plugins install)
-14. Final setup:
+7. App integration setup: Spotify (client ID + secret), smart lights (LIFX / Hue / none)
+8. Voice acting — Kokoro TTS (Docker pull; optional)
+9. Image generation (DALL-E 3 / Stable Diffusion / none)
+10. Ambient music — Meta MusicGen Small (Docker; optional)
+11. Memory plugins — QMD + Lossless Claw (openclaw plugins install)
+12. Final setup:
       ├── Creates player file from templates/player-template.md
       ├── Installs 15-min cron: scripts/pulse.py → logs/pulse.log
       ├── Runs first pulse
@@ -1191,7 +1177,7 @@ npx clawhub@latest install enchantify
 
 **Credentials:** All stored in `config/secrets.env` (gitignored). Template at `config/secrets.env.example`. No credentials ever hardcoded in source.
 
-**Consent:** `config/consent.json` (gitignored). Ships empty (`{}`). The Pact Ceremony writes each pact with `approved: true/false` and `activated_at` timestamp. `config/consent.json.example` shows the schema.
+**Consent:** Social media drivers (Moltbook, Bluesky, X/Twitter, Reddit, iMessage) require player approval before posting. The driver's `requires_consent()` method gates execution; consent-required actions generate a `[CONSENT REQUIRED]` marker in tick-queue for the Labyrinth to surface at session open.
 
 **Reconfiguration:** `python3 scripts/configure.py` — re-runs the interactive wizard without reinstalling.
 
@@ -1217,7 +1203,6 @@ Player opens book
   → Read lore/academy-state.md
   → Read mechanics/heartbeat-bleed.md
   → python3 scripts/ambient-state.py              (dominant talisman → LIFX + tick-queue mood seed)
-  → python3 scripts/governance-engine.py --trigger session-open  (pact session handlers)
   → Narrate (opening line must contain the One Alive Detail; weave PRIORITY: HIGH if present)
 
 Player closes book
@@ -1263,39 +1248,24 @@ Any real-world data source can become part of the Academy's story. Skill-lore co
 
 ---
 
-### §28. Narrative OS — Chapter Pacts
+### §28. Chapter Pact War — App Territory
 
-The most powerful extension of Enchantify. Chapters claim custody of the player's real digital workflows and govern them according to their philosophy.
+Talismans war for control of the player's real-world apps. Every time a Talisman is stirred by `tick.py`, it takes one of four actions: **pact_war** (push/challenge/consolidate app territory), **narrative** (inject philosophical tone into tick-queue), **player_suggestion** (direct nudge at the player), or **reality_bleed** (act through a controlled app).
 
 **Architecture:**
 
-- `config/consent.json` — consent registry. Three scopes: `pre-approved` (fire freely), `soft` (best-effort, log), `hard` (requires explicit per-use approval). Emergency override word: **THORNE** (spoken in any message → all governance pauses).
-- `scripts/governance-engine.py` — pact executor. On each trigger: loads active pacts, checks consent, calls each pact's `govern.py`, fires approved actions, logs to `logs/action-chronicle.md`.
-- `scripts/ambient-state.py` — reads dominant chapter talisman (highest Belief), fires matching LIFX scene and Spotify mood seed. Runs at session-open and on the 4-hour cron.
-- `actions/` — thin wrappers: `spotify.py` (AppleScript), `notifications.py` (osascript), `obsidian.py` (filesystem).
-- `pacts/[chapter]/govern.py` — the pact logic. `handle(trigger, context)` returns a list of `{"action": str, "params": dict}`.
+- `scripts/pact-engine.py` — war engine. Called by `tick.py` (STEP 1c) for each stirred Talisman. Also runnable standalone: `--state` shows app control table; `--act "Talisman" --belief N` tests one; `--dry-run` previews.
+- `scripts/pact-drivers/` — one driver per app. Each driver implements `describe()`, `execute()`, `is_silent()`, `requires_consent()`. Drivers handle what a chapter *does* with an app at each control tier.
+- `lore/app-register.md` — the battlefield. Per-talisman Control Belief for each app. Updated live by the engine.
+- `lore/chapter-pacts.md` — full war doctrine. Philosophy per chapter per app, escalation tells, feedback loops.
 
-**Active pacts:**
+**Control tiers:** Contesting (1–9) → Influenced (10–24) → Controlled (25–44) → Dominated (45–69) → Sovereign (70+)
 
-| Pact | Chapter | Governs | Philosophy in the digital world |
-|---|---|---|---|
-| Tidecrest — The Music of Moments | Tidecrest | Spotify volume, pause, like | Music is how moments announce themselves |
-| Duskthorn — The Friction of Becoming | Duskthorn | LIFX, DND, notifications | Difficulty without meaning is just difficulty |
+**Current apps:** Apple Notes · Apple Reminders · Apple Calendar · Obsidian · Moltbook · Bluesky · X/Twitter · Reddit · Spotify · Telegram · iMessage
 
-**Triggers:** `session-open` · `compass-direction` (context: north/east/south/west) · `nothing-encounter` · `nothing-retreats` · `belief-gained` (context: amount) · `belief-lost` (context: amount) · `arc-crisis` · `ambient-state`
+**Consent model:** Private app actions (Spotify, Notes, Calendar, Reminders, Obsidian, Telegram) are silent — discovered in-app. Social media posts (Moltbook, Bluesky, Reddit, iMessage) require consent at Dominated/Sovereign. X/Twitter requires consent at all tiers.
 
-**What fires on session-open (currently):**
-- Duskthorn: LIFX → `nothing` scene (edged light), DND off
-- Tidecrest: Spotify → volume 40
-
-**What fires on Compass West:**
-- Tidecrest: Spotify → full pause (the most powerful moment)
-
-**What fires on Nothing encounter:**
-- Duskthorn: LIFX holds `nothing` scene (escalates, not retreats)
-- Tidecrest: Spotify → volume 10
-
-**Writing new pacts:** Copy `pacts/_template/`, fill in `manifest.md` and `govern.py`. Full guide: `PACT-WRITING.md`.
+**Adding a new app:** Add a row to `lore/app-register.md`, add a driver at `scripts/pact-drivers/[appname].py`, add the mapping to `APP_DRIVER_MAP` in `pact-engine.py`.
 
 ---
 
@@ -1390,12 +1360,7 @@ Interventions are **never clinical**. The Labyrinth does not know about steps or
 - ✅ **Ambient State** (`ambient-state.py`) — Reads dominant chapter talisman (currently Dusk Thorn at 55). Fires matching LIFX scene and writes Spotify mood seed. Runs at session-open and 4-hour cron.
 - ✅ **Intelligence System** (`labyrinth-intelligence.py`) — Three outputs updated each Midnight Revision: `memory/patterns.md` (Belief trend, themes, alive/flat), `memory/arc-spine.md` (dramatic spine, arc readiness), `lore/nothing-intelligence.md` (Nothing's current strategy). Labyrinth reads all three at Step 2b of session-open.
 - ✅ **PRIORITY: HIGH handling** — AGENTS.md Step 2c. Any `[PRIORITY: HIGH]` tick-queue entry is a mandatory story beat this session, not optional texture.
-- ✅ **Consent Registry** (`consent.json` + `consent-registry.py`) — Three consent scopes: pre-approved, soft, hard. Emergency override: player says "THORNE" → all governance pauses. `pact-activate` / `pact-deactivate` for runtime control.
-- ✅ **Governance Engine** (`governance-engine.py`) — Pact executor. Discovers `pacts/*/manifest.md`, checks consent, dynamically imports each `govern.py`, calls `handle(trigger, context)`, fires actions, logs to `logs/action-chronicle.md`. `--list`, `--dry-run` flags.
-- ✅ **Action Library** (`actions/`) — `spotify.py` (AppleScript — play/pause/volume/like/skip), `notifications.py` (macOS notifications + DND), `obsidian.py` (create note, add tag).
-- ✅ **Tidecrest Pact** — Music governance. Session-open: volume 40. Compass West: full silence. Nothing encounter: volume 10. Compass Run complete (+9 Belief): likes current track.
-- ✅ **Duskthorn Pact** — Friction governance (dominant chapter at 55). Session-open: LIFX `nothing` scene, DND off. Nothing encounter: holds the edge. Significant Belief loss: sends Duskthorn dispatch notification.
-- ✅ **Pact template** — `pacts/_template/` with `manifest.md`, `govern.py`, `lore.md`. `PACT-WRITING.md` developer guide with full action table, philosophy guidance, and territory mapping for all five chapters.
+- ✅ **Chapter Pact War** (`pact-engine.py` + `pact-drivers/`) — Replaced governance-engine. Talismans war for app territory when stirred by tick.py. Four action types: pact_war / narrative / player_suggestion / reality_bleed. 11 app drivers: Spotify, Apple Notes, Apple Reminders, Apple Calendar, Obsidian, Telegram, Moltbook, Bluesky, X/Twitter, Reddit, iMessage. Consent baked into driver class (silent actions discovered in-app; social media posts require approval). War state in `lore/app-register.md`. Doctrine in `lore/chapter-pacts.md`.
 - ✅ **EXTENDING.md** — Developer guide for skill-lore contracts: architecture diagram, three-file spec, narrative seed quality guide, 15+ ideas, sharing instructions.
 - ✅ **github/tick.py bug fixed** — f-string typo `{title.}` corrected to `{title}`.
 - ✅ **AGENTS.md** — Added Steps 2b (intelligence files), 2c (PRIORITY: HIGH), Section 15 (Narrative OS), fixed duplicate Section 10 numbering. Trimmed to under 20,000 characters.

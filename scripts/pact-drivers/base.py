@@ -1,0 +1,76 @@
+"""
+base.py — Abstract base class for all Chapter Pact app drivers.
+
+Each driver handles one app. It knows:
+  - What each chapter can do in that app at each control tier
+  - Whether an action is silent (player discovers it) or announced
+  - Whether an action requires player consent before execution
+  - How to actually execute the action
+
+Silence and consent are orthogonal:
+  - Silent + no consent: Mossbloom sets Spotify to album mode. Player discovers it.
+  - Announced + no consent: Riddlewind adds a Reminder. Tick-queue notes it.
+  - Announced + consent: Duskthorn wants to post to X. Player must approve first.
+  - Silent + consent: (rare) talisman wants to do something private but consequential.
+"""
+
+
+class AppDriver:
+    """Base class for all app drivers. Subclass and override."""
+
+    app_name   = "Unknown"
+    app_system = "unknown"   # "social", "productivity", "music", "messaging"
+
+    # Tiers that are silent (player discovers the effect in the app, not from the Labyrinth).
+    # Override per chapter in subclasses if needed.
+    silent_tiers = {"Influenced", "Controlled"}
+
+    # Tiers that require player consent before execution.
+    # Typically: anything that affects the player's public presence.
+    consent_tiers = set()
+
+    def can_act(self, tier: str, chapter: str) -> bool:
+        """Return True if this chapter can do anything at this tier in this app."""
+        return True
+
+    def is_silent(self, tier: str, chapter: str) -> bool:
+        """Return True if this action should be discovered, not announced."""
+        return tier in self.silent_tiers
+
+    def requires_consent(self, tier: str, chapter: str) -> bool:
+        """Return True if the player must approve before this action executes."""
+        return tier in self.consent_tiers
+
+    def describe(self, tier: str, chapter: str, context: dict) -> str:
+        """
+        Return a narrative string describing what this action would do.
+        Used in tick-queue entries and consent requests.
+        Should be evocative, not mechanical.
+        """
+        return f"{chapter} stirs in {self.app_name}."
+
+    def execute(self, tier: str, chapter: str, context: dict, dry_run: bool = False) -> str:
+        """
+        Execute the action. Return a narrative string for the tick-queue.
+
+        For silent actions: execute the real-world effect, return a brief tick-queue note
+        (the Labyrinth sees it, the player doesn't — until they open the app).
+
+        For consent-required actions: this should only be called AFTER consent is granted.
+        The pact-engine handles the consent gate before calling execute().
+
+        dry_run=True: describe what would happen without doing it.
+        """
+        return self.describe(tier, chapter, context)
+
+    def consent_prompt(self, tier: str, chapter: str, context: dict) -> str:
+        """
+        Return a human-readable consent request for the player.
+        Called when requires_consent() is True.
+        """
+        action = self.describe(tier, chapter, context)
+        return (
+            f"**{chapter} wants to act on {self.app_name}.**\n\n"
+            f"{action}\n\n"
+            f"Approve? (yes/no)"
+        )

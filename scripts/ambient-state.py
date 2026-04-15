@@ -4,8 +4,7 @@ ambient-state.py — Dominant chapter talisman → digital environment.
 
 Reads the Chapter Talismans from world-register.md, finds the one with
 the highest Belief, and shapes the player's digital environment to match
-that chapter's philosophy. Called by governance-engine.py on session-open
-and by the 4-hour cron.
+that chapter's philosophy. Called by the 4-hour cron and session-entry.py.
 
 The dominant talisman is currently: Dusk Thorn (55) — "No conflict, no story."
 

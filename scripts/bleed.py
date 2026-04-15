@@ -238,6 +238,216 @@ def get_entity_standings() -> str:
     return "\n".join(f"- {n} ({t}): Belief {b}" for n, t, b in entities[:10])
 
 
+# Control tier name from score
+_TIER_THRESHOLDS = [
+    (70, "Sovereign"),
+    (45, "Dominated"),
+    (25, "Controlled"),
+    (10, "Influenced"),
+    (1,  "Contesting"),
+]
+
+def _tier_name(score: int) -> str:
+    for threshold, name in _TIER_THRESHOLDS:
+        if score >= threshold:
+            return name
+    return "Contesting"
+
+def _climax_distance(score: int):
+    """Return (threshold, tier_name, distance) if score is within 5 of a tier upgrade, else None."""
+    upgrade_points = [10, 25, 45, 70]
+    tier_names = {10: "Influenced", 25: "Controlled", 45: "Dominated", 70: "Sovereign"}
+    for t in upgrade_points:
+        if 0 < t - score <= 5:
+            return (t, tier_names[t], t - score)
+    return None
+
+
+def parse_app_register_for_bleed() -> dict:
+    """Parse app-register.md into war analytics: territory counts, contested apps, climax situations."""
+    content = read_file_safe(WORKSPACE_DIR / "lore" / "app-register.md")
+
+    _TALISMANS = ["Emberheart", "Mossbloom", "Riddlewind", "Tidecrest", "Duskthorn"]
+    apps = []
+
+    # Table format: | App | System | Natural Alignment | Emberheart | Mossbloom | Riddlewind | Tidecrest | Duskthorn | Controller |
+    row_re = re.compile(
+        r'^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|'
+        r'\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|'
+        r'\s*([^|]+?)\s*\|',
+        re.MULTILINE
+    )
+    for m in row_re.finditer(content):
+        app_name = m.group(1).strip()
+        if app_name.lower() in ('app', '---', ''):
+            continue
+        scores = {
+            "Emberheart": int(m.group(4)),
+            "Mossbloom":  int(m.group(5)),
+            "Riddlewind": int(m.group(6)),
+            "Tidecrest":  int(m.group(7)),
+            "Duskthorn":  int(m.group(8)),
+        }
+        controller_raw = m.group(9).strip()
+
+        sorted_scores = sorted(scores.items(), key=lambda x: -x[1])
+        leader_name, leader_score = sorted_scores[0]
+        second_name, second_score = sorted_scores[1] if len(sorted_scores) > 1 else ("?", 0)
+        gap = leader_score - second_score
+
+        # Find any talisman within 5 of a tier threshold
+        climax_candidates = []
+        for tname, tscore in scores.items():
+            info = _climax_distance(tscore)
+            if info:
+                threshold, tier_name, dist = info
+                climax_candidates.append((tname, tscore, tier_name, dist))
+
+        apps.append({
+            "name": app_name,
+            "system": m.group(2).strip(),
+            "scores": scores,
+            "sorted_scores": sorted_scores,
+            "leader": leader_name,
+            "leader_score": leader_score,
+            "leader_tier": _tier_name(leader_score),
+            "second": second_name,
+            "second_score": second_score,
+            "gap": gap,
+            "controller_raw": controller_raw,
+            "climax": climax_candidates,
+        })
+
+    contested = sorted(apps, key=lambda x: x["gap"])
+
+    wins = {}
+    for a in apps:
+        wins[a["leader"]] = wins.get(a["leader"], 0) + 1
+
+    all_climax = []
+    for a in apps:
+        for (tname, tscore, tier_name, dist) in a["climax"]:
+            all_climax.append({
+                "app": a["name"],
+                "talisman": tname,
+                "score": tscore,
+                "approaching_tier": tier_name,
+                "points_away": dist,
+            })
+
+    return {
+        "apps": apps,
+        "contested": contested,
+        "wins": wins,
+        "all_climax": all_climax,
+    }
+
+
+def format_war_data(war: dict) -> str:
+    """Format war analytics as a data block for the LLM prompt."""
+    lines = []
+
+    lines.append("CHAPTER CONTROL COUNT (apps controlled):")
+    for ch, count in sorted(war["wins"].items(), key=lambda x: -x[1]):
+        lines.append(f"  {ch}: {count} app(s)")
+
+    lines.append("")
+    lines.append("ALL APP SCORES (Emberheart | Mossbloom | Riddlewind | Tidecrest | Duskthorn):")
+    for a in war["apps"]:
+        s = a["scores"]
+        lines.append(
+            f"  {a['name']}: E={s['Emberheart']} M={s['Mossbloom']} R={s['Riddlewind']} "
+            f"T={s['Tidecrest']} D={s['Duskthorn']}"
+            f" → {a['leader']} leads ({a['leader_score']}, {a['leader_tier']}) "
+            f"| gap over 2nd: {a['gap']}"
+        )
+
+    lines.append("")
+    lines.append("MOST CONTESTED APPS (smallest gap — most likely to flip):")
+    for a in war["contested"][:4]:
+        lines.append(
+            f"  {a['name']}: {a['leader']} ({a['leader_score']}) "
+            f"vs {a['second']} ({a['second_score']}) — gap {a['gap']}"
+        )
+
+    # Climax: prioritise Controlled+ thresholds; for Influenced only show if the talisman leads that app
+    all_climax = war["all_climax"]
+    leader_map = {a["name"]: a["leader"] for a in war["apps"]}
+    strategic_climax = [
+        c for c in all_climax
+        if c["approaching_tier"] in ("Controlled", "Dominated", "Sovereign")
+        or (c["approaching_tier"] == "Influenced" and c["points_away"] <= 2
+            and leader_map.get(c["app"]) == c["talisman"])
+    ]
+    strategic_climax.sort(key=lambda x: (
+        {"Sovereign": 0, "Dominated": 1, "Controlled": 2, "Influenced": 3}.get(x["approaching_tier"], 4),
+        x["points_away"]
+    ))
+
+    lines.append("")
+    if strategic_climax:
+        lines.append("TALISMAN CLIMAX WAR — strategically significant tier approaches:")
+        for c in strategic_climax:
+            lines.append(
+                f"  {c['talisman']} in {c['app']}: score {c['score']} "
+                f"→ {c['points_away']} point(s) from {c['approaching_tier']}"
+            )
+    else:
+        lines.append("TALISMAN CLIMAX WAR: No chapter is currently near a strategic tier threshold.")
+
+    return "\n".join(lines)
+
+
+def get_player_recap_data(cfg: dict) -> str:
+    """Extract player story log, active quests, and status for the player correspondent section."""
+    player = cfg.get("ENCHANTIFY_DEFAULT_PLAYER", "bj")
+    content = read_file_safe(WORKSPACE_DIR / "players" / f"{player}.md", 80)
+    if not content:
+        return "(no player data available)"
+
+    parts = []
+
+    belief_m  = re.search(r'\*\*Belief:\*\*\s*(\d+)', content)
+    chapter_m = re.search(r'\*\*Chapter:\*\*\s*(\S+)', content)
+    tutorial_m = re.search(r'\*\*Tutorial Progress:\*\*\s*(\S+)', content)
+
+    belief   = belief_m.group(1) if belief_m else "?"
+    chapter  = chapter_m.group(1) if chapter_m else "?"
+    tutorial = tutorial_m.group(1) if tutorial_m else "?"
+    parts.append(f"PLAYER: {player} | Belief: {belief}/100 | Chapter: {chapter} | Tutorial: {tutorial}")
+
+    # Last 4 story log entries
+    log_m = re.search(r'## 📜 Story Log\n(.*?)(?=\n##|\Z)', content, re.DOTALL)
+    if log_m:
+        log_lines = [l.strip() for l in log_m.group(1).strip().splitlines()
+                     if l.strip().startswith("-")]
+        recent = log_lines[-4:] if len(log_lines) > 4 else log_lines
+        if recent:
+            parts.append("RECENT STORY LOG (most recent entries):")
+            parts.extend(recent)
+
+    # Active quests from Inside Cover table
+    cover_m = re.search(r'## The Inside Cover\n(.*?)(?=\n##|\Z)', content, re.DOTALL)
+    if cover_m:
+        active_npcs = re.findall(
+            r'\|\s*\*\*([^*]+)\*\*\s*\|[^|]*\|\s*\*\*ACTIVE\*\*',
+            cover_m.group(1)
+        )
+        if active_npcs:
+            parts.append(f"ACTIVE QUESTS FROM: {', '.join(active_npcs)}")
+
+    # Compass runs
+    compass_m = re.search(r'## Compass Run History\n(.*?)(?=\n##|\Z)', content, re.DOTALL)
+    if compass_m:
+        total_m = re.search(r'\*\*Total runs:\*\*\s*(\d+)', compass_m.group(1))
+        last_m  = re.search(r'\*\*Last run:\*\*\s*(.+)', compass_m.group(1))
+        total = total_m.group(1) if total_m else "0"
+        last  = last_m.group(1).strip() if last_m else "never"
+        parts.append(f"COMPASS RUNS: {total} total | last: {last}")
+
+    return "\n".join(parts)
+
+
 def extract_health_from_pulse(pulse: str) -> str:
     """Pull health/biometric lines from the pulse section."""
     health_lines = []
@@ -289,7 +499,7 @@ reportage as the ordinary. Specificity is everything. Invent concrete details wh
 named corridors, specific times, partial quotes — the kind of texture that makes a place feel real.
 
 The reader should be able to SETTLE INTO THIS PAPER. Every section except The Barometer,
-The Exchange, The Correction, and The Missing should be substantial, readable prose.
+The Exchange, The Correction, The Missing, and The Correspondent should be substantial, readable prose.
 
 DATA FEEDS (synthesize into journalism — never quote data directly):
 
@@ -306,6 +516,12 @@ PLAYER STATUS:
 - Chapter: {data['player']['chapter']}
 - Belief: {data['player']['belief']} / 100
 - Tutorial: {data['player']['tutorial']}
+
+PLAYER STORY DATA (for The Correspondent section):
+{data['player_recap']}
+
+CHAPTER WAR DATA (for The War Report section):
+{data['war_data']}
 
 ENVIRONMENTAL (heartbeat):
 {data['pulse']}
@@ -391,7 +607,35 @@ These are story seeds. The reader should want to investigate at least two of the
 
 ===MISSING===
 [Threads currently dormant — noted as quiet absence. 2-4 lines.
-The quietest column. Brief is correct here. It only notes absence, never explains it.]"""
+The quietest column. Brief is correct here. It only notes absence, never explains it.]
+
+===PLAYER===
+[The Correspondent's Note — a brief sidebar box. Written in the third person, in The Bleed's dry,
+precise voice, as if the Academy newspaper is covering a notable student's activities today.
+Use the PLAYER STORY DATA provided: story log, active quests, Compass run history.
+3-5 sentences. Name the student by first name (use the player name from the data). Give it
+texture — name a specific room, time, or observed detail. Report what they appear to have been
+doing. Never break the fourth wall — this is a real student in a real school.
+The Bleed does not sensationalize. It reports. Brief is correct here.]
+
+===WARREPORT===
+[The Chapter War Report — the most analytical column in the paper. Cold, precise, slightly ominous.
+Written like a chess correspondent covering a tournament in progress.
+
+Use the CHAPTER WAR DATA provided — the actual scores and gaps.
+
+Structure:
+Paragraph 1: Overall war state. Name which chapter controls the most apps. Note the total landscape.
+Contested Apps block: For the 3-4 most contested apps (smallest gap), one line each:
+  "App Name: Chapter A (score) vs Chapter B (score) — gap: N"
+Talisman Climax War paragraph: If any talisman is within 5 points of a tier threshold, name it.
+  Describe the stakes — what changes if it crosses? What does the challenger need to do to stop it?
+  If none, note that no chapter is currently near a threshold and explain what that means.
+War Forecast paragraph: Which chapter is most likely to flip which app in the coming days?
+  Which apps are stable? What would shift the balance? End with an overall momentum read:
+  who has the initiative right now, and why.
+
+Do NOT fabricate scores. Use the data provided exactly.]"""
 
     raw = call_agent(prompt)
     return parse_sections(raw)
@@ -505,6 +749,8 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     market      = sections.get("MARKET", "")
     correction  = sections.get("CORRECTION", "")
     missing     = sections.get("MISSING", "")
+    player_box  = sections.get("PLAYER", "")
+    war_report  = sections.get("WARREPORT", "")
 
     date_obj  = datetime.strptime(meta["date_str"], "%Y-%m-%d")
     date_long = date_obj.strftime("%A, %B %-d, %Y")
@@ -766,6 +1012,33 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     line-height: 1.65;
   }}
 
+  /* ── PLAYER / WAR ROW ── */
+  .row-player-war {{
+    grid-template-columns: 1fr 2fr;
+    border-bottom: 1.5px solid #111;
+    margin-bottom: 8pt;
+  }}
+
+  .player-box {{
+    font-size: 8.5pt;
+    line-height: 1.6;
+    font-style: italic;
+    color: #2a2a2a;
+    background: #ede7d8;
+    border: 1px solid #bbb;
+    padding: 5pt 6pt;
+    margin-top: 2pt;
+  }}
+
+  .war-report-body {{
+    font-size: 9pt;
+    line-height: 1.65;
+  }}
+
+  .war-report-body p {{
+    margin-bottom: 0.65em;
+  }}
+
   /* ── FOOTER ── */
   .footer {{
     text-align: center;
@@ -830,7 +1103,21 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
 
   </div>
 
-  <!-- ROW 2: Feature (left) + Classifieds (mid) + Sparky/Correction/Missing (right stack) -->
+  <!-- ROW 2: Player Correspondent (left) | Chapter War Report (right) -->
+  <div class="content-row row-player-war">
+
+    <div class="col">
+      <div class="col-head">The Correspondent</div>
+      <div class="player-box">{paragraphs(player_box) if player_box else "<p><em>(no student activity reported today)</em></p>"}</div>
+    </div>
+
+    <div class="col" style="padding-right:0;">
+      <div class="col-head">Chapter War Report</div>
+      <div class="war-report-body">{paragraphs(war_report) if war_report else "<p><em>(war data unavailable)</em></p>"}</div>
+    </div>
+
+  </div>
+
   <!-- ROW 3: Weather | Story Forecast | Predictions Market -->
   <div class="content-row row-forecasts">
 
@@ -935,6 +1222,14 @@ def build_telegram_text(sections: dict, sparky: str, meta: dict) -> str:
     if exchange:
         parts += [f"<b>The Exchange</b>", esc(exchange), ""]
 
+    player_box = sections.get("PLAYER", "")
+    if player_box:
+        parts += [f"<b>The Correspondent</b>", f"<i>{esc(player_box[:400] + ('…' if len(player_box) > 400 else ''))}</i>", ""]
+
+    war_report = sections.get("WARREPORT", "")
+    if war_report:
+        parts += [f"<b>Chapter War Report</b>", esc(war_report[:600] + ("…" if len(war_report) > 600 else "")), ""]
+
     if _SCHEDULE_AVAILABLE:
         sched = get_schedule_data()
         timetable_lines = [f"<b>Today at the Academy</b>",
@@ -975,30 +1270,28 @@ def build_telegram_text(sections: dict, sparky: str, meta: dict) -> str:
     return "\n".join(parts)
 
 
-def send_telegram(text: str, cfg: dict):
-    token   = cfg.get("TELEGRAM_BOT_TOKEN", "")
-    chat_id = cfg.get("TELEGRAM_CHAT_ID", "")
-    if not token or not chat_id:
-        print("  ℹ Telegram not configured (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID) — skipping.")
-        return
+_TELEGRAM_TARGET  = "8729557865"
+_TELEGRAM_CHANNEL = "telegram"
+_TELEGRAM_ACCOUNT = "enchantify"
 
+
+def send_telegram(text: str, cfg: dict):
     # Telegram message limit: 4096 chars
     if len(text) > 4000:
         text = text[:3990] + "\n…"
 
-    url     = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "HTML"}).encode()
-
-    try:
-        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=10) as r:
-            resp = json.loads(r.read())
-        if resp.get("ok"):
-            print("  ✓ Telegram edition sent.")
-        else:
-            print(f"  ⚠ Telegram error: {resp}")
-    except Exception as ex:
-        print(f"  ⚠ Telegram send failed: {ex}")
+    result = subprocess.run(
+        ["openclaw", "message", "send",
+         "--target",  _TELEGRAM_TARGET,
+         "--channel", _TELEGRAM_CHANNEL,
+         "--account", _TELEGRAM_ACCOUNT,
+         text],
+        capture_output=True, text=True
+    )
+    if result.returncode == 0:
+        print("  ✓ Telegram edition sent.")
+    else:
+        print(f"  ⚠ Telegram send failed: {result.stderr.strip()[:100]}")
 
 
 # ── CUPS print ────────────────────────────────────────────────────────────────
@@ -1087,6 +1380,8 @@ def main():
     sparky           = get_sparky_shiny(date_str)
     forecast         = get_weather_forecast_from_heartbeat()
     market_odds      = calculate_market_odds()
+    war_info         = parse_app_register_for_bleed()
+    player_recap     = get_player_recap_data(cfg)
 
     # Format market odds for prompt injection
     market_odds_formatted = "\n".join(
@@ -1107,6 +1402,8 @@ def main():
         "thread_summary":        thread_summary,
         "entity_standings":      entity_standings,
         "market_odds_formatted": market_odds_formatted,
+        "war_data":              format_war_data(war_info),
+        "player_recap":          player_recap,
     }
 
     # ── Generate content ─────────────────────────────────────────────────────

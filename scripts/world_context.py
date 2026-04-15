@@ -57,6 +57,9 @@ CHAPTER_MAP = {
     "Momort":                     "Emberheart",
     "Professor Nightshade":       "Emberheart",
     "Elara Nightshade":           "Emberheart",
+    "Professor Wispwood":         "Tidecrest",
+    "Luna Wispwood":              "Tidecrest",
+    "Wispwood":                   "Tidecrest",
     "Professor Thickets":         "Riddlewind",   # publicly; secretly Duskthorn
     "Wellend Thickets":           "Riddlewind",
     "Professor Maxwell Thorne":   "Emberheart",
@@ -114,6 +117,7 @@ CHAPTER_MAP = {
     'Ignatius "Inkwell" Scribblesnap':"Tidecrest",
     # Library staff (assigned)
     "Archibald Evergreen":        "Mossbloom",
+    "Archibald":                  "Mossbloom",   # arc alias for Archibald Evergreen
     "Evelyn Riad":                "Mossbloom",
     "Quentin Pagester":           "Riddlewind",
     # Enchantment Guardians

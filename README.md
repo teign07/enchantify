@@ -39,7 +39,7 @@ Enchantify runs as an agent on [OpenClaw](https://openclaw.ai) — an open-sourc
 
 A cron job runs `scripts/pulse.py` every 15 minutes. It gathers the real world — weather, time of day, season, your health data, whether you're home, what music is playing — and writes it to `HEARTBEAT.md`. When you open the game, the Labyrinth reads that file and knows what kind of day you've been having before you say a word.
 
-The Pact system (`scripts/governance-engine.py`) gates all physical-world actions behind explicit consent. Every action is logged to `logs/action-chronicle.md`. Nothing happens to your lights, music, or inbox without a Pact you activated.
+The Pact War (`scripts/pact-engine.py`) has Talismans competing for control of your real-world apps — Spotify, Apple Notes, Calendar, Moltbook, and more. At high control tiers, a Talisman acts through its apps: cueing music, creating notes, drafting posts. Social media actions always require your approval before anything is posted.
 
 ---
 
@@ -88,11 +88,7 @@ Optional:
 
 ## The Pact Ceremony
 
-During installation you'll be asked about each integration — not as a checkbox, but as a named agreement with the world. Each Pact has a lore name and a plain-English explanation of exactly what it can and can't do.
-
-Your override word is `THORNE`. It pauses all Pacts immediately, from anywhere.
-
-Consent is stored in `config/consent.json` on your machine only. The file ships empty — nothing is approved by default.
+During installation you'll be asked about each app integration. Private apps (Spotify, Notes, Calendar) act silently — you discover what a Talisman did when you open the app. Social media posts always surface in the tick-queue as drafts first. Nothing goes out without your approval.
 
 ---
 
