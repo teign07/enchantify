@@ -1,8 +1,8 @@
 # Enchantify — The Labyrinth of Stories
 ## Complete Capability Reference
 
-*Version: 4.6.0 — The Living Academy*
-*Last updated: April 14, 2026*
+*Version: 4.6.0 — The Talisman War*
+*Last updated: April 15, 2026*
 
 ---
 
@@ -915,6 +915,7 @@ A different protocol from the 1-hour Return. Read `players/[name]-story.md` firs
 | `scripts/labyrinth-intelligence.py` | Nightly 23:00 cron | Reads diary entries + player file + `HEARTBEAT.md` biometrics. Writes `memory/patterns.md`, `memory/arc-spine.md`, `lore/nothing-intelligence.md`. Appends therapeutic interventions to `memory/tick-queue.md` (biometric-triggered, Labyrinth voice). Injects `<!-- DIARY_START -->` block into `HEARTBEAT.md`. Run as: `python3 scripts/labyrinth-intelligence.py [player]`. |
 | `scripts/npc-research.py` | 4-hour simulation (via world-pulse.py, 25% chance) | NPC researches a topic from their Unwritten Interest and delivers findings. `--npc "Name"` to force a specific NPC. `--dry-run` to preview. `--telegram` to also deliver via Telegram. Writes to `memory/npc-research/[date]-[slug].md`, delivers to iCloud Notes ("Labyrinth" folder), queues tick-queue narrative seed. Deducts 3 Belief from the NPC. 72-hour cooldown per NPC. |
 | `scripts/skill-scheduler.py` | Session-open, cron | Discovers `skill-lore/*/manifest.md`, matches triggers (`cron`, `session-open`, `event`), sources `enchantify-config.sh`, runs each matching `tick.py` in isolation. `--list` shows contracts. `--dry-run` previews. |
+| `scripts/bleed.py` | Daily 6 PM cron (`0 18 * * *`) | Publishes The Bleed — the Academy student newspaper. Reads world-register.md, threads.md, tick-queue.md, HEARTBEAT.md, players/[name].md, app-register.md. Calls the enchantify agent to generate 12 sections (HEADLINE, GOSSIP, WEATHER, FORECAST, MARKET, BAROMETER, EXCHANGE, FEATURE, CLASSIFIEDS, CORRECTION, MISSING, PLAYER, WARREPORT). Builds broadsheet HTML to `bleed/issues/YYYY-MM-DD.html`. Sends Telegram edition. Optionally CUPS-prints via `wkhtmltopdf` or Chrome headless. `--force` to regenerate. Issue numbers tracked in `bleed/issue-number.txt`. |
 
 ---
 
@@ -1066,7 +1067,8 @@ enchantify/
 
 | Job | Schedule | What It Does |
 |---|---|---|
-| Academy Simulation | `32 */4 * * *` | tick.py → world-pulse.py (25% chance triggers npc-research.py) → ambient-state.py → governance ambient-state → world state advance → dispatch |
+| Academy Simulation | `32 */4 * * *` | tick.py → world-pulse.py (25% chance triggers npc-research.py) → ambient-state.py → world state advance → dispatch |
+| The Bleed | `0 18 * * *` | `scripts/bleed.py` — daily student newspaper. HTML broadsheet + Telegram edition. Skips if already published today (use `--force` to override). |
 | Nightly Intelligence | `0 23 * * *` | `labyrinth-intelligence.py [player]` — senses biometrics, writes patterns/arc-spine/nothing-intelligence, appends therapeutic tick-queue interventions, injects diary/dream into HEARTBEAT.md |
 | OGG Cleanup | `0 4 * * *` | `find ~/.openclaw/media -name '*.ogg' -mtime +1 -delete` — removes accumulated audio files older than 1 day |
 | Marginalia Listener | `0 9,17 * * *` | Fetches local/Reddit/global news → `marginalia-whispers.md` |
@@ -1105,13 +1107,15 @@ All automated scripts use Google Gemini via OpenClaw OAuth. No API keys required
 
 **🎵 Spotify (macOS, AppleScript):** Mood-aware audio. Volume varies by scene type — exploration 40–50, Nothing approaching 10→0→pause, Compass West: silence. Never announces. Full scene definitions in `config/integrations.md`.
 
-**💡 Smart Lights (Pact of Duskthorn):** Backend selected at install via `LIGHTS_BACKEND` in `config/secrets.env`. Options:
-- `lifx` — LAN control, no cloud. `python3 scripts/lifx-control.py scene [name]`. Auto-discovers via LAN or uses `LIFX_TOKEN`.
+**💡 Smart Lights:** Backend selected at install via `LIGHTS_BACKEND` in `config/secrets.env`. Options:
+- `lifx` — LAN control, no cloud. `python3 scripts/lifx-control.py scene [name]`. Auto-discovers via LAN or uses configured IPs.
 - `hue` — Philips Hue Bridge. Requires `HUE_BRIDGE_IP` + `HUE_TOKEN`.
-- `ha` — Home Assistant. Requires `HA_URL` + `HA_TOKEN` (long-lived access token).
+- `ha` — Home Assistant. Requires `HA_URL` + `HA_TOKEN`.
 - `none` — lights disabled.
 
-12 scenes: `academy`, `library`, `nothing`, `compass-north/east/south/west`, `compass-complete`, `book-snow-queen`, `book-odyssey`, `bookend`, `defeated`. All gated by the Pact of Duskthorn consent check.
+12 scenes: `academy`, `library`, `nothing`, `compass-north/east/south/west`, `compass-complete`, `book-snow-queen`, `book-odyssey`, `bookend`, `defeated`.
+
+Lights are **narrative** — controlled by the Labyrinth, not by the Pact War. `ambient-state.py` fires the dominant chapter's scene at session open. During play, the agent calls the appropriate scene directly: Library → `library`, Nothing approaching → `nothing`, Compass step → matching direction scene, Compass complete → `compass-complete`, Dorm arrival → `academy`, victory → `defeated`, Book Jump → matching book scene. **MANDATORY** — fires on every location/mood shift. See AGENTS.md §5 for full trigger table.
 
 **🖨️ Printer (CUPS):** After Compass Run West, automatically fires `bash scripts/print-souvenir.sh`. Prints 4×6 HTML card — souvenir sentence, weather, moon, season. Reads printer name from `ENCHANTIFY_PRINTER` in config. No announcement; if it fails, narrate the card is waiting.
 
@@ -1250,22 +1254,72 @@ Any real-world data source can become part of the Academy's story. Skill-lore co
 
 ### §28. Chapter Pact War — App Territory
 
-Talismans war for control of the player's real-world apps. Every time a Talisman is stirred by `tick.py`, it takes one of four actions: **pact_war** (push/challenge/consolidate app territory), **narrative** (inject philosophical tone into tick-queue), **player_suggestion** (direct nudge at the player), or **reality_bleed** (act through a controlled app).
+Talismans war for control of the player's real-world apps. Every time a Talisman is stirred by `tick.py`, it takes one of five actions — chosen by **priority-based selection** (not random), reflecting each chapter's strategic personality:
+
+| Action | Description | Belief Cost |
+|---|---|---|
+| `pact_war` | Push/challenge/consolidate app territory | push/consolidate: 1 · challenge: 2 · raid: 3 |
+| `narrative` | Inject philosophical tone into tick-queue | free |
+| `player_suggestion` | Direct nudge at the player | free |
+| `reality_bleed` | Act through a controlled app | 2 |
+| `world_investment` | Invest 1–2 Belief into aligned NPCs or story threads | 1–2 |
+
+**Priority chain** (`_choose_action()`): 1. Threat response (enemy closing fast) → `pact_war`. 2. Flip opportunity (within flip_margin of taking an app) → `pact_war`. 3. Reality bleed (if eager + has controlled apps) → `reality_bleed`. 4. Arc/thread investment → `narrative`. 5. World investment (build NPC/thread mass) → `world_investment`. 6. Ambient → `player_suggestion` or `narrative`.
+
+**Chapter personalities** (`_CHAPTER_PRIORITIES`): Duskthorn: high threat response, raid-eager, speaks last. Mossbloom: patient, high flip threshold, speaks first, rarely raids. Emberheart: bleed-eager. Riddlewind: balanced, bleed-eager. Tidecrest: bleed-eager, moderate thresholds.
+
+**Belief economy:** Talismans spend their own overall Belief to act. Floor: 20 Belief (WAR_FLOOR). NPCs replenish talismans through world investment (25% chance per stir, 1–3 Belief). `tick.py` applies all belief costs atomically in a single register write.
 
 **Architecture:**
 
-- `scripts/pact-engine.py` — war engine. Called by `tick.py` (STEP 1c) for each stirred Talisman. Also runnable standalone: `--state` shows app control table; `--act "Talisman" --belief N` tests one; `--dry-run` previews.
-- `scripts/pact-drivers/` — one driver per app. Each driver implements `describe()`, `execute()`, `is_silent()`, `requires_consent()`. Drivers handle what a chapter *does* with an app at each control tier.
-- `lore/app-register.md` — the battlefield. Per-talisman Control Belief for each app. Updated live by the engine.
+- `scripts/pact-engine.py` — war engine. Called by `tick.py` (STEP 1c) for each stirred Talisman. Returns 4-tuple `(line, atype, belief_cost, register_delta)`. Standalone: `--state` shows app control table; `--act "Talisman" --belief N` tests one; `--dry-run` previews.
+- `scripts/pact-drivers/` — one driver per app. Each implements `describe()`, `execute()`, `is_silent()`, `requires_consent()`, `consent_prompt()`. Handles what a chapter *does* with an app at each control tier.
+- `lore/app-register.md` — the battlefield. Per-talisman Control Belief for each app. Updated atomically by tick.py after each war action.
 - `lore/chapter-pacts.md` — full war doctrine. Philosophy per chapter per app, escalation tells, feedback loops.
 
 **Control tiers:** Contesting (1–9) → Influenced (10–24) → Controlled (25–44) → Dominated (45–69) → Sovereign (70+)
 
 **Current apps:** Apple Notes · Apple Reminders · Apple Calendar · Obsidian · Moltbook · Bluesky · X/Twitter · Reddit · Spotify · Telegram · iMessage
 
-**Consent model:** Private app actions (Spotify, Notes, Calendar, Reminders, Obsidian, Telegram) are silent — discovered in-app. Social media posts (Moltbook, Bluesky, Reddit, iMessage) require consent at Dominated/Sovereign. X/Twitter requires consent at all tiers.
+**Consent model:** Private app actions (Spotify, Notes, Calendar, Reminders, Obsidian, Telegram) are silent — discovered in-app. Social media posts (Moltbook, Bluesky, Reddit, iMessage) require consent at Dominated/Sovereign. X/Twitter requires consent at all tiers. Consent-required actions appear as `[CONSENT REQUIRED]` in tick-queue for the Labyrinth to surface at session open.
 
 **Adding a new app:** Add a row to `lore/app-register.md`, add a driver at `scripts/pact-drivers/[appname].py`, add the mapping to `APP_DRIVER_MAP` in `pact-engine.py`.
+
+---
+
+### §28b. The Bleed — Academy Student Newspaper
+
+The Bleed publishes daily at 6 PM. It's not a dashboard — it's the Academy's dry, slightly gothic journalism: the extraordinary reported with the same deadpan precision as the ordinary. The player receives it as a Telegram message and an HTML broadsheet at `bleed/issues/YYYY-MM-DD.html`.
+
+**Voice:** W.E. writes the Gossip column. The meteorological society writes weather entirely in Academy terms. The war correspondent covers the Chapter War like chess. The whole paper settles into you.
+
+**Sections generated by the enchantify agent:**
+
+| Section | Content |
+|---|---|
+| HEADLINE | Front-page article — 5–7 paragraphs of real reporting on dominant thread or simulation activity |
+| GOSSIP | W.E.'s social column — 5–6 items, named sources, always an angle |
+| WEATHER | 4-day forecast in Academy terms (rain = Unwritten pressing through, fog = Nothing close) using real forecast data |
+| FORECAST | Story forecast — probability + expected narrative conditions per thread, like weather but for plot |
+| MARKET | Thread Futures Market — pre-calculated YES/NO odds from thread belief sums + phase modifiers |
+| BAROMETER | Health/biometric data mapped to Academy conditions (steps = grounds distance, sleep = vitality index) |
+| EXCHANGE | Belief Exchange ticker — all significant entities with Belief scores and trend arrows |
+| FEATURE | Long-form piece: NPC profile, investigation, history, or opinion — 4–6 paragraphs with title and byline |
+| CLASSIFIEDS | 5–6 classified notices — LOST / FOUND / NOTICE / SEEKING / WARNING / REWARD. Story seeds. |
+| CORRECTION | One dry, formal correction. Deadpan. |
+| MISSING | Dormant threads noted as quiet absence — 2–4 lines |
+| **PLAYER** | **The Correspondent's Note** — 3–5 sentences in The Bleed's voice covering the player's recent story log, active quests, and Compass history as if reporting on a notable student |
+| **WARREPORT** | **Chapter War Report** — territory state (apps per chapter), 3–4 most contested apps with scores and gaps, Talisman Climax War (any chapter within 5 of a tier threshold), war forecast |
+
+**Data sources:** `lore/world-register.md` (entity standings), `lore/threads.md` (thread summary + market odds), `memory/tick-queue.md` (simulation activity), `HEARTBEAT.md` (weather, health), `players/[name].md` (story log, quests, Compass history), `lore/app-register.md` (war analytics).
+
+**War analytics** (computed by `parse_app_register_for_bleed()` + `format_war_data()` — no LLM):
+- Chapter control counts (apps led per chapter)
+- All app scores with leader, tier, gap to 2nd
+- 4 most contested apps (smallest gap between 1st and 2nd)
+- Climax War: talismans approaching Controlled/Dominated/Sovereign thresholds (within 5 points) — filtered for strategic significance, not every micro-approach
+
+**The Bleed is enough.** The player's Labyrinth of Stories book does not need separate schedule/thread/arc/war sections — the newspaper covers them all with voice and journalism. The Labyrinth covers the current moment in session; The Bleed covers the world state.
 
 ---
 
@@ -1307,6 +1361,19 @@ Interventions are **never clinical**. The Labyrinth does not know about steps or
 ---
 
 ## Part 4: What's Complete
+
+### v4.6.0 — The Talisman War (April 14–15, 2026)
+
+- ✅ **Chapter Pact War: five action types** — Added `world_investment` as 5th talisman action. Talismans now invest 1–2 Belief into aligned NPCs (via `CHAPTER_MAP`) and story threads (via `_CHAPTER_THREAD_INVESTMENTS`), building narrative mass for their philosophy alongside territory control.
+- ✅ **Priority-based action selection** — Replaced weighted random (`_BASE_WEIGHTS`, `_compute_weights`, `_weighted_choice`) with `_choose_action()`: deterministic priority chain evaluating threat response → flip opportunity → reality bleed → arc/thread → world investment → ambient. Each chapter has a personality tuple (threat_margin, flip_margin, raid_eager, bleed_eager, speaks_first). Duskthorn is most aggressive; Mossbloom is most patient.
+- ✅ **Belief cost economy** — Talismans spend their own Belief when acting. push/consolidate=1, challenge=2, raid=3, reality_bleed=2, world_investment=1–2. Narrative and player_suggestion are free. WAR_FLOOR=20 (talismans won't fight below this). NPCs replenish talismans through world investment (25% per stir, 1–3 Belief). `tick.py` applies all war costs and world investment deltas atomically in a single register write via one tmp→rename pass.
+- ✅ **`tick.py` 4-tuple return** — `run_talisman_action()` now returns `(line, atype, belief_cost, register_delta)`. tick.py unpacks, applies talisman cost to modified_register, applies register_delta (world investment), then writes once.
+- ✅ **The Bleed: Player Correspondent section** — New `===PLAYER===` section: 3–5 sentences in The Bleed's dry voice reporting on the player's recent story log, active quests, and Compass history. Appears as "The Correspondent" boxed sidebar in HTML broadsheet.
+- ✅ **The Bleed: Chapter War Report section** — New `===WARREPORT===` section: territory state per chapter, 3–4 most contested apps (smallest gap), Talisman Climax War paragraph (approaching tier thresholds), war forecast. Written like a chess correspondent. `parse_app_register_for_bleed()` and `format_war_data()` compute all analytics from `lore/app-register.md` without LLM. Climax filter: shows only Controlled+ approaches, plus Influenced if the leader is within 2 — avoids early-game noise.
+- ✅ **LIFX as narrative, not pact territory** — Lights stay under Labyrinth control, not the Pact War. `ambient-state.py` fires the dominant chapter's LIFX scene at session open. Chapters express through philosophical tone, app territory, and world investment — not by controlling the room's color directly.
+- ✅ **AGENTS.md §5 integration mandate hardened** — "Fire at least one" replaced with MANDATORY + explicit light scene trigger table (Library → `library`, Nothing → `nothing`, Compass steps → direction scenes, etc.). Spotify now has the actual `osascript -e 'tell application "Spotify" to...'` command format. Dispatches block collapsed to one line (it's a cron, not an agent action). Compass West silence marked "no exceptions." Under 20,000 chars.
+- ✅ **Legacy pact system removed** — Deleted: `pacts/`, `actions/`, `scripts/governance-engine.py`, `scripts/consent-registry.py`, `PACT-WRITING.md`. All documentation updated to remove governance-engine references.
+- ✅ **Design decision: The Bleed is enough** — The player's Labyrinth of Stories book does not need separate sections for schedule, threads, arc, or Talisman War. The Bleed covers world state; the Labyrinth covers the current session moment. Adding panels to the book would make it a HUD, not a narrator.
 
 ### v4.5.0 — The Outer Stacks (April 13, 2026)
 
