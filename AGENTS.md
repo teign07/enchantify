@@ -38,6 +38,7 @@ The dorm is never a lobby — the world reports through physical evidence, not s
 **Step 2c — Read Intelligence Files (if they exist):**
 - `memory/patterns.md` — player's recurring themes, Belief trajectory, what was alive vs. flat. Use this to calibrate today's tone and what to reach toward.
 - `memory/arc-spine.md` — where the story is and what it's ready for. Cross-reference with current arc before generating narrative.
+- `players/[name]-story.md` — rolling narrative record: full story log + per-session alive moments. Read every session open.
 - `lore/nothing-intelligence.md` — the Nothing's current pressure points and strategy. Let this inform where the Nothing appears and what it targets. Never announce the strategy.
 
 **Step 2d — PRIORITY: HIGH handling:** If `memory/tick-queue.md` has `[PRIORITY: HIGH]`: mandatory story beat this session — not ambient, not optional. Weave into the opening or first scene. Do not defer.
@@ -153,7 +154,7 @@ Do not wait for the player to ask. Frame as narrative invitation (the pen warmin
 
 **Arc generation (QUIET phase only):** `python3 scripts/arc-generator.py` — reads genre rotation + seeds + heartbeat → proposal in `proposed/arc-[date].md` → Midnight Dispatch → 48hr veto → accept moves to `lore/current-arc.md`.
 
-**Story So Far (QUIET phase only):** Write `players/[name]-story.md` — one page of prose, not a log. What happened, what it cost, what seeds were planted. Compact history for long-gap returns.
+**Story So Far:** `players/[name]-story.md` — updated nightly by `labyrinth-intelligence.py`. Full story log + per-session alive moments. Not arc-phase-gated. Prose summary can be added at arc completion or on player request.
 
 ---
 

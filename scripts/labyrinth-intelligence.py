@@ -2,11 +2,12 @@
 """
 labyrinth-intelligence.py — Unified player intelligence system.
 
-Four outputs:
+Five outputs:
   memory/patterns.md           — Belief trends, recurring themes, what was alive/flat
   memory/arc-spine.md          — Dramatic spine: where the player is in their story
   lore/nothing-intelligence.md — The Nothing's current pressure points and strategy
   memory/tick-queue.md         — [PRIORITY: HIGH] interventions when biometric thresholds crossed
+  players/[name]-story.md      — Rolling narrative record: full story log + per-session alive moments
 
 Run: python3 scripts/labyrinth-intelligence.py [player_name]
 Called by: nightly cron (23:00). Midnight Revision (every 4 days) also calls this.
@@ -702,21 +703,120 @@ def write_tick_queue_interventions(nothing: dict, player: dict) -> None:
     print(f"[intelligence] Queued {len(entries)} intervention(s) → memory/tick-queue.md")
 
 
+# ─── Write: story-so-far ─────────────────────────────────────────────────────
+
+def write_story_so_far(player: dict, all_diaries: list[dict], readiness: list[str]) -> None:
+    """
+    Write rolling narrative summary to players/[name]-story.md.
+    Updated nightly — not arc-phase-gated.
+
+    Covers:
+      - Full story log from player file (every named T-step, in order)
+      - Most alive moment from every recorded session (all-time, not just 30 days)
+      - Current mechanical state (Belief, quests, runs, anchors)
+      - What the story is carrying forward (arc readiness)
+
+    Read by the Labyrinth at every session open and on long-gap returns.
+    """
+    path      = BASE_DIR / "players" / f"{PLAYER}-story.md"
+    timestamp = datetime.now().strftime("%Y-%m-%d")
+
+    story_log = player.get("story_log", [])
+    belief    = player.get("belief", 0)
+    chapter   = player.get("chapter", "Unknown")
+    tutorial  = player.get("tutorial", "?")
+    runs      = player.get("compass_runs", 0)
+    invested  = player.get("has_investments", False)
+    anchors   = player.get("has_anchors", False)
+    quests    = player.get("active_quests", 0)
+
+    lines = [
+        f"# The Story So Far — {PLAYER}",
+        f"*Updated: {timestamp} · {len(all_diaries)} session(s) in record*",
+        "",
+        "## Current State",
+        f"- Chapter: {chapter} | Belief: {belief} | Tutorial: {tutorial}",
+        (
+            f"- Compass Runs: {runs} | "
+            f"Belief invested: {'yes' if invested else 'none yet'} | "
+            f"Anchors: {'yes' if anchors else 'none yet'} | "
+            f"Active quests: {quests}"
+        ),
+        "",
+        "## What Has Happened",
+        "*Complete story log — every named moment, in order.*",
+        "",
+    ]
+
+    if story_log:
+        for entry in story_log:
+            lines.append(f"- {entry}")
+    else:
+        lines.append("*(No story log entries yet.)*")
+
+    # Alive moments — all-time, oldest first
+    alive_entries = [
+        (d["date"], d["alive"])
+        for d in sorted(all_diaries, key=lambda x: x["date"])
+        if d["alive"]
+    ]
+
+    lines += [
+        "",
+        "## What Was Alive",
+        "*The most alive moment from each recorded session.*",
+        "",
+    ]
+
+    if alive_entries:
+        for date_str, alive in alive_entries:
+            lines.append(f"**{date_str}:** {alive[:200]}")
+            lines.append("")
+    else:
+        lines.append("*(No session alive-moments recorded yet.)*")
+
+    if readiness:
+        lines += [
+            "## What the Story Is Carrying",
+            "*Threads and pressures the narrative is building toward.*",
+            "",
+        ]
+        for r in readiness:
+            lines.append(f"- {r}")
+
+    lines += [
+        "",
+        "---",
+        "*Read by the Labyrinth at session open and on long-gap returns.*",
+        "*Updated nightly by labyrinth-intelligence.py.*",
+        "*Do not surface this document directly to the player — share prose summary on request.*",
+    ]
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n")
+    print(
+        f"[intelligence] Wrote players/{PLAYER}-story.md "
+        f"({len(story_log)} log entries, {len(alive_entries)} session highlights)"
+    )
+
+
 # ─── Main ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     try:
-        player    = load_player()
-        heartbeat = load_heartbeat()
-        diaries   = load_diaries(days_back=30)
-        themes    = extract_themes(diaries)
-        trend     = belief_trend(player, diaries)
-        nothing   = nothing_assessment(player, diaries, heartbeat)
-        readiness = arc_readiness(player, diaries)
+        player      = load_player()
+        heartbeat   = load_heartbeat()
+        diaries     = load_diaries(days_back=30)
+        all_diaries = load_diaries(days_back=3650)   # full history for story-so-far
+        themes      = extract_themes(diaries)
+        trend       = belief_trend(player, diaries)
+        nothing     = nothing_assessment(player, diaries, heartbeat)
+        readiness   = arc_readiness(player, diaries)
 
         write_patterns(player, diaries, themes, trend)
         write_arc_spine(player, diaries, readiness)
         write_nothing_intelligence(player, nothing)
+        write_story_so_far(player, all_diaries, readiness)
         write_tick_queue_interventions(nothing, player)
         inject_diary_dream_into_heartbeat()
 
