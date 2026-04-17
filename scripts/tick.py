@@ -28,6 +28,11 @@ _SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 import world_context
 import importlib.util as _ilu
+try:
+    import npc_log as _npc_log
+    _HAS_NPC_LOG = True
+except ImportError:
+    _HAS_NPC_LOG = False
 _pe_spec = _ilu.spec_from_file_location("pact_engine", _SCRIPT_DIR / "pact-engine.py")
 pact_engine = _ilu.module_from_spec(_pe_spec)
 _pe_spec.loader.exec_module(pact_engine)
@@ -233,6 +238,11 @@ def run_npc_talisman_investments(selected, register_text, dry_run=False):
             f"- *[Talisman Investment]* **{e['name']}** ({chapter}) channels "
             f"{amount} Belief into the **{talisman}** (now {new_tal_b})"
         )
+        if not dry_run and _HAS_NPC_LOG:
+            _npc_log.append(
+                e['name'], "belief_invest",
+                f"Invested {amount} Belief into {talisman} ({chapter})"
+            )
         if dry_run:
             print(f"  [dry-run] {e['name']} → {talisman}: "
                   f"NPC {npc_b}→{new_npc_b}, Talisman {tal_b}→{new_tal_b}")

@@ -39,6 +39,13 @@ CACHE_PATH   = BASE_DIR / "config" / "npc-research-cache.json"
 RESEARCH_DIR = BASE_DIR / "memory" / "npc-research"
 TICK_QUEUE   = BASE_DIR / "memory" / "tick-queue.md"
 
+sys.path.insert(0, str(SCRIPT_DIR))
+try:
+    import npc_log as _npc_log
+    _HAS_NPC_LOG = True
+except ImportError:
+    _HAS_NPC_LOG = False
+
 BELIEF_COST     = 3
 BELIEF_MINIMUM  = 8       # NPC must have at least this much to research
 COOLDOWN_HOURS  = 72      # per-NPC cooldown between notes
@@ -572,6 +579,9 @@ def main():
 
     deduct_belief(npc, dry_run=False)
     queue_tick(npc)
+
+    if _HAS_NPC_LOG:
+        _npc_log.append(npc["name"], "research", npc["interest"][:100])
 
     cache[npc["name"]] = datetime.now().isoformat()
     save_cache(cache)

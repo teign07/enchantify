@@ -22,6 +22,11 @@ BASE_DIR    = Path(os.environ.get("ENCHANTIFY_BASE_DIR", Path(__file__).parent.p
 _SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 import world_context
+try:
+    import npc_log as _npc_log
+    _HAS_NPC_LOG = True
+except ImportError:
+    _HAS_NPC_LOG = False
 TICK_QUEUE     = BASE_DIR / "memory" / "tick-queue.md"
 CACHE_PATH     = BASE_DIR / "config" / "world-pulse-cache.json"
 SKILL_ID       = "world-pulse"
@@ -168,6 +173,8 @@ def generate_events(entities: list[dict], cache: dict, ctx: dict = None) -> list
                 "seed":     seed,
                 "priority": "NORMAL",
             })
+            if _HAS_NPC_LOG:
+                _npc_log.append(name, "belief_fell", f"Belief fell {prev_b} → {belief}")
 
         # Significant rise since last pulse
         elif prev_b is not None and belief >= prev_b + 4:

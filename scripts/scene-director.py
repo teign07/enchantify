@@ -48,6 +48,12 @@ try:
 except ImportError:
     _SCHEDULE_OK = False
 
+try:
+    import npc_log as _npc_log
+    _HAS_NPC_LOG = True
+except ImportError:
+    _HAS_NPC_LOG = False
+
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -113,9 +119,34 @@ def layer_who() -> str:
     if not npcs:
         return "No NPC data — read academy-state.md directly"
 
+    # Load recent NPC actions for annotation
+    action_map: dict[str, list[str]] = {}
+    if _HAS_NPC_LOG:
+        for entry in _npc_log.read_recent(days=7):
+            key = entry["npc"].lower()
+            label = {
+                "research":      f"research·{entry['detail'][:50]}",
+                "elective":      f"elective·{entry['detail'][:50]}",
+                "belief_invest": f"invested·{entry['detail'][:40]}",
+                "belief_fell":   f"belief fell·{entry['detail'][:30]}",
+            }.get(entry["type"], f"{entry['type']}·{entry['detail'][:40]}")
+            action_map.setdefault(key, []).append(label)
+
+    # Annotate NPC entries with their most recent action
+    annotated = []
+    for entry in npcs:
+        # Extract name (first word after marker, up to @)
+        name_m = re.search(r'[★·](.+?) @', entry)
+        if name_m:
+            npc_key = name_m.group(1).strip().lower()
+            actions = action_map.get(npc_key, [])
+            if actions:
+                entry = entry + f" [HAS: {actions[0]}]"
+        annotated.append(entry)
+
     # Lead with stirred NPCs, then others; cap at 4
-    stirred_npcs = [n for n in npcs if n.startswith("★")]
-    quiet_npcs   = [n for n in npcs if n.startswith("·")]
+    stirred_npcs = [n for n in annotated if n.startswith("★")]
+    quiet_npcs   = [n for n in annotated if n.startswith("·")]
     combined = (stirred_npcs + quiet_npcs)[:4]
     return " | ".join(combined)
 

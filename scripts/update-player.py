@@ -25,11 +25,19 @@ import sys
 import os
 import re
 import subprocess
+from pathlib import Path
 from typing import Optional
 
 PLAYERS_DIR = "players"
 BELIEF_MIN = 0
 BELIEF_MAX = 100
+
+sys.path.insert(0, str(Path(__file__).parent))
+try:
+    import npc_log as _npc_log
+    _HAS_NPC_LOG = True
+except ImportError:
+    _HAS_NPC_LOG = False
 
 
 def load_player(name: str) -> tuple[str, str]:
@@ -305,6 +313,8 @@ def quest_add(name: str, description: str, npc: str, belief_reward: int, rel_rew
         content = content.rstrip() + "\n" + cover_section
 
     save_player(path, content)
+    if _HAS_NPC_LOG:
+        _npc_log.append(npc, "elective", description[:100])
     total = len(quests) + 1
     print(f"✓ Quest tucked into The Inside Cover: '{description}'")
     print(f"  NPC: {npc} | Reward: +{belief_reward} Belief, +{rel_reward} rel  ({total}/{QUEST_CAPACITY} active)")

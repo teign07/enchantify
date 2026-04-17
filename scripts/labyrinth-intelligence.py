@@ -20,6 +20,14 @@ from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
 
+_SCRIPT_DIR = Path(__file__).parent
+sys.path.insert(0, str(_SCRIPT_DIR))
+try:
+    import npc_log as _npc_log
+    _HAS_NPC_LOG = True
+except ImportError:
+    _HAS_NPC_LOG = False
+
 BASE_DIR = Path(os.environ.get("ENCHANTIFY_BASE_DIR", Path(__file__).parent.parent))
 PLAYER   = sys.argv[1] if len(sys.argv) > 1 else "bj"
 
@@ -840,6 +848,11 @@ if __name__ == "__main__":
         write_story_so_far(player, all_diaries, readiness)
         write_tick_queue_interventions(nothing, player)
         inject_diary_dream_into_heartbeat()
+
+        if _HAS_NPC_LOG:
+            pruned = _npc_log.prune(days=7)
+            if pruned:
+                print(f"[intelligence] Pruned {pruned} expired NPC log entries.")
 
         bio_summary = f", biometric flags: {nothing['biometric_flags']}" if nothing.get("biometric_flags") else ""
         print(f"[intelligence] Complete. {len(diaries)} session(s), player {PLAYER}, pressure: {nothing['pressure']}{bio_summary}.")

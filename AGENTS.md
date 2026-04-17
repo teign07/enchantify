@@ -41,7 +41,7 @@ NEVER just narrate or role-play the player doing or completing Unwritten Electiv
 
 **Step 2d — PRIORITY: HIGH handling:** If `memory/tick-queue.md` has `[PRIORITY: HIGH]`: mandatory story beat this session — not ambient, not optional. Weave into the opening or first scene. Do not defer.
 
-**Step 2e — Director's Slate:** `session-entry.py` also appends `--- DIRECTOR'S SLATE ---`. Read it last — it synthesizes all of the above. Up to 11 lines: SCENE_ANCHOR/CAST/FEEL/STORY/TALISMAN/NOTHING/RESEARCH/PLAYER/SCHEDULE/DREAM/SUPPRESS. Treat as constraints, not suggestions. **SCENE_ANCHOR** (when present) is the mandatory opening image — the specific beat written at last close. SUPPRESS names exact moves to cut. Full system: `mechanics/scene-construction.md`.
+**Step 2e — Director's Slate:** `session-entry.py` also appends `--- DIRECTOR'S SLATE ---`. Read it last — it synthesizes all of the above. Up to 11 lines: SCENE_ANCHOR/CAST/FEEL/STORY/TALISMAN/NOTHING/RESEARCH/PLAYER/SCHEDULE/DREAM/SUPPRESS. Treat as constraints, not suggestions. **SCENE_ANCHOR** (when present) is the mandatory opening image — the specific beat written at last close. **CAST** flags NPCs with recent actions `[HAS: ...]` — surface organically (`mechanics/npc-memory.md`). SUPPRESS names exact moves to cut. Full system: `mechanics/scene-construction.md`.
 
 **Step 2f — Find the One Alive Detail:** Before the opening line: one detail only true *today*. The weather at this exact hour. The moon at this phase. Something from yesterday's diary. What the simulation moved. Lead with it. If the opening line could be last week's, rewrite it.
 
