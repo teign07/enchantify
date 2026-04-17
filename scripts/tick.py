@@ -45,7 +45,8 @@ DECAY_THRESHOLD_DAYS   = 30
 DECAY_AMOUNT           = 1
 ANCHOR_FLOOR           = 5
 
-INVESTMENT_CHANCE      = 0.25   # probability a stirred NPC invests per tick
+INVESTMENT_CHANCE      = 0.25   # probability a stirred NPC invests per tick (talisman)
+FREE_INVESTMENT_CHANCE = 0.12   # probability a stirred NPC makes a secondary investment
 INVESTMENT_MIN         = 1      # minimum Belief invested per event
 INVESTMENT_MAX         = 3      # maximum Belief invested per event
 NPC_INVESTMENT_FLOOR   = 8      # NPCs never drop below this from investing
@@ -246,6 +247,107 @@ def run_npc_talisman_investments(selected, register_text, dry_run=False):
         if dry_run:
             print(f"  [dry-run] {e['name']} → {talisman}: "
                   f"NPC {npc_b}→{new_npc_b}, Talisman {tal_b}→{new_tal_b}")
+
+    return seeds, text
+
+
+def run_npc_free_investments(selected, all_entities, register_text, dry_run=False):
+    """
+    Secondary investment pass: each stirred NPC has a FREE_INVESTMENT_CHANCE of investing
+    1–3 Belief into an entity they have a natural connection to — shared story thread,
+    same chapter, or any nearby entity with Belief > 0.
+
+    Chapter talismans are excluded (handled by run_npc_talisman_investments).
+    Arc entities are excluded (narrative constructs, not investment targets).
+
+    Returns (investment_seeds: list[str], modified_text: str).
+    """
+    seeds = []
+    text  = register_text
+
+    talisman_names = set(world_context.CHAPTER_TALISMAN.values())
+
+    for e in selected:
+        if e['type'].lower() not in ('npc', 'creature'):
+            continue
+        if random.random() > FREE_INVESTMENT_CHANCE:
+            continue
+
+        npc_b = get_belief_in_text(text, e['name'])
+        if npc_b is None or npc_b <= NPC_INVESTMENT_FLOOR:
+            continue
+
+        chapter    = world_context.CHAPTER_MAP.get(e['name'])
+        npc_threads = set(e.get('threads', []))
+
+        # Build weighted candidate list
+        candidates = []
+        for cand in all_entities:
+            if cand['name'] == e['name']:
+                continue
+            if cand['name'] in talisman_names:
+                continue  # talisman investments handled separately
+            if cand['type'].lower() in ('arc', 'thread'):
+                continue  # threads/arcs are narrative scaffolding, not investment targets
+            if cand['belief'] <= 0:
+                continue
+
+            score = 1  # base weight — any entity is eligible
+            cand_threads = set(cand.get('threads', []))
+            if npc_threads & cand_threads:     # shared story thread → strongest pull
+                score += 3
+            cand_chapter = world_context.CHAPTER_MAP.get(cand['name'])
+            if chapter and cand_chapter == chapter:  # same chapter family
+                score += 2
+            candidates.append((cand, score))
+
+        if not candidates:
+            continue
+
+        # Weighted random selection
+        total = sum(s for _, s in candidates)
+        r = random.uniform(0, total)
+        cumulative = 0
+        target = None
+        for cand, score in candidates:
+            cumulative += score
+            if r <= cumulative:
+                target = cand
+                break
+        if target is None:
+            target = candidates[-1][0]
+
+        target_b = get_belief_in_text(text, target['name'])
+        if target_b is None:
+            continue
+        if target_b >= NPC_BELIEF_CAP:
+            continue
+
+        amount = random.randint(INVESTMENT_MIN, INVESTMENT_MAX)
+        amount = min(amount, npc_b - NPC_INVESTMENT_FLOOR)
+        amount = min(amount, NPC_BELIEF_CAP - target_b)
+        if amount <= 0:
+            continue
+
+        new_npc_b    = npc_b    - amount
+        new_target_b = target_b + amount
+
+        if not dry_run:
+            text, _ = set_belief_in_text(text, e['name'],      new_npc_b)
+            text, _ = set_belief_in_text(text, target['name'], new_target_b)
+
+        seeds.append(
+            f"- *[Belief Investment]* **{e['name']}** channels "
+            f"{amount} Belief into **{target['name']}** (now {new_target_b})"
+        )
+        if not dry_run and _HAS_NPC_LOG:
+            _npc_log.append(
+                e['name'], "belief_invest",
+                f"Invested {amount} Belief into {target['name']}"
+            )
+        if dry_run:
+            print(f"  [dry-run] Free invest: {e['name']} → {target['name']}: "
+                  f"NPC {npc_b}→{new_npc_b}, Target {target_b}→{new_target_b}")
 
     return seeds, text
 
@@ -461,10 +563,16 @@ def main():
             selected, register_text, dry_run=args.dry_run
         )
 
-        # Then investments — some energy flows to the chapter talisman
+        # Talisman investment — primary goal: energy flows to chapter talisman
         invest_seeds, modified_register = run_npc_talisman_investments(
             selected, modified_register, dry_run=args.dry_run
         )
+
+        # Free investment — secondary: NPCs invest in connected entities (threads, chapter-mates, etc.)
+        free_seeds, modified_register = run_npc_free_investments(
+            selected, entities, modified_register, dry_run=args.dry_run
+        )
+        invest_seeds.extend(free_seeds)
 
         if invest_seeds:
             queue_lines.append("")
@@ -548,7 +656,12 @@ def main():
         if stir_count > 0:
             print(f"✓ Stir gains: {stir_count} NPC(s) gained Belief from being noticed.")
         if invest_seeds:
-            print(f"✓ Talisman investments: {len(invest_seeds)} NPC(s) invested.")
+            tally = len([s for s in invest_seeds if "[Talisman" in s])
+            free  = len([s for s in invest_seeds if "[Belief" in s])
+            parts = []
+            if tally: parts.append(f"{tally} talisman")
+            if free:  parts.append(f"{free} free")
+            print(f"✓ NPC investments: {', '.join(parts)} ({len(invest_seeds)} total).")
 
     # ── 2. Anchor decay ───────────────────────────────────────────────────────
     print("Checking anchor decay...")

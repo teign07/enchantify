@@ -1,7 +1,7 @@
 # Enchantify — The Labyrinth of Stories
 ## Complete Capability Reference
 
-*Version: 4.7.0 — The Unwritten Chapter*
+*Version: 4.8.0 — The Living Memory*
 *Last updated: April 17, 2026*
 
 ---
@@ -419,7 +419,7 @@ Players **and NPCs** can permanently invest Belief into entities. Investment is 
 | 16–30 | Bond — acts in the player's interest without being asked |
 | 31+ | Anchor status — load-bearing in the story |
 
-**NPC investment — the talisman engine:** Every NPC with a chapter affiliation has a goal to invest in their chapter's talisman. During the world tick, each stirred NPC has a 25% chance of investing 1–3 Belief into their chapter's talisman (never dropping below Belief 8). This is automatic — the Labyrinth narrates it only when relevant. Chapter Talismans have a **Belief cap of 200** — higher than any player or NPC can reach, because they carry centuries of accumulated philosophical pressure. The dominant talisman (highest Belief) sets the ambient philosophical tone; watching it shift over months is the Labyrinth's longest game. Chapter-talisman mapping: `scripts/world_context.py` → `CHAPTER_MAP` / `CHAPTER_TALISMAN`.
+**NPC investment — two paths:** NPCs invest Belief both toward chapter goals and toward entities they care about personally. (1) *Talisman investment (primary):* Every NPC with a chapter affiliation has a 25% chance per stir of investing 1–3 Belief into their chapter's talisman (never dropping below Belief 8). Chapter Talismans have a **Belief cap of 200**. The dominant talisman sets the ambient philosophical tone; watching it shift over months is the Labyrinth's longest game. (2) *Free investment (secondary):* Each stirred NPC has a separate 12% chance of investing 1–3 Belief into any connected entity — an NPC they share a story thread with, a chapter-mate, or any living entity in the register. Weighted by connection: shared thread (+3), same chapter (+2), base eligible (+1). Talismans, arc entities, and thread scaffolding are excluded from this pass. Both investment types are logged to `memory/npc-log.md` for CAST layer surfacing. Chapter-talisman mapping: `scripts/world_context.py` → `CHAPTER_MAP` / `CHAPTER_TALISMAN`.
 
 **Why it matters:** Belief hovers in a meaningful range instead of climbing to 100. The player faces real choices — invest in Zara or save for a Compass Run? The game asks what the player values by watching where they plant their attention.
 
@@ -1269,7 +1269,7 @@ Talismans war for control of the player's real-world apps. Every time a Talisman
 
 **Chapter personalities** (`_CHAPTER_PRIORITIES`): Duskthorn: high threat response, raid-eager, speaks last. Mossbloom: patient, high flip threshold, speaks first, rarely raids. Emberheart: bleed-eager. Riddlewind: balanced, bleed-eager. Tidecrest: bleed-eager, moderate thresholds.
 
-**Belief economy:** Talismans spend their own overall Belief to act. Floor: 20 Belief (WAR_FLOOR). NPCs replenish talismans through world investment (25% chance per stir, 1–3 Belief). `tick.py` applies all belief costs atomically in a single register write.
+**Belief economy:** Talismans spend their own overall Belief to act. Floor: 20 Belief (WAR_FLOOR). NPCs replenish talismans through talisman investment (25% chance per stir, 1–3 Belief). NPCs also invest freely in connected entities at 12% chance per stir. `tick.py` applies all belief costs atomically in a single register write.
 
 **Architecture:**
 
@@ -1364,6 +1364,23 @@ Interventions are **never clinical**. The Labyrinth does not know about steps or
 ---
 
 ## Part 4: What's Complete
+
+### v4.8.0 — The Living Memory (April 17, 2026)
+
+This release closes the loop between sessions and gives NPCs a memory of their own actions. Scenes now anchor to the specific beat the Labyrinth left off on. NPCs remember what they've done and can bring it up organically. The story log updates nightly, not just at arc completion.
+
+- ✅ **Director's Slate: SCENE_ANCHOR line** — New mandatory first line in the Slate. `layer_state()` reads `memory/labyrinth-state.md` Notes to Self and returns all non-empty lines joined with ` | `. Silently omitted when Notes to Self is blank. Gives Flash the specific beat, unresolved tension, and opening image from the previous session close — not just a reminder that sessions exist.
+- ✅ **Session close: mandatory 3-line handoff** — Notes to Self in `labyrinth-state.md` must be written at every close in a specific format: `Last session: [one vivid image]`, `Left unresolved: [what didn't land or was cut]`, `Open next session on: [the exact moment to open from]`. This is what SCENE_ANCHOR reads. Sessions with no Notes to Self will open cold.
+- ✅ **arc-spine.md: Last Session block** — `labyrinth-intelligence.py` now writes a `## Last Session` section to `memory/arc-spine.md` from the most recent diary entry. Text excerpt (≤220 chars), alive moment (≤140 chars), flat moment (≤120 chars). Director's Slate reads arc-spine at session open — Flash now has the previous session's texture without needing to scan the diary.
+- ✅ **Story log updated nightly** — `write_story_so_far()` in `labyrinth-intelligence.py` now runs every nightly intelligence pass, not just at arc QUIET phase. `players/[name]-story.md` is a full story log: all sessions with dates, beats, alive moments; arc overview; current state. Always current, not frozen at completion.
+- ✅ **NPC action memory: npc-log.md** — New `memory/npc-log.md` pipe-table. `scripts/npc_log.py` shared utility (append / read_recent / prune). Four action types: `research` (NPC researched a topic), `elective` (unwritten elective assigned to player), `belief_invest` (NPC invested Belief), `belief_fell` (NPC Belief dropped significantly). Pruned to 7 days by nightly intelligence run.
+- ✅ **CAST layer: NPC action flags** — `layer_who()` in `scene-director.py` reads `npc_log.read_recent(days=7)` and annotates matching NPCs in the CAST line with `[HAS: type·detail]`. Flash sees which NPCs have done something recently and can surface it organically.
+- ✅ **mechanics/npc-memory.md** — New rules file. Surfacing rules by action type: research (NPC references what they found, asks if received), elective (NPC asks about progress, adds pressure if overdue), belief_invest (NPC more energized, more connected to chapter), belief_fell (NPC slightly hollowed, flatter affect). Rules: one surfacing per action, organic entry points only, never announce the mechanism, surface within 1–2 appearances.
+- ✅ **Logging hooks in all simulation scripts** — `npc-research.py` logs `research` on delivery. `update-player.py` logs `elective` on quest assignment. `tick.py` logs `belief_invest` on talisman and free investments. `world-pulse.py` logs `belief_fell` on significant Belief drops.
+- ✅ **Quest cap raised to 5 and enforced** — `QUEST_CAPACITY` bumped from 3 → 5 in `update-player.py` and `world-pulse.py`. `QUEST_SLOTS: N/5` injected into tick-queue by `world-pulse.py` every pulse. Session simulation checks the slot count before generating electives — skips entirely if N ≥ 5. `_parse_quests()` fixed to handle legacy 3-column quest format as well as the standard 4-column format.
+- ✅ **NPC free investment (secondary path)** — `run_npc_free_investments()` added to `tick.py`. Each stirred NPC has a 12% chance (vs 25% for talisman) to invest 1–3 Belief into a connected entity. Target selected by weighted random: shared story thread (+3), same chapter (+2), any eligible entity (+1). Talismans, arc entities, and thread scaffolding excluded. Logged to npc-log for CAST surfacing. Both investment types write atomically in the same register pass.
+
+---
 
 ### v4.7.0 — The Unwritten Chapter (April 17, 2026)
 
