@@ -18,6 +18,7 @@ Usage (standalone):
 
 Called by tick.py with context dict for each stirred Talisman.
 """
+import json
 import re
 import random
 import shutil
@@ -30,6 +31,7 @@ _DRIVER_DIR    = Path(__file__).parent / "pact-drivers"
 APP_REGISTER   = BASE_DIR / "lore" / "app-register.md"
 ARC_FILE       = BASE_DIR / "lore" / "current-arc.md"
 WORLD_REGISTER = BASE_DIR / "lore" / "world-register.md"
+CONSENT_FILE   = BASE_DIR / "config" / "consent.json"
 
 # Import world_context for CHAPTER_MAP (NPC → chapter alignment)
 import sys as _sys
@@ -365,6 +367,35 @@ def _choose_action(chapter: str, context: dict, apps: list) -> str:
         return "narrative"
     else:
         return random.choice(["player_suggestion", "narrative"])
+
+
+# ── Player app consent ───────────────────────────────────────────────────────
+
+def load_app_pacts() -> dict:
+    """
+    Load player-granted app pacts from config/consent.json.
+
+    Returns a dict: {app_name: bool} — True means the player has opened this
+    app to the Talisman War. Missing apps default to True (open) so that
+    installs without a Pact Ceremony don't silently disable everything.
+
+    If consent.json doesn't exist or has no 'app_pacts' key, all apps are open.
+    """
+    if not CONSENT_FILE.exists():
+        return {}
+    try:
+        data = json.loads(CONSENT_FILE.read_text())
+        return data.get("app_pacts", {})
+    except Exception:
+        return {}
+
+
+def filter_apps_by_consent(apps: list) -> list:
+    """Remove apps the player has closed to the war. Open-by-default if not listed."""
+    pacts = load_app_pacts()
+    if not pacts:
+        return apps  # no ceremony done — all apps open
+    return [a for a in apps if pacts.get(a["app"], True)]
 
 
 # ── Driver loading ────────────────────────────────────────────────────────────
@@ -817,7 +848,7 @@ def run_talisman_action(
         return _narrative_action(chapter, context), "narrative", 0, None
 
     text = APP_REGISTER.read_text()
-    apps = parse_app_register(text)
+    apps = filter_apps_by_consent(parse_app_register(text))
 
     headroom    = max(0, overall_belief - TALISMAN_WAR_FLOOR)
     action_type = _choose_action(chapter, context, apps)
@@ -869,7 +900,11 @@ def show_state():
         print(f"App register not found: {APP_REGISTER}")
         return
     text = APP_REGISTER.read_text()
-    apps = parse_app_register(text)
+    all_apps  = parse_app_register(text)
+    apps      = filter_apps_by_consent(all_apps)
+    closed    = len(all_apps) - len(apps)
+    if closed:
+        print(f"  ({closed} app(s) closed to the war by Pact Ceremony)")
     if not apps:
         print("No apps found.")
         return

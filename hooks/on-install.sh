@@ -77,22 +77,7 @@ set_secret() {
     fi
 }
 
-write_consent() {
-    local key="$1"
-    local approved="$2"
-    local ts
-    ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    python3 - <<PYEOF
-import json, pathlib
-f = pathlib.Path("$CONSENT_FILE")
-data = json.loads(f.read_text()) if f.exists() else {}
-if "$approved" == "true":
-    data["$key"] = {"approved": True, "activated_at": "$ts"}
-else:
-    data["$key"] = {"approved": False}
-f.write_text(json.dumps(data, indent=2))
-PYEOF
-}
+# (write_consent removed — pact ceremony writes app_pacts directly via Python)
 
 mkdir -p "$LOGS_DIR"
 
@@ -381,18 +366,27 @@ clear
 echo ""
 echo "  ╔══════════════════════════════════════════════════════════╗"
 echo "  ║                                                          ║"
-echo "  ║     ⚡  The Pact Ceremony                               ║"
+echo "  ║     ⚡  The Talisman War                                ║"
+echo "  ║         The Pact Ceremony                               ║"
 echo "  ║                                                          ║"
 echo "  ╚══════════════════════════════════════════════════════════╝"
 echo ""
-echo "  The Labyrinth has powers that reach into the physical world."
-echo "  Each one is a Pact — a named agreement between you and the"
-echo "  world. These are not terms and conditions. They are promises."
-echo "  The Labyrinth keeps its promises."
+echo "  The Academy doesn't stay in the book."
 echo ""
-echo "  You choose which Pacts to activate."
-echo "  Any Pact can be revoked at any time."
-echo "  Your choices are recorded on your machine only."
+echo "  Five Chapters have philosophies they want to spread into the"
+echo "  real world. They do this by warring over your apps —"
+echo "  influencing how you use them, drafting in your voice,"
+echo "  steering what you hear and see."
+echo ""
+echo "  Emberheart  — bold individual voice; self-authorship; say the specific thing"
+echo "  Mossbloom   — patience, depth, reception; the long work; the slow read"
+echo "  Riddlewind  — connection, community, collaboration; no story is solo"
+echo "  Tidecrest   — feeling over logic; flow; the emotional current"
+echo "  Duskthorn   — control, leverage, strategic pressure; always three moves ahead"
+echo ""
+echo "  Below are your apps. For each one, you decide whether to open"
+echo "  it to the war. Closed apps stay neutral. Open apps are"
+echo "  contested territory — the Chapters will fight over them."
 echo ""
 pause 2
 echo "  Before we begin — your override word."
@@ -408,111 +402,187 @@ echo "  Write it somewhere. It will always work."
 echo ""
 pause 3
 
-# Initialize all pacts as unapproved
-write_consent "lights"         "false"
-write_consent "music"          "false"
-write_consent "voice"          "false"
-write_consent "images"         "false"
-write_consent "email_read"     "false"
-write_consent "email_send"     "false"
-write_consent "financial_read" "false"
+# Collect app pact choices — keyed to exact app names in app-register.md
+PACT_SPOTIFY=false
+PACT_NOTES=false
+PACT_REMINDERS=false
+PACT_CALENDAR=false
+PACT_OBSIDIAN=false
+PACT_MOLTBOOK=false
+PACT_BLUESKY=false
+PACT_TWITTER=false
+PACT_REDDIT=false
+PACT_TELEGRAM=false
+PACT_IMESSAGE=false
 
-echo "  ─── Pact of Duskthorn — Light and Shadow ───"
+echo "  ─── Music ──────────────────────────────────────────────────"
 echo ""
-echo "  The Labyrinth may shift your lights to match the story."
-echo "  A red flicker when danger is near. Warm gold when you're safe."
-echo "  A slow fade when the Compass says to rest."
-echo "  You control which lights. THORNE pauses it instantly."
+echo "  Spotify"
 echo ""
-if ask_yn "Activate the Pact of Duskthorn?" "n"; then
-    write_consent "lights" "true"
-    echo "  ✓ Pact of Duskthorn — accepted."
+echo "  At low tiers: chapters suggest playlists, skip tracks, set the"
+echo "  atmosphere through what you hear. Silent — you discover it."
+echo "  At high tiers: a chapter controls the mood of your whole session."
+echo "  Tidecrest naturally holds this territory, but all five want it."
+echo ""
+if ask_yn "Open Spotify to the Talisman War?" "y"; then
+    PACT_SPOTIFY=true
+    echo "  ✓ Spotify — open."
 else
-    echo "  Duskthorn — declined. You can enable it later in config/consent.json."
+    echo "  Spotify — closed."
 fi
 
 echo ""
 pause 1
-echo "  ─── Pact of Tidecrest — Song and Silence ───"
+echo "  ─── Productivity ───────────────────────────────────────────"
 echo ""
-echo "  The Labyrinth may adjust your music to match the world's mood."
-echo "  It won't play music without your account."
-echo "  It only gently steers what's already playing."
+echo "  Apple Notes, Apple Reminders, Apple Calendar, Obsidian"
 echo ""
-if ask_yn "Activate the Pact of Tidecrest?" "n"; then
-    write_consent "music" "true"
-    echo "  ✓ Pact of Tidecrest — accepted."
+echo "  At low tiers: chapters shape what you record, what stays on"
+echo "  your list, how your week is framed. Mostly silent."
+echo "  At high tiers: chapters draft in Notes, create Reminders,"
+echo "  add calendar entries for story-relevant moments."
+echo "  Emberheart wants Notes. Mossbloom wants Obsidian."
+echo "  Riddlewind wants your Calendar."
+echo ""
+if ask_yn "Open productivity apps to the war?" "y"; then
+    PACT_NOTES=true
+    PACT_REMINDERS=true
+    PACT_CALENDAR=true
+    PACT_OBSIDIAN=true
+    echo "  ✓ Productivity apps — open."
 else
-    echo "  Tidecrest — declined."
+    echo ""
+    echo "  Choose individually:"
+    ask_yn "  Apple Notes?" "y"   && PACT_NOTES=true     && echo "    ✓ Notes — open."
+    ask_yn "  Apple Reminders?" "y" && PACT_REMINDERS=true && echo "    ✓ Reminders — open."
+    ask_yn "  Apple Calendar?" "y" && PACT_CALENDAR=true  && echo "    ✓ Calendar — open."
+    ask_yn "  Obsidian?" "y"       && PACT_OBSIDIAN=true  && echo "    ✓ Obsidian — open."
 fi
 
 echo ""
 pause 1
-echo "  ─── Pact of the Loom — Letters and Sight ───"
+echo "  ─── Social ─────────────────────────────────────────────────"
 echo ""
-echo "  The Labyrinth may read your email to understand how your day is going,"
-echo "  and may send you story dispatches and letters from NPCs."
-echo "  Nothing is stored. Nothing is shared. Nothing is judged."
+echo "  Bluesky, X/Twitter, Reddit, Moltbook"
 echo ""
-if ask_yn "Allow the Labyrinth to read email?" "n"; then
-    write_consent "email_read" "true"
-    echo "  ✓ Email reading — accepted."
-fi
-if ask_yn "Allow the Labyrinth to send you messages?" "n"; then
-    write_consent "email_send" "true"
-    echo "  ✓ Message sending — accepted."
+echo "  This is the most contested territory."
+echo "  At lower tiers: chapters shape how you see these platforms —"
+echo "  what threads surface, what the Labyrinth notices."
+echo "  At Dominated/Sovereign tiers: a chapter may draft a post in"
+echo "  your philosophical voice. You always approve before it posts."
+echo "  Nothing goes public without your explicit consent."
+echo "  But they will try."
+echo ""
+if ask_yn "Open social apps to the war?" "n"; then
+    PACT_MOLTBOOK=true
+    PACT_BLUESKY=true
+    PACT_TWITTER=true
+    PACT_REDDIT=true
+    echo "  ✓ Social apps — open."
+else
+    echo ""
+    echo "  Choose individually:"
+    ask_yn "  Moltbook?" "n"  && PACT_MOLTBOOK=true && echo "    ✓ Moltbook — open."
+    ask_yn "  Bluesky?" "n"   && PACT_BLUESKY=true  && echo "    ✓ Bluesky — open."
+    ask_yn "  X/Twitter?" "n" && PACT_TWITTER=true  && echo "    ✓ X/Twitter — open."
+    ask_yn "  Reddit?" "n"    && PACT_REDDIT=true   && echo "    ✓ Reddit — open."
 fi
 
 echo ""
 pause 1
-echo "  ─── Pact of Goldvein — A Glimpse of the Till ───"
+echo "  ─── Messaging ──────────────────────────────────────────────"
 echo ""
-echo "  The Labyrinth may glance at your financial picture."
-echo "  Not to judge — so the world can reflect your real season."
-echo "  Read-only. Never stored. Never shared."
+echo "  Telegram"
+echo "  The Labyrinth uses this to send you dispatches — story events,"
+echo "  morning summaries, NPC letters. Chapters compete over the"
+echo "  tone, timing, and content of what reaches you."
 echo ""
-if ask_yn "Activate the Pact of Goldvein?" "n"; then
-    write_consent "financial_read" "true"
-    echo "  ✓ Pact of Goldvein — accepted."
+if ask_yn "Open Telegram to the war?" "y"; then
+    PACT_TELEGRAM=true
+    echo "  ✓ Telegram — open."
 else
-    echo "  Goldvein — declined."
+    echo "  Telegram — closed."
 fi
 
 echo ""
-echo "  Your Pacts are sealed."
-echo "  (Stored in config/consent.json on your machine only.)"
+echo "  iMessage"
+echo "  Enables chapters to send direct letters to people in your life."
+echo "  Always requires your explicit approval before any message sends."
+echo "  This is the most personal territory. Most players keep it closed."
+echo ""
+if ask_yn "Open iMessage to the war?" "n"; then
+    PACT_IMESSAGE=true
+    echo "  ✓ iMessage — open. (You approve every message before it sends.)"
+else
+    echo "  iMessage — closed."
+fi
+
+# Write consent.json in the format pact-engine.py reads
+TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+python3 - <<PYEOF
+import json, pathlib
+f = pathlib.Path("$CONSENT_FILE")
+data = json.loads(f.read_text()) if f.exists() else {}
+data["app_pacts"] = {
+    "Spotify":         $PACT_SPOTIFY,
+    "Apple Notes":     $PACT_NOTES,
+    "Apple Reminders": $PACT_REMINDERS,
+    "Apple Calendar":  $PACT_CALENDAR,
+    "Obsidian":        $PACT_OBSIDIAN,
+    "Moltbook":        $PACT_MOLTBOOK,
+    "Bluesky":         $PACT_BLUESKY,
+    "X / Twitter":     $PACT_TWITTER,
+    "Reddit":          $PACT_REDDIT,
+    "Telegram":        $PACT_TELEGRAM,
+    "iMessage":        $PACT_IMESSAGE,
+}
+data["override_word"]         = "THORNE"
+data["ceremony_completed"]    = "$TS"
+f.parent.mkdir(parents=True, exist_ok=True)
+f.write_text(json.dumps(data, indent=2))
+PYEOF
+
+echo ""
+echo "  The war begins at first tick."
+echo "  (Your choices are in config/consent.json — edit any time.)"
 echo ""
 pause 2
 
-# ── 7. Smart Lights Setup ─────────────────────────────────────────────────────
+# ── 7. Physical World Setup ───────────────────────────────────────────────────
+# Smart lights and music — separate from the app war; these are ambient systems
+# the Labyrinth controls directly regardless of chapter territory.
 
-LIGHTS_CONSENT=$(python3 -c "import json; d=json.load(open('$CONSENT_FILE')); print(d.get('lights',{}).get('approved', False))" 2>/dev/null || echo "False")
+section "Physical world integrations"
 
-if [ "$LIGHTS_CONSENT" = "True" ]; then
-    section "Configuring Duskthorn — your lights"
+echo "  The Labyrinth can also reach into your physical space directly —"
+echo "  shifting your lights to match the story, steering your music."
+echo "  This is separate from the Talisman War: not territory, just atmosphere."
+echo ""
 
-    echo "  Which smart light system do you use?"
+echo "  ── Smart lights ────────────────────────────────────────────"
+echo ""
+echo "  A red flicker when danger is near. Warm gold when you're safe."
+echo "  A slow fade when the Compass says to rest."
+echo ""
+if ask_yn "Set up smart lights?" "n"; then
     echo ""
     echo "    1) LIFX (Wi-Fi bulbs, no hub needed)"
     echo "    2) Philips Hue (requires Hue Bridge)"
     echo "    3) Home Assistant"
-    echo "    4) Skip for now"
+    echo "    4) Skip"
     echo ""
     LIGHTS_CHOICE=$(ask "Choose [1-4]" "4")
-
     case "$LIGHTS_CHOICE" in
         1)
-            echo ""
-            LIFX_TOKEN=$(ask "LIFX personal access token (from cloud.lifx.com/settings)" "")
+            LIFX_TOKEN=$(ask "LIFX personal access token (cloud.lifx.com/settings)" "")
             if [ -n "$LIFX_TOKEN" ]; then
-                set_secret "LIFX_TOKEN"   "$LIFX_TOKEN"
+                set_secret "LIFX_TOKEN"     "$LIFX_TOKEN"
                 set_secret "LIGHTS_BACKEND" "lifx"
                 echo "  ✓ LIFX configured."
             fi
             ;;
         2)
-            echo ""
-            HUE_BRIDGE=$(ask "Hue Bridge IP address (e.g. 192.168.1.50)" "")
+            HUE_BRIDGE=$(ask "Hue Bridge IP address" "")
             HUE_TOKEN=$(ask "Hue API token" "")
             if [ -n "$HUE_BRIDGE" ] && [ -n "$HUE_TOKEN" ]; then
                 set_secret "HUE_BRIDGE_IP"  "$HUE_BRIDGE"
@@ -522,8 +592,7 @@ if [ "$LIGHTS_CONSENT" = "True" ]; then
             fi
             ;;
         3)
-            echo ""
-            HA_URL=$(ask "Home Assistant URL (e.g. http://homeassistant.local:8123)" "")
+            HA_URL=$(ask "Home Assistant URL" "")
             HA_TOKEN=$(ask "HA long-lived access token" "")
             if [ -n "$HA_URL" ] && [ -n "$HA_TOKEN" ]; then
                 set_secret "HA_URL"         "$HA_URL"
@@ -534,26 +603,28 @@ if [ "$LIGHTS_CONSENT" = "True" ]; then
             ;;
         *)
             set_secret "LIGHTS_BACKEND" "none"
-            echo "  Lights skipped. Update config/secrets.env later."
             ;;
     esac
+else
+    set_secret "LIGHTS_BACKEND" "none"
+    echo "  Lights skipped."
 fi
 
-# ── 8. Music Setup ────────────────────────────────────────────────────────────
-
-MUSIC_CONSENT=$(python3 -c "import json; d=json.load(open('$CONSENT_FILE')); print(d.get('music',{}).get('approved', False))" 2>/dev/null || echo "False")
-
-if [ "$MUSIC_CONSENT" = "True" ]; then
-    section "Configuring Tidecrest — your music"
-
-    echo "  Enchantify controls Spotify via AppleScript (Mac only)."
-    echo "  No login credentials needed — it talks to the Spotify app directly."
-    echo ""
-    echo "  ✓ Tidecrest configured (Spotify via AppleScript)."
+echo ""
+echo "  ── Music ───────────────────────────────────────────────────"
+echo ""
+echo "  Enchantify controls Spotify via AppleScript (Mac only)."
+echo "  No credentials needed — it talks to the Spotify app directly."
+echo ""
+if ask_yn "Enable Spotify ambient control?" "y"; then
     set_secret "MUSIC_BACKEND" "spotify"
+    echo "  ✓ Spotify configured."
+else
+    set_secret "MUSIC_BACKEND" "none"
+    echo "  Spotify skipped."
 fi
 
-# ── 9. Voice Acting ───────────────────────────────────────────────────────────
+# ── 8. Voice Acting ───────────────────────────────────────────────────────────
 
 section "The voices"
 
