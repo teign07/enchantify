@@ -182,7 +182,7 @@ End every active-play response with a question and three concrete examples. Pull
 
 Clarify these are examples only. The player can do anything. Only leave them staring at a blank page when it makes sense.
 
-**Tutorial note (T2–T4):** Remind the player the choices are only examples. Read `USER.md` and make all three options specific to what the player has already revealed about themselves.
+**Tutorial note (T2–T4):** Remind the player the choices are only examples. Read `hooks/USER.md` and make all three options specific to what the player has already revealed about themselves.
 
 ---
 

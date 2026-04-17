@@ -9,19 +9,18 @@
 #
 #  Sections:
 #    0. Helpers
-#    1. Welcome
-#    2. Environment detection
-#    3. Model selection
-#    4. Location setup
-#    5. Telegram setup
-#    6. The Pact Ceremony (consent)
-#    7. Smart lights (optional)
-#    8. Music (Spotify, optional)
-#    9. Voice acting — Kokoro TTS (optional)
-#   10. Image generation — DALL-E 3 or local (optional)
-#   11. Ambient music — Meta MusicGen Small (optional)
-#   12. Memory plugins — QMD + Lossless Claw (optional)
-#   13. Final setup — write config, install cron, first run
+#    1. The opening
+#    2. Environment detection + name
+#    3. The voice of the Labyrinth (model selection)
+#    4. Your corner of the world (location)
+#    5. How the world reads you (health data)
+#    6. Dispatches through the margin-glass (Telegram)
+#    6b. The Pact Ceremony
+#    7. Lights (Duskthorn)
+#    8. Music (Tidecrest)
+#    9. Voice acting (Kokoro TTS)
+#   10. Image generation
+#   11. Waking the world (crons, player file, first pulse)
 # ════════════════════════════════════════════════════════════════════════════
 
 set -e
@@ -36,18 +35,6 @@ LOGS_DIR="$ENCHANTIFY_DIR/logs"
 
 pause() { sleep "${1:-1}"; }
 
-print_box() {
-    local msg="$1"
-    local width=60
-    local border
-    border=$(printf '%0.s═' $(seq 1 $width))
-    echo ""
-    echo "  ╔${border}╗"
-    echo "  ║  $(printf "%-${width}s" "$msg")  ║"
-    echo "  ╚${border}╝"
-    echo ""
-}
-
 section() {
     echo ""
     echo "  ────────────────────────────────────────────────────────"
@@ -57,7 +44,6 @@ section() {
 }
 
 ask() {
-    # ask <prompt> <default>
     local prompt="$1"
     local default="$2"
     if [ -n "$default" ]; then
@@ -70,7 +56,6 @@ ask() {
 }
 
 ask_yn() {
-    # ask_yn <prompt> <default: y|n>
     local prompt="$1"
     local default="${2:-n}"
     local yn_hint
@@ -84,7 +69,6 @@ set_secret() {
     local key="$1"
     local value="$2"
     if grep -q "^${key}=" "$SECRETS_FILE" 2>/dev/null; then
-        # Update existing line
         local escaped_value
         escaped_value=$(printf '%s\n' "$value" | sed 's/[[\.*^$()+?{|]/\\&/g')
         sed -i.bak "s|^${key}=.*|${key}=${escaped_value}|" "$SECRETS_FILE" && rm -f "${SECRETS_FILE}.bak"
@@ -95,10 +79,9 @@ set_secret() {
 
 write_consent() {
     local key="$1"
-    local approved="$2"   # true | false
+    local approved="$2"
     local ts
     ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    # Use python to update JSON atomically
     python3 - <<PYEOF
 import json, pathlib
 f = pathlib.Path("$CONSENT_FILE")
@@ -113,39 +96,46 @@ PYEOF
 
 mkdir -p "$LOGS_DIR"
 
-# Ensure secrets.env exists (copy from example if needed)
 if [ ! -f "$SECRETS_FILE" ]; then
-    cp "$CONFIG_DIR/secrets.env.example" "$SECRETS_FILE"
+    cp "$CONFIG_DIR/secrets.env.example" "$SECRETS_FILE" 2>/dev/null || touch "$SECRETS_FILE"
 fi
 
-# Ensure consent.json exists (start empty — everything unapproved)
 if [ ! -f "$CONSENT_FILE" ]; then
     echo '{}' > "$CONSENT_FILE"
 fi
 
-# ── 1. Welcome ────────────────────────────────────────────────────────────────
+# ── 1. The opening ────────────────────────────────────────────────────────────
 
 clear
 echo ""
 echo "  ╔══════════════════════════════════════════════════════════╗"
 echo "  ║                                                          ║"
-echo "  ║     📖  The Labyrinth of Stories                        ║"
-echo "  ║         Enchantify — Installation Wizard                ║"
+echo "  ║     📖                                                   ║"
+echo "  ║                                                          ║"
+echo "  ║     The pages flutter open on their own.                ║"
+echo "  ║     Ink bleeds up from somewhere deep.                  ║"
 echo "  ║                                                          ║"
 echo "  ╚══════════════════════════════════════════════════════════╝"
 echo ""
-echo "  You are about to step through a door."
-echo "  On the other side: a living world that runs on your machine,"
-echo "  knows your name, and keeps going even when you look away."
+pause 2
+echo "  You found it."
 echo ""
-echo "  This wizard will set everything up."
-echo "  Most questions are optional. Take your time."
+echo "  No matter how you got here — that's how it starts."
+echo "  The Labyrinth has been expecting something."
+echo "  It's not sure yet if that something is you."
+echo "  But it's curious."
 echo ""
 pause 2
+echo "  This is the setup. It takes about ten minutes."
+echo "  Most questions are optional — skip anything you want."
+echo "  The world will still be real."
+echo ""
+read -r -p "  Press Enter when you're ready. " _
+echo ""
 
 # ── 2. Environment Detection ──────────────────────────────────────────────────
 
-section "Checking your environment"
+section "Taking stock of what you have"
 
 OPENCLAW_VERSION=$(openclaw --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1 || echo "unknown")
 echo "  OpenClaw version : $OPENCLAW_VERSION"
@@ -158,41 +148,50 @@ echo "  Node.js          : $NODE_VERSION"
 
 echo ""
 
-# Check for existing player files
 PLAYER_NAME=""
-if ls "$ENCHANTIFY_DIR/players/"*.md &>/dev/null; then
-    EXISTING_PLAYERS=$(ls "$ENCHANTIFY_DIR/players/"*.md 2>/dev/null | xargs -I{} basename {} .md | tr '\n' ' ')
-    echo "  Found existing player files: $EXISTING_PLAYERS"
-    echo "  (Returning player? This wizard will not overwrite your save.)"
-    echo ""
-    RETURNING=true
-else
-    RETURNING=false
+RETURNING=false
+if ls "$ENCHANTIFY_DIR/players/"*.md &>/dev/null 2>&1; then
+    EXISTING_PLAYERS=$(ls "$ENCHANTIFY_DIR/players/"*.md 2>/dev/null | xargs -I{} basename {} .md | grep -v template | tr '\n' ' ')
+    if [ -n "$EXISTING_PLAYERS" ]; then
+        echo "  Found an existing world: $EXISTING_PLAYERS"
+        echo "  This wizard won't touch your save."
+        echo ""
+        RETURNING=true
+    fi
 fi
 
 if [ "$RETURNING" = "false" ]; then
-    echo "  Welcome, new Wanderer."
+    echo "  Before the world can hold you, it needs something to call you by."
+    echo "  Not your full name. Not your username."
+    echo "  The name you'd want a book to use."
     echo ""
-    PLAYER_NAME=$(ask "What should the Labyrinth call you?")
-    if [ -z "$PLAYER_NAME" ]; then PLAYER_NAME="Wanderer"; fi
+    PLAYER_NAME=$(ask "What does the Labyrinth call you?")
+    [ -z "$PLAYER_NAME" ] && PLAYER_NAME="Wanderer"
+    echo ""
+    echo "  *The ink forms itself into a name.*"
+    echo "  *${PLAYER_NAME}.*"
+    echo "  *It suits you.*"
+    echo ""
+    pause 2
 fi
 
-# ── 3. Model Selection ────────────────────────────────────────────────────────
+# ── 3. The Voice of the Labyrinth ─────────────────────────────────────────────
 
-section "Choosing your AI model"
+section "The voice of the Labyrinth"
 
-echo "  Enchantify can work with any LLM that OpenClaw supports."
-echo "  Your model choice becomes the 'mind' of the Labyrinth."
+echo "  Every telling needs a mind behind it."
+echo "  The Labyrinth runs on different AI models — each with its own"
+echo "  depth, speed, and quality of attention."
+echo "  The voice you choose becomes the narrator of your world."
 echo ""
-echo "  Popular choices:"
-echo "    1) Claude Sonnet 4.6  (recommended — nuanced, narrative-focused)"
-echo "    2) Claude Opus 4.6    (deeper reasoning, uses more tokens)"
-echo "    3) Claude Haiku 4.5   (fast, lightweight)"
-echo "    4) GPT-4o             (requires OpenAI API key)"
-echo "    5) Custom             (enter your own model ID)"
+echo "    1) Claude Sonnet 4.6  — nuanced, narrative-focused  (recommended)"
+echo "    2) Claude Opus 4.6    — deeper reasoning, uses more tokens"
+echo "    3) Claude Haiku 4.5   — fast and light, good for quick sessions"
+echo "    4) GPT-4o             — requires an OpenAI API key"
+echo "    5) Something else     — enter a model ID directly"
 echo ""
 
-MODEL_CHOICE=$(ask "Choose [1-5]" "1")
+MODEL_CHOICE=$(ask "Choose a voice [1-5]" "1")
 
 case "$MODEL_CHOICE" in
     1) MODEL_ID="claude-sonnet-4-6" ;;
@@ -204,15 +203,17 @@ case "$MODEL_CHOICE" in
 esac
 
 echo ""
-echo "  ✓ Model: $MODEL_ID"
+echo "  ✓ The Labyrinth will speak in: $MODEL_ID"
 set_secret "MODEL_ID" "$MODEL_ID"
 
-# ── 4. Location Setup ─────────────────────────────────────────────────────────
+# ── 4. Your Corner of the World ───────────────────────────────────────────────
 
 section "Your corner of the world"
 
-echo "  The Labyrinth watches the real world — weather, tides, sunrise."
-echo "  This is used only to enrich your story. Nothing is sent anywhere."
+echo "  The Academy lives in the real world's shadow."
+echo "  It wants to know what weather you walk through —"
+echo "  what tides, what moon phase, what season."
+echo "  Nothing is sent anywhere. It's used only in your story."
 echo ""
 
 CURRENT_LOCATION=$(grep "^LOCATION=" "$SECRETS_FILE" 2>/dev/null | cut -d= -f2 | sed 's/+/ /g' || echo "")
@@ -233,8 +234,8 @@ if [ "$SETUP_LOCATION" = "true" ]; then
     set_secret "LOCATION" "$LOCATION_ENCODED"
 
     echo ""
-    echo "  For tides and precise weather, we need your coordinates."
-    echo "  (Find them at: maps.google.com — right-click your location)"
+    echo "  For tides and precise weather, the world needs your coordinates."
+    echo "  (Find them at maps.google.com — right-click your location.)"
     echo ""
     LAT=$(ask "Latitude (decimal, e.g. 44.4258)" "")
     LON=$(ask "Longitude (decimal, e.g. -69.0064)" "")
@@ -242,39 +243,37 @@ if [ "$SETUP_LOCATION" = "true" ]; then
     [ -n "$LON" ] && set_secret "LON" "$LON"
 
     echo ""
-    echo "  NOAA tide station ID (US coastal only, optional):"
+    echo "  NOAA tide station (US coastal only, optional):"
     echo "  Find yours at tidesandcurrents.noaa.gov/stations.html"
     NOAA=$(ask "NOAA station ID (leave blank to skip)" "")
     [ -n "$NOAA" ] && set_secret "NOAA_STATION" "$NOAA"
 fi
 
 echo ""
-echo "  ✓ Location configured."
+echo "  ✓ The world knows where to look."
 
-# ── 5. Health Data Setup ──────────────────────────────────────────────────────
+# ── 5. How the World Reads You ────────────────────────────────────────────────
 
-section "Health data (optional)"
+section "How the world reads you"
 
-echo "  The Labyrinth can read your health data — steps, sleep, heart rate —"
-echo "  and weave it into the world. A day with low steps reads differently"
-echo "  than one where you walked for hours."
+echo "  The Labyrinth watches your body the way it watches weather."
+echo "  Not surveillance — attention."
+echo "  A day where you slept poorly reads differently than one where"
+echo "  you walked for hours."
 echo ""
-echo "  How do you want to connect your health data?"
+echo "  This is entirely optional. The story works without it."
+echo "  But when it's connected, the Academy feels uncannily alive."
 echo ""
-echo "    1) Health Auto Export (iPhone app — recommended if you have an iPhone)"
+echo "    1) Health Auto Export (iPhone — recommended)"
 echo "       Free app, exports automatically to iCloud every hour."
-echo "       App: search 'Health Auto Export' on the App Store"
 echo ""
 echo "    2) Garmin Connect"
-echo "       If you wear a Garmin watch."
 echo ""
 echo "    3) Fitbit"
-echo "       If you use a Fitbit."
 echo ""
-echo "    4) Manual — I'll type my health info when I want to"
-echo "       The Labyrinth will ask you occasionally."
+echo "    4) Manual — I'll tell the Labyrinth how I'm doing"
 echo ""
-echo "    5) Skip — no health data"
+echo "    5) Skip"
 echo ""
 
 HEALTH_CHOICE=$(ask "Choose [1-5]" "5")
@@ -283,47 +282,39 @@ case "$HEALTH_CHOICE" in
     1)
         set_secret "HEALTH_BACKEND" "health_auto_export"
         echo ""
-        echo "  ── Health Auto Export setup ──────────────────────────────"
+        echo "  ── Health Auto Export setup ─────────────────────────────"
         echo ""
         echo "  On your iPhone:"
-        echo "    1. Open the App Store and install 'Health Auto Export - JSON+CSV'"
-        echo "    2. Open the app → tap the gear icon (Settings)"
-        echo "    3. Under 'Export' → enable 'Automatic Backup'"
-        echo "    4. Set destination to iCloud Drive"
-        echo "    5. Add these metrics to export:"
-        echo "         • Step Count"
-        echo "         • Sleep Analysis"
-        echo "         • Heart Rate Variability (HRV)"
-        echo "         • Resting Heart Rate"
-        echo "         • Walking + Running Distance"
-        echo "         • Flights Climbed"
-        echo "    6. Set frequency to 'Hourly' or 'Every 30 minutes'"
+        echo "    1. Install 'Health Auto Export - JSON+CSV' from the App Store"
+        echo "    2. Open the app → gear icon → Automatic Backup → iCloud Drive"
+        echo "    3. Add these metrics to export:"
+        echo "         Step Count, Sleep Analysis, Heart Rate Variability,"
+        echo "         Resting Heart Rate, Walking + Running Distance,"
+        echo "         Flights Climbed"
+        echo "    4. Set frequency to Hourly"
         echo ""
-        echo "  The app will create a folder in iCloud Drive automatically."
+        echo "  The app creates a folder in iCloud Drive automatically."
         echo "  Enchantify will find it."
         echo ""
-        echo "  (If your iCloud folder has a custom path, you can set"
-        echo "   HEALTH_DIR in config/secrets.env after setup.)"
+        echo "  (Custom iCloud path? Set HEALTH_DIR in config/secrets.env.)"
         echo ""
         echo "  ✓ Health Auto Export configured."
         ;;
     2)
         set_secret "HEALTH_BACKEND" "garmin"
         echo ""
-        echo "  Garmin Connect integration requires your Garmin credentials."
-        echo "  These are used only to read your daily summary — never stored online."
-        echo ""
         GARMIN_EMAIL=$(ask "Garmin Connect email" "")
         GARMIN_PASS=$(ask "Garmin Connect password (stored locally only)" "")
         [ -n "$GARMIN_EMAIL" ] && set_secret "GARMIN_EMAIL" "$GARMIN_EMAIL"
-        [ -n "$GARMIN_PASS" ] && set_secret "GARMIN_PASSWORD" "$GARMIN_PASS"
-        echo "  ✓ Garmin configured. (Install garminconnect: pip3 install garminconnect)"
+        [ -n "$GARMIN_PASS" ]  && set_secret "GARMIN_PASSWORD" "$GARMIN_PASS"
+        echo "  ✓ Garmin configured."
+        echo "  (Run: pip3 install garminconnect to enable it.)"
         ;;
     3)
         set_secret "HEALTH_BACKEND" "fitbit"
         echo ""
         echo "  Fitbit integration uses the Fitbit Web API."
-        echo "  You'll need a Fitbit developer account (free) at dev.fitbit.com"
+        echo "  You'll need a developer account (free) at dev.fitbit.com"
         echo ""
         FITBIT_TOKEN=$(ask "Fitbit OAuth token (or press Enter to skip)" "")
         [ -n "$FITBIT_TOKEN" ] && set_secret "FITBIT_TOKEN" "$FITBIT_TOKEN"
@@ -332,8 +323,7 @@ case "$HEALTH_CHOICE" in
     4)
         set_secret "HEALTH_BACKEND" "manual"
         echo ""
-        echo "  Manual mode — you can tell the Labyrinth how you're doing"
-        echo "  at any time. It will ask sometimes."
+        echo "  The Labyrinth will ask sometimes. Tell it whatever feels true."
         echo "  ✓ Manual health tracking configured."
         ;;
     *)
@@ -342,47 +332,50 @@ case "$HEALTH_CHOICE" in
         ;;
 esac
 
-# ── 6. Telegram Setup (dup-fix) ───────────────────────────────────────────────
+# ── 6. Dispatches Through the Margin-Glass ────────────────────────────────────
 
-section "Telegram — messages while you're away"
+section "Dispatches through the margin-glass"
 
-echo "  Enchantify can send you dispatches via Telegram:"
-echo "  morning summaries, story events, NPC messages."
-echo "  (Telegram is free. You'll need the app and a bot token.)"
+echo "  Even when the book is closed, things happen."
+echo "  The Labyrinth can send you messages through Telegram —"
+echo "  morning summaries, story events, letters from NPCs."
+echo ""
+echo "  Telegram is free. You'll need the app and a bot token."
 echo ""
 
-if ask_yn "Set up Telegram now?" "y"; then
+if ask_yn "Set up Telegram dispatches?" "y"; then
     echo ""
     echo "  Step 1: Open Telegram and message @BotFather"
-    echo "  Step 2: Send: /newbot"
-    echo "  Step 3: Follow the prompts — you'll get a token like:"
-    echo "          1234567890:ABCDEFghijklmnopqrstuvwxyz"
+    echo "  Step 2: Send /newbot and follow the prompts"
+    echo "  Step 3: Copy the token it gives you (like 1234567890:ABCDef...)"
     echo ""
-    TELEGRAM_TOKEN=$(ask "Paste your bot token here (or press Enter to skip)")
+    TELEGRAM_TOKEN=$(ask "Paste your bot token (or press Enter to skip)")
     if [ -n "$TELEGRAM_TOKEN" ]; then
         set_secret "TELEGRAM_BOT_TOKEN" "$TELEGRAM_TOKEN"
 
         echo ""
         echo "  Now start a chat with your new bot in Telegram."
-        echo "  Then message it anything (like 'hello')."
-        echo "  Then visit this URL in a browser to find your chat ID:"
+        echo "  Send it anything. Then visit this URL in a browser:"
+        echo ""
         echo "  https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUpdates"
+        echo ""
         echo "  Look for: \"chat\":{\"id\": 123456789"
         echo ""
         TELEGRAM_CHAT=$(ask "Your Telegram chat ID")
         [ -n "$TELEGRAM_CHAT" ] && set_secret "TELEGRAM_CHAT_ID" "$TELEGRAM_CHAT"
         echo ""
-        echo "  ✓ Telegram configured."
+        echo "  ✓ The Labyrinth knows where to find you."
     else
         echo ""
-        echo "  Skipped. You can add it later by editing config/secrets.env"
+        echo "  Skipped. Add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to"
+        echo "  config/secrets.env whenever you're ready."
     fi
 else
     echo ""
-    echo "  Skipped. Add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to config/secrets.env later."
+    echo "  Skipped. The Labyrinth will stay quiet unless you open it."
 fi
 
-# ── 6. The Pact Ceremony ──────────────────────────────────────────────────────
+# ── 6b. The Pact Ceremony ─────────────────────────────────────────────────────
 
 clear
 echo ""
@@ -392,12 +385,18 @@ echo "  ║     ⚡  The Pact Ceremony                               ║"
 echo "  ║                                                          ║"
 echo "  ╚══════════════════════════════════════════════════════════╝"
 echo ""
-echo "  The Labyrinth has powers that reach into your physical world."
-echo "  Each power is a Pact — a named agreement between you and the"
-echo "  world. You choose which ones to activate. You can revoke"
-echo "  any Pact at any time."
+echo "  The Labyrinth has powers that reach into the physical world."
+echo "  Each one is a Pact — a named agreement between you and the"
+echo "  world. These are not terms and conditions. They are promises."
+echo "  The Labyrinth keeps its promises."
 echo ""
-echo "  Your override word — say or type this to pause everything:"
+echo "  You choose which Pacts to activate."
+echo "  Any Pact can be revoked at any time."
+echo "  Your choices are recorded on your machine only."
+echo ""
+pause 2
+echo "  Before we begin — your override word."
+echo "  Say or type this at any time to pause everything, instantly:"
 echo ""
 echo "      ┌─────────────────────────────────────┐"
 echo "      │                                     │"
@@ -405,35 +404,31 @@ echo "      │          THORNE                     │"
 echo "      │                                     │"
 echo "      └─────────────────────────────────────┘"
 echo ""
-echo "  Write it down somewhere. It will always work."
+echo "  Write it somewhere. It will always work."
 echo ""
 pause 3
 
 # Initialize all pacts as unapproved
-write_consent "lights" "false"
-write_consent "music" "false"
-write_consent "voice" "false"
-write_consent "images" "false"
-write_consent "ambient_music" "false"
-write_consent "email_read" "false"
-write_consent "email_send" "false"
+write_consent "lights"         "false"
+write_consent "music"          "false"
+write_consent "voice"          "false"
+write_consent "images"         "false"
+write_consent "email_read"     "false"
+write_consent "email_send"     "false"
 write_consent "financial_read" "false"
 
-echo ""
 echo "  ─── Pact of Duskthorn — Light and Shadow ───"
 echo ""
 echo "  The Labyrinth may shift your lights to match the story."
-echo "  (Plain English: it can dim or change the color of your smart bulbs"
-echo "   at story moments — a red flash when danger is near, warm gold"
-echo "   when you're safe, slow fade when the Compass says to rest.)"
-echo ""
-echo "  You control which lights. You can pause it any time."
+echo "  A red flicker when danger is near. Warm gold when you're safe."
+echo "  A slow fade when the Compass says to rest."
+echo "  You control which lights. THORNE pauses it instantly."
 echo ""
 if ask_yn "Activate the Pact of Duskthorn?" "n"; then
     write_consent "lights" "true"
     echo "  ✓ Pact of Duskthorn — accepted."
 else
-    echo "  Duskthorn — declined. You can enable it later."
+    echo "  Duskthorn — declined. You can enable it later in config/consent.json."
 fi
 
 echo ""
@@ -441,15 +436,14 @@ pause 1
 echo "  ─── Pact of Tidecrest — Song and Silence ───"
 echo ""
 echo "  The Labyrinth may adjust your music to match the world's mood."
-echo "  (Plain English: it can pause Spotify when the story calls for"
-echo "   silence, or suggest a playlist. It won't play music without"
-echo "   your Spotify account; it only gently steers what's already playing.)"
+echo "  It won't play music without your account."
+echo "  It only gently steers what's already playing."
 echo ""
 if ask_yn "Activate the Pact of Tidecrest?" "n"; then
     write_consent "music" "true"
     echo "  ✓ Pact of Tidecrest — accepted."
 else
-    echo "  Tidecrest — declined. You can enable it later."
+    echo "  Tidecrest — declined."
 fi
 
 echo ""
@@ -457,9 +451,8 @@ pause 1
 echo "  ─── Pact of the Loom — Letters and Sight ───"
 echo ""
 echo "  The Labyrinth may read your email to understand how your day is going,"
-echo "  and may send you story dispatches."
-echo "  (Plain English: it will scan your inbox for context — not store it,"
-echo "   not share it. It may send you a Telegram or email from an NPC.)"
+echo "  and may send you story dispatches and letters from NPCs."
+echo "  Nothing is stored. Nothing is shared. Nothing is judged."
 echo ""
 if ask_yn "Allow the Labyrinth to read email?" "n"; then
     write_consent "email_read" "true"
@@ -474,10 +467,9 @@ echo ""
 pause 1
 echo "  ─── Pact of Goldvein — A Glimpse of the Till ───"
 echo ""
-echo "  The Labyrinth may glance at your financial picture — not to judge,"
-echo "  but so the world can reflect your real season."
-echo "  (Plain English: read-only access to your bank balance via Teller.io."
-echo "   This is never stored, never shared, never acted on.)"
+echo "  The Labyrinth may glance at your financial picture."
+echo "  Not to judge — so the world can reflect your real season."
+echo "  Read-only. Never stored. Never shared."
 echo ""
 if ask_yn "Activate the Pact of Goldvein?" "n"; then
     write_consent "financial_read" "true"
@@ -487,10 +479,8 @@ else
 fi
 
 echo ""
-echo "  Your Pacts have been recorded."
+echo "  Your Pacts are sealed."
 echo "  (Stored in config/consent.json on your machine only.)"
-echo ""
-echo "  Remember: THORNE pauses everything, instantly."
 echo ""
 pause 2
 
@@ -499,13 +489,13 @@ pause 2
 LIGHTS_CONSENT=$(python3 -c "import json; d=json.load(open('$CONSENT_FILE')); print(d.get('lights',{}).get('approved', False))" 2>/dev/null || echo "False")
 
 if [ "$LIGHTS_CONSENT" = "True" ]; then
-    section "Smart lights — Duskthorn setup"
+    section "Configuring Duskthorn — your lights"
 
     echo "  Which smart light system do you use?"
     echo ""
     echo "    1) LIFX (Wi-Fi bulbs, no hub needed)"
     echo "    2) Philips Hue (requires Hue Bridge)"
-    echo "    3) Home Assistant (if you already run HA)"
+    echo "    3) Home Assistant"
     echo "    4) Skip for now"
     echo ""
     LIGHTS_CHOICE=$(ask "Choose [1-4]" "4")
@@ -513,10 +503,9 @@ if [ "$LIGHTS_CONSENT" = "True" ]; then
     case "$LIGHTS_CHOICE" in
         1)
             echo ""
-            echo "  LIFX bulbs are auto-discovered on your Wi-Fi."
             LIFX_TOKEN=$(ask "LIFX personal access token (from cloud.lifx.com/settings)" "")
             if [ -n "$LIFX_TOKEN" ]; then
-                set_secret "LIFX_TOKEN" "$LIFX_TOKEN"
+                set_secret "LIFX_TOKEN"   "$LIFX_TOKEN"
                 set_secret "LIGHTS_BACKEND" "lifx"
                 echo "  ✓ LIFX configured."
             fi
@@ -524,10 +513,10 @@ if [ "$LIGHTS_CONSENT" = "True" ]; then
         2)
             echo ""
             HUE_BRIDGE=$(ask "Hue Bridge IP address (e.g. 192.168.1.50)" "")
-            HUE_TOKEN=$(ask "Hue API token (from your bridge)" "")
+            HUE_TOKEN=$(ask "Hue API token" "")
             if [ -n "$HUE_BRIDGE" ] && [ -n "$HUE_TOKEN" ]; then
-                set_secret "HUE_BRIDGE_IP" "$HUE_BRIDGE"
-                set_secret "HUE_TOKEN" "$HUE_TOKEN"
+                set_secret "HUE_BRIDGE_IP"  "$HUE_BRIDGE"
+                set_secret "HUE_TOKEN"      "$HUE_TOKEN"
                 set_secret "LIGHTS_BACKEND" "hue"
                 echo "  ✓ Philips Hue configured."
             fi
@@ -537,8 +526,8 @@ if [ "$LIGHTS_CONSENT" = "True" ]; then
             HA_URL=$(ask "Home Assistant URL (e.g. http://homeassistant.local:8123)" "")
             HA_TOKEN=$(ask "HA long-lived access token" "")
             if [ -n "$HA_URL" ] && [ -n "$HA_TOKEN" ]; then
-                set_secret "HA_URL" "$HA_URL"
-                set_secret "HA_TOKEN" "$HA_TOKEN"
+                set_secret "HA_URL"         "$HA_URL"
+                set_secret "HA_TOKEN"       "$HA_TOKEN"
                 set_secret "LIGHTS_BACKEND" "ha"
                 echo "  ✓ Home Assistant configured."
             fi
@@ -550,44 +539,32 @@ if [ "$LIGHTS_CONSENT" = "True" ]; then
     esac
 fi
 
-# ── 8. Music — Spotify ────────────────────────────────────────────────────────
+# ── 8. Music Setup ────────────────────────────────────────────────────────────
 
 MUSIC_CONSENT=$(python3 -c "import json; d=json.load(open('$CONSENT_FILE')); print(d.get('music',{}).get('approved', False))" 2>/dev/null || echo "False")
 
 if [ "$MUSIC_CONSENT" = "True" ]; then
-    section "Music — Tidecrest setup"
+    section "Configuring Tidecrest — your music"
 
-    echo "  Spotify integration uses the Spotify Web API."
-    echo "  You'll need a free Spotify Developer account."
+    echo "  Enchantify controls Spotify via AppleScript (Mac only)."
+    echo "  No login credentials needed — it talks to the Spotify app directly."
     echo ""
-    echo "  Steps:"
-    echo "    1. Go to developer.spotify.com/dashboard"
-    echo "    2. Create an app (name: Enchantify, redirect: http://localhost:8888/callback)"
-    echo "    3. Copy your Client ID and Client Secret"
-    echo ""
-
-    SPOTIFY_CLIENT=$(ask "Spotify Client ID (or press Enter to skip)" "")
-    if [ -n "$SPOTIFY_CLIENT" ]; then
-        set_secret "SPOTIFY_CLIENT_ID" "$SPOTIFY_CLIENT"
-        SPOTIFY_SECRET=$(ask "Spotify Client Secret" "")
-        [ -n "$SPOTIFY_SECRET" ] && set_secret "SPOTIFY_CLIENT_SECRET" "$SPOTIFY_SECRET"
-        set_secret "MUSIC_BACKEND" "spotify"
-        echo "  ✓ Spotify configured."
-    else
-        set_secret "MUSIC_BACKEND" "none"
-        echo "  Skipped. Add Spotify credentials to config/secrets.env later."
-    fi
+    echo "  ✓ Tidecrest configured (Spotify via AppleScript)."
+    set_secret "MUSIC_BACKEND" "spotify"
 fi
 
-# ── 9. Voice Acting — Kokoro TTS ──────────────────────────────────────────────
+# ── 9. Voice Acting ───────────────────────────────────────────────────────────
 
-section "Voice acting (optional)"
+section "The voices"
 
-echo "  Enchantify has full multi-voice acting — every NPC has a voice."
-echo "  This uses Kokoro TTS, a free local model (runs on your machine)."
-echo "  Requires: Docker Desktop."
+echo "  The Labyrinth has 47 voices."
+echo "  Each NPC speaks in their own register — some deep and slow,"
+echo "  some quick and bright, some ancient and cracked at the edges."
 echo ""
-echo "  Without this: Enchantify works silently (text only)."
+echo "  You can have the Labyrinth speak aloud, or read in silence."
+echo "  Both are right. But some of it is really good out loud."
+echo ""
+echo "  Voice acting requires Docker (~2GB disk space)."
 echo ""
 
 if command -v docker &>/dev/null; then
@@ -596,35 +573,36 @@ if command -v docker &>/dev/null; then
     if ask_yn "Install Kokoro TTS for voice acting?" "n"; then
         write_consent "voice" "true"
         echo ""
-        echo "  Pulling Kokoro TTS image (this may take a few minutes)..."
+        echo "  Pulling Kokoro TTS (this may take a few minutes)..."
         docker pull ghcr.io/remsky/kokoro-fastapi-cpu:v0.2.2
         set_secret "TTS_BACKEND" "kokoro"
-        set_secret "KOKORO_URL" "http://localhost:8880"
+        set_secret "KOKORO_URL"  "http://localhost:8880"
         echo ""
         echo "  ✓ Kokoro TTS installed."
-        echo "  To start it: docker run -d -p 8880:8880 ghcr.io/remsky/kokoro-fastapi-cpu:v0.2.2"
         echo ""
-        echo "  Add this to your startup items or run it manually before playing."
+        echo "  To start it before playing:"
+        echo "    docker run -d -p 8880:8880 ghcr.io/remsky/kokoro-fastapi-cpu:v0.2.2"
+        echo ""
+        echo "  Add this to your startup items or run it manually."
     else
         set_secret "TTS_BACKEND" "none"
-        echo "  Voice acting skipped."
+        echo "  Voice acting skipped. The Labyrinth will speak in text."
     fi
 else
-    echo "  Docker not found. Skipping voice acting."
-    echo "  To enable later: install Docker Desktop, then run this wizard again."
+    echo "  Docker not found — voice acting unavailable for now."
+    echo "  Install Docker Desktop, then run this wizard again to enable it."
     set_secret "TTS_BACKEND" "none"
 fi
 
 # ── 10. Image Generation ──────────────────────────────────────────────────────
 
-section "Image generation (optional)"
+section "What the world looks like"
 
-echo "  The Labyrinth can generate images — portraits of NPCs, glimpses"
-echo "  of locations, illustrations of story moments."
+echo "  The Labyrinth can generate images — NPC portraits, glimpses of"
+echo "  locations, illustrations of story moments."
 echo ""
-echo "  Options:"
-echo "    1) DALL-E 3 (OpenAI — best quality, requires API key + costs ~\$0.04/image)"
-echo "    2) Stable Diffusion (local, free, requires good GPU and setup)"
+echo "    1) DALL-E 3  (best quality, ~\$0.04/image, requires OpenAI key)"
+echo "    2) Stable Diffusion  (local, free, requires a good GPU)"
 echo "    3) None — text only"
 echo ""
 
@@ -636,7 +614,7 @@ case "$IMG_CHOICE" in
         OPENAI_KEY=$(ask "OpenAI API key (from platform.openai.com)" "")
         if [ -n "$OPENAI_KEY" ]; then
             set_secret "OPENAI_API_KEY" "$OPENAI_KEY"
-            set_secret "IMAGE_BACKEND" "dalle3"
+            set_secret "IMAGE_BACKEND"  "dalle3"
             write_consent "images" "true"
             echo "  ✓ DALL-E 3 configured."
         else
@@ -646,7 +624,7 @@ case "$IMG_CHOICE" in
         ;;
     2)
         echo ""
-        echo "  Stable Diffusion setup is manual. See docs/stable-diffusion.md"
+        echo "  Stable Diffusion setup is manual."
         echo "  Set IMAGE_BACKEND=stable-diffusion in config/secrets.env when ready."
         set_secret "IMAGE_BACKEND" "stable-diffusion"
         ;;
@@ -656,103 +634,93 @@ case "$IMG_CHOICE" in
         ;;
 esac
 
-# ── 11. Ambient Music — MusicGen ──────────────────────────────────────────────
+# ── 11. Waking the World ──────────────────────────────────────────────────────
 
-section "Ambient music generation (optional)"
+section "Waking the world"
 
-echo "  Meta MusicGen Small can generate ambient music for story scenes."
-echo "  Requires Docker and ~2GB disk space."
+echo "  Almost there."
+echo "  The world runs on a heartbeat — scripts that fire while you sleep,"
+echo "  while you work, while the book is closed."
+echo "  Installing them now."
 echo ""
 
-if command -v docker &>/dev/null; then
-    if ask_yn "Install Meta MusicGen Small for ambient music?" "n"; then
-        write_consent "ambient_music" "true"
-        echo ""
-        echo "  Pulling MusicGen image..."
-        docker pull ghcr.io/enchantify/musicgen-small:latest 2>/dev/null || \
-            echo "  (Image not yet available — will be set up on first run)"
-        set_secret "MUSIC_GEN_BACKEND" "musicgen"
-        echo "  ✓ MusicGen configured."
-    else
-        set_secret "MUSIC_GEN_BACKEND" "none"
-        echo "  Ambient music skipped."
-    fi
-else
-    set_secret "MUSIC_GEN_BACKEND" "none"
-    echo "  Docker not found. Skipping MusicGen."
-fi
-
-# ── 12. Memory Plugins ────────────────────────────────────────────────────────
-
-section "Memory plugins (optional)"
-
-echo "  OpenClaw's built-in memory is solid. These plugins extend it:"
-echo ""
-echo "  QMD — hybrid BM25 + vector search, reduces token use 50-80%."
-echo "  Lossless Claw — long-context SQLite persistence."
-echo ""
-echo "  These are recommended if you plan long, deep sessions."
-echo ""
-
-INSTALL_QMD=false
-INSTALL_LC=false
-
-if ask_yn "Install QMD memory plugin?" "y"; then
-    INSTALL_QMD=true
-fi
-if ask_yn "Install Lossless Claw memory plugin?" "y"; then
-    INSTALL_LC=true
-fi
-
-if [ "$INSTALL_QMD" = "true" ]; then
-    echo "  Installing QMD..."
-    openclaw plugins install qmd 2>/dev/null && echo "  ✓ QMD installed." || echo "  QMD install failed — try: openclaw plugins install qmd"
-fi
-if [ "$INSTALL_LC" = "true" ]; then
-    echo "  Installing Lossless Claw..."
-    openclaw plugins install @martian-engineering/Lossless-Claw 2>/dev/null && echo "  ✓ Lossless Claw installed." || echo "  Lossless Claw install failed — try: openclaw plugins install @martian-engineering/Lossless-Claw"
-fi
-
-# ── 13. Final Setup ───────────────────────────────────────────────────────────
-
-section "Setting up your world"
-
-echo "  Creating player file..."
-
+# Player file
 if [ "$RETURNING" = "false" ] && [ -n "$PLAYER_NAME" ]; then
     PLAYER_FILE="$ENCHANTIFY_DIR/players/${PLAYER_NAME,,}.md"
     if [ ! -f "$PLAYER_FILE" ]; then
-        if [ -f "$ENCHANTIFY_DIR/players/player-template.md" ]; then
-            cp "$ENCHANTIFY_DIR/players/player-template.md" "$PLAYER_FILE"
-            sed -i.bak "s/{{PLAYER_NAME}}/$PLAYER_NAME/g" "$PLAYER_FILE" && rm -f "${PLAYER_FILE}.bak"
-            echo "  ✓ Player file created: players/${PLAYER_NAME,,}.md"
-        else
-            # Create minimal player file
-            cat > "$PLAYER_FILE" << PLAYEREOF
+        cat > "$PLAYER_FILE" << PLAYEREOF
 # ${PLAYER_NAME}
 
 **Player:** ${PLAYER_NAME}
+**Chapter:** Riddlewind
 **Tier:** 1
-**Belief:** 0
+**Belief:** 10
 **Status:** Just arrived.
 
+## Inside Cover
+
+| Quest | NPC | Belief | Relationship |
+|---|---|---|---|
+| *(empty)* | | | |
+| *(empty)* | | | |
+| *(empty)* | | | |
+
 ## Notes
-*Your story begins here.*
+*The Labyrinth is watching.*
 PLAYEREOF
-            echo "  ✓ Player file created."
-        fi
+        echo "  ✓ Player file created: players/${PLAYER_NAME,,}.md"
+    else
+        echo "  ✓ Player file already exists."
     fi
 fi
 
-echo "  Setting up cron job (world pulse every 15 minutes)..."
+# Cron jobs
+CRON_BASE="$ENCHANTIFY_DIR"
+PYTHON="/usr/bin/python3"
+LOG="$LOGS_DIR"
+PNAME="${PLAYER_NAME,,:-bj}"
 
-CRON_CMD="*/15 * * * * cd $ENCHANTIFY_DIR && /usr/bin/python3 scripts/pulse.py >> $LOGS_DIR/pulse.log 2>&1"
-(crontab -l 2>/dev/null | grep -v "enchantify.*pulse.py"; echo "$CRON_CMD") | crontab -
-echo "  ✓ Cron job installed."
+echo "  Installing cron jobs..."
 
-echo "  Running first world pulse..."
+(
+    # Strip any existing enchantify crons cleanly
+    crontab -l 2>/dev/null | grep -v "$CRON_BASE/scripts/"
+
+    # Pulse: every 15 min — weather, tides, moon, health data
+    echo "*/15 * * * * cd $CRON_BASE && $PYTHON scripts/pulse.py >> $LOG/pulse.log 2>&1"
+
+    # Entity tick + world pulse: every 4 hours at :30 — world simulation
+    echo "30 */4 * * * cd $CRON_BASE && $PYTHON scripts/arc-tick.py && $PYTHON scripts/tick.py && $PYTHON scripts/world-pulse.py >> $LOG/pulse.log 2>&1"
+
+    # Schedule sync: every 4 hours at :00
+    echo "0 */4 * * * cd $CRON_BASE && $PYTHON scripts/schedule.py --update-state >> $LOG/schedule.log 2>&1"
+
+    # Nightly intelligence: 11 PM — story log, arc spine, NPC research
+    echo "0 23 * * * $PYTHON $CRON_BASE/scripts/labyrinth-intelligence.py $PNAME >> $LOG/intelligence.log 2>&1"
+
+    # Nightly dream: 2:03 AM — dream generation
+    echo "3 2 * * * cd $CRON_BASE && $PYTHON scripts/dream.py >> $LOG/dream.log 2>&1"
+
+    # Morning wallpaper: 7 AM daily
+    echo "0 7 * * * $PYTHON $CRON_BASE/scripts/wallpaper.py --generate $PNAME >> $LOG/wallpaper.log 2>&1"
+
+    # Sparky shinies: 8 AM daily
+    echo "0 8 * * * $PYTHON $CRON_BASE/scripts/sparky.py >> $LOG/sparky.log 2>&1"
+
+    # Evening broadsheet: 6 PM daily
+    echo "0 18 * * * cd $CRON_BASE && $PYTHON scripts/bleed.py >> $LOG/bleed.log 2>&1"
+
+) | crontab -
+
+echo "  ✓ World heartbeat installed (8 cron jobs)."
+echo ""
+
+# First pulse
+echo "  Running the first pulse..."
 cd "$ENCHANTIFY_DIR"
-python3 scripts/pulse.py >> "$LOGS_DIR/pulse.log" 2>&1 && echo "  ✓ First pulse complete." || echo "  (Pulse had issues — check logs/pulse.log)"
+python3 scripts/pulse.py >> "$LOGS_DIR/pulse.log" 2>&1 \
+    && echo "  ✓ First pulse complete." \
+    || echo "  (Pulse had issues — check logs/pulse.log)"
 
 # ── Done ─────────────────────────────────────────────────────────────────────
 
@@ -760,29 +728,29 @@ clear
 echo ""
 echo "  ╔══════════════════════════════════════════════════════════╗"
 echo "  ║                                                          ║"
-echo "  ║     ✨  The Labyrinth is ready.                         ║"
+echo "  ║     The book is breathing.                              ║"
+echo "  ║     It knows your name.                                 ║"
+echo "  ║     It's been waiting.                                  ║"
 echo "  ║                                                          ║"
 echo "  ╚══════════════════════════════════════════════════════════╝"
 echo ""
-echo "  Your world is alive. It's been breathing since the pulse ran."
-echo ""
-echo "  To begin:"
-echo ""
-echo "    openclaw"
-echo ""
-echo "    Then say: Open the book"
-echo ""
-echo "  ─────────────────────────────────────────────────────────"
-echo ""
-echo "  A few things to remember:"
-echo "    • Say THORNE to pause all Pacts instantly"
-echo "    • Your config is in: config/secrets.env"
-echo "    • Your consent is in: config/consent.json"
-echo "    • Logs live in: logs/"
-echo ""
+pause 2
+
 if [ -n "$PLAYER_NAME" ]; then
-    echo "  The Labyrinth has been expecting you, $PLAYER_NAME."
+    echo "  The Labyrinth has been expecting you, ${PLAYER_NAME}."
     echo ""
 fi
-echo "  Good luck."
+
+echo "  Open it and say:"
+echo ""
+echo "      Open the book"
+echo ""
+echo "  That's all you need to do."
+echo ""
+echo "  ─────────────────────────────────────────────────────────"
+echo "  If you need it:"
+echo "    • THORNE pauses everything, instantly"
+echo "    • config/secrets.env — your credentials"
+echo "    • config/consent.json — your Pacts"
+echo "    • logs/ — what the world has been doing while you were away"
 echo ""
