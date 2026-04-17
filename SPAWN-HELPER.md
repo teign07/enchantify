@@ -11,14 +11,14 @@ sessions_spawn({
   task: "You are the Labyrinth of Stories. Open the book. [PLAYER NAME] has arrived. Read AGENTS.md for operating rules, then read their heartbeat and player state. Begin.",
   mode: "run",
   runtime: "subagent",
-  model: "anthropic/claude-sonnet-4-6",
+  model: "google-gemini-cli/gemini-3-flash-preview",
   cwd: "/Users/bj/.openclaw/workspace/enchantify"
 })
 ```
 
 **Why these parameters matter:**
 
-- **`model: "anthropic/claude-sonnet-4-6"`** — Required. Without explicit Sonnet, prose quality degrades significantly. Never let this default.
+- **`model: "google-gemini-cli/gemini-3-flash-prevew"`** — Required. Without explicit Sonnet, prose quality degrades significantly. Never let this default.
 - **`cwd`** — Must point to the enchantify workspace so the agent can find player state, heartbeat, lore, and mechanics files.
 - **`task` should name the player** — Helps the agent read the right state file immediately.
 
@@ -44,7 +44,7 @@ Enchantify's default model is set in `~/.openclaw/openclaw.json`:
 ```json
 {
   "id": "enchantify",
-  "model": "anthropic/claude-sonnet-4-6"
+  "model": "google-gemini-cli/gemini-3-flash-preview"
 }
 ```
 
@@ -62,4 +62,4 @@ Spawn with the pattern above, naming them in the task. The agent handles everyth
 ---
 
 *Last updated: March 29, 2026*
-*Validated: Claude Sonnet 4.6 — full heartbeat bleed enabled*
+*Validated: Google Gemini Flash 3 Preview — full heartbeat bleed enabled*

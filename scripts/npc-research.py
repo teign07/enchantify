@@ -3,23 +3,22 @@
 npc-research.py — NPCs research topics from the Unwritten Chapter.
 
 During the simulation phase, an eligible NPC selects a topic from their
-Unwritten Interest, writes a research note in their voice using the Claude
+Unwritten Interest, writes a research note in their voice using the Claude/Gemini
 API, and delivers it to the player.
 
 Eligibility: NPC must be in world-register with Belief >= 8, not on cooldown
 (72h default), and either have a tracked relationship >= 25 or be a core NPC
 (Zara, Stonebrook, etc.) at Full Presence.
 
-Belief cost: 3 per research note, deducted from world-register.
-
 Outputs:
-  - memory/npc-research/[slug]-[date].md  (always)
-  - iCloud Notes via osascript             (default on)
-  - Telegram via openclaw message send     (--telegram flag)
+  - memory/npc-research/[slug]-[date].md   (always)
+  - Physical letter via CUPS printer       (core NPCs only, unless --no-print)
+  - Telegram via openclaw message send     (always)
+  - iCloud Notes via osascript             (always, unless --no-icloud is used)
   - memory/tick-queue.md                   (narrative seed)
 
 Usage:
-  python3 scripts/npc-research.py [player] [--dry-run] [--npc "Zara Finch"] [--telegram] [--no-icloud]
+  python3 scripts/npc-research.py [player] [--dry-run] [--npc "Zara Finch"] [--no-icloud] [--no-print]
 """
 
 import argparse
@@ -28,9 +27,11 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
+import urllib.request
 
 SCRIPT_DIR   = Path(__file__).parent
 BASE_DIR     = Path(os.environ.get("ENCHANTIFY_BASE_DIR", SCRIPT_DIR.parent))
@@ -41,7 +42,9 @@ TICK_QUEUE   = BASE_DIR / "memory" / "tick-queue.md"
 BELIEF_COST     = 3
 BELIEF_MINIMUM  = 8       # NPC must have at least this much to research
 COOLDOWN_HOURS  = 72      # per-NPC cooldown between notes
-TELEGRAM_TARGET = "8729557865"
+
+# Telegram Config - Ensure these match your Openclaw Enchantify Agent settings
+TELEGRAM_TARGET  = "8729557865"
 TELEGRAM_CHANNEL = "telegram"
 
 # NPCs always eligible regardless of tracked relationship (core cast)
@@ -65,11 +68,30 @@ def load_config() -> dict:
 
 def call_gemini(prompt: str) -> str:
     """Run a prompt through the enchantify agent (Gemini via openclaw)."""
-    result = subprocess.run(
-        ["openclaw", "agent", "--local", "--agent", "enchantify", "-m", prompt],
+    result = subprocess.run(["openclaw", "agent", "--local", "--agent", "enchantify", "-m", prompt],
         capture_output=True, text=True
     )
     return result.stdout.strip()
+    
+def get_local_city() -> str:
+    """Fetch the computer's current city/region based on IP address."""
+    try:
+        req = urllib.request.Request(
+            "https://ipinfo.io/json",
+            headers={"User-Agent": "Enchantify/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            city = data.get("city")
+            region = data.get("region")
+            if city and region:
+                return f"{city}, {region}"
+            elif city:
+                return city
+    except Exception as e:
+        print(f"  [npc-research] Warning: Could not fetch IP location ({e}).")
+    
+    return "the player's local area"
 
 
 # ─── Parse characters.md ──────────────────────────────────────────────────────
@@ -77,15 +99,13 @@ def call_gemini(prompt: str) -> str:
 def parse_characters() -> list[dict]:
     """
     Extract NPCs with Unwritten Interest and Voice from characters.md.
-    Handles both ### header format (professors) and **Name** — inline format (students).
     """
     path = BASE_DIR / "lore" / "characters.md"
     if not path.exists():
-        return []
+        return[]
     text = path.read_text()
-    npcs = []
+    npcs =[]
 
-    # Format 1: ### Name header blocks
     sections = re.split(r"^### ", text, flags=re.MULTILINE)
     for section in sections[1:]:
         name_match = re.match(r"^(.+)", section)
@@ -103,18 +123,15 @@ def parse_characters() -> list[dict]:
                 "voice":    voice_m.group(1).strip(),
             })
 
-    # Format 2: **Name** — description. **Unwritten Interest:** ...
     for m in re.finditer(
         r"\*\*([A-Z][^*]+?)\*\*\s*[—–-].*?\*\*Unwritten Interest:\*\*\s*([^\n]+)",
         text,
     ):
         name     = m.group(1).strip()
         interest = m.group(2).strip()
-        # Try to find a Voice field nearby (within 300 chars after the match)
         nearby   = text[m.start():m.start() + 400]
         voice_m  = re.search(r"\*\*Voice:\*\*\s*(.+)", nearby)
         voice    = voice_m.group(1).strip() if voice_m else "Quiet, specific, genuine."
-        # Avoid duplicates from the header parser
         if not any(n["name"] == name for n in npcs):
             npcs.append({"name": name, "interest": interest, "voice": voice})
 
@@ -134,19 +151,20 @@ def parse_register_npcs() -> dict[str, dict]:
     for line in text.splitlines():
         if not line.startswith("|") or "---" in line:
             continue
-        parts = [p.strip() for p in line.strip("|").split("|")]
+        parts =[p.strip() for p in line.strip("|").split("|")]
         if len(parts) < 4:
             continue
         name  = parts[0]
         etype = parts[1].lower()
-        if not name or name.lower() in ("entity", "name") or "npc" not in etype:
+        
+        if not name or name.lower() in ("entity", "name") or ("npc" not in etype and "character" not in etype):
             continue
+            
         belief_m = re.search(r"(\d+)", parts[2])
         if belief_m:
             result[name] = {"belief": int(belief_m.group(1)), "notes": parts[3]}
 
     return result
-
 
 # ─── Parse player relationships ───────────────────────────────────────────────
 
@@ -166,7 +184,7 @@ def parse_relationships(player: str) -> dict[str, int]:
             if line.startswith("##"):
                 break
             if line.startswith("|") and "---" not in line and "NPC" not in line:
-                parts = [p.strip() for p in line.strip("|").split("|")]
+                parts =[p.strip() for p in line.strip("|").split("|")]
                 if len(parts) >= 3:
                     name    = parts[0]
                     score_m = re.search(r"(-?\d+)", parts[2])
@@ -209,26 +227,16 @@ def select_npc(
     cache:      dict,
     forced_name: Optional[str] = None,
 ) -> Optional[dict]:
-    """
-    Pick one eligible NPC. Eligibility:
-      - Has Unwritten Interest + Voice in characters.md
-      - In world-register as NPC with Belief >= BELIEF_MINIMUM
-      - Not on cooldown
-      - Is a core NPC OR has tracked relationship >= 25
-    """
     import random
 
-    eligible = []
-    for char in characters:
-        name = char["name"]
-
-        if forced_name and name != forced_name:
+    char_data = {c["name"].lower(): c for c in characters}
+    eligible =[]
+    
+    for name, reg in register.items():
+        if forced_name and name.lower() != forced_name.lower():
             continue
-
-        reg = register.get(name)
-        if not reg or reg["belief"] < BELIEF_MINIMUM:
+        if reg["belief"] < BELIEF_MINIMUM:
             continue
-
         if is_on_cooldown(cache, name):
             continue
 
@@ -236,12 +244,21 @@ def select_npc(
         if name not in CORE_NPCS and (rel_score is None or rel_score < 25):
             continue
 
-        eligible.append(char | {"belief": reg["belief"], "notes": reg["notes"]})
+        c_info = char_data.get(name.lower(), {})
+        interest = c_info.get("interest", f"General real-world research relating to my current situation: {reg['notes']}")
+        voice = c_info.get("voice", "In-character, natural, reflecting my academy role.")
+
+        eligible.append({
+            "name": name,
+            "interest": interest,
+            "voice": voice,
+            "belief": reg["belief"],
+            "notes": reg["notes"]
+        })
 
     if not eligible:
         return None
 
-    # Prefer higher-Belief NPCs (more invested = more likely to research)
     eligible.sort(key=lambda n: n["belief"], reverse=True)
     weights = [n["belief"] for n in eligible]
     total   = sum(weights)
@@ -261,7 +278,7 @@ def load_heartbeat_snippet() -> str:
     if not path.exists():
         return ""
     lines = path.read_text().splitlines()
-    snippet = []
+    snippet =[]
     in_pulse = False
     for line in lines:
         if "PULSE_START" in line:
@@ -285,21 +302,19 @@ thin membrane between the Academy and the Unwritten Chapter (the real world wher
 the player, bj, lives).
 
 Your voice: {voice}
+Your Unwritten Interest (Real-World Focus): {interest}
 
-Your fascination with the Unwritten Chapter: {interest}
-
-Rules:
-- Write entirely in your character voice. You are {name}, not an assistant.
-- 200–300 words. Dense with your specific personality.
-- Ground the note in real details from the Margin-Glass signals provided.
-- The note should feel like a genuine dispatch — curious, invested, personal.
-- Do NOT break character. Do NOT use clinical or therapeutic language.
-- Do NOT reference "the game," "mechanics," or "the Labyrinth" as a construct.
-- Sign your full name at the end, with a brief postscript in character if it fits.
-- The player's name is bj (he/him).
+RULES FOR YOUR RESEARCH:
+1. ACTUAL REAL-WORLD FACTS REQUIRED: This is not just creative writing. You must provide real, verifiable facts, history, or systems from the real world related to your interest. Do not invent facts.
+2. THE MAGICAL LENS: Present these real-world facts through your character's perspective. You are an academic from a magical book marveling at the mundane real world.
+3. LENGTH: 300 to 500 words. Make it substantial enough to be a genuine research dispatch.
+4. Write entirely in your character voice. You are {name}.
+5. Ground the note in the provided Margin-Glass signals (weather/time) if applicable.
+6. Do NOT break character or use therapeutic/game mechanics language.
+7. Sign your full name at the end.
 """
 
-def generate_research(npc: dict, heartbeat: str) -> str:
+def generate_research(npc: dict, heartbeat: str, city: str) -> str:
     system = SYSTEM_PROMPT.format(
         name=npc["name"],
         voice=npc["voice"],
@@ -307,8 +322,9 @@ def generate_research(npc: dict, heartbeat: str) -> str:
     )
     user_prompt = (
         f"Current signals from the Margin-Glass (real-world data):\n\n{heartbeat}\n\n"
-        "Write your research note now. Draw on your Unwritten Interest and the signals above. "
-        "Pick one specific thread and follow it. Do not try to cover everything."
+        f"Player's Current Location (IP Geolocation): {city}\n\n"
+        "TASK: Conduct real-world research on your Unwritten Interest. Use your web search capabilities or your deep factual knowledge base to find true, specific facts (e.g., actual stores in the player's location, real websites, true historical events, or scientific facts).\n\n"
+        "Write your 300-500 word research dispatch, weaving these absolute real-world facts into your character's magical perspective."
     )
     return call_gemini(f"{system}\n\n{user_prompt}")
 
@@ -330,7 +346,6 @@ def deliver_local(npc: dict, research: str, date_str: str) -> Path:
 
 def deliver_icloud(npc: dict, research: str, date_str: str) -> bool:
     title = f"From {npc['name']} — {date_str}"
-    # Escape for AppleScript: backslash newlines, escape quotes
     body  = research.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
     script = f'''
 tell application "Notes"
@@ -366,8 +381,7 @@ end tell
 def deliver_telegram(npc: dict, research: str) -> bool:
     header  = f"📜 *From {npc['name']}:*\n\n"
     message = header + research
-    result  = subprocess.run(
-        ["openclaw", "message", "send",
+    result  = subprocess.run(["openclaw", "message", "send",
          "--target", TELEGRAM_TARGET,
          "--channel", TELEGRAM_CHANNEL,
          message],
@@ -388,8 +402,7 @@ def deduct_belief(npc: dict, dry_run: bool) -> None:
     if dry_run:
         print(f"  [dry-run] Would deduct {BELIEF_COST} Belief from {npc['name']}: {npc['belief']} → {new_belief}")
         return
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT_DIR / "write-entity.py"),
+    result = subprocess.run([sys.executable, str(SCRIPT_DIR / "write-entity.py"),
          npc["name"], "NPC", str(new_belief), npc["notes"]],
         capture_output=True, text=True, cwd=BASE_DIR
     )
@@ -401,8 +414,7 @@ def deduct_belief(npc: dict, dry_run: bool) -> None:
 
 # ─── Tick-queue entry ─────────────────────────────────────────────────────────
 
-# Narrative seeds — in Labyrinth voice, never announcing "an NPC sent a file"
-_SEEDS = [
+_SEEDS =[
     "{name} has been busy at the Margin-Glass. Something arrived in the Unwritten Chapter — "
     "in {their} careful handwriting, or whatever handwriting means on that side. It's waiting.",
     "The research alcove smells different today. {Name} was here. Something is sitting on "
@@ -415,7 +427,7 @@ _SEEDS = [
 
 def queue_tick(npc: dict) -> None:
     import random
-    name  = npc["name"].split()[0]   # first name for brevity
+    name  = npc["name"].split()[0]
     Name  = name
     their = "their"
     They  = "They"
@@ -431,9 +443,74 @@ def queue_tick(npc: dict) -> None:
             f"\n## [npc-research] {timestamp}\n"
             f"*{npc['name']} researched: {npc['interest'][:60]}*\n"
             f"Narrative seed: {seed}\n"
-            f"Delivery: iCloud Notes + local file → `memory/npc-research/`\n"
+            f"Delivery: iCloud Notes + Telegram + local file → `memory/npc-research/`\n"
         )
     print(f"  ✓ Tick-queue entry written.")
+
+
+# ─── Physical letter ─────────────────────────────────────────────────────────
+
+_LETTER_BORDER = "─" * 60
+
+def print_npc_letter(npc: dict, research: str, date_str: str) -> bool:
+    """
+    Print a physical letter from the NPC via the default CUPS printer.
+    Only runs for core NPCs. Formats as a styled plain-text letter.
+    """
+    if npc["name"] not in CORE_NPCS:
+        return False
+
+    lines = [
+        "",
+        _LETTER_BORDER,
+        f"  FROM: {npc['name']}",
+        f"        Enchantify Academy · Labyrinth of Stories",
+        f"  DATE: {date_str}",
+        _LETTER_BORDER,
+        "",
+    ]
+    # Wrap body text at 62 chars
+    for para in research.split("\n"):
+        para = para.strip()
+        if not para:
+            lines.append("")
+            continue
+        words = para.split()
+        line_buf = []
+        for word in words:
+            if sum(len(w) + 1 for w in line_buf) + len(word) > 62:
+                lines.append("  " + " ".join(line_buf))
+                line_buf = [word]
+            else:
+                line_buf.append(word)
+        if line_buf:
+            lines.append("  " + " ".join(line_buf))
+    lines += [
+        "",
+        _LETTER_BORDER,
+        "  Delivered through the Margin-Glass",
+        _LETTER_BORDER,
+        "",
+    ]
+
+    letter_text = "\n".join(lines)
+
+    with tempfile.NamedTemporaryFile(suffix=".txt", mode="w", delete=False, encoding="utf-8") as f:
+        f.write(letter_text)
+        tmp_path = f.name
+
+    result = subprocess.run(
+        ["lpr", "-o", "media=Letter", "-o", "cpi=12", "-o", "lpi=6", tmp_path],
+        capture_output=True, text=True,
+    )
+    Path(tmp_path).unlink(missing_ok=True)
+
+    if result.returncode == 0:
+        print(f"  ✓ Letter printed: {npc['name']}")
+        return True
+    else:
+        print(f"  ⚠ Print failed: {result.stderr.strip()[:120]}")
+        return False
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -443,8 +520,8 @@ def main():
     parser.add_argument("player",      nargs="?", default="bj")
     parser.add_argument("--npc",       help="Force a specific NPC by name")
     parser.add_argument("--dry-run",   action="store_true")
-    parser.add_argument("--telegram",  action="store_true", help="Also send via Telegram")
     parser.add_argument("--no-icloud", action="store_true", help="Skip iCloud Notes delivery")
+    parser.add_argument("--no-print",  action="store_true", help="Skip physical letter printing")
     args = parser.parse_args()
 
     characters    = parse_characters()
@@ -461,14 +538,19 @@ def main():
     print(f"[npc-research] {npc['name']} (Belief {npc['belief']}) is researching: {npc['interest'][:60]}…")
 
     heartbeat = load_heartbeat_snippet()
+    city = get_local_city()
 
     if args.dry_run:
-        print(f"  [dry-run] Would generate research note for {npc['name']}.")
-        print(f"  [dry-run] Delivery: local{'  + iCloud' if not args.no_icloud else ''}{'  + Telegram' if args.telegram else ''}")
+        will_print = npc["name"] in CORE_NPCS and not args.no_print
+        print(f"  [dry-run] Would generate research note for {npc['name']} focusing on {city}.")
+        print(f"  [dry-run] Delivery: local"
+              f"{'  + iCloud' if not args.no_icloud else ''}"
+              f"  + Telegram"
+              f"{'  + letter (CUPS)' if will_print else ''}")
         deduct_belief(npc, dry_run=True)
         return
 
-    research  = generate_research(npc, heartbeat)
+    research  = generate_research(npc, heartbeat, city)
     date_str  = datetime.now().strftime("%Y-%m-%d")
 
     print(f"\n--- Research note ({len(research)} chars) ---")
@@ -477,16 +559,20 @@ def main():
 
     deliver_local(npc, research, date_str)
 
+    # Print physical letter for core NPCs (unless suppressed)
+    if not args.no_print:
+        print_npc_letter(npc, research, date_str)
+
+    # Send to Telegram (ALWAYS ON)
+    deliver_telegram(npc, research)
+
+    # Send to Notes (ALWAYS ON unless flag is used)
     if not args.no_icloud:
         deliver_icloud(npc, research, date_str)
-
-    if args.telegram:
-        deliver_telegram(npc, research)
 
     deduct_belief(npc, dry_run=False)
     queue_tick(npc)
 
-    # Update cooldown cache
     cache[npc["name"]] = datetime.now().isoformat()
     save_cache(cache)
 
@@ -500,4 +586,4 @@ if __name__ == "__main__":
         print(f"[npc-research] Error: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc()
-        sys.exit(0)  # Don't break world-pulse if this fails
+        sys.exit(0)

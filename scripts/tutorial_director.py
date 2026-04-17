@@ -51,6 +51,8 @@ def main():
         print(step_text)
         print("[END OFFICIAL RULES]\n")
         
+    print("CRITICAL RULE OF THREE EXCEPTION: During the tutorial, if the player has not yet fulfilled the specific objective of the current step, the 3 choices at the end of your response MUST ONLY offer different ways to complete the objective (e.g., three different ways to describe their appearance). DO NOT offer generic Slice of Life or Surprising options that let them bypass the objective. If they bypass it, you must loop back to the objective.")
+
     if turns == 1:
         print(f"DIRECTIVE: The player has just entered {current_step}. Prioritize spatial descriptions and atmosphere. Let the scene breathe. Do NOT advance yet.")
     elif turns < max_turns:

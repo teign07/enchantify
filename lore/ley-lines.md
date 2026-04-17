@@ -24,10 +24,11 @@ After a year, their town is covered in Anchors they created. The mundane walk to
 7. Ask how much Belief they want to invest — but frame it as sacrifice, not transaction (see **The Investment** below).
 8. Deduct Belief via `update-player.py`.
 9. Generate the Inside Stacks echo — a corresponding space that appears in the Academy right now (see **The Echo** below). This is the Anchor's resonance in the safe world.
-10. Tell the player that their Anchor has also opened a door into the Outer Stacks — a room built from their words that they won't see until they physically go there. Do not describe what's in it. The room waits.
-11. Register the room in the world register: `python3 scripts/write-entity.py "[Room Name]" Location [Belief invested] "[brief description]" --gps-gated "[Anchor Name]"` — The room is real and in the register — it just can't be entered from a distance.
-12. Write the full anchor record to `players/[name]-anchors.md`.
-12. Narrate the anchoring using the sequence in **Narrating the Anchor** below.
+10. **Generate the Outer Stacks room now** — read `lore/outer-stacks.md` Generation Principles. Build the full room from the player's words + type + weather/moon/season + Belief. Write the complete room description, Fae inhabitant(s), mini-story, and local rule (if one belongs). This happens at creation, not first visit.
+11. Register the room in the world register: `python3 scripts/write-entity.py "[Room Name]" Location [Belief invested] "[one-sentence description of the room for the register]" --gps-gated "[Anchor Name]"` — The room is real, in the register, and NPCs may sense its door. Entry still requires GPS proximity.
+12. Write the full anchor record to `players/[name]-anchors.md` — include the generated room description, Fae details, mini-story, and local rule under the appropriate fields.
+13. Tell the player a room has been built and is waiting for them. Do not describe what's inside — only that the door exists, and that it was built from their words. The surprise is the gift.
+14. Narrate the anchoring using the sequence in **Narrating the Anchor** below.
 
 ---
 
@@ -139,13 +140,15 @@ Store each Anchor as a `##` section in `players/[name]-anchors.md`:
 - **Season:** [season at creation]
 - **Player's words:** "[exact quote]"
 - **Academy echo:** [one specific sensory detail in the Inside Stacks — a room, a smell, a quality]
-- **Outer Stacks room:** *(not yet visited — generated on first real-world check-in)*
-- **Local rule:** *(set at generation)*
+- **Outer Stacks room:** [full room description — generated at anchor creation]
+- **Fae:** [inhabitant(s) — name/nature, what they do, their history with the room]
+- **Mini-story:** [the ongoing situation — what was happening before the player arrived, and the open question]
+- **Local rule:** [the room's mechanic, if one belongs — discovered, never announced]
 - **Visit count:** 0
 - **Last visited:** *(none yet)*
 ```
 
-Fields updated by `anchor-check.py --checkin` on each real-world visit: `Belief invested`, `Visit count`, `Last visited`. On first visit, the Labyrinth generates and fills `Outer Stacks room` and `Local rule`.
+Fields updated by `anchor-check.py --checkin` on each real-world visit: `Belief invested`, `Visit count`, `Last visited`. Room, Fae, Mini-story, and Local rule are all generated and filled at anchor creation.
 
 ---
 
@@ -175,7 +178,7 @@ But the door opens only in the Outer Stacks, and only when the player is physica
 
 **When a player tries to enter an anchor room:**
 1. Run `python3 scripts/anchor-check.py [name] [lat] [lon] --checkin`. If no recent GPS is available, the player has not shared a location this session — the door is sealed.
-2. **Within 200m — first visit:** `OUTER_STACKS_MODE: FIRST_VISIT` is printed. Generate the Outer Stacks room now (see `lore/outer-stacks.md` — Room Archetypes). Write the room to `players/[name]-anchors.md` under `**Outer Stacks room:**`. Then narrate entry.
+2. **Within 200m — first visit:** `OUTER_STACKS_MODE: FIRST_VISIT` is printed. Read the room from `players/[name]-anchors.md` — it was generated at creation. Narrate entry as first reveal: the door opens, the room is seen for the first time. The player doesn't know what was written. The surprise is still intact.
 3. **Within 200m — return visit:** `OUTER_STACKS_MODE: RETURN_VISIT` is printed with room description, local rule, visit count, and season delta. Narrate entry with evolution.
 4. **Outside 200m:** the door does not open. Never say "you can't enter." The door is sealed — light comes from under it. An NPC may have tried the handle. The room is waiting for the player to bring the real-world place with them.
 

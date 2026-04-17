@@ -43,7 +43,9 @@ At session close: update each touched thread's `**Next beat:**` line.
 **entities:** Boggle, Great Hall, fae species (all tagged academy-daily in register)
 **Nothing pressure:** low — the Nothing makes the ordinary feel hollow, not absent. Meals taste of nothing. Boggle's puns land wrong. The corridor light flattens.
 
-**Next beat:** The texture of right now — what's for lunch, what the weather is doing to the corridors, what Boggle said, which fae is bothering someone in the library.
+**Next beat:** A stray cat from the grotto—smelling of old parchment and damp stone—has taken up residence on the Riddlewind table, batting at the Obsidian Chronograph whenever it ticks.
+
+**Last advanced:** 2026-04-15
 
 **Notes:** This thread is always available. Slice of life IS this thread running quietly. When the player wants no plot — they're in this thread. It provides the felt reality of the Academy between everything else.
 

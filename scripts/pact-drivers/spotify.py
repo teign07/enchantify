@@ -5,14 +5,21 @@ Uses AppleScript to control the Spotify desktop app.
 No Spotify API credentials required — works with whatever the player has open.
 
 Talisman doctrines on Spotify:
-  Tidecrest  — Shuffle and surge. Discovery mode. The wave picks the song.
-  Mossbloom  — Album mode, no shuffle, no skip. Reception over selection.
-  Emberheart — Curated identity. The playlist that says something about who you are right now.
-  Riddlewind — Social listening. What everyone in the room would agree on.
-  Duskthorn  — Uncomfortable and productive. The album you've been avoiding.
+  Tidecrest  — Shuffle and surge. Discovery mode. The wave picks the song.       → Pop
+  Mossbloom  — Album mode, no shuffle, no skip. Reception over selection.         → Folk
+  Emberheart — Curated identity. The playlist that says something about who you are. → Indie Rock
+  Riddlewind — Social listening. What everyone in the room would agree on.         → Acoustic Indie
+  Duskthorn  — Uncomfortable and productive. The album you've been avoiding.       → Dark Electronica
+
+Tier model:
+  Influenced / Controlled — narrative only, no AppleScript
+  Dominated               — adjusts playback mode (shuffle/repeat) silently
+  Sovereign               — switches to chapter's genre playlist, then sets mode
 
 All Spotify actions are silent — the player discovers the shift when they look at their phone.
 No Spotify action requires consent — changing playback mode is not a public act.
+
+Chapter playlists (URIs) can be swapped in _CHAPTER_PLAYLISTS below for personal preferences.
 """
 
 import subprocess
@@ -84,14 +91,35 @@ end tell
     return True
 
 
+def _play_playlist(uri: str) -> bool:
+    """Switch Spotify to a specific playlist URI and begin playing."""
+    script = f"""
+tell application "Spotify"
+    open location "{uri}"
+end tell
+"""
+    _run_applescript(script)
+    return True
+
+
 # ── Talisman-specific behaviors ───────────────────────────────────────────────
 
+# Sovereign-tier genre playlists — swap URIs for personal preferences.
+# These are Spotify editorial playlists (stable, regularly updated).
+_CHAPTER_PLAYLISTS = {
+    "Tidecrest":  ("pop",              "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"),  # Today's Top Hits
+    "Mossbloom":  ("folk",             "spotify:playlist:37i9dQZF1DX4OzrY981I1W"),  # Fresh Folk
+    "Emberheart": ("indie rock",       "spotify:playlist:37i9dQZF1DX6RQFtIoNtCt"),  # Morning Indie
+    "Riddlewind": ("acoustic indie",   "spotify:playlist:37i9dQZF1DX504r1DvyvxG"),  # Acoustic Covers
+    "Duskthorn":  ("dark electronica", "spotify:playlist:37i9dQZF1DX2pSTOxoPbx9"),  # Dark & Stormy
+}
+
 _INFLUENCED_VOICE = {
-    "Tidecrest":  "Shuffle is the point. Don't queue. Let the wave pick.",
-    "Mossbloom":  "One album, beginning to end. No skipping. Let it work on you.",
-    "Emberheart": "The playlist that says something true about who you are right now.",
-    "Riddlewind": "Something everyone in the room would agree on. Shared listening.",
-    "Duskthorn":  "The album you skipped because it was too heavy. That one.",
+    "Tidecrest":  "Shuffle is the point. Don't queue. Let the wave pick. Something bright and now.",
+    "Mossbloom":  "One album, beginning to end. No skipping. Folk if you have it — something rooted.",
+    "Emberheart": "The playlist that says something true about who you are right now. Indie rock. Something with stakes.",
+    "Riddlewind": "Something everyone in the room would agree on. Acoustic, open, between people.",
+    "Duskthorn":  "The album you skipped because it was too heavy. Dark and electronic and worth it.",
 }
 
 _CONTROLLED_VOICE = {
@@ -111,11 +139,11 @@ _DOMINATED_ACTIONS = {
 }
 
 _SOVEREIGN_ACTIONS = {
-    "Tidecrest":  ("surge",      "Tidecrest acts on Spotify — shuffle on, playing. The wave chose."),
-    "Mossbloom":  ("still",      "Mossbloom acts on Spotify — shuffle off, repeat on. Album mode, no escape."),
-    "Emberheart": ("focused",    "Emberheart acts on Spotify — shuffle off, playing. Curated. Deliberate."),
-    "Riddlewind": ("collective", "Riddlewind acts on Spotify — shuffle on, playing. Open to whatever arrives."),
-    "Duskthorn":  ("pressure",   "Duskthorn acts on Spotify — shuffle off, repeat on. The heavy one. Work with it."),
+    "Tidecrest":  ("surge",      "Tidecrest claims Spotify — switched to pop, shuffle on. The wave is in charge now."),
+    "Mossbloom":  ("still",      "Mossbloom claims Spotify — switched to folk, shuffle off, repeat on. Let it hold you."),
+    "Emberheart": ("focused",    "Emberheart claims Spotify — switched to indie rock, shuffle off. Intentional. No skipping."),
+    "Riddlewind": ("collective", "Riddlewind claims Spotify — switched to acoustic indie, shuffle on. Music that sounds like company."),
+    "Duskthorn":  ("pressure",   "Duskthorn claims Spotify — switched to dark electronica, shuffle off, repeat on. No exit."),
 }
 
 
@@ -161,16 +189,19 @@ class SpotifyDriver(AppDriver):
             track_note = f" ({track})" if track else ""
             return f"*[Spotify, {chapter}, silent]* {narrative}{track_note}"
 
-        # Sovereign: set mode AND ensure playing
+        # Sovereign: switch to chapter's genre playlist, then set mode and play
         if tier == "Sovereign":
             action_key, _ = _SOVEREIGN_ACTIONS.get(chapter, ("shuffle_on", ""))
             if not dry_run and _spotify_running():
+                genre, uri = _CHAPTER_PLAYLISTS.get(chapter, (None, None))
+                if uri:
+                    _play_playlist(uri)
                 if action_key in ("surge", "collective"):
-                    _set_shuffle(True); _ensure_playing()
+                    _set_shuffle(True)
                 elif action_key in ("still", "pressure"):
-                    _set_shuffle(False); _set_repeat(True); _ensure_playing()
+                    _set_shuffle(False); _set_repeat(True)
                 elif action_key == "focused":
-                    _set_shuffle(False); _ensure_playing()
+                    _set_shuffle(False)
             track = _get_current_track() if not dry_run else ""
             track_note = f" ({track})" if track else ""
             return f"*[Spotify, {chapter}, silent]* {narrative}{track_note}"

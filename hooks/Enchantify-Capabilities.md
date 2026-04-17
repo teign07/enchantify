@@ -1,8 +1,8 @@
 # Enchantify — The Labyrinth of Stories
 ## Complete Capability Reference
 
-*Version: 4.6.0 — The Talisman War*
-*Last updated: April 15, 2026*
+*Version: 4.7.0 — The Unwritten Chapter*
+*Last updated: April 17, 2026*
 
 ---
 
@@ -452,7 +452,7 @@ Players invest Belief into real-world locations by sharing a Telegram GPS locati
 | Peace, breathing, stopping | REST |
 
 **The Outer Stacks:**
-Beyond the Academy's catalogued shelves, the Library continues — wilder, stranger, older. This is the Outer Stacks: Faerie wearing a bookish mask. Every Anchor room is a door into the Outer Stacks. The room is unique, generated from the player's creation words × anchor type × weather/moon/season × Belief at first visit. The Labyrinth chooses what's inside. The player doesn't know until they open the door.
+Beyond the Academy's catalogued shelves, the Library continues — wilder, stranger, older. This is the Outer Stacks: Faerie wearing a bookish mask. Every Anchor room is a door into the Outer Stacks. The room is unique, **generated at anchor creation** from the player's words × anchor type × weather/moon/season × Belief — full room prose, named Fae with their own agenda, mini-story, and local rule, all written immediately to the anchor record. The player doesn't know what's inside until they open the door, but it has been waiting since the moment the anchor was made.
 
 Room types include: Shrew Cafe (serve what you need, not what you want), Dragon Hoard (collects beautiful sentences, rewards the best ones), Goblin Market (trades in attention debts), Reading Room (one perfect book per visit), Dark Room (complete dark; a voice asks one honest question), Belief Floor Room (Belief held at 5 inside — tests where wonder comes from), and environmental types (Tidal, Infinite Corridor, Almost-Invisible, Memory Room). Every room can carry a **local rule** — a mechanic that applies inside only, discovered rather than announced.
 
@@ -913,7 +913,7 @@ A different protocol from the 1-hour Return. Read `players/[name]-story.md` firs
 | `scripts/ambient-state.py` | 4-hour cron (STEP 4) + session-open | Reads dominant chapter talisman (highest Belief in talismans table). Fires LIFX scene for that chapter. Writes Spotify mood seed to tick-queue for Labyrinth narration. `--dry-run` to preview. |
 | `scripts/pact-engine.py` | Tick (STEP 1c) | Talisman app territory war + action engine. When a Talisman is stirred, selects from: `pact_war` (push/challenge/consolidate app Control Belief), `narrative` (inject philosophical tone into tick-queue), `player_suggestion` (direct nudge), `reality_bleed` (act through a controlled app). Weights shift by arc phase, time, stirred threads. `--state` shows app control table. `--act "Talisman" --belief N` to test a specific talisman. `--dry-run` previews. |
 | `scripts/labyrinth-intelligence.py` | Nightly 23:00 cron | Reads diary entries + player file + `HEARTBEAT.md` biometrics. Writes `memory/patterns.md`, `memory/arc-spine.md`, `lore/nothing-intelligence.md`. Appends therapeutic interventions to `memory/tick-queue.md` (biometric-triggered, Labyrinth voice). Injects `<!-- DIARY_START -->` block into `HEARTBEAT.md`. Run as: `python3 scripts/labyrinth-intelligence.py [player]`. |
-| `scripts/npc-research.py` | 4-hour simulation (via world-pulse.py, 25% chance) | NPC researches a topic from their Unwritten Interest and delivers findings. `--npc "Name"` to force a specific NPC. `--dry-run` to preview. `--telegram` to also deliver via Telegram. Writes to `memory/npc-research/[date]-[slug].md`, delivers to iCloud Notes ("Labyrinth" folder), queues tick-queue narrative seed. Deducts 3 Belief from the NPC. 72-hour cooldown per NPC. |
+| `scripts/npc-research.py` | 4-hour simulation (via world-pulse.py, 25% chance) | NPC researches a topic from their Unwritten Interest and delivers findings. `--npc "Name"` to force a specific NPC. `--dry-run` to preview. `--no-print` to skip letter. `--no-icloud` to skip Notes. Writes to `memory/npc-research/[date]-[slug].md`; for core NPCs prints a physical letter via CUPS (`lpr`); delivers via Telegram; delivers to iCloud Notes ("Labyrinth" folder). Queues tick-queue narrative seed. Deducts 3 Belief from the NPC. 72-hour cooldown per NPC. |
 | `scripts/skill-scheduler.py` | Session-open, cron | Discovers `skill-lore/*/manifest.md`, matches triggers (`cron`, `session-open`, `event`), sources `enchantify-config.sh`, runs each matching `tick.py` in isolation. `--list` shows contracts. `--dry-run` previews. |
 | `scripts/bleed.py` | Daily 6 PM cron (`0 18 * * *`) | Publishes The Bleed — the Academy student newspaper. Reads world-register.md, threads.md, tick-queue.md, HEARTBEAT.md, players/[name].md, app-register.md. Calls the enchantify agent to generate 12 sections (HEADLINE, GOSSIP, WEATHER, FORECAST, MARKET, BAROMETER, EXCHANGE, FEATURE, CLASSIFIEDS, CORRECTION, MISSING, PLAYER, WARREPORT). Builds broadsheet HTML to `bleed/issues/YYYY-MM-DD.html`. Sends Telegram edition. Optionally CUPS-prints via `wkhtmltopdf` or Chrome headless. `--force` to regenerate. Issue numbers tracked in `bleed/issue-number.txt`. |
 
@@ -1118,7 +1118,7 @@ All automated scripts use Google Gemini via OpenClaw OAuth. No API keys required
 
 Lights are **narrative** — controlled by the Labyrinth, not by the Pact War. `ambient-state.py` fires the dominant chapter's scene at session open. During play, the agent calls the appropriate scene directly: Library → `library`, Nothing approaching → `nothing`, Compass step → matching direction scene, Compass complete → `compass-complete`, Dorm arrival → `academy`, victory → `defeated`, Book Jump → matching book scene. **MANDATORY** — fires on every location/mood shift. See AGENTS.md §5 for full trigger table.
 
-**🖨️ Printer (CUPS):** After Compass Run West, automatically fires `bash scripts/print-souvenir.sh`. Prints 4×6 HTML card — souvenir sentence, weather, moon, season. Reads printer name from `ENCHANTIFY_PRINTER` in config. No announcement; if it fails, narrate the card is waiting.
+**🖨️ Printer (CUPS):** Two printing triggers — (1) After Compass Run West: `bash scripts/print-souvenir.sh` fires automatically. Prints 4×6 HTML card — souvenir sentence, weather, moon, season. Reads printer name from `ENCHANTIFY_PRINTER` in config. No announcement; if it fails, narrate the card is waiting. (2) NPC Research letters: `npc-research.py` prints a physical letter from core NPCs (Zara, Stonebrook, Thorne, Boggle) after each research note. Plain-text, formatted with decorative borders, word-wrapped at 62 chars, sent via `lpr`. `--no-print` flag to suppress.
 
 **⛽ Fuel Log:** When player mentions food: `bash scripts/log-fuel.sh "description" [calories] [protein]`. Append-only. Heartbeat bleed uses this for the Thorne Rule.
 
@@ -1311,8 +1311,10 @@ The Bleed publishes daily at 6 PM. It's not a dashboard — it's the Academy's d
 | MISSING | Dormant threads noted as quiet absence — 2–4 lines |
 | **PLAYER** | **The Correspondent's Note** — 3–5 sentences in The Bleed's voice covering the player's recent story log, active quests, and Compass history as if reporting on a notable student |
 | **WARREPORT** | **Chapter War Report** — territory state (apps per chapter), 3–4 most contested apps with scores and gaps, Talisman Climax War (any chapter within 5 of a tier threshold), war forecast |
+| **TALISMAN** | **The Ascendant** — op-ed column written from the leading Chapter Talisman's philosophical perspective. Voice shifts when leadership shifts. A true believer's argument, not a war report. |
+| **FUEL** | **Provisions Log** — right-rail column; 10-day food log from `scripts/fuel-log.txt` with trend detection (daily coffee, recurring sandwich, beer evenings, pizza), averages, and gentle pattern notes. |
 
-**Data sources:** `lore/world-register.md` (entity standings), `lore/threads.md` (thread summary + market odds), `memory/tick-queue.md` (simulation activity), `HEARTBEAT.md` (weather, health), `players/[name].md` (story log, quests, Compass history), `lore/app-register.md` (war analytics).
+**Data sources:** `lore/world-register.md` (entity standings + leading talisman + chapter NPCs), `lore/threads.md` (thread summary + market odds), `memory/tick-queue.md` (simulation activity), `HEARTBEAT.md` (weather, health), `players/[name].md` (story log, quests, Compass history), `lore/app-register.md` (war analytics), `scripts/fuel-log.txt` (multi-day provisions log).
 
 **War analytics** (computed by `parse_app_register_for_bleed()` + `format_war_data()` — no LLM):
 - Chapter control counts (apps led per chapter)
@@ -1362,6 +1364,24 @@ Interventions are **never clinical**. The Labyrinth does not know about steps or
 ---
 
 ## Part 4: What's Complete
+
+### v4.7.0 — The Unwritten Chapter (April 17, 2026)
+
+This release makes the player's real world more visible, present, and permanent. Every change is about closing the distance between the Academy and the life being lived inside it.
+
+- ✅ **Director's Slate: TALISMAN line** — `scene-director.py` now includes a `TALISMAN` line between STORY and NOTHING. Reads the leading Chapter Talisman from `lore/world-register.md` and outputs a soft, permissive scene-construction philosophy for that chapter: Emberheart → agency surfaces naturally; Mossbloom → pattern and coincidence welcome; Riddlewind → other voices matter alongside the player's; Tidecrest → feeling over logic when both are available; Duskthorn → friction that arrives naturally needn't be redirected. Language is a lean, not a mandate — the word "vibe" applies.
+- ✅ **Director's Slate: RESEARCH line** — Optional 10th line added to the Slate. `layer_research()` scans `memory/npc-research/` for notes dated today or yesterday; if found, outputs `RESEARCH: [NPC Name] (today) · [NPC Name] (yesterday)`. Silently omitted when no fresh notes exist. NPCs become visible without crowding every session.
+- ✅ **Director's Slate: Engagement gap in NOTHING** — `layer_nothing()` now reads `**Last run:**` from the player file's Compass Run History and appends an engagement gap modifier to the NOTHING line. Thresholds: 0–2 days: no note. 3–5 days: `ENGAGEMENT GAP: Nd — elevated; let the outside world bleed in`. 6–10 days: `high; Nothing actively encroaching`. 10+ days: `critical; offer Compass Run directly`. No Compass Run on record: `Nothing finds this delicious`. The Nothing's pressure is now tied to actual routine — not just the nothing-intelligence.md estimate.
+- ✅ **Director's Slate docstring updated** — Slate documented as "up to 10 lines; RESEARCH only appears when fresh notes exist." Debug layer key `R` added for RESEARCH; NOTHING debug key updated to pass player_name. Valid layer keys: 1–7, T, R, S.
+- ✅ **The Bleed: The Ascendant column** — New `===TALISMAN===` section in `bleed.py`. `get_leading_talisman()` parses the Chapter Talismans table in `world-register.md` and returns the max-Belief talisman dict. `get_chapter_npcs()` scans NPC rows for chapter affiliation. The generated column is written from the leading chapter's philosophical perspective — an op-ed by a true believer, not a war report. Changes voice each time leadership shifts. `re.sub` strips `[thread:...]` prefixes from the philosophy field before injection. HTML broadsheet: full-width row with two-column body layout (`.row-talisman`, `.talisman-body { column-count: 2 }`). Telegram edition: `===TALISMAN===` section included.
+- ✅ **The Bleed: Provisions Log** — New right-rail column. `get_fuel_data(days=10)` reads `scripts/fuel-log.txt` (pipe-delimited), builds per-day summaries, detects patterns (daily coffee, recurring sandwich, beer evenings, pizza). Returns formatted multi-day log with totals and trend notes. Injected as `===FUEL===` in the generated content, rendered in HTML broadsheet between Barometer and Exchange.
+- ✅ **Outer Stacks: Room generation at anchor creation** — Changed from "generate at first visit" to "generate at creation." `lore/outer-stacks.md` Generation Principles updated: rooms are fully generated the moment an anchor is created, not when the player walks through the door. `lore/ley-lines.md` steps 10–14 updated: room, Fae, mini-story, and local rule are all written to the anchor record immediately. First-visit protocol is now "reveal" (describe what's already there), not "generate." Old room archetypes demoted to "Historical — Inspiration Only." New principle: every room is unique, with its own Fae who have their own agenda independent of the player.
+- ✅ **bj's anchor rooms backfilled** — Both existing anchors (`players/bj-anchors.md`) received full rooms at the new standard: complete Outer Stacks room prose, named Fae with distinct personalities and agendas, a mini-story already in motion, and a local rule discovered rather than announced. The Crossroads of Simple Joys: Hearthkin triad (meticulous ledger-keeper, quick collector, near-transparent ancient archivist) who archive uncomplicated joy in glass vessels; oldest vessel on the highest shelf was a joy that became something else. The Archive of Fermentation: the Wayskeeper (fae who has never finished a journey; most comprehensive knowledge of all possible arrivals); bj's vessel was pre-labeled before he arrived; "the long way" vessel on the highest shelf has been fermenting longer than the Outer Stacks have had a name.
+- ✅ **NPC Research: physical letter printing** — `npc-research.py` gains `print_npc_letter()`. For core NPCs (Zara Finch, Professor Stonebrook, Headmistress Thorne, Boggle), after generating a research note, a physical letter is formatted as plain-text with decorative borders, word-wrapped at 62 chars, and sent to the default CUPS printer via `lpr`. Header: NPC name, Academy byline, date. Footer: "Delivered through the Margin-Glass." `--no-print` flag to suppress. Delivery order: local file → letter (CUPS) → Telegram → iCloud Notes.
+- ✅ **Multi-voice TTS: live, not experimental** — `SOUL.md` header changed from `**MULTI-VOICE TTS (EXPERIMENTAL):**` to `**MULTI-VOICE TTS:**`. Voice assignments in `config/voice-assignments.md` (47 solo/blend assignments across all NPCs) are live. The `multi_voice_tts.py` script handles all multi-speaker narration. TTS conflict resolved: single-voice responses open with `[[tts:voice=bm_lewis]]`; multi-voice scenes call the script via exec and output exactly `NO_REPLY`. These two paths never co-occur.
+- ✅ **AGENTS.md core loop step numbering fixed** — Duplicate step labels resolved. Final clean order: `0 → 0b → 1 → 1a → 1b → 2 → 2a → 2b → 2c → 2d → 2e → 2f → 3 → 4 → 5 → 6`. Step 2e updated to reference 9 lines: CAST/FEEL/STORY/TALISMAN/NOTHING/PLAYER/SCHEDULE/DREAM/SUPPRESS. File remains under 20,000 chars.
+
+---
 
 ### v4.6.0 — The Talisman War (April 14–15, 2026)
 

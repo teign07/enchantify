@@ -38,18 +38,30 @@ TALISMAN_HEADER = "## Chapter Talismans"
 
 
 def remove_entity(text, name):
-    """Remove all occurrences of an entity from every section."""
+    """Remove all occurrences of an entity from every section and return the (cleaned_text, existing_type, existing_belief, existing_notes)."""
+    existing_belief = 0
+    existing_type = "NPC"
+    existing_notes = ""
+    
     # Table rows
-    text = re.sub(
-        r"^\|\s*" + re.escape(name) + r"\s*\|[^\n]*\n",
-        "", text, flags=re.MULTILINE
-    )
+    table_pattern = re.compile(r"^\|\s*" + re.escape(name) + r"\s*\|\s*([^\|]+)\s*\|\s*(\d+)\s*\|\s*([^\|]+)\s*\|[^\n]*\n", re.MULTILINE)
+    match = table_pattern.search(text)
+    if match:
+        existing_type = match.group(1).strip()
+        existing_belief = int(match.group(2))
+        existing_notes = match.group(3).strip()
+    text = table_pattern.sub("", text)
+    
     # Whisper list items
-    text = re.sub(
-        r"^-\s+" + re.escape(name) + r"\s*\([^\)]*\)[^\n]*\n",
-        "", text, flags=re.MULTILINE
-    )
-    return text
+    list_pattern = re.compile(r"^-\s+" + re.escape(name) + r"\s*\(([^,]+),\s*Belief\s*(\d+)\)\s*(?:—\s*(.*))?\n", re.MULTILINE)
+    match = list_pattern.search(text)
+    if match:
+        existing_type = match.group(1).strip()
+        existing_belief = int(match.group(2))
+        existing_notes = match.group(3).strip() if match.group(3) else ""
+    text = list_pattern.sub("", text)
+    
+    return text, existing_type, existing_belief, existing_notes
 
 
 def insert_into_section(text, header, new_line):
@@ -71,7 +83,7 @@ def insert_into_section(text, header, new_line):
 def main():
     parser = argparse.ArgumentParser(description="Add/update entity in world-register.md")
     parser.add_argument('name',   help='Entity name')
-    parser.add_argument('type',   help='Entity type (NPC, Object, Location, Talisman, ...)')
+    parser.add_argument('type',   nargs='?', default='', help='Entity type (NPC, Object, Location, Talisman, ...)')
     parser.add_argument('belief', type=int, help='Belief score')
     parser.add_argument('notes',  nargs='?', default='', help='Notes / status line')
     parser.add_argument('--talisman', action='store_true',
@@ -81,6 +93,8 @@ def main():
     parser.add_argument('--skill-lore', metavar='CONTRACT_ID',
                         help='Link this entity to a skill-lore contract (e.g. "obsidian", "github"). '
                              'Entity will decay if the contract is inactive for 30+ days.')
+    parser.add_argument('--add', action='store_true',
+                        help='Add the provided belief to the existing belief score instead of overwriting.')
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
 
@@ -97,7 +111,15 @@ def main():
         return
 
     text = REGISTER.read_text()
-    text = remove_entity(text, args.name)
+    text, existing_type, existing_belief, existing_notes = remove_entity(text, args.name)
+
+    if not args.type:
+        args.type = existing_type
+    if not args.notes:
+        args.notes = existing_notes
+
+    if args.add:
+        args.belief = existing_belief + args.belief
 
     if args.talisman:
         row = f"| {args.name} | {args.type} | {args.belief} | {args.notes} |"

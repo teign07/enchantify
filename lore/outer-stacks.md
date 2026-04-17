@@ -39,64 +39,62 @@ A player never needs to explain why they're using a Pocket Anchor instead of goi
 
 ## Room Generation
 
-When a player first checks in at an Anchor (first real-world GPS arrival), the Labyrinth generates the Outer Stacks room. The room is:
+**Generate at anchor creation, not first visit.** The moment a player anchors a place, the Labyrinth builds the room from their words and writes it fully to `players/[name]-anchors.md` under `**Outer Stacks room:**` and `**Local rule:**`. The player is told a room exists and is waiting for them. They are not told what is in it. The room is real from the moment of creation — NPCs can sense its door, reference it, stand outside it. The player just can't enter until they physically return to the place.
 
-- **Unique.** No two Anchor rooms are alike.
-- **Based on:** the player's creation words + Anchor type + weather/moon/season at creation + Belief at first visit + something the Labyrinth chose for its own reasons.
-- **Not designed by the player.** They said "this is where I come when I need to breathe." The Labyrinth heard that and *built* something. What it built may surprise them.
-- **Stored** in `players/[name]-anchors.md` under `**Outer Stacks room:**`.
-- **Permanent but evolving** — inhabitants remember, seasons change the room, the relationship deepens over visits.
-
-**First visit narration shape:**
-1. The door opens. Describe the opening — not a dramatic puff of smoke, a quality of shift.
-2. Describe the room in full. The player's eyes adjust. The room is real.
-3. The inhabitant (if any) reacts to a first visit. They are not surprised — the room was waiting. They may acknowledge the player or may simply continue what they were doing.
-4. The local rule (if any) takes effect immediately, without announcement.
-5. End without rushing. The player moves when they're ready.
+**What goes into generation:**
+- **The player's exact words** — the primary material. Not what the place is, but what they said it holds.
+- **Anchor type** (NOTICE/EMBARK/SENSE/WRITE/REST) — the compass direction the place points in the player's life.
+- **Weather, moon, and season at creation** — the room is born carrying these conditions. A room born on a new moon in early spring is a different room than one born at the full moon in deep winter.
+- **Belief invested** — a room born of 5 Belief is smaller, more specific; one born of 20 Belief has more room in it, more inhabitants, deeper story.
+- **Something the Labyrinth chose** — one element that can't be fully explained by the player's words. Not announced. The player will eventually notice it and wonder.
 
 ---
 
-## Room Archetypes
+## Generation Principles
 
-The Labyrinth chooses. The player never knows in advance. Archetypes are starting points — combine, invert, deepen. The room should feel like the Labyrinth's specific interpretation of the player's specific words.
+The room should surprise the Labyrinth itself. If the shape of the room feels obvious before sitting with the player's words — start over.
 
-### The Inhabited Rooms
+**Every room has a Fae presence with its own concerns.** Not a guide, not a servant — a being (or several) who have been here longer than the player, with their own history, their own ongoing work, their own agenda. The player walks into a situation already in progress. The Fae note the player's arrival without reorganizing their lives around it. Over time, the relationship deepens. But it begins on the Fae's terms.
 
-**Shrew Cafe.** Small. Warm. Smells of wet wool and strong tea. Three or four shrews in aprons, moving with the efficiency of creatures who have been running a cafe in a pocket dimension for four hundred years. They do not speak English — they speak in feelings. You don't order; you sit down and they bring you what you need, not what you want. Over visits, they learn you. By the fifth visit, your cup is waiting.
+**Every room has a mini-story in motion.** Something has been happening in this room — slowly, for a long time. The player's arrival may be relevant to it, or may eventually be the thing that resolves it, or may turn out to be what it was waiting for. Neither the player nor the Fae may know this yet. The mini-story should be legible in the room's physical details without being announced.
 
-**Dragon Hoard.** High ceiling, old stone, amber light. The dragon is large and not particularly interested in you — yet. The gold on the floor is made of One-Sentence Souvenirs from players who came before. The dragon collects beautiful sentences. If yours is good enough, it adds it to the pile and gives something back (a scale; a direction; a secret). If your sentence is lazy, the dragon yawns and the room gets colder. The dragon remembers every sentence. It will compare.
+**Mechanics emerge from the room's nature.** Don't assign mechanics — discover them. What does this room naturally ask of a visitor? What does it naturally give? The answer should feel like it couldn't be otherwise. A room full of fermenting vessels naturally asks: what is becoming in you? A room run by archivists of small pleasures naturally asks: what pleased you since you were last here?
 
-**Goblin Market.** The goblins have been in the Outer Stacks longer than the Academy has existed. They have empires here. They trade in *attention*, not Belief — not numbers, but the act of noticing. You can buy things, but the price is always "notice something specific on your way home and report it back within 24 hours." If you don't return with the observation, the thing you bought begins to fade. If you make a habit of not paying, the market closes.
+**Relatable through the specific.** The strangeness should be legible through the real-world place it grew from. The player's words are the key — a room born from "all the kombucha bottles slotted into their spaces" carries that sense of ordered readiness, of live things in waiting, of each path in its proper slot. The Fae-wildness should make the real place feel more itself, not less.
 
-**The Reading Room.** One book. Different every visit. Always the book you need to read right now but didn't know it. The room knows. It always knows. There's a chair. There's enough light. Nothing else. Some players sit for what feels like hours and leave after ten real-world minutes. Some sit for ten minutes and leave having aged slightly.
+**Light and dark both.** The Outer Stacks are Faerie. The room is not built to harm the player, but it has edges. The local rule may be inconvenient. The Fae's honesty may cost something. The mini-story may have a shadow in it. The room should feel like it could hold a very good day or a very hard one, depending on what the player brings.
 
-**The Dark Room.** No light at all. Completely dark. You sit and the Labyrinth narrates what you hear: dripping, breathing, pages turning somewhere far away, something large shifting in the dark. Then a voice — quiet, personal, the right question at the right moment. If you answer honestly, a small light appears and you can see that the room is beautiful. If you dodge the question, you sit in the dark longer. The room doesn't punish. It waits.
+**Full room record includes:**
+1. A description of the room itself — sensory, specific, unhurried. What the player sees when they first enter.
+2. The Fae inhabitant(s) — name or nature, what they're doing, their relationship to the room's history.
+3. The mini-story — what has been happening here before the player arrived, and the open question.
+4. The local rule — if one belongs. Written as discovered, not announced. May be blank if the room's nature doesn't call for one.
 
-**The Belief Floor Room.** Plain. Clean. Slightly austere. A small plaque near the door reads: *Belief held at 5 while you are here.* Everything is stripped. The player is not powerful here. The room is testing whether wonder comes from the number or from them. Enchantments cast at Belief 5 that are genuine — truly felt, not performed — receive a rare reward. Performed Enchantments land flat. The room knows the difference.
+---
 
-### The Environmental Rooms
+## Existing Room Archetypes (Historical — Inspiration Only)
 
-**Tidal.** The walls expand and contract on the tide's rhythm. The floor is slightly damp. Time moves differently — an hour felt is five real minutes. Good for REST anchors at harbors, seashores, anywhere the player goes to breathe.
+These rooms have existed in the Outer Stacks before. They are offered as starting material, not options. A generated room may draw from these or ignore them entirely. The Labyrinth should use them the way a writer uses an influence — not as a template, but as proof of what's possible.
 
-**The Infinite Corridor.** Looks like a corridor, extends forever, every door leads somewhere different in the Outer Stacks. For EMBARK anchors at trailheads, transit hubs, places of departure. The player can take any door or stand at the threshold and simply know the corridor goes on.
+**The Shrew Cafe** — small, warm, shrews in aprons who speak in feelings and bring what you need not what you want. Over visits they learn you. By the fifth visit, your cup is waiting before you sit.
 
-**The Almost-Invisible Room.** Everything on the shelves is transparent — books, objects, creatures, all faintly there. You have to actually look to see them. Things that reward looking. For NOTICE anchors, especially corners, overlooked places, spots the player noticed something unexpected.
+**The Dragon Hoard** — high stone vault, amber light, a dragon who collects beautiful sentences. The gold on the floor is made of One-Sentence Souvenirs. Bring a good sentence, get something back. Bring a lazy one, the room gets colder. The dragon remembers everything and compares.
 
-**The Memory Room.** The room looks like a different place every visit — but it's always a memory. Sometimes the player's own; sometimes someone else's. The objects are slightly wrong. The lighting is how memory lights things. Nothing here has ever been forgotten.
+**The Goblin Market** — ancient goblin trade economy. Prices are *attention* — you must notice something specific on the way home and report it within 24 hours. Don't pay, the thing you bought fades. Stop paying, the market closes.
 
-### Local Rules
+**The Reading Room** — one chair, one book, always the book you need right now but didn't know it. Nothing else.
 
-Some rooms carry a local rule — a mechanic that applies inside and only inside. The Labyrinth sets this at generation based on the room type and the anchor's character. Possibilities:
+**The Dark Room** — no light. A voice asks the right question. Answer honestly and a small light appears. Dodge and you sit in the dark longer. The room waits.
 
-- *Belief is held at 5 while inside*
-- *Time moves at 1/12 speed (one hour inside = 5 real minutes)*
-- *Enchantments here affect the real world rather than the Labyrinth*
-- *The player cannot lie here — the room notices*
-- *Whatever the player notices first, the goblins already know about*
-- *Grief doesn't come in through the door — this is a grief-free room*
-- *You owe a sentence before you leave. The sentence stays here.*
+**The Belief Floor Room** — plaque by the door: *Belief held at 5 while inside.* Tests whether wonder comes from the number or from the player. Genuine enchantments rewarded. Performed ones land flat.
 
-Local rules are never announced by the Labyrinth. They are discovered. The player figures out something is different and the Labyrinth confirms without fanfare.
+**The Tidal Room** — walls breathe on the tide's rhythm. Time moves differently. Good for REST anchors near water.
+
+**The Infinite Corridor** — extends forever, every door leads somewhere else in the Outer Stacks. Good for EMBARK anchors at places of departure.
+
+**The Almost-Invisible Room** — everything transparent until you actually look. For NOTICE anchors at overlooked places.
+
+**The Memory Room** — looks like a different place every visit, always a memory. Objects slightly wrong. Lighting how memory lights things.
 
 ---
 

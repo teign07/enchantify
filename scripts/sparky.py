@@ -139,12 +139,12 @@ def generate_shiny(signals: dict, events: list[str], belief: str) -> str:
     day_of_year = today.timetuple().tm_yday
     days_in_year = 366 if today.year % 4 == 0 else 365
 
-    context_parts = [
+    context_parts =[
         f"TODAY: {today.strftime('%A, %B %-d, %Y')} (day {day_of_year} of {days_in_year})",
     ]
 
     if signals:
-        sig_lines = [f"  {k}: {v}" for k, v in signals.items()]
+        sig_lines =[f"  {k}: {v}" for k, v in signals.items()]
         context_parts.append("REAL-WORLD SIGNALS:\n" + "\n".join(sig_lines))
 
     if belief:
@@ -167,17 +167,18 @@ Here is today's data:
 
 Find 1-2 genuine pattern-connections. They must be ACTUALLY TRUE — real numbers
 that actually match, real events that actually rhyme with today's data.
-Do not force it. If nothing connects, a sleeping dot is fine.
+Do not force it. If nothing connects, output exactly the text: (a sleeping dot)
 
 Rules for your output:
 - Write in Sparky's voice: cramped, ecstatic, excessive exclamation marks, margin-note energy
 - Reference to yourself as "Sp." or "Sparky" at the end
 - Maximum 4 lines total. You live in the MARGIN. Be small.
 - Optionally include one tiny sketch description in brackets [like this]
-- If you find nothing genuine, output only: "*(a sleeping dot)*"
-- Examples of the RIGHT tone:
-  "LOOK!! The moon is 71% illuminated AND the player has 71 Belief!! BOTH ALMOST FULL!! — Sp."
-  "The tide is going out AND it's day 97 of the year AND 9+7=16 AND Chapter 16 is where everything changes!! coincidence?? Sparky thinks NOT — Sp. [small drawing: arrow pointing both ways]"
+- If you find nothing genuine, output exactly the text: (a sleeping dot)
+
+Examples of the RIGHT tone:
+"LOOK!! The moon is 71% illuminated AND the player has 71 Belief!! BOTH ALMOST FULL!! — Sp."
+"The tide is going out AND it's day 97 of the year AND 9+7=16 AND Chapter 16 is where everything changes!! coincidence?? Sparky thinks NOT — Sp. [small drawing: arrow pointing both ways]"
 
 Output only the margin note. No preamble, no explanation."""
 
@@ -200,10 +201,10 @@ def main():
     time_str = today.strftime("%H%M")
     shiny_path = WORKSPACE_DIR / "sparky" / "shinies" / f"{date_str}-{time_str}.md"
 
-    # Only one shiny per day
+    # We allow multiple shinies per day now, since Sparky runs twice a day.
     existing = list((WORKSPACE_DIR / "sparky" / "shinies").glob(f"{date_str}*.md"))
-    if existing:
-        print(f"✓ Shiny already written for {date_str}. Sparky is satisfied.")
+    if len(existing) >= 5:
+        print(f"✓ Sparky is tired. Already {len(existing)} shinies for {date_str}.")
         return
 
     print(f"Sparky is looking for patterns ({date_str})...")

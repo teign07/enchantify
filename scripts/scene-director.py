@@ -2,18 +2,20 @@
 """
 scene-director.py — 7-Layer Weight Stack synthesizer.
 
-Reads all 7 narrative weight layers and outputs a compact 8-line Director's Slate.
-Pure Python — no LLM call. Purpose: synthesize 500+ lines of state into 8 directive
+Reads all narrative weight layers and outputs a compact Director's Slate.
+Pure Python — no LLM call. Purpose: synthesize 500+ lines of state into directive
 lines the Labyrinth will actually attend to (solving "lost in the middle" dilution).
 
-SLATE FORMAT:
-  CAST    — who's stirred, where, disposition
-  FEEL    — weather/mood → atmosphere translation
-  STORY   — arc phase + what the story is ready for
-  NOTHING — pressure level + current strategy + target
-  PLAYER  — belief, trajectory, alive vs flat
+SLATE FORMAT (up to 10 lines; RESEARCH only appears when fresh notes exist):
+  CAST     — who's stirred, where, disposition
+  FEEL     — weather/mood → atmosphere translation
+  STORY    — arc phase + what the story is ready for
+  TALISMAN — leading talisman's soft scene philosophy
+  NOTHING  — pressure level + strategy + target + engagement gap
+  RESEARCH — (optional) NPC research notes from last 2 days
+  PLAYER   — belief, trajectory, alive vs flat
   SCHEDULE — current time block, class in session, what's up next
-  DREAM   — diary/dream fragment bleeding into today
+  DREAM    — diary/dream fragment bleeding into today
   SUPPRESS — what NOT to do (from flat patterns + arc phase + nothing strategy)
 
 Usage:
@@ -30,7 +32,7 @@ import os
 import re
 import sys
 import json
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).parent
@@ -196,6 +198,52 @@ def layer_story() -> str:
     return result
 
 
+# ── Layer 3b: TALISMAN ────────────────────────────────────────────────────────
+
+# Philosophy → compact scene-construction directive, one per chapter
+_TALISMAN_DIRECTIVES = {
+    "Emberheart": "lean toward moments where the player's hand in events is felt; agency surfaces naturally; fate doesn't steer if choice is available",
+    "Mossbloom":  "let pattern and coincidence accumulate quietly; the sense that something larger is at work is welcome; don't force it, allow it",
+    "Riddlewind": "favor moments where other voices matter alongside the player's; collaboration surfaces; no one is only background",
+    "Tidecrest":  "follow feeling over logic when both are available; let the unexpected turn land without needing to make sense",
+    "Duskthorn":  "when friction is present, don't smooth it over; let complications breathe; drama that arrives naturally needn't be redirected",
+}
+
+def layer_talisman() -> str:
+    """
+    Read Chapter Talismans from world-register.md.
+    Return: leading talisman name + chapter + belief + scene directive.
+    """
+    reg_text = read_safe(WORKSPACE / "lore" / "world-register.md")
+    parts = reg_text.split("## Chapter Talismans")
+    if len(parts) < 2:
+        return "no talisman data — treat all philosophies as equally valid"
+
+    section = parts[1].split("\n## ")[0]
+    row_re = re.compile(
+        r'^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|',
+        re.MULTILINE
+    )
+    talismans = []
+    for m in row_re.finditer(section):
+        name = m.group(1).strip()
+        if name.lower() in ("talisman", "---", "", "chapter"):
+            continue
+        chapter = m.group(2).strip()
+        try:
+            belief = int(m.group(3))
+        except ValueError:
+            continue
+        talismans.append((name, chapter, belief))
+
+    if not talismans:
+        return "no talisman data — treat all philosophies as equally valid"
+
+    name, chapter, belief = max(talismans, key=lambda x: x[2])
+    directive = _TALISMAN_DIRECTIVES.get(chapter, "dominant chapter sets the narrative tone")
+    return f"{name} ({chapter}, Belief {belief}) — {directive}"
+
+
 # ── Layer 4: NOTHING ───────────────────────────────────────────────────────────
 
 _NOTHING_INTENSITY = {
@@ -206,9 +254,10 @@ _NOTHING_INTENSITY = {
     "critical": "▲▲▲ Nothing dominant — direct erosion of detail; Compass Run should be offered",
 }
 
-def layer_nothing() -> str:
-    """Read nothing-intelligence.md. Return: pressure + strategy + target."""
-    ni_text = read_safe(WORKSPACE / "lore" / "nothing-intelligence.md")
+def layer_nothing(player_name: str = "bj") -> str:
+    """Read nothing-intelligence.md + player file. Return: pressure + strategy + target + engagement gap."""
+    ni_text     = read_safe(WORKSPACE / "lore" / "nothing-intelligence.md")
+    player_text = read_safe(WORKSPACE / "players" / f"{player_name}.md", 60)
 
     pressure = first_match(r'Pressure level:\s*(\w+)', ni_text, default="low")
     strategy = first_match(r'## Current Strategy\n([^\n]+)', ni_text, default="")
@@ -226,7 +275,61 @@ def layer_nothing() -> str:
         result += f" | strategy: {truncate(strategy, 80)}"
     if targets:
         result += f" | targets: {'; '.join(targets)}"
+
+    # Engagement gap — days since last Compass Run
+    last_run_str = first_match(r'\*\*Last run:\*\*\s*([^\n]+)', player_text, default="never")
+    gap_days = None
+    if last_run_str.strip().lower() not in ("never", "", "n/a"):
+        try:
+            gap_days = (date.today() - datetime.strptime(last_run_str.strip(), "%Y-%m-%d").date()).days
+        except ValueError:
+            pass
+
+    if gap_days is None:
+        result += " | ENGAGEMENT GAP: no Compass Run on record — Nothing finds this delicious"
+    elif gap_days >= 10:
+        result += f" | ENGAGEMENT GAP: {gap_days}d — critical; offer Compass Run directly"
+    elif gap_days >= 6:
+        result += f" | ENGAGEMENT GAP: {gap_days}d — high; Nothing actively encroaching"
+    elif gap_days >= 3:
+        result += f" | ENGAGEMENT GAP: {gap_days}d — elevated; let the outside world bleed in"
+    # 0–2 days: no note needed
+
     return result
+
+
+# ── Layer 4b: RESEARCH ─────────────────────────────────────────────────────────
+
+def layer_research() -> str:
+    """
+    Scan memory/npc-research/ for notes from the last 2 days.
+    Returns a compact summary line, or empty string if nothing fresh.
+    Only non-empty entries appear in the printed slate.
+    """
+    research_dir = WORKSPACE / "memory" / "npc-research"
+    if not research_dir.exists():
+        return ""
+
+    today  = date.today()
+    cutoff = today - timedelta(days=1)  # today and yesterday
+
+    fresh = []
+    for f in sorted(research_dir.glob("*.md"), reverse=True):
+        date_m = re.search(r'(\d{4}-\d{2}-\d{2})\.md$', f.name)
+        if not date_m:
+            continue
+        try:
+            file_date = datetime.strptime(date_m.group(1), "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if file_date < cutoff:
+            continue
+        slug     = f.name[: f.name.rfind(f'-{date_m.group(1)}')]
+        npc_name = slug.replace('-', ' ').title()
+        label    = "today" if file_date == today else "yesterday"
+        fresh.append(f"{npc_name} ({label})")
+
+    return " · ".join(fresh) if fresh else ""
 
 
 # ── Layer 5: PLAYER ────────────────────────────────────────────────────────────
@@ -445,12 +548,18 @@ def build_slate(player_name: str) -> dict:
         "CAST":     layer_who(),
         "FEEL":     layer_feel(),
         "STORY":    layer_story(),
-        "NOTHING":  layer_nothing(),
+        "TALISMAN": layer_talisman(),
+        "NOTHING":  layer_nothing(player_name),
+        "RESEARCH": layer_research(),        # empty string when no fresh notes
         "PLAYER":   layer_player(player_name),
         "SCHEDULE": layer_schedule(),
         "DREAM":    layer_dream(),
         "SUPPRESS": layer_suppress(player_name),
     }
+
+
+_SLATE_KEYS = ("CAST", "FEEL", "STORY", "TALISMAN", "NOTHING", "RESEARCH",
+               "PLAYER", "SCHEDULE", "DREAM", "SUPPRESS")
 
 
 def print_slate(player_name: str, slate_only: bool = False):
@@ -459,8 +568,10 @@ def print_slate(player_name: str, slate_only: bool = False):
     if not slate_only:
         print("\n--- DIRECTOR'S SLATE ---")
 
-    for key in ("CAST", "FEEL", "STORY", "NOTHING", "PLAYER", "SCHEDULE", "DREAM", "SUPPRESS"):
-        print(f"{key}: {slate[key]}")
+    for key in _SLATE_KEYS:
+        val = slate.get(key, "")
+        if val:                          # RESEARCH only prints when fresh notes exist
+            print(f"{key}: {val}")
 
     if not slate_only:
         ts = datetime.now().strftime("%H:%M")
@@ -492,7 +603,9 @@ def main():
             "1": ("WHO",      lambda: layer_who()),
             "2": ("FEEL",     lambda: layer_feel()),
             "3": ("STORY",    lambda: layer_story()),
-            "4": ("NOTHING",  lambda: layer_nothing()),
+            "T": ("TALISMAN", lambda: layer_talisman()),
+            "4": ("NOTHING",  lambda: layer_nothing(player_name)),
+            "R": ("RESEARCH", lambda: layer_research()),
             "5": ("PLAYER",   lambda: layer_player(player_name)),
             "6": ("SCHEDULE", lambda: layer_schedule()),
             "7": ("DREAM",    lambda: layer_dream()),
@@ -503,7 +616,7 @@ def main():
             print(f"\n[Layer {debug_layer}: {name}]")
             print(fn())
         else:
-            print(f"Unknown layer '{debug_layer}'. Valid: 1–7, S")
+            print(f"Unknown layer '{debug_layer}'. Valid: 1–7, T, R, S")
         return
 
     print_slate(player_name, slate_only=slate_only)

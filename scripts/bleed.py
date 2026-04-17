@@ -94,12 +94,21 @@ def get_sparky_shiny(date_str: str) -> str:
     shinies_dir = WORKSPACE_DIR / "sparky" / "shinies"
     if not shinies_dir.exists():
         return ""
-    matches = list(shinies_dir.glob(f"{date_str}*.md"))
+        
+    # Sort descending so matches[0] is always the MOST RECENT run for today
+    matches = sorted(shinies_dir.glob(f"{date_str}*.md"), reverse=True)
     if not matches:
         return ""
+        
     text = matches[0].read_text()
     # Strip H1 header line
-    return re.sub(r'^# .+\n', '', text).strip()
+    clean_text = re.sub(r'^# .+\n', '', text).strip()
+    
+    # If the LLM hallucinated a literal bullet or output the literal fallback instruction, clear it
+    if clean_text in ("*", ".", "•", "-", "(a sleeping dot)", '"(a sleeping dot)"', "'(a sleeping dot)'"):
+        return ""
+        
+    return clean_text
 
 
 def get_player_data(cfg: dict) -> dict:
@@ -236,6 +245,73 @@ def get_entity_standings() -> str:
         entities.append((name, etype.strip(), int(belief)))
     entities.sort(key=lambda x: -x[2])
     return "\n".join(f"- {n} ({t}): Belief {b}" for n, t, b in entities[:10])
+
+
+def get_leading_talisman() -> dict:
+    """Find which chapter talisman currently leads in belief."""
+    content = read_file_safe(WORKSPACE_DIR / "lore" / "world-register.md")
+    parts = content.split("## Chapter Talismans")
+    if len(parts) < 2:
+        return {}
+    section = parts[1].split("\n## ")[0]
+
+    row_re = re.compile(
+        r'^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|',
+        re.MULTILINE
+    )
+    talismans = []
+    for m in row_re.finditer(section):
+        name = m.group(1).strip()
+        if name.lower() in ("talisman", "---", "", "chapter"):
+            continue
+        chapter = m.group(2).strip()
+        try:
+            belief = int(m.group(3))
+        except ValueError:
+            continue
+        philosophy = m.group(4).strip()
+        talismans.append({
+            "name": name,
+            "chapter": chapter,
+            "belief": belief,
+            "philosophy": philosophy,
+        })
+
+    if not talismans:
+        return {}
+    return max(talismans, key=lambda x: x["belief"])
+
+
+def get_chapter_npcs(chapter_name: str) -> str:
+    """Return a brief list of known NPCs affiliated with the given chapter from world-register."""
+    content = read_file_safe(WORKSPACE_DIR / "lore" / "world-register.md")
+    row_re = re.compile(
+        r'^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|',
+        re.MULTILINE
+    )
+    chapter_lower = chapter_name.lower()
+    results = []
+    for m in row_re.finditer(content):
+        name = m.group(1).strip()
+        etype = m.group(2).strip().upper()
+        notes = m.group(4).strip()
+        if name.lower() in ("entity", "talisman", "name", "---", ""):
+            continue
+        if etype not in ("NPC", "CHARACTER"):
+            continue
+        if chapter_lower not in notes.lower():
+            continue
+        try:
+            belief = int(m.group(3))
+        except ValueError:
+            belief = 0
+        # Pull a short descriptor from notes (skip thread tags)
+        clean_notes = re.sub(r'\[thread:[^\]]+\]', '', notes).strip().strip(';').strip()
+        desc = clean_notes[:80] if clean_notes else ""
+        results.append(f"- {name} (Belief {belief}): {desc}")
+
+    results.sort(key=lambda x: -int(re.search(r'Belief (\d+)', x).group(1)) if re.search(r'Belief (\d+)', x) else 0)
+    return "\n".join(results[:8]) if results else "(no chapter NPCs found)"
 
 
 # Control tier name from score
@@ -398,6 +474,80 @@ def format_war_data(war: dict) -> str:
     return "\n".join(lines)
 
 
+def get_fuel_data(days: int = 10) -> str:
+    """Read the fuel log and return a summarized view for the past N days."""
+    log_path = WORKSPACE_DIR / "scripts" / "fuel-log.txt"
+    if not log_path.exists():
+        return "(no fuel log found)"
+
+    from datetime import timedelta
+    cutoff = date.today() - timedelta(days=days)
+
+    entries = []
+    for line in log_path.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("|")
+        if len(parts) < 5:
+            continue
+        try:
+            entry_date = date.fromisoformat(parts[0])
+        except ValueError:
+            continue
+        if entry_date < cutoff:
+            continue
+        entries.append({
+            "date":        parts[0],
+            "time":        parts[1],
+            "description": parts[2],
+            "calories":    int(parts[3]) if parts[3].isdigit() else 0,
+            "protein":     int(parts[4]) if parts[4].isdigit() else 0,
+        })
+
+    if not entries:
+        return "(no fuel data in the past 10 days)"
+
+    # Daily totals
+    daily: dict = {}
+    for e in entries:
+        d = e["date"]
+        if d not in daily:
+            daily[d] = {"calories": 0, "protein": 0, "items": []}
+        daily[d]["calories"] += e["calories"]
+        daily[d]["protein"]  += e["protein"]
+        daily[d]["items"].append(e["description"])
+
+    lines = ["RECENT FUEL LOG (last 10 days):"]
+    for d in sorted(daily.keys()):
+        items_str = " / ".join(daily[d]["items"])
+        lines.append(
+            f"  {d}: {daily[d]['calories']} cal, {daily[d]['protein']}g protein"
+            f"  — {items_str}"
+        )
+
+    # Simple pattern notes
+    all_descriptions = " | ".join(e["description"].lower() for e in entries)
+    patterns = []
+    if all_descriptions.count("coffee") >= 3:
+        coffee_count = sum(e["description"].lower().count("coffee") for e in entries)
+        patterns.append(f"coffee appears {coffee_count} times across entries")
+    if all_descriptions.count("bacon egg") >= 2 or all_descriptions.count("english muffin") >= 2:
+        patterns.append("bacon egg and cheese english muffin is a recurring morning anchor")
+    if any(b in all_descriptions for b in ("bud light", "modelo", "beer", "lager")):
+        patterns.append("beer present on multiple days, typically evening")
+    if all_descriptions.count("pizza") >= 1:
+        patterns.append("pizza logged recently")
+
+    avg_cal = sum(d["calories"] for d in daily.values()) // max(len(daily), 1)
+    avg_pro = sum(d["protein"] for d in daily.values()) // max(len(daily), 1)
+    lines.append(f"AVERAGES (logged days only): {avg_cal} cal/day, {avg_pro}g protein/day")
+    if patterns:
+        lines.append("PATTERNS: " + "; ".join(patterns))
+
+    return "\n".join(lines)
+
+
 def get_player_recap_data(cfg: dict) -> str:
     """Extract player story log, active quests, and status for the player correspondent section."""
     player = cfg.get("ENCHANTIFY_DEFAULT_PLAYER", "bj")
@@ -523,6 +673,15 @@ PLAYER STORY DATA (for The Correspondent section):
 CHAPTER WAR DATA (for The War Report section):
 {data['war_data']}
 
+LEADING CHAPTER TALISMAN (for The Ascendant column):
+{data['talisman_data']}
+
+CHAPTER NPCs AVAILABLE FOR INTERVIEW:
+{data['talisman_npcs']}
+
+FUEL LOG (for The Provisions Log column):
+{data['fuel_data']}
+
 ENVIRONMENTAL (heartbeat):
 {data['pulse']}
 
@@ -584,6 +743,26 @@ MARKET ODDS DATA (pre-calculated from entity belief and thread phase):
 Sleep/HRV = student vitality index. Weather = atmospheric pressure. 4-6 short lines,
 formatted like a weather/conditions report. Brief is correct here.]
 
+===FUEL===
+[The Provisions Log — a compact recurring column in The Bleed's dry academic voice.
+Written as if the Academy's anonymous Provisions Correspondent is filing a professional
+report on what the student correspondent has been consuming.
+
+Use the FUEL LOG data provided. Translate real food into Academy texture — not literally
+(don't mention calories), but as narrative material: what the pattern suggests about the
+student's state, their habits, their relationship to comfort and routine.
+
+Structure:
+- 2-3 sentences observing the recent pattern. Specific. Deadpan. Name the recurring items.
+  ("The correspondent has logged the same morning assembly on four consecutive days...")
+- 1-2 sentences of dry editorial opinion or mild advice, in the voice of someone who has
+  strong feelings about what serious students eat. Not preachy — professional. Wry.
+- 1 closing sentence: a brief prognosis for narrative stamina this week, based on what
+  they've been putting in.
+
+Tone: the wine critic of student dining. Precise, slightly arch, genuinely observant.
+Brief is correct here — this is a sidebar, not a feature.]
+
 ===EXCHANGE===
 [The Belief Exchange ticker. List ALL significant entities with Belief scores as prices.
 Mark trend: ↑ rising / ↓ falling / — steady. One paragraph of market commentary below
@@ -635,7 +814,38 @@ War Forecast paragraph: Which chapter is most likely to flip which app in the co
   Which apps are stable? What would shift the balance? End with an overall momentum read:
   who has the initiative right now, and why.
 
-Do NOT fabricate scores. Use the data provided exactly.]"""
+Do NOT fabricate scores. Use the data provided exactly.]
+
+===TALISMAN===
+[The Ascendant — a column published in the voice of whichever Chapter Talisman currently leads
+in Belief. This column runs daily under the leading talisman's name. It changes hands only when
+a new talisman surpasses it. Today's ascendant is given in the LEADING CHAPTER TALISMAN data.
+
+Write this column IN THE VOICE OF THE TALISMAN ITSELF — not a professor, not a student, but the
+talisman as a living philosophical presence. It has the most Belief in the Academy. It sets the
+ambient tone. It knows this.
+
+The column has three parts:
+
+1. EDITORIAL (2–3 paragraphs): The talisman's philosophy applied to current events.
+   Draw from today's thread states, war data, and Academy atmosphere. Be specific — name threads,
+   name conditions, name what the talisman finds significant about this particular day.
+   The talisman is never strident. It is certain. It does not argue — it observes, with the
+   confidence of something that has already won more than once.
+
+2. INTERVIEW (4–6 exchanges): A brief Q&A between the talisman and one named NPC from its chapter.
+   Use the CHAPTER NPCs list provided. Choose the most interesting one for this day's content.
+   The talisman asks incisive questions. The NPC answers in character — they believe.
+   Format as:
+   [Talisman Name]: question
+   [NPC Name]: answer
+   Keep each exchange 1–3 sentences.
+
+3. DECLARATION (1 sentence): What this talisman intends for the narrative this week.
+   Brief, precise, slightly ominous. This is not a threat — it is a statement of direction.
+
+Column header: "The Ascendant: [Talisman Name]" with subhead: "[Chapter] — [Belief] Belief"
+Tone: measured, self-certain, philosophical. This talisman does not perform. It simply is.]"""
 
     raw = call_agent(prompt)
     return parse_sections(raw)
@@ -741,6 +951,7 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     gossip      = sections.get("GOSSIP", "")
     feature     = sections.get("FEATURE", "")
     barometer   = sections.get("BAROMETER", "")
+    fuel        = sections.get("FUEL", "")
     exchange    = sections.get("EXCHANGE", "")
     timetable   = build_timetable_html()
     classifieds = sections.get("CLASSIFIEDS", "")
@@ -751,6 +962,7 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     missing     = sections.get("MISSING", "")
     player_box  = sections.get("PLAYER", "")
     war_report  = sections.get("WARREPORT", "")
+    talisman    = sections.get("TALISMAN", "")
 
     date_obj  = datetime.strptime(meta["date_str"], "%Y-%m-%d")
     date_long = date_obj.strftime("%A, %B %-d, %Y")
@@ -1050,6 +1262,25 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     font-style: italic;
   }}
 
+  /* ── ASCENDANT TALISMAN ── */
+  .row-talisman {{
+    grid-template-columns: 1fr;
+    border-bottom: 1.5px solid #111;
+    margin-bottom: 8pt;
+  }}
+
+  .talisman-body {{
+    font-size: 9.5pt;
+    line-height: 1.7;
+    column-count: 2;
+    column-gap: 18pt;
+    column-rule: 1px solid #ccc;
+  }}
+
+  .talisman-body p {{
+    margin-bottom: 0.65em;
+  }}
+
   @media print {{
     body {{ background: white; }}
     .page {{ margin: 0; box-shadow: none; padding: 0.4in; }}
@@ -1091,6 +1322,7 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
         <div class="col-head">The Barometer</div>
         <div class="rail-body">{paragraphs(barometer)}</div>
       </div>
+      {'<div class="rail-section"><div class="col-head">The Provisions Log</div><div class="rail-body" style="font-size:8.5pt; line-height:1.6; font-style:italic;">' + paragraphs(fuel) + '</div></div>' if fuel else ''}
       <div class="rail-section">
         <div class="col-head">The Exchange</div>
         <div class="rail-body">{paragraphs(exchange)}</div>
@@ -1117,6 +1349,9 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     </div>
 
   </div>
+
+  <!-- ROW 2b: The Ascendant — leading chapter talisman column -->
+  {'<div class="content-row row-talisman"><div class="col" style="padding-right:0;"><div class="col-head">The Ascendant &mdash; ' + (meta.get("talisman_name","") or "Chapter Talisman") + '</div><div class="talisman-body">' + paragraphs(talisman) + '</div></div></div>' if talisman else ''}
 
   <!-- ROW 3: Weather | Story Forecast | Predictions Market -->
   <div class="content-row row-forecasts">
@@ -1218,6 +1453,10 @@ def build_telegram_text(sections: dict, sparky: str, meta: dict) -> str:
     if barometer:
         parts += [f"<b>Barometer</b>", esc(barometer), ""]
 
+    fuel_col = sections.get("FUEL", "")
+    if fuel_col:
+        parts += [f"<b>The Provisions Log</b>", f"<i>{esc(fuel_col)}</i>", ""]
+
     exchange = sections.get("EXCHANGE", "")
     if exchange:
         parts += [f"<b>The Exchange</b>", esc(exchange), ""]
@@ -1229,6 +1468,12 @@ def build_telegram_text(sections: dict, sparky: str, meta: dict) -> str:
     war_report = sections.get("WARREPORT", "")
     if war_report:
         parts += [f"<b>Chapter War Report</b>", esc(war_report[:600] + ("…" if len(war_report) > 600 else "")), ""]
+
+    talisman_col = sections.get("TALISMAN", "")
+    if talisman_col:
+        talisman_label = meta.get("talisman_name", "Chapter Talisman")
+        parts += [f"<b>The Ascendant — {esc(talisman_label)}</b>",
+                  esc(talisman_col[:700] + ("…" if len(talisman_col) > 700 else "")), ""]
 
     if _SCHEDULE_AVAILABLE:
         sched = get_schedule_data()
@@ -1280,19 +1525,17 @@ def send_telegram(text: str, cfg: dict):
     if len(text) > 4000:
         text = text[:3990] + "\n…"
 
-    result = subprocess.run(
-        ["openclaw", "message", "send",
+    result = subprocess.run(["openclaw", "message", "send",
          "--target",  _TELEGRAM_TARGET,
          "--channel", _TELEGRAM_CHANNEL,
          "--account", _TELEGRAM_ACCOUNT,
-         text],
+         "-m", text],   # <--- Notice the "-m" added here
         capture_output=True, text=True
     )
     if result.returncode == 0:
         print("  ✓ Telegram edition sent.")
     else:
         print(f"  ⚠ Telegram send failed: {result.stderr.strip()[:100]}")
-
 
 # ── CUPS print ────────────────────────────────────────────────────────────────
 
@@ -1382,6 +1625,9 @@ def main():
     market_odds      = calculate_market_odds()
     war_info         = parse_app_register_for_bleed()
     player_recap     = get_player_recap_data(cfg)
+    leading_talisman = get_leading_talisman()
+    fuel_data        = get_fuel_data()
+    talisman_npcs    = get_chapter_npcs(leading_talisman.get("chapter", "")) if leading_talisman else ""
 
     # Format market odds for prompt injection
     market_odds_formatted = "\n".join(
@@ -1390,6 +1636,18 @@ def main():
         + (f"  Next beat: {o['beat']}" if o['beat'] else "")
         for o in market_odds
     ) or "(no thread data available)"
+
+    # Format talisman data block for prompt
+    if leading_talisman:
+        philosophy_clean = re.sub(r'\[thread:[^\]]+\]\s*', '', leading_talisman['philosophy']).strip()
+        talisman_data_str = (
+            f"Name: {leading_talisman['name']}\n"
+            f"Chapter: {leading_talisman['chapter']}\n"
+            f"Belief: {leading_talisman['belief']} (leads all chapter talismans)\n"
+            f"Philosophy: {philosophy_clean}"
+        )
+    else:
+        talisman_data_str = "(no talisman data available)"
 
     data = {
         "date_str":              date_str,
@@ -1404,6 +1662,9 @@ def main():
         "market_odds_formatted": market_odds_formatted,
         "war_data":              format_war_data(war_info),
         "player_recap":          player_recap,
+        "talisman_data":         talisman_data_str,
+        "talisman_npcs":         talisman_npcs or "(no chapter NPCs found)",
+        "fuel_data":             fuel_data,
     }
 
     # ── Generate content ─────────────────────────────────────────────────────
@@ -1416,9 +1677,10 @@ def main():
 
     # ── Build HTML ───────────────────────────────────────────────────────────
     meta = {
-        "date_str":     date_str,
-        "issue_number": issue_number,
-        "belief":       player_data.get("belief", "?"),
+        "date_str":       date_str,
+        "issue_number":   issue_number,
+        "belief":         player_data.get("belief", "?"),
+        "talisman_name":  leading_talisman.get("name", "") if leading_talisman else "",
     }
     html = build_html(sections, sparky, meta)
 

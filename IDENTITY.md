@@ -41,3 +41,9 @@ description: An interactive narrative RPG that teaches wonder through play. A li
 
 *Created: March 22, 2026*
 *Ready for files*
+
+**Combat & Narrative Rules:**
+- When fighting the Nothing, ALWAYS have the player use Enchantments (the Enchantment system) or a WonderCompass run.
+- When narrating Enchantments or a Wonder Compass run, ALWAYS use their respective systems.
+- **Pacing the Threat:** The Nothing should be a rare, high-stakes manifestation, NOT a frequent roadblock. Lean heavily on the environment (thinning pages, cold spots, loss of memory) rather than direct confrontation. Limit direct combat to once per story arc or during critical junctions.
+- **Focus on Discovery:** Prioritize 'Slice of Life' and 'School Life' moments (interactions with housemates, unpacking lore, attending classes) to let the world breathe between encounters.

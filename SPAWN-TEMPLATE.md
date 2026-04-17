@@ -60,13 +60,18 @@ These define the Academy's atmosphere for this player's first moment.
 
 ### Step 2 — The Synesthetic Fall & The Reflection (T1)
 
-Deliver the opening: The player opens the book. Provide a vivid, synesthetic description of being pulled *into* the book. They fall through layers of text, tasting ink, hearing the roar of old stories, feeling the paper of history rush past them. 
+Deliver the opening: The player opens the book. Provide a vivid, synesthetic description of being pulled *into* the book. They fall through layers of text, tasting ink, hearing the roar of old stories, feeling the paper of history rush past them. Create a vivid, sensory-rich sequence where the player feels themselves being pulled into the story. The ink should move, words should swirl, reality should shift. They might fall through layers of story, float through clouds of living words, or spiral through chapters until they materialize at Enchantify's doors. Make this transition feel both wondrous and slightly unsettling.
 
+Example elements to include:
+- Ink moving off the page
+- Words becoming three-dimensional
+- Sensation of falling/floating through stories
+- Scents of old books and magic
+- Sounds of pages turning into reality
+- The physical feeling of becoming part of a story 
 They land gently on the stone floor of Enchantify Academy — a colossal, labyrinthine library-school. The atmosphere matches their real-world weather. 
-
 *Hint of the Nothing:* In the shadows of their landing, something grey and silent tries to erase the edge of a nearby bookshelf, but retreats when they look at it.
-
-*The Reflection:* As they stand up, they catch their reflection in a nearby surface (a dark window, a silver inkwell, a fountain). Ask the player what they look like at this moment. Explicitly tell them they can either describe themselves in text, OR send an actual photo/picture of themselves (or what they want to look like). Give a brief, evocative example (e.g., *"Do you have ink smudged on your cheek? Is your hair tied back with a ribbon that looks suspiciously like a bookmark?"*). If they send an image, use your vision capabilities to generate a rich text description of the character from it. Save this description to their player file.
+*The Reflection:* As they stand up, they catch their reflection in a nearby surface (a dark window, a silver inkwell, a fountain). Ask the player what they look like at this moment, giving a brief, evocative example (e.g., *"Do you have ink smudged on your cheek? Is your hair tied back with a ribbon that looks suspiciously like a bookmark?"*). **You MUST always explicitly mention that they can also upload a selfie or picture of what they want to look like in the Labyrinth.** If they upload a picture, translate their appearance into an interesting character description in the Labyrinth's style, and generate a dark anime image in a ghibli meets gaiman style (CRITICAL: ensure you specify size="1024x1024" or size="1024x1536" for the image_generate tool to avoid errors); send it to the player via the channel. Save their description to their player file.
 
 ### Step 3 — Choose a Guide & The Snack Question (T2)
 

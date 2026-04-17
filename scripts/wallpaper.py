@@ -465,7 +465,7 @@ def generate_via_agent(prompt: str, size: str = "1792x1024"):
 
     result = subprocess.run(
         ["openclaw", "agent", "--local", "--agent", "enchantify", "-m", msg],
-        capture_output=True, text=True, timeout=180
+        capture_output=True, text=True, timeout=600
     )
 
     output = result.stdout.strip()

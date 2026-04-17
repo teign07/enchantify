@@ -105,7 +105,7 @@
 
 ## Library & Staff
 
-- **Archibald Evergreen (Head Librarian):** `bm_v0lewis` — Venerable, vast, close to the Labyrinth's timbre but distinct. The v0 variant gives him his own shelf.
+- **Archibald Evergreen (Head Librarian):** `bm_v0lewis(2)+bm_george(1)` — Venerable, vast, a chorus of ancient scholars. The blend gives him his own shelf.
 - **Evelyn Riad (Researcher):** `af_kore` — Dedicated, uncovering clues in the digital deep.
 - **Quentin Pagester (they/them, Archivist):** `bm_fable(1)+af_aoede(1)` — Meticulous, precise. An equal blend for a non-binary archivist — Fable's storytelling warmth merged with Aoede's clarity.
 
@@ -185,7 +185,7 @@
 | `bm_george` | Lysander Mosswood |
 | `bm_lewis` | The Labyrinth |
 | `bm_v0george` | Octavius "Ode" Quillenchant |
-| `bm_v0lewis` | Archibald Evergreen / Prof. Maxwell Thorne |
+| `bm_v0lewis` | Prof. Maxwell Thorne |
 
 ### Blend Assignments (25 characters with unique blends)
 Each blend creates a voice that exists nowhere else in the Academy.
