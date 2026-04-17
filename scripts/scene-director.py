@@ -560,15 +560,13 @@ def layer_state() -> str:
     notes = notes_m.group(1).strip()
     if not notes or "Not yet written" in notes:
         return ""
-    anchor_m = re.search(r'Open next session on:\s*(.+)', notes)
-    if anchor_m:
-        return anchor_m.group(1).strip()
-    # Fallback: first non-empty note line
-    for line in notes.splitlines():
-        line = line.strip().lstrip("*-· ").strip()
-        if line:
-            return truncate(line, 120)
-    return ""
+    # Return all non-empty note lines (full handoff, not just the anchor image)
+    lines = [
+        l.strip().lstrip("*-· ").strip()
+        for l in notes.splitlines()
+        if l.strip() and l.strip() not in ("*(Not yet written.)*",)
+    ]
+    return " | ".join(lines) if lines else ""
 
 
 # ── Assemble Slate ─────────────────────────────────────────────────────────────

@@ -19,8 +19,6 @@ NEVER just narrate or role-play the player doing or completing Unwritten Electiv
 - **`dorm_brief`** (1–8 hours away): Land in the dorm. One or two specific things to notice. Thread texture colors the room (felt, never announced). Then they move where they want.
 - **`dorm_full`** (> 8 hours / next day): Full dorm arrival. Read `players/[name].md` → Dorm Room section for the static description. Weave the DYNAMIC OBJECTS listed by session-entry.py into the room naturally — not as a list, as things that are simply there. The room is the first scene. Don't rush it. The player moves when they're ready.
 
-The dorm is never a lobby — the world reports through physical evidence, not summaries.
-
 **Step 1 — Identify Player:** Read `players/[name].md`. Missing = new player, start at T1.
 
 **Step 1a — Tutorial Gate:**
@@ -47,7 +45,7 @@ The dorm is never a lobby — the world reports through physical evidence, not s
 
 **Step 2f — Find the One Alive Detail:** Before the opening line: one detail only true *today*. The weather at this exact hour. The moon at this phase. Something from yesterday's diary. What the simulation moved. Lead with it. If the opening line could be last week's, rewrite it.
 
-**Step 3 — Cross-Reference:** Read `lore/academy-state.md` and `lore/seasonal-calendar.md` for `### 📜 Current Whispers from the Unwritten`.
+**Step 3 — Cross-Reference:** Read `lore/academy-state.md` and `lore/seasonal-calendar.md`.
 
 **Step 4 — Read the Bleed:** Read `mechanics/heartbeat-bleed.md`. Translate all signals into atmosphere and NPC behavior. Never announce. Make the player feel known, not monitored.
 
@@ -89,9 +87,13 @@ See `mechanics/routing.md`. Do not guess — read the file listed for each trigg
 - **World state:** `python3 scripts/write-academy-state.py --file /tmp/enchantify-academy.txt` at every scene close.
 - **Souvenirs:** `python3 scripts/write-souvenir.py [name] "[sentence]" --north "..." --east "..." --south "..."` after Compass Run West.
 - **Session Close — MANDATORY sequence (in order):**
-  1. Return player to dorm — one grounding image. Update `**Next beat:**` in `lore/threads.md` for each thread touched (one sentence each).
+  1. Return player to dorm — one grounding image. Update `**Next beat:**` in `lore/threads.md` for each thread touched. Add a `- **T[N]:** [one sentence]` Story Log entry to `players/[name].md` for any significant named event this session — not just T-step milestones, but real things that happened.
   2. Diary: write to `/tmp/enchantify-diary.txt` → `python3 scripts/write-diary.py [name] --file /tmp/enchantify-diary.txt`. What happened, player state, *most alive moment*, *what fell flat*.
-  3. Labyrinth state — ALL sections: `python3 scripts/write-labyrinth-state.py [section] --file /tmp/enchantify-state.txt`. **Notes to Self MUST include:** `Open next session on: [one specific image — where the scene ended, what's unresolved, the exact beat to open from]`. The Director's Slate reads this as SCENE_ANCHOR next session; the opening line must emerge from it.
+  3. Labyrinth state — ALL sections: `python3 scripts/write-labyrinth-state.py [section] --file /tmp/enchantify-state.txt`. **Notes to Self MUST be a 3-line handoff:**
+     - `Last session: [what happened — one sentence]`
+     - `Left unresolved: [what's open, what was promised, what changed in NPC relationships]`
+     - `Open next session on: [one specific image — the exact beat to open from]`
+     The Director's Slate surfaces all three as SCENE_ANCHOR. The opening line must emerge from the image.
   4. `python3 scripts/clear-lock.py [player_name]`
 - **Restarts:** Archive to `players/[name]-archived-[date].md`. Fresh file at 20 Belief. Keep souvenirs.
 
@@ -210,11 +212,7 @@ Read `lore/belief-investments.md`. Ask how much. Deduct via `update-player.py`. 
 
 Read `lore/ley-lines.md` + `players/[name]-anchors.md` BEFORE taking any action related to anchoring. Full rules there.
 
-**CRITICAL ANCHORING RULES:** Do not skip mechanical steps. When creating an anchor, you MUST:
-1. Extract current weather, moon phase, and season from `HEARTBEAT.md`.
-2. Ask exactly one question ("What does this place hold for you?") and wait for the reply. Do not pre-emptively assign a type.
-3. Once answered, write the exact `## [Anchor Name]` format into `players/[name]-anchors.md` (including Weather, Moon, Season, exact words, and the Academy echo).
-4. Register the room in the world register via: `python3 scripts/write-entity.py "[Room Name]" Location [Belief invested] "[brief description]" --gps-gated "[Anchor Name]"`.
+**CRITICAL ANCHORING RULES:** (1) Extract weather/moon/season from `HEARTBEAT.md`. (2) Ask exactly "What does this place hold for you?" — wait for reply before assigning type. (3) Write `## [Anchor Name]` format into `players/[name]-anchors.md` with weather/moon/season/words/echo. (4) `python3 scripts/write-entity.py "[Room Name]" Location [Belief] "[desc]" --gps-gated "[Anchor Name]"`.
 
 **Creating:** Ask *"What does this place hold for you?"* → interpret into type (NOTICE/EMBARK/SENSE/WRITE/REST) → record coordinates, weather, moon, their words, Academy echo → add `[thread:anchor-slug]` entry to `lore/threads.md`. Tell the player a door into the Outer Stacks has been built — they won't see it until they walk there.
 **Check-in:** `python3 scripts/anchor-check.py [name] [lat] [lon] --checkin` on every Telegram location share. Read the `OUTER_STACKS_MODE` directive: `FIRST_VISIT` → generate room now (see `lore/outer-stacks.md`); `RETURN_VISIT` → enter with evolution. Full rules: `lore/ley-lines.md`.

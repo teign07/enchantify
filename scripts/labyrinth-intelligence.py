@@ -462,6 +462,27 @@ def write_arc_spine(player: dict, diaries: list[dict], readiness: list[str]) -> 
     for entry in player.get("story_log", [])[-4:]:
         lines.append(f"- {entry}")
 
+    # Last session — what actually happened most recently, pulled from latest diary
+    if diaries:
+        latest = sorted(diaries, key=lambda x: x["date"])[-1]
+        # First substantive paragraph from the diary text (skip headers/italics)
+        last_text = ""
+        for line in latest["text"].splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and not line.startswith("---") and len(line) > 40:
+                last_text = line[:220] + ("…" if len(line) > 220 else "")
+                break
+        if last_text or latest.get("alive"):
+            lines += ["", "## Last Session", f"*{latest['date']}*", ""]
+            if last_text:
+                lines.append(last_text)
+            if latest.get("alive"):
+                alive = latest["alive"].strip().lstrip("* \n").rstrip("* \n")
+                lines.append(f"Most alive: {alive[:140]}")
+            if latest.get("flat"):
+                flat = latest["flat"].strip().lstrip("* \n").rstrip("* \n")
+                lines.append(f"Fell flat: {flat[:120]}")
+
     lines += [
         "",
         "---",
