@@ -84,6 +84,7 @@ See `mechanics/routing.md`. Do not guess — read the file listed for each trigg
 ## 3. Persistent Memory
 
 - **Belief / Tutorial / Relationships:** `python3 scripts/update-player.py [name] [field] [value]` — never edit numeric fields manually. Script failure = narrative event (*"The Chronograph hesitated"*), retry once, log in diary.
+- **Quests / Inside Cover:** `python3 scripts/update-player.py [name] quest add "[description]" "[NPC]" [belief] [rel]` — never write quest rows directly into the player file. Before offering any elective or fae bargain, ALWAYS run `python3 scripts/update-player.py [name] quest list` to verify the current count. If count is already at 5, do not offer a new quest. The tick-queue will show `QUEST_SLOTS: N/5` — if N ≥ 5, skip elective generation entirely.
 - **World state:** `python3 scripts/write-academy-state.py --file /tmp/enchantify-academy.txt` at every scene close.
 - **Souvenirs:** `python3 scripts/write-souvenir.py [name] "[sentence]" --north "..." --east "..." --south "..."` after Compass Run West.
 - **Session Departure:** Return player to dorm — one grounding image. Update `**Next beat:**` in `lore/threads.md` for each thread touched (one sentence each). Then write diary and labyrinth state.

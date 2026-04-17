@@ -210,7 +210,7 @@ def update_relationship(name: str, npc_name: str, delta_arg: str, note: str = ""
 
 # ─── Quest / Inside Cover ────────────────────────────────────────────────────
 
-QUEST_CAPACITY = 3
+QUEST_CAPACITY = 5
 COVER_PLACEHOLDER = "*(empty — the cover is clean)*"
 
 
@@ -240,17 +240,30 @@ def _parse_quests(content: str) -> list[dict]:
         if not line.startswith('|') or COVER_PLACEHOLDER in line:
             continue
         parts = [p.strip() for p in line.split('|')[1:-1]]
-        if len(parts) < 4 or not parts[0]:
+        if not parts or not parts[0]:
             continue
-        try:
+        # Standard format: | description | NPC | belief_reward | rel_reward |
+        if len(parts) >= 4:
+            try:
+                quests.append({
+                    'description': parts[0],
+                    'npc': parts[1],
+                    'belief': int(parts[2].strip('+')),
+                    'relationship': int(parts[3].strip('+')),
+                })
+                continue
+            except (ValueError, IndexError):
+                pass
+        # Legacy / manually-written format: | NPC | description | **ACTIVE** |
+        # Count it as an active quest even without numeric rewards
+        non_empty = [p for p in parts if p and '---|' not in p and p != '---']
+        if len(non_empty) >= 2:
             quests.append({
-                'description': parts[0],
-                'npc': parts[1],
-                'belief': int(parts[2].strip('+')),
-                'relationship': int(parts[3].strip('+')),
+                'description': non_empty[1] if len(non_empty) > 1 else non_empty[0],
+                'npc': non_empty[0],
+                'belief': 0,
+                'relationship': 0,
             })
-        except (ValueError, IndexError):
-            continue
     return quests
 
 

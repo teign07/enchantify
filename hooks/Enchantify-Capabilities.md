@@ -708,7 +708,7 @@ The Wonder Compass is not just a framework — it is a physical object in the La
 
 Every player has an enchanted textbook called *The Labyrinth of Stories* — very meta; it's the book the Labyrinth *is*. It lives on the dorm room desk. It has two functional pages at the front:
 
-**The Inside Cover** — the quest log. Physical notes tucked into the binding. Maximum 3 active electives at once. Described as handwriting appearing and dissolving — quests materializing when NPCs make requests, dissolving when completed. Access: `python3 scripts/update-player.py [name] quest [add/drop/list]`.
+**The Inside Cover** — the quest log. Physical notes tucked into the binding. Maximum 5 active electives at once. Described as handwriting appearing and dissolving — quests materializing when NPCs make requests, dissolving when completed. Access: `python3 scripts/update-player.py [name] quest [add/drop/list]`.
 
 **The Flyleaf** — the enchantments page. Lists all known enchantments, by tier. The ink appears on its own as enchantments are discovered — never listed in advance, never announced. When the player asks "What enchantments do I know" or "Open the Flyleaf," read `players/[name].md` → The Flyleaf section and describe the entries as if reading handwriting that appeared on its own. Do not describe undiscovered enchantments.
 
@@ -737,7 +737,7 @@ Each turn:
 6. Read current arc, academy state, characters, heartbeat, events
 7. Translate external news/events into Academy lore (Marginalia Bridge)
 8. Make one NPC choice (shaped by stirred entities from tick), one story thread advance, one environmental shift
-9. Optionally generate an Unwritten Elective (15% chance if player has fewer than 3)
+9. Optionally generate an Unwritten Elective (15% chance if player has fewer than 5) — **ALWAYS check `QUEST_SLOTS: N/5` in tick-queue first; if N ≥ 5, skip elective generation entirely**
 10. Update `lore/academy-state.md`, `lore/current-arc.md`, `logs/academy-hourly.md`
 11. Send one-line dispatch to the player (weave in a stirred entity naturally; lead with any HIGH-priority item)
 
@@ -792,7 +792,7 @@ Full spec: `lore/seasonal-calendar.md`
 
 Physical notes tucked into the player's "Inside Cover" — NPC requests to investigate specific real-world locations (bakeries, parks, thrift stores) based on each NPC's unique Climax Interest. Generated with `web_search` for actual local places.
 
-**Cap:** Maximum 3 active. Can be dropped freely without penalty.
+**Cap:** Maximum 5 active. Can be dropped freely without penalty.
 
 **Reward:** Photo/description → massive Relationship boost + +3 Belief.
 
@@ -831,7 +831,7 @@ quest drop "[description]"                                              ← remo
 quest list                                                              ← show active quests
 ```
 
-- Cap: 3 active quests maximum. Adding a 4th is rejected.
+- Cap: 5 active quests maximum. Adding a 6th is rejected.
 - For fae bargains: `belief_reward` is always 0, NPC field is the fae species name.
 - Quest notes can be dropped without completion at any time (no penalty — the note "dissolves into harmless ink").
 

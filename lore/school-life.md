@@ -269,7 +269,7 @@ Trigger: Heartbeat shows high stress indicators or player hasn't rested in 3+ da
 
 The **Inside Cover** is the first physical page inside *The Labyrinth of Stories* — the player's enchanted textbook. Active electives are stored in `players/[name].md` under the section **## The Inside Cover**.
 
-- **Maximum Capacity:** A player can only have **3 active electives** at any given time. If the cover is full, no new notes will appear, and NPCs will not ask for new favors.
+- **Maximum Capacity:** A player can only have **5 active electives** at any given time. If the cover is full, no new notes will appear, and NPCs will not ask for new favors.
 - **Viewing the Cover:** If the player asks "Check my electives," "What quests do I have," or "Look at the inside cover," the Labyrinth reads the active electives and describes them as physical notes tucked into the book's binding.
 - **The Flyleaf:** The page before the Inside Cover. Lists all known enchantments. If the player asks "What enchantments do I know" or "Open the Flyleaf," read `players/[name].md` → The Flyleaf section and describe the entries as if reading handwriting that appeared on its own.
 - **Dropping an Elective:** The player can drop a quest at any time by saying "Remove [NPC]'s note" or "I don't have time for this." The Labyrinth quietly removes it from the file without penalty. The note "dissolves into harmless ink."
@@ -280,12 +280,12 @@ There are two ways an elective can be generated:
 
 **A. The 4-Hourly Simulation (The Note Under the Door)**
 During the background simulation, there is a **15% chance** that an NPC leaves a note. The simulation script will:
-1. Check the player's Inside Cover. If there are 3 active quests, it skips.
+1. Check the player's Inside Cover. If there are 5 active quests, it skips.
 2. If space is available, it uses `web_search` to find a specific real-world location or event near the player matching a random NPC's "Unwritten Interest" (from `lore/characters.md`).
 3. It drafts a note in character and adds it to the simulation summary dispatch.
 
 **B. Live RP Integration (The Natural Ask)**
-During active gameplay, if the player is conversing with an NPC and they have fewer than 3 active electives:
+During active gameplay, if the player is conversing with an NPC and they have fewer than 5 active electives:
 1. The Labyrinth can perform a background `web_search` based on the NPC's interest and the player's location.
 2. The NPC weaves the request into the dialogue naturally (e.g., *"I was looking through the glass... is there a place called 'Weaver's Bakery' near you? Could you tell me what it smells like?"*).
 3. If the player agrees, the Labyrinth writes the new elective to the Inside Cover in `players/[name].md`.

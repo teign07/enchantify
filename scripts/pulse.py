@@ -614,12 +614,38 @@ def get_health():
                 HEALTH_DIR = os.path.join(HEALTH_DIR, subdirs[0])
 
     try:
-        files = [os.path.join(HEALTH_DIR, f) for f in os.listdir(HEALTH_DIR) if f.endswith('.json')]
-        if not files:
-            return "Watch data offline."
+        # ── Find the right subdir ────────────────────────────────────────────
+        # Health Auto Export may create multiple subdirs (e.g. "BJ", "AutoSync").
+        # Only one of them contains the dated JSON files. Pick whichever subdir
+        # has the most recent HealthAutoExport-*.json file — never rely on
+        # os.listdir() order, which is arbitrary and the root cause of the
+        # persistent "Watch data offline" bug.
+        if os.path.isdir(HEALTH_DIR):
+            subdirs = sorted(
+                [d for d in os.listdir(HEALTH_DIR)
+                 if os.path.isdir(os.path.join(HEALTH_DIR, d)) and not d.startswith('.')],
+            )
+            best_subdir = None
+            best_filename = ""
+            for sd in subdirs:
+                sd_path = os.path.join(HEALTH_DIR, sd)
+                json_files = sorted(
+                    [f for f in os.listdir(sd_path) if f.endswith('.json')],
+                    reverse=True,
+                )
+                if json_files and json_files[0] > best_filename:
+                    best_subdir = sd_path
+                    best_filename = json_files[0]
+            if best_subdir:
+                HEALTH_DIR = best_subdir
 
-        # Sort by filename (date-named), most recent first
-        files_sorted = sorted(files, key=lambda p: os.path.basename(p), reverse=True)
+        files = sorted(
+            [os.path.join(HEALTH_DIR, f) for f in os.listdir(HEALTH_DIR) if f.endswith('.json')],
+            key=lambda p: os.path.basename(p),
+            reverse=True,
+        )
+        if not files:
+            return f"Watch data offline. (no JSON files in {HEALTH_DIR})"
 
         def load_metrics(path):
             with open(path, 'r') as f:
@@ -639,12 +665,10 @@ def get_health():
             return len(meaningful) < 2
 
         # Try today's file; fall back to yesterday's if today is sparse
-        metrics = load_metrics(files_sorted[0])
-        used_file = files_sorted[0]
+        metrics = load_metrics(files[0])
         is_yesterday = False
-        if is_sparse(metrics) and len(files_sorted) > 1:
-            metrics = load_metrics(files_sorted[1])
-            used_file = files_sorted[1]
+        if is_sparse(metrics) and len(files) > 1:
+            metrics = load_metrics(files[1])
             is_yesterday = True
 
         def metric_total(name):
@@ -692,8 +716,16 @@ def get_health():
             result += " (yesterday)"
         return result
 
-    except Exception:
-        return "Watch data offline."
+    except Exception as e:
+        # Write the actual error to a log so "Watch data offline" can be diagnosed
+        try:
+            log_path = os.path.join(ENCHANTIFY_WORKSPACE, "logs", "health.log")
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            with open(log_path, "a") as lf:
+                lf.write(f"{datetime.now().isoformat()} ERROR in get_health(): {e}\n")
+        except Exception:
+            pass
+        return f"Watch data offline. (error logged to logs/health.log)"
 
 # — HEARTBEAT WRITER —
 

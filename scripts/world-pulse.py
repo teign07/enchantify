@@ -22,9 +22,10 @@ BASE_DIR    = Path(os.environ.get("ENCHANTIFY_BASE_DIR", Path(__file__).parent.p
 _SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 import world_context
-TICK_QUEUE = BASE_DIR / "memory" / "tick-queue.md"
-CACHE_PATH = BASE_DIR / "config" / "world-pulse-cache.json"
-SKILL_ID   = "world-pulse"
+TICK_QUEUE     = BASE_DIR / "memory" / "tick-queue.md"
+CACHE_PATH     = BASE_DIR / "config" / "world-pulse-cache.json"
+SKILL_ID       = "world-pulse"
+QUEST_CAPACITY = 5
 
 random.seed(datetime.now().isoformat())
 
@@ -242,6 +243,57 @@ def write_to_queue(events: list[dict], ctx: dict = None) -> None:
     print(f"[{SKILL_ID}] Wrote {len(events)} event(s) ({high_count} high-priority).")
 
 
+# ─── Quest count ─────────────────────────────────────────────────────────────
+
+def get_quest_count(player: str = "bj") -> int:
+    """Count active quests in the player's Inside Cover table."""
+    player_file = BASE_DIR / "players" / f"{player}.md"
+    if not player_file.exists():
+        return 0
+    content = player_file.read_text()
+    # Find the Inside Cover table header
+    header = re.search(
+        r'\| Quest \| NPC \| Belief \| Relationship \|\n\|[-| ]+\|\n',
+        content, re.MULTILINE
+    )
+    if not header:
+        return 0
+    body_start = header.end()
+    next_section = re.search(r'\n## ', content[body_start:])
+    body_end = body_start + next_section.start() if next_section else len(content)
+    table_body = content[body_start:body_end]
+    count = 0
+    for line in table_body.splitlines():
+        if not line.startswith('|'):
+            continue
+        if '---|' in line or '---' == line.strip('| '):
+            continue
+        parts = [p.strip() for p in line.split('|')[1:-1]]
+        non_empty = [p for p in parts if p and '*(empty' not in p]
+        if len(non_empty) >= 2:
+            count += 1
+    return count
+
+
+def write_quest_slots(player: str = "bj") -> None:
+    """Append QUEST_SLOTS directive to tick-queue so the simulation agent knows the cap."""
+    count = get_quest_count(player)
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    TICK_QUEUE.parent.mkdir(parents=True, exist_ok=True)
+    if not TICK_QUEUE.exists():
+        TICK_QUEUE.write_text(
+            "# Tick Queue\n\n"
+            "*Populated by skill-lore, tick.py, and world-pulse.py. Read at session open.*\n\n---\n"
+        )
+    with TICK_QUEUE.open("a") as f:
+        f.write(
+            f"\n## [quest-slots] {timestamp}\n"
+            f"QUEST_SLOTS: {count}/{QUEST_CAPACITY}"
+            + (" — cap reached; skip elective generation" if count >= QUEST_CAPACITY else "") + "\n"
+        )
+    print(f"[{SKILL_ID}] QUEST_SLOTS: {count}/{QUEST_CAPACITY}")
+
+
 # ─── Main ────────────────────────────────────────────────────────────────────
 
 def maybe_trigger_npc_research(pulse_count: int) -> None:
@@ -279,6 +331,7 @@ if __name__ == "__main__":
         events   = generate_events(entities, cache, ctx)
 
         write_to_queue(events, ctx)
+        write_quest_slots()
 
         cache["last_pulse"]  = datetime.now().isoformat()
         cache["pulse_count"] = cache.get("pulse_count", 0) + 1
