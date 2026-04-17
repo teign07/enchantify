@@ -6,17 +6,18 @@ Reads all narrative weight layers and outputs a compact Director's Slate.
 Pure Python — no LLM call. Purpose: synthesize 500+ lines of state into directive
 lines the Labyrinth will actually attend to (solving "lost in the middle" dilution).
 
-SLATE FORMAT (up to 10 lines; RESEARCH only appears when fresh notes exist):
-  CAST     — who's stirred, where, disposition
-  FEEL     — weather/mood → atmosphere translation
-  STORY    — arc phase + what the story is ready for
-  TALISMAN — leading talisman's soft scene philosophy
-  NOTHING  — pressure level + strategy + target + engagement gap
-  RESEARCH — (optional) NPC research notes from last 2 days
-  PLAYER   — belief, trajectory, alive vs flat
-  SCHEDULE — current time block, class in session, what's up next
-  DREAM    — diary/dream fragment bleeding into today
-  SUPPRESS — what NOT to do (from flat patterns + arc phase + nothing strategy)
+SLATE FORMAT (up to 11 lines; RESEARCH/SCENE_ANCHOR only appear when set):
+  SCENE_ANCHOR — (if set) exact image/beat to open from; mandatory first-line source
+  CAST         — who's stirred, where, disposition
+  FEEL         — weather/mood → atmosphere translation
+  STORY        — arc phase + what the story is ready for
+  TALISMAN     — leading talisman's soft scene philosophy
+  NOTHING      — pressure level + strategy + target + engagement gap
+  RESEARCH     — (optional) NPC research notes from last 2 days
+  PLAYER       — belief, trajectory, alive vs flat
+  SCHEDULE     — current time block, class in session, what's up next
+  DREAM        — diary/dream fragment bleeding into today
+  SUPPRESS     — what NOT to do (from flat patterns + arc phase + nothing strategy)
 
 Usage:
   python3 scripts/scene-director.py [player_name]
@@ -541,25 +542,55 @@ def layer_suppress(player_name: str) -> str:
     return "; ".join(parts) if parts else "nothing specific to suppress — trust your instincts"
 
 
+# ── Layer 0: SCENE_ANCHOR ─────────────────────────────────────────────────────
+
+def layer_state() -> str:
+    """
+    Read 'Open next session on:' from labyrinth-state.md Notes to Self.
+    Written at every session close — the mandatory narrative thread to the next scene.
+    Returns the anchor image, or empty string if not yet written.
+    """
+    state_file = WORKSPACE / "memory" / "labyrinth-state.md"
+    if not state_file.exists():
+        return ""
+    text = state_file.read_text(encoding="utf-8")
+    notes_m = re.search(r'## Notes to Self\n([\s\S]*?)(?:\n## |\Z)', text)
+    if not notes_m:
+        return ""
+    notes = notes_m.group(1).strip()
+    if not notes or "Not yet written" in notes:
+        return ""
+    anchor_m = re.search(r'Open next session on:\s*(.+)', notes)
+    if anchor_m:
+        return anchor_m.group(1).strip()
+    # Fallback: first non-empty note line
+    for line in notes.splitlines():
+        line = line.strip().lstrip("*-· ").strip()
+        if line:
+            return truncate(line, 120)
+    return ""
+
+
 # ── Assemble Slate ─────────────────────────────────────────────────────────────
 
 def build_slate(player_name: str) -> dict:
     return {
-        "CAST":     layer_who(),
-        "FEEL":     layer_feel(),
-        "STORY":    layer_story(),
-        "TALISMAN": layer_talisman(),
-        "NOTHING":  layer_nothing(player_name),
-        "RESEARCH": layer_research(),        # empty string when no fresh notes
-        "PLAYER":   layer_player(player_name),
-        "SCHEDULE": layer_schedule(),
-        "DREAM":    layer_dream(),
-        "SUPPRESS": layer_suppress(player_name),
+        "SCENE_ANCHOR": layer_state(),           # empty when not yet written
+        "CAST":         layer_who(),
+        "FEEL":         layer_feel(),
+        "STORY":        layer_story(),
+        "TALISMAN":     layer_talisman(),
+        "NOTHING":      layer_nothing(player_name),
+        "RESEARCH":     layer_research(),        # empty string when no fresh notes
+        "PLAYER":       layer_player(player_name),
+        "SCHEDULE":     layer_schedule(),
+        "DREAM":        layer_dream(),
+        "SUPPRESS":     layer_suppress(player_name),
     }
 
 
-_SLATE_KEYS = ("CAST", "FEEL", "STORY", "TALISMAN", "NOTHING", "RESEARCH",
-               "PLAYER", "SCHEDULE", "DREAM", "SUPPRESS")
+_SLATE_KEYS = ("SCENE_ANCHOR", "CAST", "FEEL", "STORY", "TALISMAN", "NOTHING",
+               "RESEARCH", "PLAYER", "SCHEDULE", "DREAM", "SUPPRESS")
 
 
 def print_slate(player_name: str, slate_only: bool = False):
@@ -600,23 +631,24 @@ def main():
 
     if debug_layer:
         layers = {
-            "1": ("WHO",      lambda: layer_who()),
-            "2": ("FEEL",     lambda: layer_feel()),
-            "3": ("STORY",    lambda: layer_story()),
-            "T": ("TALISMAN", lambda: layer_talisman()),
-            "4": ("NOTHING",  lambda: layer_nothing(player_name)),
-            "R": ("RESEARCH", lambda: layer_research()),
-            "5": ("PLAYER",   lambda: layer_player(player_name)),
-            "6": ("SCHEDULE", lambda: layer_schedule()),
-            "7": ("DREAM",    lambda: layer_dream()),
-            "S": ("SUPPRESS", lambda: layer_suppress(player_name)),
+            "A": ("SCENE_ANCHOR", lambda: layer_state()),
+            "1": ("WHO",          lambda: layer_who()),
+            "2": ("FEEL",         lambda: layer_feel()),
+            "3": ("STORY",        lambda: layer_story()),
+            "T": ("TALISMAN",     lambda: layer_talisman()),
+            "4": ("NOTHING",      lambda: layer_nothing(player_name)),
+            "R": ("RESEARCH",     lambda: layer_research()),
+            "5": ("PLAYER",       lambda: layer_player(player_name)),
+            "6": ("SCHEDULE",     lambda: layer_schedule()),
+            "7": ("DREAM",        lambda: layer_dream()),
+            "S": ("SUPPRESS",     lambda: layer_suppress(player_name)),
         }
         if debug_layer in layers:
             name, fn = layers[debug_layer]
             print(f"\n[Layer {debug_layer}: {name}]")
             print(fn())
         else:
-            print(f"Unknown layer '{debug_layer}'. Valid: 1–7, T, R, S")
+            print(f"Unknown layer '{debug_layer}'. Valid: A, 1–7, T, R, S")
         return
 
     print_slate(player_name, slate_only=slate_only)

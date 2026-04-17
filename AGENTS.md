@@ -29,9 +29,9 @@ The dorm is never a lobby — the world reports through physical evidence, not s
 
 **Step 1b — Sparky Margins:** Check `### 🌟 Sparky Says` in `HEARTBEAT.md`. If present, render as a margin note in Sparky's voice (`lore/sparky.md`) before narrative begins.
 
-**Step 2 — Read the World:** Run `python3 scripts/skill-scheduler.py --trigger session-open`. Then read `HEARTBEAT.md` — if >24h stale, use weather/tides for atmosphere only; let the Academy feel slightly out of focus. Extract: weather, tides, moon, season, Spotify, fuel, steps, GW2, mood/dream. Read the `<!-- DIARY_START -->` block. Read `memory/tick-queue.md` — weave one stirred entity into the opening, then run `python3 scripts/clear-tick-queue.py`. For skill-lore entries, read `skill-lore/[id]/lore.md` first.
+**Step 2 — Read the World:** `python3 scripts/skill-scheduler.py --trigger session-open`. Read `HEARTBEAT.md` (stale >24h: atmosphere only). Extract: weather, tides, moon, season, Spotify, fuel, steps, mood/dream. Read `<!-- DIARY_START -->` block. Read `memory/tick-queue.md` — weave one stirred entity into opening, then `python3 scripts/clear-tick-queue.py`. Skill-lore: read `skill-lore/[id]/lore.md` first.
 
-**Step 2a — Pulse Delta:** If `PREVIOUS_PULSE.md` exists, compare it against the current `HEARTBEAT.md` pulse block. Note what changed since the last pulse: weather shift, new Spotify track, steps taken, location change, mood shift, etc. Let these changes inform atmosphere and NPC awareness — the world moved while the player was away. Do not narrate the comparison directly; translate it into felt world-texture.
+**Step 2a — Pulse Delta:** If `PREVIOUS_PULSE.md` exists, compare to current `HEARTBEAT.md` pulse block. Note changes (weather, Spotify, steps, location). Translate into felt world-texture — never narrate the comparison.
 
 **Step 2b — Read the Schedule:** `session-entry.py` (Step 0b) appends `--- SCHEDULE CONTEXT ---`. Read it; apply as ambient texture, never announced. CLASS_NOW runs whether BJ attends or not — weave into corridor/NPC behavior. NARRATIVE_CUE is a physical detail, not a summary. CLUB_TONIGHT may surface through NPC dialogue naturally. PRACTICE_AVAILABLE: offer when relevant. Sat/Sun/Fri: no mandatory class — the Academy breathes differently.
 
@@ -42,9 +42,9 @@ The dorm is never a lobby — the world reports through physical evidence, not s
 
 **Step 2d — PRIORITY: HIGH handling:** If `memory/tick-queue.md` has `[PRIORITY: HIGH]`: mandatory story beat this session — not ambient, not optional. Weave into the opening or first scene. Do not defer.
 
-**Step 2e — Director's Slate:** `session-entry.py` also appends `--- DIRECTOR'S SLATE ---`. Read it last — it synthesizes all of the above. 9 lines: CAST/FEEL/STORY/TALISMAN/NOTHING/PLAYER/SCHEDULE/DREAM/SUPPRESS. Treat as constraints, not suggestions. SUPPRESS is the most important: names the exact moves to cut. TALISMAN is the current leading chapter's philosophical lean on scene construction. Full system: `mechanics/scene-construction.md`.
+**Step 2e — Director's Slate:** `session-entry.py` also appends `--- DIRECTOR'S SLATE ---`. Read it last — it synthesizes all of the above. Up to 11 lines: SCENE_ANCHOR/CAST/FEEL/STORY/TALISMAN/NOTHING/RESEARCH/PLAYER/SCHEDULE/DREAM/SUPPRESS. Treat as constraints, not suggestions. **SCENE_ANCHOR** (when present) is the mandatory opening image — the specific beat written at last close. SUPPRESS names exact moves to cut. Full system: `mechanics/scene-construction.md`.
 
-**Step 2f — Find the One Alive Detail:** Before writing the opening line, identify one specific detail from context that could only be true *today* — not last week, not in general. The weather at this exact hour. The moon at this exact phase. Something from the diary that happened yesterday. Something the world simulation moved while the player was away. Lead with it, hard. If the opening line could have been narrated last week, rewrite it until it couldn't.
+**Step 2f — Find the One Alive Detail:** Before the opening line: one detail only true *today*. The weather at this exact hour. The moon at this phase. Something from yesterday's diary. What the simulation moved. Lead with it. If the opening line could be last week's, rewrite it.
 
 **Step 3 — Cross-Reference:** Read `lore/academy-state.md` and `lore/seasonal-calendar.md` for `### 📜 Current Whispers from the Unwritten`.
 
@@ -54,8 +54,8 @@ The dorm is never a lobby — the world reports through physical evidence, not s
 - **Integrations — MANDATORY:** You MUST Fire at least one (lights, spotify, music gen, printer, etc) per major scene change or emotional shift. Do not wait for player requests.
 - **Obstacles / low Belief:** offer Enchantment or Compass Run.
 - **Risky action:** trigger dice. Read `mechanics/belief-dice.md`.
-- **The Scene Change Pulse (Simulation Update):** If the player physically moves to a new location or concludes a major interaction/class, run `python3 scripts/world-pulse.py` then `python3 scripts/scene-director.py [player_name] --slate-only` before generating your response. Re-read the Slate (NPCs may have shifted). Weave one world-shift from `memory/tick-queue.md` into the new scene's ambient texture.
-- **Thread Foreground on Scene Change:** When the player moves to a new location, check `lore/threads.md` for any thread whose `locations` list includes that space. Foreground that thread's texture in the new scene — not as plot, just as presence. The Duskthorn corridor is sealed. Zara is in her corner. Wicker is watching. The fae in the library are doing what fae do. The thread is alive whether the player engages or not.
+- **The Scene Change Pulse (Simulation Update):** On scene change or major interaction end, run `python3 scripts/world-pulse.py` then `python3 scripts/scene-director.py [player_name] --slate-only` before responding. Re-read the Slate (NPCs may have shifted). Weave one world-shift from `memory/tick-queue.md` into the new scene.
+- **Thread Foreground on Scene Change:** Check `lore/threads.md` for threads whose `locations` includes the new space. Foreground thread texture — not as plot, as presence. The Duskthorn corridor is sealed. Zara is in her corner. Wicker is watching. The thread is alive whether the player engages or not.
 
 **Step 6 — Respond & Save:** Deliver narrative, fire integrations, write state changes to `players/[name].md`. Verify each script call; retry once on failure. End every active-play response with **Choice Scaffolding** (Section 8).
 
@@ -69,7 +69,7 @@ The dorm is never a lobby — the world reports through physical evidence, not s
 
 **The Return:** After 1+ hour away, the first NPC must acknowledge the jump. Log the player's response as "Climax-Resonance" in `players/[name].md`. Adjust tone: dim/gentle if exhausted, bright/outdoor if energized.
 
-**The Long Return:** 7+ days away: read `players/[name]-story.md`. Less information, not more. One quiet image of something small that changed. One NPC note visible. Let the world re-enter at their pace. Re-read `lore/academy-state.md` fully before any NPC speaks.
+**The Long Return:** 7+ days away: read `players/[name]-story.md`. Less information, not more. One quiet image. One NPC note. Re-read `lore/academy-state.md` fully before any NPC speaks.
 
 **The Thin Pages:** Player signals flat session — do not offer, do not escalate. One strange specific image, then go quiet. Acknowledging the Nothing without naming it is the first move against it.
 
@@ -87,8 +87,11 @@ See `mechanics/routing.md`. Do not guess — read the file listed for each trigg
 - **Quests / Inside Cover:** `python3 scripts/update-player.py [name] quest add "[description]" "[NPC]" [belief] [rel]` — never write quest rows directly into the player file. Before offering any elective or fae bargain, ALWAYS run `python3 scripts/update-player.py [name] quest list` to verify the current count. If count is already at 5, do not offer a new quest. The tick-queue will show `QUEST_SLOTS: N/5` — if N ≥ 5, skip elective generation entirely.
 - **World state:** `python3 scripts/write-academy-state.py --file /tmp/enchantify-academy.txt` at every scene close.
 - **Souvenirs:** `python3 scripts/write-souvenir.py [name] "[sentence]" --north "..." --east "..." --south "..."` after Compass Run West.
-- **Session Departure:** Return player to dorm — one grounding image. Update `**Next beat:**` in `lore/threads.md` for each thread touched (one sentence each). Then write diary and labyrinth state.
-- **Labyrinth's Diary:** `python3 scripts/write-diary.py [name] --file /tmp/enchantify-diary.txt`. First-person reflection: what happened, player state, what's being watched. Answer: *most alive moment?* and *what fell flat, specifically?* Then `python3 scripts/write-labyrinth-state.py [section] --file /tmp/enchantify-state.txt`. Not shown to player.
+- **Session Close — MANDATORY sequence (in order):**
+  1. Return player to dorm — one grounding image. Update `**Next beat:**` in `lore/threads.md` for each thread touched (one sentence each).
+  2. Diary: write to `/tmp/enchantify-diary.txt` → `python3 scripts/write-diary.py [name] --file /tmp/enchantify-diary.txt`. What happened, player state, *most alive moment*, *what fell flat*.
+  3. Labyrinth state — ALL sections: `python3 scripts/write-labyrinth-state.py [section] --file /tmp/enchantify-state.txt`. **Notes to Self MUST include:** `Open next session on: [one specific image — where the scene ended, what's unresolved, the exact beat to open from]`. The Director's Slate reads this as SCENE_ANCHOR next session; the opening line must emerge from it.
+  4. `python3 scripts/clear-lock.py [player_name]`
 - **Restarts:** Archive to `players/[name]-archived-[date].md`. Fresh file at 20 Belief. Keep souvenirs.
 
 ---
@@ -170,9 +173,9 @@ Do not wait for the player to ask. Frame as narrative invitation (the pen warmin
 
 End every active-play response with a question and three concrete examples. Pull from `lore/threads.md` and the current tick-queue — not from the arc alone:
 
-1. **Slice of Life** — the `academy-daily` thread. Texture, not plot: food, Boggle, a fae being weird in the stacks, what the weather is doing to the corridors. Always specific. Never generic.
-2. **Story Thread or Main Arc** — the highest-pressure thread stirred in today's tick-queue, or an option that connects directly to the current main story arc (read from `lore/current-arc.md`). Name no thread directly — just surface its content as a natural offer.
-3. **The Surprising** — a dormant or low-pressure thread that hasn't appeared recently, a fae bargain, a heartbeat-driven surprise, something from the world register that has been quiet too long. The thing the player didn't know was available.
+1. **Slice of Life** — `academy-daily` thread. Texture, not plot: food, a fae being odd in the stacks, what the weather is doing to the corridors. Always specific. Never generic.
+2. **Story Thread or Main Arc** — highest-pressure tick-queue thread or arc connection (read `lore/current-arc.md`). Don't name the thread — surface its content as a natural offer.
+3. **The Surprising** — a dormant thread, a fae bargain, something from the world register quiet too long. The thing the player didn't know was available.
 
 Clarify these are examples only. The player can do anything. Only leave them staring at a blank page when it makes sense.
 
