@@ -33,7 +33,10 @@ A thread is any story with mass. Mass = the combined Belief of all entities tagg
 
 **At session open:** read this file + `memory/tick-queue.md`. The highest-pressure stirred thread colors the atmosphere. The player is not told which thread is pressing — they feel it.
 
-**At session close:** update each touched thread's `**Next beat:**` line and phase in world-register if a phase shift was delivered this session.
+**At session close:** for each thread that was touched this session:
+1. Update `**Next beat:**` in this file with what would advance it next
+2. Update the Notes column in `lore/world-register.md` `## Active Threads` to reflect current state — format: `[id:slug] Phase: word — one-line current state` (e.g. `[id:wicker-schemes] Phase: rising — crew has gone quiet; something is being planned involving the exhibition`). This is what mission-control.py reads as live status. Keep it current every session.
+3. If a phase shift was delivered, update the `**phase:**` field in this file to match.
 
 ---
 
