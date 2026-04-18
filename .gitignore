@@ -49,6 +49,8 @@ memory/labyrinth-state.md
 # ─── Logs (session-specific) ──────────────────────────────────────────────────
 logs/pulse.log
 logs/intelligence.log
+logs/reach-out.log
+config/reach-out-log.json
 logs/skill-scheduler.log
 logs/action-chronicle.md
 logs/academy-hourly.md
