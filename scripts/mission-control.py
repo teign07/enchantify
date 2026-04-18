@@ -772,6 +772,75 @@ def parse_cron_jobs() -> list[dict]:
             })
     except Exception:
         pass
+
+    # ── Supplement with system crontab entries for enchantify scripts ─────────
+    openclaw_names = {j["name"] for j in jobs}
+    _SCRIPT_LABELS = {
+        "pulse.py":               "World Pulse",
+        "reach-out.py":           "Character Outreach",
+        "bleed.py":               "The Bleed",
+        "sparky.py":              "Sparky Shinies",
+        "wallpaper.py":           "Daily Wallpaper",
+        "dream.py":               "Dream Weaver",
+        "schedule.py":            "Academy Schedule",
+        "arc-tick.py":            "Arc Tick",
+        "labyrinth-intelligence.py": "Labyrinth Intelligence",
+        "mission-control.py":     "Mission Control",
+    }
+    try:
+        ct = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=5)
+        for line in ct.stdout.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or line.startswith("PATH"):
+                continue
+            # match any of our scripts
+            matched_label = None
+            for script, label in _SCRIPT_LABELS.items():
+                if script in line:
+                    matched_label = label
+                    break
+            if not matched_label:
+                continue
+            if matched_label in openclaw_names:
+                continue  # already in openclaw list
+            # parse cron expression (first 5 fields)
+            parts = line.split()
+            expr = " ".join(parts[:5]) if len(parts) >= 5 else ""
+            # check last log file for recency
+            log_hint = ""
+            log_map = {
+                "reach-out.py":    "reach-out.log",
+                "bleed.py":        "bleed.log",
+                "sparky.py":       "sparky.log",
+                "wallpaper.py":    "wallpaper.log",
+                "dream.py":        "dream.log",
+                "schedule.py":     "schedule.log",
+                "arc-tick.py":     "pulse.log",
+                "labyrinth-intelligence.py": "intelligence.log",
+                "mission-control.py": "",
+            }
+            for script, logfile in log_map.items():
+                if script in line and logfile:
+                    lp = LOGS_DIR / logfile
+                    if lp.exists():
+                        mtime = lp.stat().st_mtime
+                        from datetime import timezone
+                        log_hint = datetime.fromtimestamp(mtime).strftime("%-I:%M %p")
+                    break
+            jobs.append({
+                "name":     matched_label,
+                "status":   "system",
+                "errors":   0,
+                "last":     log_hint or "—",
+                "next":     "—",
+                "duration": "",
+                "delivery": "",
+                "expr":     expr,
+                "tz":       "",
+            })
+    except Exception:
+        pass
+
     return jobs
 
 

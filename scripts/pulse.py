@@ -6,7 +6,7 @@ in HEARTBEAT.md, preserving the permanent standing orders below.
 Belfast M4 Build — March 2026
 """
 
-import os, json, subprocess, requests, imaplib, email, time, shutil, math
+import os, sys, json, subprocess, requests, imaplib, email, time, shutil, math
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -874,6 +874,11 @@ def pulse():
 
     # Write pulse to enchantify HEARTBEAT.md and save previous pulse for change detection
     write_pulse_to_heartbeat(pulse_content, HEARTBEAT_FILE, save_previous=True)
+
+    # Regenerate mission control dashboard after every pulse
+    mc = os.path.join(ENCHANTIFY_WORKSPACE, "scripts", "mission-control.py")
+    if os.path.exists(mc):
+        subprocess.run([sys.executable, mc], capture_output=True, timeout=30)
 
 if __name__ == "__main__":
     pulse()
