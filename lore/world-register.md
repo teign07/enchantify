@@ -21,7 +21,7 @@
 | Entity | Type | Belief | Notes |
 |---|---|---|---|
 | Academy Daily Life | Thread | 30 | [id:academy-daily] Phase: permanent — background texture; always running; the felt reality of the Academy between everything else |
-| Wicker's Campaign | Thread | 25 | [id:wicker-schemes] Phase: rising — crew has gone quiet; something is being planned involving the exhibition |
+| Wicker's Campaign | Thread | 26 | [id:wicker-schemes] Phase: rising — crew has gone quiet; something is being planned involving the exhibition |
 | Zara's Inkwright Application | Thread | 13 | [id:zara-inkwright] Phase: setup — portfolio deadline approaching; one piece of evidence short; Wicker knows |
 | The Duskthorn Investigation | Thread | 8 | [id:duskthorn-investigation] Phase: dormant — west corridor sealed two weeks too long; Dusk Thorn reads high |
 
@@ -69,7 +69,7 @@
 | Book Sprites | fae | 10 | [thread:academy-daily] |
 | Sentence Salamanders | fae | 10 | [thread:academy-daily] |
 | Punctuation Pixies | fae | 10 | [thread:academy-daily] |
-| Literary Elves | fae | 10 | [thread:academy-daily] |
+| Literary Elves | fae | 11 | [thread:academy-daily] |
 | Deep Lore Dwarves | fae | 10 | [thread:academy-daily] |
 | Lysander Mosswood | NPC | 9 | [thread:academy-daily] Mossbloom; thoughtful, wise; nature walks; will send the player to specific local trails |
 | Damien Nights | NPC | 9 | [thread:wicker-schemes,academy-daily] Riddlewind; Wicker's crew; brooding shadow magic; watches the player more than he should |
@@ -140,4 +140,4 @@
 | Wind Cipher | Riddlewind | 48 | Goal: Force collaborative puzzles or shared encounters. Philosophy: Coauthored story. |
 | Ember Seal | Emberheart | 44 | Goal: Generate Embark opportunities for self-agency. Philosophy: Self-authorship. |
 | Moss Clasp | Mossbloom | 45 | Goal: Enhance receptive experiences and quiet reflection. Philosophy: Surrender/higher power. |
-| Tide Glass | Tidecrest | 48 | Goal: Inject spontaneity and unpredictable changes. Philosophy: Life is a poem/unscripted. |
+| Tide Glass | Tidecrest | 47 | Goal: Inject spontaneity and unpredictable changes. Philosophy: Life is a poem/unscripted. |

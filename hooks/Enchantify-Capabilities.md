@@ -1,7 +1,7 @@
 # Enchantify — The Labyrinth of Stories
 ## Complete Capability Reference
 
-*Version: 5.0.0 — The Living Philosophy*
+*Version: 6.0.0 — The Characters Reach Back*
 *Last updated: April 18, 2026*
 
 ---
@@ -1074,8 +1074,7 @@ enchantify/
 | Marginalia Listener | `0 9,17 * * *` | Fetches local/Reddit/global news → `marginalia-whispers.md` |
 | Skill-Lore Sweep | `15 6 * * *` | `skill-scheduler.py --trigger cron` — runs all cron-triggered skill-lore contracts |
 | Midnight Revision | `0 0 */4 * *` | Content proposals only — audits gaps, invents new lore/NPCs/rooms/mechanics; Midnight Dispatch; 48-hr veto window |
-| Morning Reach | `0 11 * * *` | Labyrinth reaches out if appropriate (max 1/day) |
-| Evening Reach | `0 18 * * *` | Fallback if morning skipped |
+| Character Outreach | `0 */2 * * *` | `scripts/reach-out.py` — characters and talismans initiate direct contact. Evaluates trigger conditions per character, respects per-character cooldowns, picks at most one to send a Kokoro voice note. Daily cap: 2/day. See §28c. |
 | Wallpaper | `0 7 * * *` | `scripts/wallpaper.py --generate bj` — morning wallpaper update. Checks state signature (belief bracket, Nothing level, time of day); generates new image via agent if changed or stale (>8h). Sets macOS desktop silently. 2h cooldown enforced. |
 | Sparky | `0 8 * * *` | Daily pattern-connection (Gemini); writes to `sparky/shinies/`; injects `<!-- SPARKY_START -->` block into `HEARTBEAT.md` |
 | Labyrinth Dreams | `3 2 * * *` | Nightly dream generation (Gemini); writes to `memory/dreams/` |
@@ -1097,12 +1096,13 @@ All automated scripts use Google Gemini via OpenClaw OAuth. No API keys required
 | NPC research (`npc-research.py`) | `openclaw agent --local --agent enchantify` |
 | Nightly intelligence (`labyrinth-intelligence.py`) | `openclaw agent --local --agent enchantify` (biometric analysis only; pure Python for pattern detection) |
 | Academy simulation cron | Mostly pure Python (tick.py, world-pulse.py, ambient-state.py). Exception: `pact-engine.py` calls `openclaw agent --local` at Dominated/Sovereign reality_bleed for `USE_LLM` drivers — generates structured action specs in the chapter's voice. Falls back silently if openclaw unavailable. |
+| Character outreach (`reach-out.py`) | `openclaw agent --local` — generates in-character voice note message from world state + trigger context. Falls back to static per-character line if openclaw unavailable. |
 
 ---
 
 ### §24. Ambient Integrations
 
-**📱 Telegram (primary player interface):** All play happens through Telegram — narrative, player responses, photo Enchantments (sent as images), GPS shares (anchor creation and check-in), and all outreach (morning reach, evening reach, Sparky shinies, NPC research delivery). The bot is a dedicated `enchantify` account configured at install. Text messages and audio messages are always sent separately — never combined in one message.
+**📱 Telegram (primary player interface):** All play happens through Telegram — narrative, player responses, photo Enchantments (sent as images), GPS shares (anchor creation and check-in), Sparky shinies, NPC research delivery, and character outreach voice notes. The bot is a dedicated `enchantify` account configured at install. Text messages and audio messages are always sent separately — never combined in one message.
 
 **🧠 Memory plugins:** The OpenClaw Enchantify agent uses **QMD** for structured, query-able memory (player state, NPC relationships, world facts — survives context window pressure) and **Lossless Claw** for raw conversation preservation (nothing lost between sessions). Configured in `~/.openclaw/agents/enchantify/`.
 
@@ -1315,7 +1315,39 @@ When a `USE_LLM` driver executes a reality bleed at Dominated/Sovereign tier, `p
 
 ---
 
-### §28b. The Bleed — Academy Student Newspaper
+### §28b. Character Outreach — The Academy Reaches Back
+
+**`scripts/reach-out.py`** — Characters and talismans initiate direct contact outside of sessions. Not the Labyrinth narrator. Not a dispatch. The characters themselves, speaking to the player directly via Kokoro voice note sent to Telegram.
+
+**Cron:** Every 2 hours (`0 */2 * * *`). Daily cap: 2 voice notes total. One character per run.
+
+**Characters:**
+
+| Character | Voice | Cooldown | Triggers |
+|-----------|-------|----------|---------|
+| Zara Finch | `af_nicole` | 48h | Absent 4+ days · Belief ≥72 after Compass Runs |
+| Wicker Eddies | `am_liam` | 72h | Belief ≥60 · Duskthorn dominant · Absent 6+ days |
+| Headmistress Thorne | `af_v0irulan` | 168h | Arc at CLIMAX + Belief ≥65 · Belief ≥85 |
+| Emberheart | `af_sky` | 36h | Absent 3+ days + low Belief · Arc at CLIMAX |
+| Mossbloom | `bm_fable` | 72h | Early morning (5–7am) · Absent 5+ days |
+| Riddlewind | `bm_george` | 48h | Absent 3+ days |
+| Tidecrest | `af_heart` | 20h | Late night (10pm–2am) · Storm/rain weather |
+| Duskthorn | `am_fenrir` | 36h | Nothing pressure high/critical · Absent + low Belief |
+
+**Message generation:** LLM via `openclaw agent --local` — receives character context, trigger reason, player's current belief/arc/weather/last-alive-moment. Falls back to static per-character line. Messages are 1–3 sentences, first-person, no narrator framing, no meta-references to "the game."
+
+**Cooldown log:** `config/reach-out-log.json` (gitignored).
+
+**Testing:**
+```bash
+python3 scripts/reach-out.py --dry-run
+python3 scripts/reach-out.py --force "Zara Finch" --dry-run
+python3 scripts/reach-out.py --force "Duskthorn"
+```
+
+---
+
+### §28c. The Bleed — Academy Student Newspaper
 
 The Bleed publishes daily at 6 PM. It's not a dashboard — it's the Academy's dry, slightly gothic journalism: the extraordinary reported with the same deadpan precision as the ordinary. The player receives it as a Telegram message and an HTML broadsheet at `bleed/issues/YYYY-MM-DD.html`.
 
@@ -1391,6 +1423,23 @@ Interventions are **never clinical**. The Labyrinth does not know about steps or
 ---
 
 ## Part 4: What's Complete
+
+### v6.0.0 — The Characters Reach Back (April 18, 2026)
+
+This release gives characters and chapter talismans autonomous agency to initiate contact with the player outside of any open session. The fiction now reaches back.
+
+- ✅ **`scripts/reach-out.py`** — Standalone cron script (every 2 hours). Evaluates trigger conditions per character, respects per-character cooldowns (20h–168h) and a daily cap of 2, picks at most one character, generates a short direct message via LLM, renders in the character's canonical Kokoro voice, sends as OGG voice note to Telegram.
+- ✅ **8 characters with distinct triggers** — Zara (absence, belief growth), Wicker (high belief, territory dominance), Thorne (arc climax, belief peaks — weekly cooldown, rare by design), Emberheart (stagnation), Mossbloom (early morning, long absence), Riddlewind (isolation), Tidecrest (late night, weather), Duskthorn (Nothing pressure, neglect).
+- ✅ **Voices from The Chorus** — All voice assignments pulled from `config/voice-assignments.md`. Talismans speak through their chapter heads' voices. Zara: `af_nicole`. Wicker: `am_liam`. Thorne: `af_v0irulan`.
+- ✅ **LLM-generated messages** — Each message is generated fresh from world state (belief, days since session, arc phase, Nothing pressure, weather, last alive moment). Falls back to static per-character lines if LLM unavailable. Messages are 1–3 sentences, first-person, no narrator framing.
+- ✅ **Cooldown log** — `config/reach-out-log.json` tracks last contact per character and daily count. Gitignored.
+- ✅ **Installer wired** — `on-install.sh` adds the every-2-hours cron automatically.
+- ✅ **Installer fixes for other users** — `write_consent` bug removed, root `install.sh` created, `IDENTITY.md`/`SPAWN-HELPER.md` paths patched at install time, `TOOLS.md` generated from template, `ENCHANTIFY_DEFAULT_PLAYER` written to secrets, player template expanded with The Margin + Story Log.
+- ✅ **World state reset for new players** — `lore/app-register.md` cleared of gameplay history, `lore/world-register.md` stripped of player-specific entries, `memory/arc-spine.md` and `memory/patterns.md` replaced with blank templates (gitignored, generated at install), Live Arc removed (generated by arc-tick on first post-tutorial tick).
+- ✅ **Quillquarium mechanic clarified** — T6 rewritten as "positive complement" with 4-step generation guide. Past examples (Obsidian Chronograph, Graphite Anchor) named explicitly as off-limits. `lore/locations.md` updated to describe the mechanic canonically.
+- ✅ **`hooks/SKILL.md` updated to v1.0.0** — Talisman War as first-class feature, correct installer flow, all integrations listed, personal references removed.
+
+---
 
 ### v5.0.0 — The Living Philosophy (April 18, 2026)
 

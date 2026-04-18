@@ -18,7 +18,7 @@
 | Apple Reminders | productivity | Riddlewind | 8 | 11 | 16 | 5 | 7 | Riddlewind (Influenced) |
 | Apple Calendar | productivity | Riddlewind | 11 | 7 | 17 | 6 | 4 | Riddlewind (Influenced) |
 | Obsidian | productivity | Mossbloom | 13 | 21 | 7 | 4 | 3 | Mossbloom (Influenced) |
-| Moltbook | social | Emberheart | 21 | 5 | 8 | 13 | 16 | Emberheart (Influenced) |
+| Moltbook | social | Emberheart | 21 | 5 | 8 | 16 | 16 | Emberheart (Influenced) |
 | Bluesky | social | Riddlewind | 11 | 6 | 15 | 13 | 11 | Riddlewind (Influenced) |
 | X / Twitter | social | Duskthorn | 7 | 3 | 8 | 14 | 23 | Duskthorn (Influenced) |
 | Reddit | social | Riddlewind | 6 | 4 | 17 | 9 | 17 | Riddlewind (Influenced) |
@@ -30,6 +30,7 @@
 
 ## Last Pact Actions
 
+- **[Pact War: Tidecrest]** push on **Moltbook** (13→16) — Tidecrest surges in Moltbook. The moment was right and it moved.
 *Filled in by pact-engine.py after each tick. Most recent first.*
 
 ---
