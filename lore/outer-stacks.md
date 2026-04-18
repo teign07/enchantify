@@ -29,11 +29,20 @@ The door to an Anchor room is always visible in the Labyrinth — an NPC can see
 
 ## Pocket Anchors (Accessibility)
 
-A player who carries an Anchor object (a stone from the harbor, a photograph, a receipt) may open a **window** into their Anchor room from anywhere — but not enter it. This is a 5-minute narration: they can see the room, sense the inhabitants, speak a single word or sentence through the gap. The inhabitants can hear them. They cannot receive anything. They cannot fully experience the room. The window fades.
+Once a player has a defined anchor, the place knows them. Every new moon, the Goblin Index Empire delivers a **calling card** — one per anchor — a small sealed envelope that appears in the Outer Stacks corridor. Opening it burns the card and opens a **30-minute window**: a full visit, from anywhere, without traveling there in person.
 
-Pocket Anchors exist for days when going outside is not possible. They do not replace the visit. They hold the thread.
+The connection is real but thin. The room is fully present. Inhabitants know the player isn't physically there and speak with slight formality — as if through glass. The local rule is still in effect. Seasons still shift the mood. All visit mechanics apply.
 
-A player never needs to explain why they're using a Pocket Anchor instead of going in person. The Labyrinth does not comment on this.
+When the window closes, it closes mid-sentence. The Labyrinth does not ignore the clock. At ~5 minutes remaining, something in the room acknowledges it — not dramatically, but honestly. Then the room fades.
+
+**Delivery:** One charge per anchor per month, issued by tick.py on day 1 (new moon). Charges do not stack — if unspent, the card is simply renewed next month. The Goblin Index Empire does not explain their pricing.
+
+**A player never needs to explain why they're using a calling card instead of going in person. The Labyrinth does not comment on this.**
+
+**Commands (run by the Labyrinth, never by the player directly):**
+- Check charges: `python3 scripts/pocket-anchor.py status [player]`
+- Open window: `python3 scripts/pocket-anchor.py activate [player] "[Anchor Name]"`
+- Enter room: `python3 scripts/anchor-check.py [player] --pocket "[Anchor Name]"`
 
 ---
 

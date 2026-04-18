@@ -82,3 +82,16 @@
 - Previous pulse: `PREVIOUS_PULSE.md` — last pulse snapshot, for change detection
 - iCloud sync: `~/Library/Mobile Documents/com~apple~CloudDocs/OpenClaw/`
 - Backups: `/Users/bj/.openclaw/backups/` (nightly 4AM, 30-day retention)
+
+## Anchors & Outer Stacks
+
+**GPS check-in** (player shares Telegram location):
+- `python3 scripts/anchor-check.py [player] [lat] [lon] --checkin`
+
+**Pocket anchors** (remote visit — Labyrinth runs these, never the player):
+- Check charges: `python3 scripts/pocket-anchor.py status [player]`
+- Open 30-min window: `python3 scripts/pocket-anchor.py activate [player] "[Anchor Name]"`
+- Enter room: `python3 scripts/anchor-check.py [player] --pocket "[Anchor Name]"`
+- Monthly refill (auto via tick.py day 1): `python3 scripts/pocket-anchor.py refill [player]`
+
+**Flow:** Player says they want to visit → check GPS → not nearby → check charges → offer calling card → activate + get directive → lights scene `outer-stacks` → narrate with clock → fade at expiry.

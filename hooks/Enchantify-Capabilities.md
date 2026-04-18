@@ -463,7 +463,21 @@ Rooms evolve. Inhabitants remember. The shrews learn your order. The dragon comp
 - **Anchor decay:** Anchors unvisited 30+ days lose 1 Belief per tick (floor: 5). Handled by `tick.py`.
 - **Compass Run amplification:** Steps at Anchors gain texture based on type-matching.
 - **Enchantment resonance:** Enchantments cast at Anchors pick up the Anchor's personality.
-- **Pocket Anchor:** If a player can't travel, they can open a 5-minute window into the room from anywhere — see it, speak one word through the gap. No rewards transfer. No explanation required.
+- **Pocket Anchor:** One calling card per anchor per month, delivered by the Goblin Index Empire on the new moon. Opens a 30-minute full visit from anywhere. Full mechanics: `lore/outer-stacks.md` → Pocket Anchors.
+
+**Pocket Anchor — in-game flow (Labyrinth runs all commands, player never does):**
+
+When the player expresses intent to visit an anchor room and GPS shows they are not nearby:
+1. Run `python3 scripts/pocket-anchor.py status [player]` — check charges
+2. If charges available: *"You're not at [Anchor] — but you have a calling card from the Goblin Index Empire. Do you want to use it?"*
+3. If yes: run `python3 scripts/pocket-anchor.py activate [player] "[Anchor]"` → then `python3 scripts/anchor-check.py [player] --pocket "[Anchor]"` → read the `OUTER_STACKS_MODE` directive
+4. Set lights: `python3 scripts/lights.py scene outer-stacks`
+5. Begin the visit. Open with the window remaining. The room is present. Speak with slight formality.
+6. At ~5 minutes remaining, let something in the room acknowledge the closing — not dramatically, just honestly
+7. At expiry, the room fades mid-sentence. The Labyrinth narrates the fade.
+8. If no charges: *"The door is sealed. Your calling card will arrive on the new moon."* — no further comment.
+
+The player never types a command. They say what they want. The Labyrinth handles the rest.
 
 **The door is sealed from outside. NPCs see it. Light comes from under it. Distance is what keeps the player out — not the Labyrinth.**
 

@@ -38,4 +38,4 @@ Read the corresponding file when triggered. Do not guess.
 | Long return (7+ days away) | `players/[name]-story.md` + `lore/academy-state.md` (full re-read) |
 | Scene construction / Director's Slate | `mechanics/scene-construction.md` |
 | Anchor room entry / Outer Stacks | `lore/outer-stacks.md` + `lore/ley-lines.md` |
-| Pocket Anchor (window visit, no travel) | `lore/outer-stacks.md` → Pocket Anchors |
+| Pocket Anchor (window visit, no travel) | Check charges → offer → activate → `anchor-check.py --pocket` → directive. Full flow: `hooks/TOOLS.md` → Anchors & Outer Stacks |
