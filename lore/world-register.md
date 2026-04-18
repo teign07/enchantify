@@ -4,7 +4,7 @@
 *Never edit directly — use `python3 scripts/write-entity.py`*
 *Updated by write-entity.py and tick.py. Tick results read from memory/tick-queue.md.*
 *Arc entities managed by `python3 scripts/arc-generator.py --complete / --accept`*
-*Thread entities managed manually in `## Active Threads` — do not use write-entity.py for threads.*
+*Thread belief updates: `python3 scripts/write-entity.py "Thread Name" Thread <amount> --thread --add` — NEVER edit thread rows directly.*
 
 ---
 

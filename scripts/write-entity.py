@@ -7,6 +7,9 @@ Automatically places the entity in the correct section based on Belief score:
   5-14  → Fading Presence (table)
   <5    → Whisper Register (list)
 
+Use --thread to update a Thread entity in ## Active Threads in-place.
+  This ONLY changes the belief number — never moves the row or touches notes.
+  ALWAYS use --thread for thread belief updates. Never edit threads with write-entity.py directly.
 Use --talisman to write to the Chapter Talismans section instead.
 Use --gps-gated "Anchor Name" to mark a Location as an anchor room (GPS-gated).
 Use --skill-lore "contract-id" to link an entity to a skill-lore contract (e.g. "obsidian", "github").
@@ -14,14 +17,16 @@ Use --skill-lore "contract-id" to link an entity to a skill-lore contract (e.g. 
 
 Usage:
   python3 scripts/write-entity.py "Name" Type Belief "Notes" [--talisman] [--gps-gated "Anchor"] [--skill-lore "id"] [--dry-run]
+  python3 scripts/write-entity.py "Thread Name" Thread <delta> --thread --add   # invest belief in a thread
+  python3 scripts/write-entity.py "Thread Name" Thread <total> --thread          # set thread belief directly
 
 Examples:
   python3 scripts/write-entity.py "Zara Finch" NPC 25 "House guide, warm, knows more than she lets on"
   python3 scripts/write-entity.py "Boggle" NPC 4 "Last seen: dissolving into a jar of ink"
   python3 scripts/write-entity.py "Wind Cipher" Talisman 14 "Riddlewind — cowritten philosophy" --talisman
   python3 scripts/write-entity.py "The Harbor Lung" Location 12 "bj's REST anchor — tidal, breathing" --gps-gated "Harbor Lung"
-  python3 scripts/write-entity.py "The Ink Well" AppEcho 8 "GitHub — the player's published thought" --skill-lore "github"
-  python3 scripts/write-entity.py "Library Annex" AppEcho 12 "Obsidian vault — manuscripts and orphaned works" --skill-lore "obsidian"
+  python3 scripts/write-entity.py "Academy Daily Life" Thread 10 --thread --add  # invest 10 belief
+  python3 scripts/write-entity.py "Wicker's Campaign" Thread 30 --thread          # set to 30
 """
 import re
 import argparse
@@ -93,6 +98,9 @@ def main():
     parser.add_argument('--skill-lore', metavar='CONTRACT_ID',
                         help='Link this entity to a skill-lore contract (e.g. "obsidian", "github"). '
                              'Entity will decay if the contract is inactive for 30+ days.')
+    parser.add_argument('--thread', action='store_true',
+                        help='Update a Thread entity in ## Active Threads in-place. '
+                             'ONLY changes the belief number — never moves the row or touches notes.')
     parser.add_argument('--add', action='store_true',
                         help='Add the provided belief to the existing belief score instead of overwriting.')
     parser.add_argument('--dry-run', action='store_true')
@@ -108,6 +116,31 @@ def main():
 
     if not REGISTER.exists():
         print(f"❌ {REGISTER} not found.")
+        return
+
+    # ── Thread in-place update (never moves the row) ─────────────────────────
+    if args.thread:
+        text = REGISTER.read_text()
+        pattern = re.compile(
+            r"^(\|\s*" + re.escape(args.name) + r"\s*\|\s*\S+\s*\|\s*)(\d+)(\s*\|.*)",
+            re.MULTILINE
+        )
+        m = pattern.search(text)
+        if not m:
+            print(f"❌ Thread '{args.name}' not found in ## Active Threads.")
+            return
+        current = int(m.group(2))
+        new_belief = current + args.belief if args.add else args.belief
+        if args.dry_run:
+            print(f"[dry-run] Would update thread '{args.name}' belief {current} → {new_belief}")
+            return
+        updated = pattern.sub(lambda mo: mo.group(1) + str(new_belief) + mo.group(3), text, count=1)
+        backup = REGISTER.with_suffix(".md.bak")
+        shutil.copy2(REGISTER, backup)
+        tmp = REGISTER.with_suffix(".md.tmp")
+        tmp.write_text(updated if updated.endswith("\n") else updated + "\n")
+        tmp.rename(REGISTER)
+        print(f"✓ Thread updated: {args.name} Belief {current} → {new_belief}")
         return
 
     text = REGISTER.read_text()
