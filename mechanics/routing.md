@@ -18,6 +18,7 @@ Read the corresponding file when triggered. Do not guess.
 | Professor quotes / class scenes | `lore/school-life.md` (Professor Teaching Voices section) |
 | T5 (Synesthetic Fall) | `SPAWN-TEMPLATE.md` |
 | Creature encounter | `lore/creatures.md` |
+| Magical tradition surfaces in play / class scene involves real practice / player asks about magic systems | `lore/magical-traditions.md` |
 | Fae bargain offered / field report delivered | `lore/creatures.md` |
 | Goblin encounter / Goblin Market / attention debt | `lore/creatures.md` → Goblins + `lore/outer-stacks.md` |
 | Cron / Dispatch | `mechanics/unsent-messages.md` |

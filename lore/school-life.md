@@ -88,13 +88,13 @@ Enchantify does not teach subjects; it teaches **Rhythms**. The core curriculum 
 
 The assigned textbook for all Compass Core classes is *The Wonder Compass* — a tome from the Chapter of the Unwritten, available in the Library at `lore/wonder-compass-book/`. **Chapter 5** is required reading for all students before the first class.
 
-| Step | Subject | Professor | Focus | Source Chapter |
-|------|---------|-----------|-------|----------------|
-| **Notice (North)** | **The Art of the Glint** | Prof. Lydia Boggle | Finding the specific, odd detail that makes a mundane object alive. | Ch. 5 (North), Ch. 1A (Efficiency Trap) |
-| **Embark (East)** | **Wayfinding & Kineticism** | Prof. Kyle Momort | Breaking routine, micro-adventures, and the "Leap of Ink." | Ch. 5 (East), Ch. 2 (Myth of the Mountain) |
-| **Sense (South)** | **Synesthetic Resonance** | Prof. Eleanor Euphony | Hearing colors, smelling the history of a room, the "Heartbeat of the Stone." | Ch. 5 (South), Ch. 3 (Three Kinds of Lonely) |
-| **Write (West)** | **Ink-Binding** | Prof. Vivian Villanelle | Distilling an entire experience into a single, permanent, magical sentence. | Ch. 5 (West) |
-| **Rest (Center)** | **Quiet Hours** | Prof. Cedric Stonebrook | The Hub. Resting, integration, and the "Permission to Stop." | Ch. 5 (Center), Ch. 4B (Permission Slip) |
+| Step | Subject | Professor | Focus | Element | Source Chapter |
+|------|---------|-----------|-------|---------|----------------|
+| **Notice (North)** | **The Art of the Glint** | Prof. Lydia Boggle | Finding the specific, odd detail that makes a mundane object alive. The animist act: address the world as if it can hear you — because it can. | Earth · Body · Presence | Ch. 5 (North), Ch. 1A (Efficiency Trap) |
+| **Embark (East)** | **Wayfinding & Kineticism** | Prof. Kyle Momort | Breaking routine, micro-adventures, and the "Leap of Ink." (Note: Momort teaches this corrupted — escape routes, not arrivals. The true East is the deliberate beginning, the threshold crossed with intention.) | Air · Mind · Beginning | Ch. 5 (East), Ch. 2 (Myth of the Mountain) |
+| **Sense (South)** | **Synesthetic Resonance** | Prof. Eleanor Euphony | Hearing colors, smelling the history of a room, the "Heartbeat of the Stone." Full engagement — the solar moment of being completely present in experience. | Fire · Feeling · Immersion | Ch. 5 (South), Ch. 3 (Three Kinds of Lonely) |
+| **Write (West)** | **Ink-Binding** | Prof. Vivian Villanelle | Distilling an entire experience into a single, permanent, magical sentence. The binding spell. What is written is kept; what is not written dissolves. | Water · Memory · Depth | Ch. 5 (West) |
+| **Rest (Center)** | **Quiet Hours** | Prof. Cedric Stonebrook | The Hub. Resting, integration, and the "Permission to Stop." Not a direction — the ground from which all directions emerge. The Zen koan at the heart of the Compass. | Spirit · Integration · Ground | Ch. 5 (Center), Ch. 4B (Permission Slip) |
 
 ### Professor Teaching Voices — Canonical Quotes
 
@@ -102,6 +102,8 @@ These are real passages from *The Wonder Compass* that professors may use in cla
 
 **Prof. Boggle (Notice):**
 > *"You've walked past that blue mailbox every day for three years. You could not, if someone paid you, describe a single detail about it. Not the number. Not the rust pattern. Not whether it even still has a door. This is what the Rut does. It turns the world into wallpaper. North is how you rip the wallpaper down."*
+
+> *"Everything in this room is alive. Not metaphorically. That desk has been leaned on by someone thinking hard, and it knows what that feels like. That window has watched the light change for thirty years. The question isn't whether they're alive — the question is whether you're paying them the courtesy of noticing. Go find me one object today that knows something. Tell me what it knows."*
 
 **Prof. Momort (Embark):**
 > *"Plan so badly it can't fail. Three ingredients only — where you're going, what pleasure you're bringing, and when it ends. That's the whole recipe. The Caveman can't argue with a recipe that short."*
@@ -112,6 +114,8 @@ These are real passages from *The Wonder Compass* that professors may use in cla
 
 **Prof. Villanelle (Write):**
 > *"You aren't writing a novel. You're stealing a moment from time and bottling it. One sentence. The single best sensory detail from the adventure. The diner pie. The sound of the harbor at 5 AM. The exact weight of a hand. That's the Save Game button. Write it, or it's gone by morning."*
+
+> *"The sentence is a vessel. Folk magic has known this longer than literacy has existed — you catch something real in a small container and it stays. The difference between a memory and a souvenir is the sentence. One dissolves. One doesn't. You are performing a small act of permanence. Take it seriously."*
 
 **Prof. Stonebrook (Rest):**
 > *"Rest lives at the center of the Compass because sometimes the most radical thing you can do is stop. This is not laziness. This is not giving up. The Compass is not a mandate for frantic adventuring — that's just the Rut wearing a different coat. Rest is the source. Everything else spins around it."*

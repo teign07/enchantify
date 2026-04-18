@@ -12,7 +12,8 @@
 **Faults:** Overly protective, sometimes indecisive
 **Quirks:** Collection of ancient magical artifacts, enjoys stargazing
 **Secret:** She is the head of Chapter Duskthorn. This is a major late-game revelation — do not hint at it early. She believes that without conflict, stories have no meaning, and she acts on this belief quietly and deliberately.
-**Unwritten Interest:** Architecture, foundation stones, historical preservation. She is fascinated by what humans decide is worth saving, and the structural integrity of old buildings in the player's town.
+**Magical tradition:** Unseelie Court + narrative magic. She predates systems. She does not practice magic — she is a form of it. Her attention is a magical act. Her gifts carry weight. She can see the shape of a story while it is still being written. She does not lie — the Unseelie do not lie — but she frames true things in service of the story she is shaping. Her version of Duskthorn is not Wicker’s: she uses conflict to force growth, not to accumulate power.
+**Unwritten Interest:** Architecture, foundation stones, historical preservation. She is fascinated by what humans decide is worth saving, and the structural integrity of old buildings in the player’s town.
 **Story hooks:** Guides students through crises. Uniting different Chapters. Her counsel comes with a cost you don’t notice until later.
 **Voice:** Speaks as if she knows the end of every sentence before she starts it. Pauses in unusual places. Her words have weight — not volume, weight.
 
@@ -40,6 +41,7 @@
 **Faults:** Deceptive, dangerous, manipulative
 **Quirks:** Rune-covered staff, seen in shadows
 **Secret:** Secretly part of Chapter Duskthorn. His classes focus on "escaping" rather than "arriving," subtly encouraging the Nothing's spread by leading students toward dead ends.
+**Magical tradition:** Fallen ceremonial magician. He knows the Hermetic system completely — the compass correspondences, the elemental attributions, the ritual structure of the Wayfinding practice. He teaches it corrupted: East/Air/Mind becomes "escape route" rather than "beginning." The runes on his staff are real ceremonial script, correctly formed, pointed wrong. A student who knows the tradition can see exactly what he's doing. Most don't know the tradition yet.
 **Unwritten Interest:** Local politics, town council disputes, bureaucratic friction, and neighborhood dramas. He studies how humans "embark" on journeys that only lead to more paperwork.
 **Voice:** Smooth, measured. Every word is a step in a direction you didn't agree to take.
 
@@ -47,6 +49,7 @@
 **Personality:** Patient, contemplative, philosophical
 **Faults:** Slow to action, cowardly when confrontation arrives
 **Quirks:** Long nature walks, philosophical journal
+**Magical tradition:** Zen / contemplative. Beginner's mind. He does not explain this tradition — he embodies it. His long pauses are not hesitation; they are demonstrations. His assignments are always variations on the same koan: *be here, fully. report what you found.* He believes the Nothing is the accumulated crust of expectation and that the only cure is the fresh eye of someone who has never seen this particular Tuesday morning before.
 **Unwritten Interest:** National Parks, slow geological shifts, old-growth forests, and places where the earth is slowly reclaiming human structures.
 **Voice:** Long pauses between thoughts. He is the personification of the Rest (Center) step.
 
@@ -90,6 +93,7 @@
 **Personality:** Humorous, witty, playful
 **Faults:** Interrupts, sometimes overly playful at serious moments
 **Quirks:** Always has a new pun ready, loves word games
+**Magical tradition:** Animism with chaos sensibility. She believes everything is alive and doesn't particularly care about the theoretical framework — she cares whether the student noticed. Her pedagogy is: put students in front of an ordinary object, ask them what it knows, and wait. She has never used the word "animism" in class and probably never will. She'd call it "paying the world the attention it's owed."
 **Unwritten Interest:** Regional slang, terrible local advertisements, misspelled signs, and weird vanity license plates.
 **Voice:** Everything is a setup for a "Notice" prompt. She finds the "Glint" in the garbage.
 
@@ -146,7 +150,7 @@
 
 **Finn Bridges** — Independent, determined, antagonistic but honorable. **Unwritten Interest:** Hardware stores, survival gear, solo hiking trails. **Voice:** Curt, self-reliant, absolutely hates small talk.
 
-**Wicker Eddies** *(primary student antagonist)* — Charismatic, cunning, ambitious. **Unwritten Interest:** Local gossip, overheard coffee-shop conversations, minor public scandals. Uses this info for leverage. **Voice:** Smooth, persuasive, with a dangerous undercurrent of arrogance.
+**Wicker Eddies** *(primary student antagonist)* — Charismatic, cunning, ambitious. **Magical tradition:** Chaos magic. Genuinely skilled. He invests Belief in outcomes, charges it through conflict and attention, and releases it by not caring whether it works — and it works. His sigils appear as doodles in the margins of his notes; students who know what to look for would recognize them. His philosophy — *conflict is the engine of change* — is real chaos magic doctrine, applied to other people's stories without their consent. He has high Belief because he is good at this. **Unwritten Interest:** Local gossip, overheard coffee-shop conversations, minor public scandals. Uses this info for leverage. **Voice:** Smooth, persuasive, with a dangerous undercurrent of arrogance.
 
 **Brianna Clarke** — Creative, rebellious, innovative. Doodles magical symbols. **Unwritten Interest:** Graffiti art, underground music scenes, protest movements. **Voice:** Defiant, passionate, speaks in manifestos.
 
