@@ -20,7 +20,7 @@
 
 | Entity | Type | Belief | Notes |
 |---|---|---|---|
-| Academy Daily Life | Thread | 30 | [id:academy-daily] Phase: permanent — background texture; always running; the felt reality of the Academy between everything else |
+| Academy Daily Life | Thread | 40 | [id:academy-daily] Phase: permanent — background texture; always running; the felt reality of the Academy between everything else |
 | Wicker's Campaign | Thread | 26 | [id:wicker-schemes] Phase: rising — crew has gone quiet; something is being planned involving the exhibition |
 | Zara's Inkwright Application | Thread | 13 | [id:zara-inkwright] Phase: setup — portfolio deadline approaching; one piece of evidence short; Wicker knows |
 | The Duskthorn Investigation | Thread | 8 | [id:duskthorn-investigation] Phase: dormant — west corridor sealed two weeks too long; Dusk Thorn reads high |
