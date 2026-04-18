@@ -1,7 +1,7 @@
 # Enchantify — The Labyrinth of Stories
 ## Complete Capability Reference
 
-*Version: 7.0.0 — The Thread That Binds*
+*Version: 8.0.0 — The World Is Alive*
 *Last updated: April 18, 2026*
 
 ---
@@ -50,6 +50,8 @@ Enchantify is an interactive narrative role-playing game that runs as a register
 - **The Hidden Curriculum:** Compass Runs, Enchantments, and club assignments are secretly therapeutic interventions (behavioral activation, mindfulness, gratitude journaling). The game never names this. Neither do you.
 - **Enchantments (Vision AI):** Spells that require the player to photograph real objects. The vision model interprets the photo and weaves what it sees into the narrative with synesthetic detail.
 - **The Compass Run:** A structured real-world quest based on the Wonder Compass framework. Notice something. Do something — anything — in the world. Sense it. Write one sentence. +9 Belief. A run can be walking the block, driving two towns over, cooking at home, lying on the floor and looking at it like Gulliver, or noticing a line on your hand you've never seen before. The only requirement is that attention landed somewhere real.
+- **Magical Traditions Framework:** The Labyrinth actively teaches real-world magical traditions through fiction, never naming them directly. Animism is the base layer — Enchantments are animist acts, the Nothing is animism's failure. Folk magic and witchcraft live in the seasonal calendar, the souvenir sentence (a vessel), and Compass Runs (ambulatory magic). Fae lore governs all Outer Stacks and fae interaction (six canonical rules: bargains, true names, thresholds, gifts, time, stories-as-literal). Ceremonial magic (Momort's corrupted Hermetic tradition) structures the compass correspondences — North/Earth, East/Air, South/Fire, West/Water, Center/Spirit. Chaos magic (Wicker) explains his genuine effectiveness and danger. Zen (Stonebrook) is the contemplative ground of the Notice direction. Narrative magic (Thorne, Villanelle) holds that language is not a map of the world — it is a hand laid on it. Full reference: `lore/magical-traditions.md`.
+- **The Restricted Section (expanded):** Eight documents covering the full depth of the Academy's hidden knowledge. Includes: `the-nothings-manuscript.md` (the Nothing's own voice — the case for numbness, quietly reasonable), `founding-compact.md` (what the Academy actually is and why it was built), `records-of-the-unfinished.md` (students whose stories paused; the door is always open), `thornes-private-observations.md` (private journal entries; centuries of watching wonder find and lose people). The therapeutic truth is present throughout — veiled in the fiction, never named directly.
 - **Story Thread System:** Named stories with Belief mass. Threads are born from high-Belief NPCs, Labyrinth proposals, or player investment. They live in `lore/threads.md` and `lore/world-register.md` (Active Threads section). tick.py stirs them like any entity — high Belief = stirred more often = story advances. Threads escalate through phases (dormant → setup → rising → climax → resolution at 50+), emit lifecycle signals to tick-queue, and die either through natural resolution or Nothing victory. Belief updates are surgical: `write-entity.py --thread` patches the belief number in-place. The Labyrinth never edits thread rows directly.
 - **Talisman Behavior Nudge:** Real-world signals from `HEARTBEAT.md` (steps, sleep, HRV, calendar events, fuel logged) shift Talisman Belief ±1 each tick. Emberheart rises when the player is active and present. Mossbloom rises when the player is rested and fed. Duskthorn rises when the player is exhausted or absent. Cap: 2 talismans per tick, ±1 per talisman. The war is not just philosophical — it's metabolic.
 - **The Midnight Revision:** Every four days, the Labyrinth audits itself and invents new lore, NPCs, rooms, or mechanics. Proposals go to `proposed/` for 48-hour player veto before becoming canon. The nightly intelligence run (23:00) is separate — it senses and writes, never proposes.
@@ -1022,6 +1024,7 @@ enchantify/
 │   ├── ley-lines.md              ← Anchor creation, types, check-in, decay, Academy echoes
 │   ├── outer-stacks.md           ← Outer Stacks rooms, pocket anchor rules, window visit behavior
 │   ├── threads.md                ← Story thread registry — lifecycle, active threads, archive
+│   ├── magical-traditions.md     ← Labyrinth reference: animism, folk magic, fae lore, ceremonial, chaos, Zen, Thorne
 │   ├── sparky.md
 │   ├── the-pitch.md
 │   ├── wonder-compass.md         ← Wonder Compass item mechanics (cost 3 Belief, +9, once/day); points to chapter5.md
@@ -1032,7 +1035,7 @@ enchantify/
 │   │   ├── chapter4a.md / chapter4b.md
 │   │   ├── chapter5.md           ← Canonical N-E-S-W-Center framework reference
 │   │   └── read-this-first.md
-│   ├── restricted-section/
+│   ├── restricted-section/       ← Eight documents; see routing.md for access guidance per file
 │   └── arc-archive/              ← Completed arcs (arc-01-*.md…)
 ├── mechanics/
 │   ├── core-rules.md             ← Enchantment flow, Compass Run checklist, Nothing, Book Jump

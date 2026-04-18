@@ -1,12 +1,5 @@
 # ─── Player data (personal, generated per-install) ───────────────────────────
-players/bj.md
-players/beej.md
-players/bluejay.md
-players/bj_tutorial_state.json
-players/beej_tutorial_state.json
-players/bj-anchors.md
-players/bj-story.md
-players/archive/
+players/
 
 # ─── Live world state (generated, personal) ───────────────────────────────────
 HEARTBEAT.md
@@ -70,6 +63,26 @@ iphone-location.txt
 .openclaw/
 workspace/
 test-app.js
+
+# ─── Generated / personal live files ─────────────────────────────────────────
+bleed/
+sparky/shinies/
+wallpapers/
+mission-control.html
+hooks/mission-control.html
+proposed/
+memory/npc-research/
+memory/npc-log.md
+config/npc-research-cache.json
+logs/bleed.log
+logs/dream.log
+logs/fuel-bj.txt
+logs/health.log
+logs/schedule.log
+logs/sparky.log
+logs/wallpaper.log
+lore/*.md.bak
+lore/**/*.md.bak
 
 # ─── macOS ────────────────────────────────────────────────────────────────────
 .DS_Store
