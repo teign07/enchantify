@@ -1043,7 +1043,7 @@ echo "  Installing cron jobs..."
     echo "0 */4 * * * cd $CRON_BASE && $PYTHON scripts/schedule.py --update-state >> $LOG/schedule.log 2>&1"
 
     # Character outreach: every 2 hours — characters reach out when conditions warrant
-    echo "0 */2 * * * cd $CRON_BASE && $PYTHON scripts/reach-out.py >> $LOG/reach-out.log 2>&1"
+    echo "10 */2 * * * cd $CRON_BASE && $PYTHON scripts/reach-out.py >> $LOG/reach-out.log 2>&1"
 
     # Nightly intelligence: 11 PM — story log, arc spine, NPC research
     echo "0 23 * * * $PYTHON $CRON_BASE/scripts/labyrinth-intelligence.py $PNAME >> $LOG/intelligence.log 2>&1"
