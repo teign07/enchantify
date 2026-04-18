@@ -20,8 +20,18 @@ import re
 import math
 import shutil
 import argparse
+import importlib.util
 from pathlib import Path
-from datetime import date
+from datetime import date, datetime
+
+
+def _load_pocket_anchor():
+    spec = importlib.util.spec_from_file_location(
+        "pocket_anchor", Path(__file__).parent / "pocket-anchor.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 PROXIMITY_METERS = 200
 CHECKIN_BELIEF   = 5
@@ -228,13 +238,55 @@ def print_outer_stacks_directive(anchor, visit_count, current_season):
     print()
 
 
+def print_pocket_directive(anchor: dict, session: dict, current_season: str):
+    """Print the OUTER_STACKS_MODE directive for a pocket anchor visit."""
+    expires = datetime.fromisoformat(session["expires_at"])
+    remaining = int((expires - datetime.now()).total_seconds() / 60)
+
+    print()
+    print("--- OUTER STACKS (POCKET) ---")
+    print(f"ANCHOR: {anchor['name']}  [{anchor['type']}]")
+    print(f"ACCESS: pocket anchor — calling card from the Goblin Index Empire")
+    print(f"WINDOW: {remaining} min remaining  (closes {expires.strftime('%H:%M')})")
+    print(f"PLAYER_WORDS: \"{anchor['words']}\"")
+    print(f"CURRENT_SEASON: {current_season}")
+
+    if not anchor["outer_room"]:
+        print("OUTER_STACKS_MODE: POCKET_FIRST")
+        print()
+        print("NOTE: The player has not physically visited this anchor yet.")
+        print("  The room is heard, not seen — narrate sounds and edges only.")
+        print("  The door is ajar. They cannot fully enter. Not yet.")
+    else:
+        print(f"OUTER_STACKS_MODE: POCKET_RETURN  (visit #{anchor['visit_count']})")
+        print()
+        print(f"ROOM: {anchor['outer_room']}")
+        if anchor["local_rule"] and anchor["local_rule"].lower() != "none":
+            print(f"LOCAL_RULE: {anchor['local_rule']}  ← still in effect")
+        if anchor["season"] and anchor["season"] != current_season:
+            print(f"SEASON_SHIFT: room was born in {anchor['season']}, now it is {current_season}")
+            print("  → adjust atmosphere accordingly; the room is seen from a distance")
+        if anchor["echo"]:
+            print(f"INSIDE_ECHO: {anchor['echo']}")
+        print()
+        print("POCKET_NOTE: The connection is real but thin. The room is present.")
+        print("  Inhabitants know the player is not physically there — they speak")
+        print("  with slight formality, as if through glass. When the window closes,")
+        print("  the room fades mid-sentence. Do not let the player forget the clock.")
+
+    print("--------------------")
+    print()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Check anchor proximity — Outer Stacks gateway")
     parser.add_argument("player")
-    parser.add_argument("lat", type=float)
-    parser.add_argument("lon", type=float)
+    parser.add_argument("lat", type=float, nargs="?", default=None)
+    parser.add_argument("lon", type=float, nargs="?", default=None)
     parser.add_argument("--checkin", action="store_true",
                         help="Record visit + output Outer Stacks entry directive")
+    parser.add_argument("--pocket", metavar="ANCHOR",
+                        help="Enter via pocket anchor session (no GPS needed)")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -252,6 +304,26 @@ def main():
 
     current_season = get_current_season()
 
+    # ── Pocket anchor path ────────────────────────────────────────────────────
+    if args.pocket:
+        pa = _load_pocket_anchor()
+        session = pa.check_active(args.player, args.pocket)
+        if not session:
+            print(f"No active pocket anchor session for '{args.pocket}'.")
+            print(f"  Activate one with: python3 scripts/pocket-anchor.py activate {args.player} \"{args.pocket}\"")
+            return
+        match = next((a for a in anchors if session["anchor_name"].lower() in a["name"].lower()
+                      or a["name"].lower() in session["anchor_name"].lower()), None)
+        if not match:
+            print(f"Anchor '{session['anchor_name']}' not found in anchor file.")
+            return
+        print_pocket_directive(match, session, current_season)
+        return
+
+    # ── Normal GPS path ───────────────────────────────────────────────────────
+    if args.lat is None or args.lon is None:
+        parser.error("lat and lon are required unless using --pocket")
+
     nearby = []
     for anchor in anchors:
         dist = haversine(args.lat, args.lon, anchor["lat"], anchor["lon"])
@@ -259,6 +331,24 @@ def main():
             nearby.append((anchor, dist))
 
     if not nearby:
+        # Check if a pocket session is active for any anchor — hint if so
+        try:
+            pa = _load_pocket_anchor()
+            pa.cmd_expire(args.player)
+            state = pa.load_state()
+            ps = pa.get_player_state(state, args.player)
+            active = [(name, pa.active_session(ast)) for name, ast in ps.items()
+                      if isinstance(ast, dict) and pa.active_session(ast)]
+            if active:
+                name, sess = active[0]
+                expires = datetime.fromisoformat(sess["expires_at"])
+                remaining = int((expires - datetime.now()).total_seconds() / 60)
+                print(f"Not at anchor. Pocket session active: '{name}' ({remaining} min remaining).")
+                print(f"  Enter with: python3 scripts/anchor-check.py {args.player} --pocket \"{name}\"")
+                return
+        except Exception:
+            pass
+
         nearest = min(anchors, key=lambda a: haversine(args.lat, args.lon, a["lat"], a["lon"]))
         nearest_dist = haversine(args.lat, args.lon, nearest["lat"], nearest["lon"])
         print(f"No anchors nearby. Nearest: {nearest['name']} [{nearest['type']}] — {nearest_dist:.0f}m away.")
@@ -284,7 +374,6 @@ def main():
             if result:
                 new_count = result["visit_count"]
                 print(f"  ✓ Belief: {result['old_belief']} → {result['new_belief']}  ·  Visit #{new_count}")
-                # Update visit count in anchor dict for directive
                 anchor["visit_count"] = new_count
                 print_outer_stacks_directive(anchor, new_count, current_season)
 

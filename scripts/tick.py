@@ -995,7 +995,20 @@ def main():
     else:
         print("  No anchors need decay.")
 
-    # ── 2b. Fae bargain debts ─────────────────────────────────────────────────
+    # ── 2b. Pocket anchor refill (new moon — day 1 of month) ─────────────────
+    if date.today().day == 1:
+        print("New moon — delivering pocket anchor calling cards...")
+        try:
+            import importlib.util as _ilu
+            _spec = _ilu.spec_from_file_location("pocket_anchor", BASE_DIR / "scripts" / "pocket-anchor.py")
+            _pa = _ilu.module_from_spec(_spec); _spec.loader.exec_module(_pa)
+            for pf in (BASE_DIR / "players").glob("*.md"):
+                if "-" not in pf.stem:
+                    _pa.cmd_refill(pf.stem, dry_run=args.dry_run)
+        except Exception as _e:
+            print(f"  ⚠ Pocket anchor refill error: {_e}")
+
+    # ── 2d. Fae bargain debts ─────────────────────────────────────────────────
     print("Checking fae bargains...")
     fae_lines = check_fae_bargains(dry_run=args.dry_run)
     if fae_lines:
