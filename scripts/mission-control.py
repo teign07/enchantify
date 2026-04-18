@@ -5,7 +5,7 @@ mission-control.py — Enchantify Mission Control Dashboard
 Reads live workspace data and generates a self-refreshing HTML dashboard.
 
 Usage:
-  python3 scripts/mission-control.py           # generate → mission-control.html
+  python3 scripts/mission-control.py           # generate → hooks/mission-control.html
   python3 scripts/mission-control.py --open    # generate + open in browser
   python3 scripts/mission-control.py --serve   # serve on http://localhost:9191
 """
@@ -2213,7 +2213,7 @@ def main():
     parser = argparse.ArgumentParser(description="Enchantify Mission Control")
     parser.add_argument("--open",  action="store_true", help="Open in browser after generating")
     parser.add_argument("--serve", action="store_true", help="Serve on http://localhost:9191 with live refresh")
-    parser.add_argument("--out",   default=str(BASE / "mission-control.html"), help="Output path")
+    parser.add_argument("--out",   default=str(BASE / "hooks" / "mission-control.html"), help="Output path")
     args = parser.parse_args()
 
     out = Path(args.out)
