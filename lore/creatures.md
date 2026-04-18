@@ -166,6 +166,49 @@ The difference matters: when an NPC assigns a quest, they are asking the student
 - A strange persistent gift: a word in no known language whose meaning the student now knows; a sentence on a loose page that changes each time it's read
 - Relationship warmth with that fae species — which may open stranger bargains later
 
+**Belief reward is always 0.** Fae do not trade in Belief.
+
+---
+
+## The Margin (Player File Format)
+
+Fae bargains are recorded in `## The Margin` in the player file — never in The Inside Cover (which is for NPC quests).
+
+**Table format:**
+```
+| Fae | What They Gave | Terms (what you owe) | Deadline | Status |
+|---|---|---|---|---|
+| Wayskeeper | Described the vessel's color that day | One sentence about an arrival — any arrival, spoken aloud on the way home | 2026-04-20 | OPEN |
+```
+
+**Status values:**
+- `OPEN` — bargain in effect, payment not yet made
+- `DELIVERED` — student paid, fae accepted, reward given
+- `BROKEN` — student failed and the fae has responded (consequence already applied)
+- `OVERDUE` — deadline passed; tick.py has marked this and written consequences to tick-queue
+- `EXPIRED` — condition-based deadline passed (Labyrinth judgment call)
+
+**Deadline formats:**
+- `YYYY-MM-DD` — tick.py can auto-detect and mark OVERDUE
+- `before next visit` — Labyrinth must judge; tick.py cannot evaluate conditions
+- `within 24 hours` — Labyrinth must judge
+
+---
+
+## What Happens When a Bargain Is Broken
+
+Each species responds differently. These consequences are woven into the world — never announced as a status update.
+
+| Species | Consequence |
+|---|---|
+| **Hearthkin** | The warmth in the Archive shifts. The ledger-keeper turns a page without comment. The vessel that was warm goes cold — still there, still theirs, but no longer waiting. |
+| **Wayskeeper** | She adjusts her description. Notes the delay in notation that can't be read yet. Does not consider it a failure. Considers it a data point. |
+| **Goblins** | The market closes. The inventory is behind a different door now — that door has a price. The debt is in the ledger. It will not be forgotten. |
+| **Appendix Provinces** | Practical and final: storage fee increases. They do not chase debts. They adjust terms. |
+| **Punctuation Pixies** | The debt gets redenominated. A word in something recently read was different than it should have been. They collect in unusual currency. |
+| **Deep Lore Dwarves** | They will be there at the next Outer Stacks entry. Formally. They will say one word: *"Still."* |
+| **Sentence Sprites** | Something in the Academy changes. A word on a plaque, a heading, something on a wall — slightly different now. They edit. They don't explain. |
+
 ---
 
 ## Interaction Rules
@@ -174,3 +217,4 @@ The difference matters: when an NPC assigns a quest, they are asking the student
 - **Enchantment:** The `Everything Speaks` enchantment works particularly well on Book Fae.
 - **Sparky:** Sparky is a distant cousin to the Punctuation Pixies, but far more helpful (and louder).
 - **Field reports to fae:** Specificity is everything. A fae that asked for "the texture of Tuesday" will not accept "it felt kind of slow." The Labyrinth should press for the real, particular, sensory detail before accepting the report.
+- **The Margin:** Always write new bargains to `## The Margin` immediately when the fae acts. The terms are in effect from the moment of the gift.

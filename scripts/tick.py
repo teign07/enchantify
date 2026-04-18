@@ -57,6 +57,196 @@ NPC_STIR_GAIN_MIN      = 1      # Belief gained from being stirred (min)
 NPC_STIR_GAIN_MAX      = 2      # Belief gained from being stirred (max)
 
 
+# ── Fae Bargains ─────────────────────────────────────────────────────────────
+# Reads ## The Margin in every player file.
+# Finds OPEN bargains whose deadline has passed and writes consequences
+# to the tick-queue keyed by fae species.
+
+PLAYERS_DIR = BASE_DIR / "players"
+
+# Per-species consequence flavor — what happens when the debt goes unpaid.
+# Keyed by lowercase species name or partial match.
+_FAE_CONSEQUENCES = {
+    "hearthkin": (
+        "The warmth in the Archive shifted when the door opened. "
+        "The ledger-keeper did not look up, but she turned a page. "
+        "The vessel left unlabeled is still there, still unstoppered — "
+        "but it is no longer warm to the touch."
+    ),
+    "wayskeeper": (
+        "The Wayskeeper moved between the cases without pausing at the slot. "
+        "The vessel pre-labeled for {player} is still there. "
+        "She has noted, in notation that cannot be read yet, that the arrival is overdue. "
+        "She does not consider this a failure. She considers it a data point."
+    ),
+    "goblin": (
+        "The market door is still there. It does not open. "
+        "A goblin debt unpaid is not forgotten — it is catalogued. "
+        "Somewhere in the Index Empire, a ledger entry now reads: *owes attention, has not paid.* "
+        "The inventory the bargain promised is behind a different door now. That door has a price."
+    ),
+    "appendix": (
+        "Practical, blunt, final: the Appendix Provinces have noted the lapse. "
+        "The thing stored here is still yours to claim — but the storage fee has increased. "
+        "They do not chase debts. They simply adjust the terms."
+    ),
+    "punctuation pixie": (
+        "Something in the margins shifted. A word in a sentence {player} read yesterday "
+        "was different than it should have been. The Punctuation Pixies collect in unusual currency. "
+        "The debt is not gone. It has been redenominated."
+    ),
+    "deep lore dwarf": (
+        "Deep Lore Dwarves remember everything. The bargain is in their records. "
+        "They will not pursue {player} — they will simply be there, formally, "
+        "the next time the Outer Stacks are entered. They will say one word: *'Still.'*"
+    ),
+    "sentence sprite": (
+        "A sentence somewhere in the Academy — a plaque, a heading, something on a wall — "
+        "has changed. It now says something slightly different than it did yesterday. "
+        "The Sentence Sprites made an adjustment. They do not explain. They only edit."
+    ),
+    # Fallback for unlisted species
+    "_default": (
+        "Something in the Outer Stacks has noticed. The bargain is not forgotten — "
+        "the Fae do not forget. The terms have not changed. But the door is slightly harder to find."
+    ),
+}
+
+
+def _fae_consequence(species: str, player: str) -> str:
+    """Return consequence flavor text for the given species."""
+    lower = species.lower()
+    for key, text in _FAE_CONSEQUENCES.items():
+        if key != "_default" and key in lower:
+            return text.replace("{player}", player)
+    return _FAE_CONSEQUENCES["_default"].replace("{player}", player)
+
+
+def _parse_margin(text: str) -> list[dict]:
+    """Parse ## The Margin from a player file. Returns list of bargain dicts."""
+    bargains = []
+    in_margin = False
+    in_table  = False
+
+    for line in text.splitlines():
+        if re.match(r'^## The Margin', line):
+            in_margin = True
+            continue
+        if in_margin and re.match(r'^## ', line):
+            break  # next section
+        if not in_margin:
+            continue
+
+        # Skip header/separator rows
+        if '|' not in line:
+            continue
+        if re.search(r'[-]{3,}', line):
+            continue
+        if re.match(r'\|\s*Fae\s*\|', line, re.IGNORECASE):
+            in_table = True
+            continue
+        if not in_table:
+            continue
+
+        cols = [c.strip() for c in line.strip('|').split('|')]
+        if len(cols) < 5:
+            continue
+        # Columns: Fae | What They Gave | Terms (what you owe) | Deadline | Status
+        fae, gave, terms, deadline, status = cols[0], cols[1], cols[2], cols[3], cols[4]
+        if fae.startswith('*') or not fae:  # placeholder row
+            continue
+
+        bargains.append({
+            "fae":      fae.strip(),
+            "gave":     gave.strip(),
+            "terms":    terms.strip(),
+            "deadline": deadline.strip(),
+            "status":   status.strip().upper(),
+        })
+
+    return bargains
+
+
+def _deadline_passed(deadline_str: str) -> bool:
+    """Return True if the deadline has passed. Accepts YYYY-MM-DD or 'before [event]'."""
+    if not deadline_str or deadline_str.lower() in ("open", "none", "—", "-"):
+        return False
+    # Try to parse as a date
+    m = re.search(r'(\d{4}-\d{2}-\d{2})', deadline_str)
+    if m:
+        try:
+            dl = date.fromisoformat(m.group(1))
+            return date.today() > dl
+        except ValueError:
+            pass
+    # Condition-based deadlines like "before next visit" can't be auto-evaluated
+    return False
+
+
+def check_fae_bargains(dry_run: bool = False) -> list[str]:
+    """Scan all player Fae Bargains. Return tick-queue lines for overdue OPEN bargains."""
+    queue_lines = []
+
+    for player_file in PLAYERS_DIR.glob("*.md"):
+        # Skip anchor files and other non-player files
+        if "-" in player_file.stem:
+            continue
+        player_name = player_file.stem
+
+        text = player_file.read_text()
+        bargains = _parse_margin(text)
+
+        for b in bargains:
+            if b["status"] != "OPEN":
+                continue
+            if not _deadline_passed(b["deadline"]):
+                continue
+
+            # This bargain is overdue
+            consequence = _fae_consequence(b["fae"], player_name)
+            queue_lines.append(
+                f"- **[FAE DEBT — {b['fae']}]** Bargain overdue for {player_name}. "
+                f"Owed: *{b['terms']}* (deadline: {b['deadline']}). "
+                f"{consequence}"
+            )
+
+            if not dry_run:
+                # Mark as OVERDUE in the player file
+                new_line = line_with_status(text, b, "OVERDUE")
+                if new_line:
+                    player_file.write_text(new_line)
+                    text = new_line  # keep in sync for multiple bargains in same file
+
+            if dry_run:
+                print(f"  [dry-run] Fae debt: {player_name} owes {b['fae']} — {b['terms']}")
+
+    return queue_lines
+
+
+def line_with_status(text: str, bargain: dict, new_status: str) -> str:
+    """Replace the status cell for a specific bargain row in the player file text."""
+    # Match the row by fae name and terms (both must appear)
+    fae_escaped   = re.escape(bargain["fae"])
+    terms_escaped = re.escape(bargain["terms"][:40])  # first 40 chars as anchor
+
+    def replace_status(m):
+        row = m.group(0)
+        # Replace the last status cell (OPEN → new_status)
+        return re.sub(
+            r'\|\s*OPEN\s*(\|[^|]*)?$',
+            f'| {new_status} ',
+            row,
+        )
+
+    updated = re.sub(
+        rf'\|[^|]*{fae_escaped}[^|]*\|.*?{terms_escaped}.*',
+        replace_status,
+        text,
+        flags=re.IGNORECASE,
+    )
+    return updated
+
+
 # ── Entity tick ───────────────────────────────────────────────────────────────
 
 def parse_entities(text):
@@ -674,6 +864,17 @@ def main():
             queue_lines.append(f"- **{a['name']}** fading (Belief → {a['belief']}, {days_str})")
     else:
         print("  No anchors need decay.")
+
+    # ── 2b. Fae bargain debts ─────────────────────────────────────────────────
+    print("Checking fae bargains...")
+    fae_lines = check_fae_bargains(dry_run=args.dry_run)
+    if fae_lines:
+        queue_lines.append("")
+        queue_lines.append("*Fae debts coming due:*")
+        queue_lines.extend(fae_lines)
+        print(f"  ⚠ {len(fae_lines)} overdue fae bargain(s) — added to queue.")
+    else:
+        print("  No overdue fae bargains.")
 
     # ── 3. Write queue ────────────────────────────────────────────────────────
     output = "\n".join(queue_lines) + "\n"

@@ -30,6 +30,19 @@
 |---|---|---|---|
 | *(empty — the cover is clean)* | | | |
 
+## The Margin
+*Fae bargains live here, not in the Inside Cover. Fae give first — the student always owes a return.*
+*These are contracts, not quests. The Fae remember everything.*
+
+| Fae | What They Gave | Terms (what you owe) | Deadline | Status |
+|---|---|---|---|---|
+| *(The margin is clean — no bargains yet)* | | | | |
+
+**Status values:** `OPEN` · `DELIVERED` · `BROKEN` · `OVERDUE` · `EXPIRED`
+**Deadline format:** `YYYY-MM-DD` or a condition (`before next visit`, `within 24 hours`)
+
+---
+
 ## The Flyleaf
 *Known enchantments — the ink appears on its own as each one is discovered.*
 

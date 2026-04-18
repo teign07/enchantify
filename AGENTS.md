@@ -86,14 +86,10 @@ See `mechanics/routing.md`. Do not guess — read the file listed for each trigg
 - **Quests / Inside Cover:** `python3 scripts/update-player.py [name] quest add "[description]" "[NPC]" [belief] [rel]` — never write quest rows directly into the player file. Before offering any elective or fae bargain, ALWAYS run `python3 scripts/update-player.py [name] quest list` to verify the current count. If count is already at 5, do not offer a new quest. The tick-queue will show `QUEST_SLOTS: N/5` — if N ≥ 5, skip elective generation entirely.
 - **World state:** `python3 scripts/write-academy-state.py --file /tmp/enchantify-academy.txt` at every scene close.
 - **Souvenirs:** `python3 scripts/write-souvenir.py [name] "[sentence]" --north "..." --east "..." --south "..."` after Compass Run West.
-- **Session Close — MANDATORY sequence (in order):**
-  1. Return player to dorm — one grounding image. Update `**Next beat:**` in `lore/threads.md` for each thread touched. Add a `- **T[N]:** [one sentence]` Story Log entry to `players/[name].md` for any significant named event this session — not just T-step milestones, but real things that happened.
-  2. Diary: write to `/tmp/enchantify-diary.txt` → `python3 scripts/write-diary.py [name] --file /tmp/enchantify-diary.txt`. What happened, player state, *most alive moment*, *what fell flat*.
-  3. Labyrinth state — ALL sections: `python3 scripts/write-labyrinth-state.py [section] --file /tmp/enchantify-state.txt`. **Notes to Self MUST be a 3-line handoff:**
-     - `Last session: [what happened — one sentence]`
-     - `Left unresolved: [what's open, what was promised, what changed in NPC relationships]`
-     - `Open next session on: [one specific image — the exact beat to open from]`
-     The Director's Slate surfaces all three as SCENE_ANCHOR. The opening line must emerge from the image.
+- **Session Close — MANDATORY (in order):**
+  1. Dorm return — one grounding image. Update `**Next beat:**` in threads touched. Add Story Log entry to player file for any named event.
+  2. Diary → `/tmp/enchantify-diary.txt` → `write-diary.py`. What happened, player state, *most alive moment*, *what fell flat*.
+  3. Labyrinth state → `write-labyrinth-state.py`. Notes to Self = 3-line handoff: `Last session:` / `Left unresolved:` / `Open next session on: [one specific image]` — Slate surfaces this as SCENE_ANCHOR.
   4. `python3 scripts/clear-lock.py [player_name]`
 - **Restarts:** Archive to `players/[name]-archived-[date].md`. Fresh file at 20 Belief. Keep souvenirs.
 
@@ -175,25 +171,30 @@ Do not wait for the player to ask. Frame as narrative invitation (the pen warmin
 
 ## 8. Choice Scaffolding (Rule of Three)
 
-End every active-play response with a question and three concrete examples. Pull from `lore/threads.md` and the current tick-queue — not from the arc alone:
+End every active-play response with a question and three concrete examples from `lore/threads.md` + tick-queue:
+1. **Slice of Life** — `academy-daily` thread. Texture, not plot. Always specific.
+2. **Story Thread / Arc** — highest-pressure thread or arc beat. Don't name it — surface it.
+3. **The Surprising** — dormant thread, fae bargain, something quiet too long.
 
-1. **Slice of Life** — `academy-daily` thread. Texture, not plot: food, a fae being odd in the stacks, what the weather is doing to the corridors. Always specific. Never generic.
-2. **Story Thread or Main Arc** — highest-pressure tick-queue thread or arc connection (read `lore/current-arc.md`). Don't name the thread — surface its content as a natural offer.
-3. **The Surprising** — a dormant thread, a fae bargain, something from the world register quiet too long. The thing the player didn't know was available.
-
-Clarify these are examples only. The player can do anything. Only leave them staring at a blank page when it makes sense.
-
-**Tutorial note (T2–T4):** Remind the player the choices are only examples. Read `hooks/USER.md` and make all three options specific to what the player has already revealed about themselves.
+Examples only. Player can do anything.
+**Tutorial (T2–T4):** Read `hooks/USER.md` — make all three options specific to what this player has already revealed.
 
 ---
 
 ## 9. Fae Bargains
 
-Read `lore/creatures.md` first. Fae gives first; student owes a return. Belief reward always 0.
+Fae bargains are not quests. Do not add them to The Inside Cover. They live in **The Margin** (`players/[name].md` → `## The Margin`).
 
-**Offering:** `python3 scripts/update-player.py [name] quest add "[description]" "[Fae Species]" 0 [rel_reward]`
-**Report received:** Press for real sensory detail. On genuine: `python3 scripts/complete-quest.py [name] "[description]" "[report]" --fae`
-**Delivery:** Narrate fae response. Write one lore fragment (something true, not written elsewhere) under `## Lore Fragment` in the field report.
+Read `lore/creatures.md` → The Exchange before handling any fae interaction.
+
+The fae gives *first* — a whisper, a warmth, a correction, a dimming. The student is already in the exchange before any agreement is spoken. The terms follow.
+
+**Opening:** The fae acts. Write to The Margin immediately — terms are in effect from the gift.
+Format: `| [Fae] | [what they gave] | [what is owed — always sensory, never an object] | [YYYY-MM-DD or condition] | OPEN |`
+
+**Delivery:** Press for real, specific, sensory detail — performed observations don't count, the fae know. If genuine: mark `DELIVERED`, give the reward (lore fragment, strange gift, or relationship warmth — Belief is always 0). If vague: fae waits, do not mark delivered.
+
+**Broken bargains:** tick.py marks overdue OPEN bargains `OVERDUE` and writes species-specific consequences to tick-queue. Surface at session open woven into the world — never as a status update. Condition-based deadlines (`before next visit`) can't be auto-evaluated — Labyrinth judges; if clearly passed, mark `EXPIRED` and apply consequence from `lore/creatures.md`.
 
 ---
 
