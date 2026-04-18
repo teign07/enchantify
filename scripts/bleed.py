@@ -607,6 +607,100 @@ def extract_health_from_pulse(pulse: str) -> str:
     return "\n".join(health_lines[:6]) if health_lines else ""
 
 
+def get_previous_coverage(n: int = 3) -> str:
+    """Extract what the last N issues covered so the LLM can avoid repeating it.
+
+    Returns a plain-text editorial briefing: headline topics, feature titles,
+    gossip opening sentences, and classified text from recent issues.
+    The prompt uses this as a DO NOT REPEAT constraint.
+    """
+    if not ISSUES_DIR.exists():
+        return "(no previous issues)"
+
+    html_files = sorted(ISSUES_DIR.glob("*.html"))
+    # Exclude today's file if it exists (force-regenerate case)
+    today_str = date.today().strftime("%Y-%m-%d")
+    html_files = [f for f in html_files if f.stem != today_str]
+    recent = html_files[-n:] if len(html_files) >= n else html_files
+    if not recent:
+        return "(no previous issues)"
+
+    def strip_tags(s: str) -> str:
+        return re.sub(r'<[^>]+>', '', s).strip()
+
+    def extract_section_text(html: str, css_class: str, chars: int = 400) -> str:
+        """Pull text from the first element with the given CSS class."""
+        m = re.search(rf'class="[^"]*{re.escape(css_class)}[^"]*"[^>]*>(.*?)</(?:div|section|article)',
+                      html, re.DOTALL | re.IGNORECASE)
+        if not m:
+            return ""
+        return strip_tags(m.group(1))[:chars]
+
+    summaries = []
+    for f in reversed(recent):  # most recent first
+        try:
+            html = f.read_text(errors='replace')
+            text = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL)
+            text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL)
+
+            parts = [f"Issue date: {f.stem}"]
+
+            # Headline: the h1/h2 inside .headline-title or first big header
+            hl = re.search(r'class="headline[^"]*"[^>]*>.*?<(?:h1|h2|p)[^>]*>(.*?)</(?:h1|h2|p)',
+                           text, re.DOTALL | re.IGNORECASE)
+            if hl:
+                parts.append(f"  Headline: {strip_tags(hl.group(1))[:120]}")
+
+            # Feature title
+            ft = re.search(r'class="feature-title[^"]*"[^>]*>(.*?)</(?:p|div|h)',
+                           text, re.DOTALL | re.IGNORECASE)
+            if ft:
+                parts.append(f"  Feature title: {strip_tags(ft.group(1))[:120]}")
+
+            # Gossip: first 3 paragraph opening sentences
+            gossip_block = re.search(
+                r'class="gossip[^"]*"[^>]*>(.*?)</(?:div|section)',
+                text, re.DOTALL | re.IGNORECASE)
+            if gossip_block:
+                gtext = strip_tags(gossip_block.group(1))
+                # Split into sentences, grab opening of first 3 items
+                sentences = re.split(r'(?<=[.!?])\s+', gtext)
+                openers = [s[:100] for s in sentences[:6] if len(s) > 20]
+                if openers:
+                    parts.append("  Gossip items covered:")
+                    for o in openers[:3]:
+                        parts.append(f"    - {o}")
+
+            # Classifieds: pull all classified text (these are the ones that repeat verbatim)
+            classifieds_block = re.search(
+                r'class="classifieds[^"]*"[^>]*>(.*?)</(?:div|section)',
+                text, re.DOTALL | re.IGNORECASE)
+            if classifieds_block:
+                ctext = strip_tags(classifieds_block.group(1))
+                lines = [l.strip() for l in ctext.splitlines() if l.strip()]
+                if lines:
+                    parts.append("  Classifieds run:")
+                    for l in lines[:6]:
+                        parts.append(f"    {l[:100]}")
+
+            summaries.append("\n".join(parts))
+        except Exception:
+            continue
+
+    if not summaries:
+        return "(no previous issues)"
+
+    header = (
+        "PREVIOUS ISSUE COVERAGE — EDITORIAL CONSTRAINT\n"
+        "Do not repeat headlines, feature angles, or gossip items already run.\n"
+        "Stories may continue to develop the same threads only if there is new information.\n"
+        "Classifieds must be freshly written — do not reuse text from any previous issue.\n"
+        "Rotate which threads and characters receive front-page and feature attention.\n"
+        "A thread that dominated the last two issues should appear only in passing this issue.\n\n"
+    )
+    return header + "\n\n".join(summaries)
+
+
 # ── Agent call ────────────────────────────────────────────────────────────────
 
 _OPENCLAW_BIN = (
@@ -650,6 +744,8 @@ named corridors, specific times, partial quotes — the kind of texture that mak
 
 The reader should be able to SETTLE INTO THIS PAPER. Every section except The Barometer,
 The Exchange, The Correction, The Missing, and The Correspondent should be substantial, readable prose.
+
+{data['previous_coverage']}
 
 DATA FEEDS (synthesize into journalism — never quote data directly):
 
@@ -701,14 +797,20 @@ Subhead: [one sentence expanding the headline]
 Body: [A full front-page article. 5-7 paragraphs of real reporting. Quote sources (unnamed
 is fine: "one second-year student, who declined to be identified"). Give specific details —
 times, locations within the Academy, observations. Report the dominant thread or simulation
-activity as factual news. This is the main story — write it like one.]
+activity as factual news. This is the main story — write it like one.
+CONSTRAINT: The headline must cover a different thread or event than recent issues.
+If the player has not interacted with a thread in real gameplay, it should not dominate
+the front page issue after issue. Dormant threads belong inside, not on the front page.]
 
 ===GOSSIP===
 [The social column, in W.E.'s voice. Write 5-6 separate gossip items — each item is its own
 paragraph of 2-4 sentences. Wicker reports true things slanted. He names names when it suits
 him and withholds them when it doesn't. He is never without an angle. He always knows more
 than he lets on. He never directly identifies himself. Each item should feel like a distinct
-morsel — a different corner of the Academy social world. End with his byline: — W.E.]
+morsel — a different corner of the Academy social world. End with his byline: — W.E.
+CONSTRAINT: Every item must be freshly written. Do not reuse sentences, observations, or
+characters from previous issues' gossip columns. Check the previous coverage block above —
+any item that appeared before must not appear again unless something new has happened.]
 
 ===WEATHER===
 [The Academy Meteorological Society's 4-day outlook, written entirely in Academy terms.
@@ -774,12 +876,18 @@ the ticker — what does the current pattern mean narratively?]
 something with depth — not news, but context. Could be: a profile of a figure who's been
 in the news, an investigation into something that's been going on for weeks, a brief history
 of a location, or an opinion piece attributed to a named Academy figure. Give it a title
-and a byline. This is what the reader lingers over.]
+and a byline. This is what the reader lingers over.
+CONSTRAINT: Do not feature the same thread or character as the previous issue's feature.
+Rotate. There are many threads, many characters, many Academy locations. A feature that ran
+last issue should not run again this issue — even from a different angle. Check the
+previous coverage block above and choose something that hasn't been the focus recently.]
 
 ===CLASSIFIEDS===
 [5-6 classified notices. Each one 2-4 sentences — enough to feel real and slightly eerie.
 Mix labels: LOST: / FOUND: / NOTICE: / SEEKING: / WARNING: / REWARD: / POSITION AVAILABLE: etc.
-These are story seeds. The reader should want to investigate at least two of them.]
+These are story seeds. The reader should want to investigate at least two of them.
+CONSTRAINT: Every classified must be written fresh. Check the previous coverage block above —
+do not reuse any classified text, even partially. New issue, new listings. Postings expire.]
 
 ===CORRECTION===
 [One dry, formal correction. Deadpan and specific. 1-2 sentences. Brief is correct here.]
@@ -1649,6 +1757,8 @@ def main():
     else:
         talisman_data_str = "(no talisman data available)"
 
+    previous_coverage = get_previous_coverage(n=3)
+
     data = {
         "date_str":              date_str,
         "issue_number":          issue_number,
@@ -1665,6 +1775,7 @@ def main():
         "talisman_data":         talisman_data_str,
         "talisman_npcs":         talisman_npcs or "(no chapter NPCs found)",
         "fuel_data":             fuel_data,
+        "previous_coverage":     previous_coverage,
     }
 
     # ── Generate content ─────────────────────────────────────────────────────
