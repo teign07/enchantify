@@ -35,6 +35,45 @@ WINDOW_MINUTES = 30
 REFILL_DAY     = 1   # day-of-month to treat as "new moon" for refill
 
 
+def _card_key(anchor_name: str) -> str:
+    return f"Calling Card — {anchor_name}"
+
+
+def _add_card_to_inventory(player: str, anchor_name: str):
+    """Insert a calling card item into the player file inventory."""
+    pfile = ANCHORS_DIR / f"{player}.md"
+    if not pfile.exists():
+        return
+    text = pfile.read_text()
+    key  = _card_key(anchor_name)
+    if key in text:
+        return  # already there
+    item = (
+        f"  - **{key}:** *Fae Delivery. From the Goblin Index Empire.* "
+        f"A small sealed envelope in pale grey, addressed in handwriting that isn't quite human. "
+        f"Opens a 30-minute window into {anchor_name}. Single use."
+    )
+    # Insert as first item under - **Inventory:**
+    text = re.sub(
+        r"(- \*\*Inventory:\*\*\s*\n)",
+        r"\1" + item + "\n",
+        text,
+        count=1,
+    )
+    pfile.write_text(text)
+
+
+def _remove_card_from_inventory(player: str, anchor_name: str):
+    """Remove the calling card item from the player file inventory."""
+    pfile = ANCHORS_DIR / f"{player}.md"
+    if not pfile.exists():
+        return
+    text  = pfile.read_text()
+    key   = re.escape(_card_key(anchor_name))
+    text  = re.sub(r"  - \*\*" + key + r":\*\*[^\n]*\n", "", text)
+    pfile.write_text(text)
+
+
 def load_state() -> dict:
     if STATE_FILE.exists():
         return json.loads(STATE_FILE.read_text())
@@ -126,6 +165,7 @@ def cmd_activate(player: str, anchor_name: str, dry_run: bool = False):
         "expires_at":   expires.isoformat(),
     }
     save_state(state)
+    _remove_card_from_inventory(player, anchor_name)
 
     print(f"✓ Pocket anchor opened: {anchor_name}")
     print(f"  The calling card dissolves. The door is open for {WINDOW_MINUTES} minutes.")
@@ -194,6 +234,7 @@ def cmd_refill(player: str, dry_run: bool = False):
         if not dry_run:
             anchor_state["charges"]     = 1
             anchor_state["last_refill"] = today
+            _add_card_to_inventory(player, name)
         refilled.append(name)
 
     if not dry_run:
