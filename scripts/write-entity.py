@@ -121,9 +121,11 @@ def main():
     # ── Thread in-place update (never moves the row) ─────────────────────────
     if args.thread:
         text = REGISTER.read_text()
+        # Match with or without a leading "The " prefix, case-insensitive
+        name_pat = r"(?:The\s+)?" + re.escape(re.sub(r"^[Tt]he\s+", "", args.name))
         pattern = re.compile(
-            r"^(\|\s*" + re.escape(args.name) + r"\s*\|\s*\S+\s*\|\s*)(\d+)(\s*\|.*)",
-            re.MULTILINE
+            r"^(\|\s*" + name_pat + r"\s*\|\s*\S+\s*\|\s*)(\d+)(\s*\|.*)",
+            re.MULTILINE | re.IGNORECASE
         )
         m = pattern.search(text)
         if not m:

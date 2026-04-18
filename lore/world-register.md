@@ -120,7 +120,6 @@
 | The Archive of Fermentation | Location | 5 | Outer Stacks EMBARK anchor — vast cold vault of glass-fronted cases tended by the Wayskeeper, a fae who has never finished a journey; each vessel holds a fermenting path; bj's is already labeled. 📍 GPS-gated: 44.426328, -69.005545 |
 | Boggle | NPC | 6 | [thread:academy-daily] Riddlewind; Enchantment teacher; chaotic, sticky, hard to pin down; the pun always lands eventually |
 | Professor Stonebrook | NPC | 15 | [thread:academy-daily] Head of Mossbloom; Observatory keeper; calibrated the Wonder Compass with bj at T12; long pauses, philosophical |
-| Duskthorn Investigation | Thread | 5 | Probing the shadows of the secret chapter. |
 
 ## Whisper Register (Belief <5)
 
