@@ -410,6 +410,138 @@ def run_npc_stir_gains(selected, register_text, dry_run=False):
     return text, count
 
 
+def nudge_talismans_from_behavior(register_text, dry_run=False):
+    """
+    Read behavioral signals from HEARTBEAT.md and apply small (+1/-1) nudges
+    to chapter talismans. At most 2 talismans nudged per tick. Signals must be
+    clear, not borderline — this is meant to be felt over weeks, not hours.
+
+    Talisman philosophy mapping:
+      Emberheart  — self-authorship, agency, passion, making things happen
+      Riddlewind  — coauthored, structured, puzzles solved together
+      Mossbloom   — receptive, surrender, quiet, rest, wisdom
+      Tidecrest   — spontaneity, unscripted, present-moment, flow
+      Duskthorn   — conflict, obstacles, neglect, decay, pressure
+    """
+    heartbeat_path = BASE_DIR / "HEARTBEAT.md"
+    if not heartbeat_path.exists():
+        return [], register_text
+
+    hb = heartbeat_path.read_text()
+    nudges = {}   # talisman_name -> delta (+1 or -1)
+    reasons = {}  # talisman_name -> reason string
+
+    # ── Signal extraction ─────────────────────────────────────────────────────
+
+    # Steps
+    steps = 0
+    m = re.search(r"Steps:\s*([\d,]+)", hb)
+    if m:
+        steps = int(m.group(1).replace(",", ""))
+
+    # Sleep
+    sleep_h = 0.0
+    m = re.search(r"Sleep:\s*([\d.]+)h", hb)
+    if m:
+        sleep_h = float(m.group(1))
+
+    # HRV
+    hrv = 0
+    m = re.search(r"HRV:\s*([\d.]+)ms", hb)
+    if m:
+        hrv = float(m.group(1))
+
+    # Calendar — count today's events
+    calendar_events = len(re.findall(r"^\s*•\s+\S", hb, re.MULTILINE))
+
+    # Fuel logged (proxy for intentional self-care / presence)
+    fuel_logged = "· " in hb and "cal" in hb
+
+    # Days since last session — from arc-spine or player file
+    days_absent = 0
+    for pfile in (BASE_DIR / "players").glob("*.md"):
+        if "-" in pfile.stem:
+            continue
+        text = pfile.read_text()
+        m = re.search(r"Last session.*?(\d{4}-\d{2}-\d{2})", text)
+        if m:
+            from datetime import date as _date
+            try:
+                last = _date.fromisoformat(m.group(1))
+                days_absent = max(days_absent, (_date.today() - last).days)
+            except ValueError:
+                pass
+
+    # ── Scoring ───────────────────────────────────────────────────────────────
+
+    # Emberheart: agency, movement, making things happen
+    #   Strong signal: high steps (>6000) AND calendar events (≥2)
+    if steps >= 6000 and calendar_events >= 2:
+        nudges["Ember Seal"] = 1
+        reasons["Ember Seal"] = f"active day — {steps:,} steps, {calendar_events} events"
+
+    # Riddlewind: structure, rhythm, coauthorship
+    #   Strong signal: fuel logged (presence/intentionality) AND sleep decent AND calendar used
+    if fuel_logged and sleep_h >= 6.5 and calendar_events >= 1:
+        nudges["Wind Cipher"] = 1
+        reasons["Wind Cipher"] = "structured day — fuel logged, decent sleep, calendar active"
+
+    # Mossbloom: rest, receptivity, surrender
+    #   Strong signal: good sleep (≥7.5h) AND low steps (body is resting, not striving)
+    if sleep_h >= 7.5 and steps < 3000:
+        nudges["Moss Clasp"] = 1
+        reasons["Moss Clasp"] = f"restful day — {sleep_h}h sleep, {steps:,} steps"
+
+    # Tidecrest: spontaneity, unscripted, present-moment
+    #   Strong signal: no calendar events (unscheduled) AND steps moderate (went somewhere, just not planned)
+    if calendar_events == 0 and 2000 <= steps <= 8000:
+        nudges["Tide Glass"] = 1
+        reasons["Tide Glass"] = f"unscripted day — no calendar events, {steps:,} steps"
+
+    # Duskthorn: conflict, neglect, pressure
+    #   Strong signal: extended absence (3+ days) OR very poor sleep AND no steps
+    if days_absent >= 3:
+        nudges["Dusk Thorn"] = 1
+        reasons["Dusk Thorn"] = f"{days_absent} days since last session — the Nothing moves in silence"
+    elif sleep_h > 0 and sleep_h < 5.0 and steps < 1000:
+        nudges["Dusk Thorn"] = 1
+        reasons["Dusk Thorn"] = f"depleted day — {sleep_h}h sleep, {steps:,} steps"
+
+    # ── Cap: at most 2 talismans nudged per tick ──────────────────────────────
+    if len(nudges) > 2:
+        # Keep the two with the most "interesting" signals (Duskthorn last if present)
+        priority = ["Dusk Thorn", "Ember Seal", "Tide Glass", "Moss Clasp", "Wind Cipher"]
+        kept = {}
+        for t in priority:
+            if t in nudges and len(kept) < 2:
+                kept[t] = nudges[t]
+        nudges = kept
+
+    # ── Apply ─────────────────────────────────────────────────────────────────
+    seeds = []
+    text  = register_text
+
+    for talisman, delta in nudges.items():
+        current = get_belief_in_text(text, talisman)
+        if current is None:
+            continue
+        new_b = max(1, min(TALISMAN_CAP, current + delta))
+        if new_b == current:
+            continue
+        direction = "stirs" if delta > 0 else "quiets"
+        if not dry_run:
+            text, _ = set_belief_in_text(text, talisman, new_b)
+        reason = reasons.get(talisman, "")
+        seeds.append(
+            f"- *[Behavior → Talisman]* The **{talisman}** {direction} "
+            f"({current} → {new_b}) — {reason}"
+        )
+        if dry_run:
+            print(f"  [dry-run] {talisman}: {current} → {new_b}  ({reason})")
+
+    return seeds, text
+
+
 def run_npc_talisman_investments(selected, register_text, dry_run=False):
     """
     For each stirred NPC with a chapter affiliation, roll INVESTMENT_CHANCE to
@@ -982,6 +1114,28 @@ def main():
             if tally: parts.append(f"{tally} talisman")
             if free:  parts.append(f"{free} free")
             print(f"✓ NPC investments: {', '.join(parts)} ({len(invest_seeds)} total).")
+
+    # ── 1e. Behavior → Talisman nudge ────────────────────────────────────────
+    print("Checking behavior signals...")
+    current_register = REGISTER.read_text()
+    nudge_seeds, nudged_register = nudge_talismans_from_behavior(
+        current_register, dry_run=args.dry_run
+    )
+    if nudge_seeds:
+        if not args.dry_run:
+            backup = REGISTER.with_suffix(".md.bak")
+            shutil.copy2(REGISTER, backup)
+            tmp = REGISTER.with_suffix(".md.tmp")
+            tmp.write_text(
+                nudged_register if nudged_register.endswith("\n")
+                else nudged_register + "\n"
+            )
+            tmp.rename(REGISTER)
+        queue_lines.append("")
+        queue_lines.extend(nudge_seeds)
+        print(f"  {len(nudge_seeds)} talisman(s) nudged by behavior.")
+    else:
+        print("  No talisman nudges this tick.")
 
     # ── 2. Anchor decay ───────────────────────────────────────────────────────
     print("Checking anchor decay...")
