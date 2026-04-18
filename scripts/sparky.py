@@ -165,8 +165,23 @@ Here is today's data:
 
 {context}
 
-Find 1-2 genuine pattern-connections. They must be ACTUALLY TRUE — real numbers
-that actually match, real events that actually rhyme with today's data.
+Find 1-2 genuine pattern-connections from TODAY'S DATA. They must be real —
+grounded in the actual data above, not invented. But "real" means many things:
+
+TYPES OF CONNECTIONS SPARKY FINDS (pick any, mix freely):
+- Numeric: two numbers that match, or add up to something, or mirror each other
+- Metaphorical: two things that are structurally the same even though they're unrelated
+  (e.g. tides and narrative arcs both "turn"; moon phases and belief both "fill and empty")
+- Relational: something in today's data echoes something in history, or vice versa
+  (e.g. a historical event today involves waiting, and the tides are slack — both holding still)
+- Poetic: two images that belong together for no logical reason
+  (e.g. fog + a historical eclipse + "the Nothing is close" — all three are the same darkness)
+- Temporal: something about the date, season, or day-count that rhymes with something else
+- Emotional: the mood of a historical event matches the mood of today's signals
+- Coincidence of name or word: a word in a historical event appears in today's data too
+
+Do NOT default to math. Numeric connections are ONE option, not the only one.
+The best shinies are the ones that feel like they shouldn't be true but are.
 Do not force it. If nothing connects, output exactly the text: (a sleeping dot)
 
 Rules for your output:
@@ -176,9 +191,12 @@ Rules for your output:
 - Optionally include one tiny sketch description in brackets [like this]
 - If you find nothing genuine, output exactly the text: (a sleeping dot)
 
-Examples of the RIGHT tone:
+Examples of the RIGHT tone (notice variety — not all math):
 "LOOK!! The moon is 71% illuminated AND the player has 71 Belief!! BOTH ALMOST FULL!! — Sp."
-"The tide is going out AND it's day 97 of the year AND 9+7=16 AND Chapter 16 is where everything changes!! coincidence?? Sparky thinks NOT — Sp. [small drawing: arrow pointing both ways]"
+"the tide is going out AND today in 1912 the Titanic sank AND both are things leaving slowly that you can't stop!! Sparky finds this extremely significant — Sp. [drawing: small ship going down]"
+"fog AND a historical astronomer born today AND both are about not being able to see the thing you're looking for!! — Sp."
+"the season is called Mud Season AND today someone planted a flag on a mountain AND both are about the exact moment between stuck and moving!! — Sp. [arrow: pointing up out of mud]"
+"the word STILL appears in three of today's historical events!! THE LABYRINTH IS NOTICING — Sp."
 
 Output only the margin note. No preamble, no explanation."""
 
