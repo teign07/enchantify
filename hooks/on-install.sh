@@ -706,7 +706,6 @@ if command -v docker &>/dev/null; then
     echo "  ✓ Docker found."
     echo ""
     if ask_yn "Install Kokoro TTS for voice acting?" "n"; then
-        write_consent "voice" "true"
         echo ""
         echo "  Pulling Kokoro TTS (this may take a few minutes)..."
         docker pull ghcr.io/remsky/kokoro-fastapi-cpu:v0.2.2
@@ -750,7 +749,6 @@ case "$IMG_CHOICE" in
         if [ -n "$OPENAI_KEY" ]; then
             set_secret "OPENAI_API_KEY" "$OPENAI_KEY"
             set_secret "IMAGE_BACKEND"  "dalle3"
-            write_consent "images" "true"
             echo "  ✓ DALL-E 3 configured."
         else
             set_secret "IMAGE_BACKEND" "none"
@@ -882,6 +880,28 @@ mkdir -p "$AGENT_DIR"
 cp "$ENCHANTIFY_DIR/AGENTS.md" "$AGENT_DIR/agent.md"
 echo "  ✓ Agent instructions written to $AGENT_DIR"
 
+# Patch hardcoded paths in workspace docs
+sed -i.bak \
+    -e "s|/Users/bj/.openclaw/workspace/enchantify|$ENCHANTIFY_DIR|g" \
+    -e "s|/Users/bj/.openclaw/agents/enchantify|$AGENT_DIR|g" \
+    "$ENCHANTIFY_DIR/IDENTITY.md" \
+    "$ENCHANTIFY_DIR/hooks/SPAWN-HELPER.md" \
+    2>/dev/null || true
+rm -f "$ENCHANTIFY_DIR/IDENTITY.md.bak" "$ENCHANTIFY_DIR/hooks/SPAWN-HELPER.md.bak"
+
+# Generate TOOLS.md from template (substitutes personal paths/placeholders)
+OPENCLAW_HOME="$HOME/.openclaw"
+MUSICGEN_PATH="$HOME/.openclaw/workspace/skills/musicgen/musicgen_wrapper.py"
+LOCATION_FOR_TOOLS="${LOCATION_NAME:-${CURRENT_LOCATION:-Your City}}"
+sed \
+    -e "s|{{ENCHANTIFY_DIR}}|$ENCHANTIFY_DIR|g" \
+    -e "s|{{OPENCLAW_HOME}}|$OPENCLAW_HOME|g" \
+    -e "s|{{MUSICGEN_PATH}}|$MUSICGEN_PATH|g" \
+    -e "s|{{PLAYER_LOCATION}}|$LOCATION_FOR_TOOLS|g" \
+    -e "s|{{PLAYER_EMAIL}}|*(not configured — update when set up)*|g" \
+    -e "s|{{PRINTER_NAME}}|*(check with lpstat -p)*|g" \
+    "$ENCHANTIFY_DIR/hooks/TOOLS.template.md" > "$ENCHANTIFY_DIR/hooks/TOOLS.md"
+
 # Register in openclaw.json
 python3 - <<PYEOF
 import json, pathlib, shutil, os
@@ -941,6 +961,11 @@ echo "  while you work, while the book is closed."
 echo "  Installing them now."
 echo ""
 
+# Write default player name to secrets so scripts can find the right player file
+if [ -n "$PLAYER_NAME" ]; then
+    set_secret "ENCHANTIFY_DEFAULT_PLAYER" "${PLAYER_NAME,,}"
+fi
+
 # Player file
 if [ "$RETURNING" = "false" ] && [ -n "$PLAYER_NAME" ]; then
     PLAYER_FILE="$ENCHANTIFY_DIR/players/${PLAYER_NAME,,}.md"
@@ -962,6 +987,18 @@ if [ "$RETURNING" = "false" ] && [ -n "$PLAYER_NAME" ]; then
 | *(empty)* | | | |
 | *(empty)* | | | |
 
+## The Margin
+*Fae bargains live here. Fae give first — ${PLAYER_NAME} always owes a return.*
+*These are contracts, not quests. The Fae remember everything.*
+
+| Fae | What They Gave | Terms (what you owe) | Deadline | Status |
+|---|---|---|---|---|
+| *(the margin is clean — no bargains yet)* | | | | |
+
+## Story Log
+
+- **T1:** Entered the Labyrinth.
+
 ## Notes
 *The Labyrinth is watching.*
 PLAYEREOF
@@ -975,7 +1012,7 @@ fi
 CRON_BASE="$ENCHANTIFY_DIR"
 PYTHON="/usr/bin/python3"
 LOG="$LOGS_DIR"
-PNAME="${PLAYER_NAME,,:-bj}"
+PNAME="${PLAYER_NAME,,:-wanderer}"
 
 echo "  Installing cron jobs..."
 
