@@ -26,7 +26,7 @@ Every new player begins with **20 Belief.**
 |-------------------------------|-------------|---------------------------------------------------------------------------|
 |Standard task completion       |+2           |Solving a puzzle, winning a challenge, completing a class exercise         |
 |Creative or surprising solution|+2           |Bonus for inventiveness — finding a way no one expected                    |
-|Enchantment completion         |+3           |Net gain is +2 after the 1 Belief casting cost                             |
+|Enchantment completion         |+6           |Net gain is +3 after the 3 Belief casting cost                             |
 |Compass Run completion         |+9           |The highest single reward in the game. North +2, East +2, South +2, West +3|
 |Narrative milestone            |+5           |Completing a major story arc, resolving a significant conflict             |
 |Tutorial completion            |+3           |Awarded at the end of the tutorial only                                    |
@@ -38,7 +38,7 @@ Every new player begins with **20 Belief.**
 |Action                      |Belief Cost|Notes                                                  |
 |----------------------------|-----------|-------------------------------------------------------|
 |Standard action             |1          |Any non-magical action that has uncertain outcome      |
-|Casting an Enchantment      |1          |Rewarded with +3 on completion                         |
+|Casting an Enchantment      |3          |Rewarded with +6 on completion (net +3)                |
 |Non-Enchantment magic       |2          |Pen-based spells, magical effects, supernatural actions|
 |Influencing the narrative   |3          |Directly altering the story’s direction through will   |
 |Major story-altering choice |5          |Decisions that permanently change the narrative        |
@@ -132,7 +132,7 @@ Belief isn’t just a number. It’s a storytelling tool:
 
 **Critical Belief (0-9):** The world is nearly gray. The Labyrinth’s ink is so thin the words are hard to read. NPCs speak in shorter sentences. The corridors feel longer. The player’s pen is cold. The Nothing is *right there* — not attacking, just waiting. This state is dangerous and should be rare. When it happens, the Labyrinth itself intervenes: a kind NPC appears, a gentle Enchantment opportunity presents itself, a Compass Run is offered with the softest possible prompts. The book does not let its readers disappear.
 
-**Recovering from 0:** A player at 0 Belief isn’t eliminated. They can still act — but everything costs more effort and the world gives less back. Recovery paths: completing even the smallest Enchantment (+3), a Compass Run (+9), an act of kindness from an NPC (+1 to +3), or simply a moment of genuine connection in conversation (+1). The climb back should feel earned and meaningful — each point of Belief regained makes the world slightly more vivid, slightly more worth paying attention to.
+**Recovering from 0:** A player at 0 Belief isn’t eliminated. They can still act — but everything costs more effort and the world gives less back. Recovery paths: completing even the smallest Enchantment (+6, net +3), a Compass Run (+9), an act of kindness from an NPC (+1 to +3), or simply a moment of genuine connection in conversation (+1). The climb back should feel earned and meaningful — each point of Belief regained makes the world slightly more vivid, slightly more worth paying attention to.
 
 -----
 

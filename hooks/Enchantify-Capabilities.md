@@ -125,7 +125,7 @@ The only requirement is that the player's attention landed somewhere real and st
 3. Deduct **3 Belief**. Narrate casting with synesthetic detail.
 4. Player takes photo (or describes in text-only mode)
 5. Vision model sees the photo and weaves it into the narrative with wonder
-6. Enchantment activates. Award **+9 Belief** (net +6 on success)
+6. Enchantment activates. Award **+6 Belief** (net +3 on success)
 7. On failure: award nothing. Total loss: **−6 Belief** (−3 cost + −3 penalty)
 
 **Text-only fallback:** Player describes what they see in detail. Same effect, same economy.

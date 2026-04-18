@@ -28,10 +28,10 @@ Same flow, but at step 5, ask the player to describe what they see in words. Pro
 
 ## Belief Economy
 
-- **Cost to cast:** 1 Belief
-- **Reward on completion:** 3 Belief
-- **Net gain:** +2 Belief per Enchantment
-- The Compass Run (cost 0, reward 9) is intentionally more rewarding to incentivize the full cycle.
+- **Cost to cast:** 3 Belief
+- **Reward on completion:** 6 Belief
+- **Net gain:** +3 Belief per Enchantment
+- The Compass Run (cost 3, reward 9, net +6) is intentionally more rewarding to incentivize the full cycle.
 
 ## Enchantment Progression
 
