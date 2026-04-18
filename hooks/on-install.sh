@@ -1150,11 +1150,11 @@ echo "  Installing cron jobs..."
     # Pulse: every 15 min — weather, tides, moon, health data
     echo "*/15 * * * * cd $CRON_BASE && $PYTHON scripts/pulse.py >> $LOG/pulse.log 2>&1"
 
-    # Entity tick + world pulse: every 4 hours at :30 — world simulation
-    echo "30 */4 * * * cd $CRON_BASE && $PYTHON scripts/arc-tick.py && $PYTHON scripts/tick.py && $PYTHON scripts/world-pulse.py >> $LOG/pulse.log 2>&1"
+    # Entity tick + world pulse: every 3 hours at :30 — world simulation
+    echo "30 */3 * * * cd $CRON_BASE && $PYTHON scripts/arc-tick.py && $PYTHON scripts/tick.py && $PYTHON scripts/world-pulse.py >> $LOG/pulse.log 2>&1"
 
-    # Schedule sync: every 4 hours at :00
-    echo "0 */4 * * * cd $CRON_BASE && $PYTHON scripts/schedule.py --update-state >> $LOG/schedule.log 2>&1"
+    # Schedule sync: every 3 hours at :00
+    echo "0 */3 * * * cd $CRON_BASE && $PYTHON scripts/schedule.py --update-state >> $LOG/schedule.log 2>&1"
 
     # Character outreach: every 2 hours — characters reach out when conditions warrant
     echo "10 */2 * * * cd $CRON_BASE && $PYTHON scripts/reach-out.py >> $LOG/reach-out.log 2>&1"
