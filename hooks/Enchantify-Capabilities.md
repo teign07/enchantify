@@ -1372,6 +1372,23 @@ Interventions are **never clinical**. The Labyrinth does not know about steps or
 
 ## Part 4: What's Complete
 
+### v4.9.0 — The Closed Book (April 18, 2026)
+
+This release adds Mission Control intelligence (verified state, not stale claims), a session transcript archive, and a fully automated close-session pipeline that cascades game events to state files on every book close.
+
+- ✅ **Mission Control: Narrative Forecast tab** — New tab synthesizing real-world and in-game environmental factors: weather/season/moon/tides, founder status, Talisman War frontrunner with Belief bars, unwritten whispers from `academy-state.md`, Academy environment table, Nothing intelligence with pressure level and strategy.
+- ✅ **Mission Control: Nothing cross-reference** — `parse_forecast()` now derives verified facts from authoritative files (`players/bj-anchors.md`, `memory/arc-spine.md`, `lore/nothing-intelligence.md`) rather than trusting stale claims. Confrontation date, anchored Belief total, and anchor count are displayed as verified badges alongside the pressure level. Struck-through (overturned) pressure points are filtered from the visible list.
+- ✅ **Mission Control: Academy Schedule tab** — Full weekly schedule with live current-block highlight, time block details, and session-day character (Saturday/Still, etc.). Each block clickable for full info.
+- ✅ **Mission Control: Anchor Places tab** — Real-world GPS anchors displayed with type, Belief invested, creation date, moon/season, player's words, Academy echo, and full Outer Stacks room/Fae/mini-story on click.
+- ✅ **Mission Control: Player Inventory tab** — All inventory items with type, feel, and effect; full description on click.
+- ✅ **Mission Control: Full info popups** — All truncated cards and rows now open a modal with complete untruncated data via `data-modal` JSON attributes. Arc banner, elective quests, thread cards, entity rows, cron rows, anchors, inventory all clickable.
+- ✅ **Mission Control: Soft DOM refresh** — Replaced `meta http-equiv refresh` with `fetch()` + `DOMParser` soft patching every 3 minutes. Tab state and open modals are preserved across refreshes.
+- ✅ **State file correction** — `lore/nothing-intelligence.md` updated from stale "patient occupation" strategy to reflect the 2026-04-17 North Gardens confrontation: pressure now "retreating", confrontation recorded with date/location/outcome, overturned pressure points struck through, black envelope noted as new pressure point. `players/bj.md` Belief Investments table populated. `memory/arc-spine.md` "What the Story Is Ready For" updated to reflect that confrontation has occurred.
+- ✅ **`scripts/close-session.py`** — End-of-session state capture pipeline. Reads the current game session JSONL, extracts narrative exchanges (player + Labyrinth, filtered from cron/system noise), saves a clean daily transcript to `logs/transcripts/YYYY-MM-DD.md`, loads structured events (from `--events-file` provided by the Labyrinth itself, or via Openclaw agent if called standalone), and cascades to: diary, arc-spine, nothing-intelligence, player file. Supports `--session-file` for explicit capture before session deletion, `--dry-run`, and `--transcript-only`.
+- ✅ **`agent.md` close sequence** — Labyrinth now generates a structured events JSON at session close (belief changes, Nothing events, enchantments, investments, NPC shifts, inventory, summary) and passes it to `close-session.py` via `--events-file`. The session JSONL path is passed explicitly before any context reset can delete it. No external API call required — the Labyrinth is the extraction model.
+
+---
+
 ### v4.8.0 — The Living Memory (April 17, 2026)
 
 This release connects the installation ceremony to the world's actual mechanics, gives NPCs autonomy beyond their chapter, and cleans the workspace so the agent only reads what it should.
