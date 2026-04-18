@@ -608,11 +608,34 @@ def get_health():
         )
         # Auto-detect subdirectory (user-named folder inside Documents)
         if os.path.isdir(HEALTH_DIR):
-            subdirs = [d for d in os.listdir(HEALTH_DIR)
-                       if os.path.isdir(os.path.join(HEALTH_DIR, d)) and not d.startswith('.')]
-            if subdirs:
-                HEALTH_DIR = os.path.join(HEALTH_DIR, subdirs[0])
+            try:
+                subdirs = [d for d in os.listdir(HEALTH_DIR)
+                           if os.path.isdir(os.path.join(HEALTH_DIR, d)) and not d.startswith('.')]
+                if subdirs:
+                    HEALTH_DIR = os.path.join(HEALTH_DIR, subdirs[0])
+            except OSError:
+                pass  # iCloud lock during subdir detection — proceed with base dir
 
+    import time as _time
+    for _attempt in range(3):
+        try:
+            return _get_health_inner(HEALTH_DIR)
+        except OSError as e:
+            if e.errno == 11 and _attempt < 2:  # EDEADLK — iCloud sync lock, retry
+                _time.sleep(0.5)
+                continue
+            try:
+                log_path = os.path.join(ENCHANTIFY_WORKSPACE, "logs", "health.log")
+                os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                with open(log_path, "a") as lf:
+                    lf.write(f"{datetime.now().isoformat()} ERROR in get_health(): {e}\n")
+            except Exception:
+                pass
+            return "Watch data syncing..."
+    return "Watch data syncing..."
+
+
+def _get_health_inner(HEALTH_DIR):
     try:
         # ── Find the right subdir ────────────────────────────────────────────
         # Health Auto Export may create multiple subdirs (e.g. "BJ", "AutoSync").
@@ -716,8 +739,9 @@ def get_health():
             result += " (yesterday)"
         return result
 
+    except OSError:
+        raise  # let the retry loop in get_health() handle it
     except Exception as e:
-        # Write the actual error to a log so "Watch data offline" can be diagnosed
         try:
             log_path = os.path.join(ENCHANTIFY_WORKSPACE, "logs", "health.log")
             os.makedirs(os.path.dirname(log_path), exist_ok=True)
