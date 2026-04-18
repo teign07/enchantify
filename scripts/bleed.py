@@ -1789,7 +1789,14 @@ def main():
 
     # If the HTML exists and delivery is done, nothing to do (unless --force)
     if issue_path.exists() and delivery_flag.exists() and not force:
-        print(f"  ✓ Issue already published and delivered today. Use --force to redo.")
+        delivered_at = delivery_flag.read_text().strip()[:16]
+        print(f"  ✓ Issue already published and delivered today ({delivered_at}). Use --force to redo.")
+        issue_number = get_issue_number()
+        skip_text = (
+            f"📰 <b>The Bleed</b> — Issue #{issue_number} already delivered today "
+            f"({delivered_at}). Use <code>python3 scripts/bleed.py --force</code> to regenerate."
+        )
+        send_telegram(skip_text, cfg)
         return
 
     # If the HTML already exists but delivery hasn't run, skip regeneration

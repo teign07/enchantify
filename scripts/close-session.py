@@ -53,7 +53,15 @@ the Labyrinth generates the events JSON itself and passes it in:
   "quests_added": [],
   "session_summary": "...",            // 2-3 sentence narrative summary
   "most_alive_moment": "...",          // most vivid real moment
-  "what_fell_flat": null               // or string
+  "what_fell_flat": null,              // or string
+  "thread_updates": [                  // threads touched this session
+    {
+      "name": "Wicker's Campaign",     // must match world-register Active Threads name exactly
+      "phase": "rising",               // current phase word
+      "status": "crew has gone quiet; something is being planned involving the exhibition",
+      "next_beat": "His crew has been quieter than usual..."  // optional; omit if unchanged
+    }
+  ]
 }
 
 ## Standalone usage (no running session, --events-file not needed)
@@ -540,7 +548,123 @@ def update_player_file(events: dict, player: str, dry_run: bool):
     write_file(path, content, dry_run)
 
 
-# ── Main ───────────────────────────────���───────────────────────────────────────
+# ── Thread state updaters ─────────────────────────────────────────────────────
+
+THREADS_MD   = BASE / "lore" / "threads.md"
+REGISTER_MD  = BASE / "lore" / "world-register.md"
+
+
+def update_thread_in_register(name: str, phase: str, status: str, dry_run: bool):
+    """Update the Notes column for a thread row in world-register.md Active Threads."""
+    content = read_file(REGISTER_MD)
+
+    # Match the row regardless of "The " prefix, case-insensitive
+    bare = re.sub(r'^[Tt]he\s+', '', name)
+    row_pat = re.compile(
+        r'^(\|\s*(?:The\s+)?' + re.escape(bare) + r'\s*\|\s*Thread\s*\|\s*\d+\s*\|)\s*([^|]*)\|',
+        re.MULTILINE | re.IGNORECASE
+    )
+    m = row_pat.search(content)
+    if not m:
+        print(f"  · Thread '{name}' not found in world-register Active Threads — skipping register update")
+        return
+
+    # Preserve [id:slug] tag from the existing notes
+    old_notes = m.group(2)
+    id_tag = re.search(r'\[id:[^\]]+\]', old_notes)
+    id_prefix = id_tag.group(0) + ' ' if id_tag else ''
+
+    new_notes = f' {id_prefix}Phase: {phase} — {status} '
+    new_row = m.group(1) + new_notes + '|'
+    content = content[:m.start()] + new_row + content[m.end():]
+    write_file(REGISTER_MD, content, dry_run)
+
+
+def update_thread_in_threads_md(name: str, phase: str, next_beat: str, dry_run: bool):
+    """Update **phase:** and optionally **Next beat:** in the threads.md section."""
+    content = read_file(THREADS_MD)
+
+    # Find the section for this thread
+    bare = re.sub(r'^[Tt]he\s+', '', name)
+    section_pat = re.compile(
+        r'(^## Thread:\s*(?:The\s+)?' + re.escape(bare) + r'.*?$)(.*?)(?=^## |\Z)',
+        re.MULTILINE | re.DOTALL | re.IGNORECASE
+    )
+    m = section_pat.search(content)
+    if not m:
+        print(f"  · Thread '{name}' not found in threads.md — skipping threads.md update")
+        return
+
+    section = m.group(2)
+
+    # Update **phase:**
+    if phase:
+        section = re.sub(r'(\*\*phase:\*\*\s*).*', rf'\g<1>{phase}', section)
+
+    # Update **Next beat:**
+    if next_beat:
+        section = re.sub(r'(\*\*Next beat:\*\*\s*).*', rf'\g<1>{next_beat}', section)
+
+        # Update **Last advanced:**
+        from datetime import date as _date
+        today = _date.today().isoformat()
+        section = re.sub(r'(\*\*Last advanced:\*\*\s*).*', rf'\g<1>{today}', section)
+
+    new_content = content[:m.start(2)] + section + content[m.end():]
+    write_file(THREADS_MD, new_content, dry_run)
+
+
+def print_thread_checklist():
+    """Print current thread states as a close-session reminder when no updates were provided."""
+    content = read_file(REGISTER_MD)
+    active_m = re.search(r'(?m)^## Active Threads\s*\n(.*?)(?=^## |\Z)', content, re.DOTALL)
+    if not active_m:
+        return
+
+    threads = []
+    for m in re.finditer(
+        r'^\|\s*([^|]+?)\s*\|\s*Thread\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|',
+        active_m.group(1), re.MULTILINE | re.IGNORECASE
+    ):
+        name  = m.group(1).strip()
+        bel   = m.group(2)
+        notes = m.group(3).strip()
+        pm = re.search(r'Phase:\s*(\w+)(?:[^—\n]*—\s*(.+))?', notes, re.IGNORECASE)
+        phase  = pm.group(1) if pm else '?'
+        status = (pm.group(2) or '').strip().rstrip(';') if pm else notes
+        threads.append((name, bel, phase, status))
+
+    if not threads:
+        return
+
+    print("\n  ┌─ Thread checklist (update world-register Notes + threads.md) ─────────────")
+    for name, bel, phase, status in threads:
+        print(f"  │  {name} · Belief {bel} · {phase}")
+        if status:
+            print(f"  │    status: {status[:80]}")
+    print("  │")
+    print('  │  Add "thread_updates": [...] to events JSON to apply changes automatically.')
+    print("  └────────────────────────────────────────────────────────────────────────────")
+
+
+def apply_thread_updates(thread_updates: list, dry_run: bool):
+    """Apply thread_updates list from events JSON to world-register and threads.md."""
+    for upd in thread_updates:
+        name      = upd.get("name", "").strip()
+        phase     = upd.get("phase", "").strip().lower()
+        status    = upd.get("status", "").strip()
+        next_beat = upd.get("next_beat", "").strip()
+
+        if not name or not phase or not status:
+            print(f"  · Skipping incomplete thread update: {upd}")
+            continue
+
+        print(f"  · Updating thread: {name} → {phase}")
+        update_thread_in_register(name, phase, status, dry_run)
+        update_thread_in_threads_md(name, phase, next_beat, dry_run)
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(description="Close session — capture and cascade game state")
@@ -653,6 +777,14 @@ def main():
     update_arc_spine(events, date, args.dry_run)
     update_nothing_intelligence(events, date, args.dry_run)
     update_player_file(events, args.player, args.dry_run)
+
+    # ── Step 4: Thread updates ──
+    thread_updates = events.get("thread_updates", [])
+    if thread_updates:
+        print("\n4. Updating thread state…")
+        apply_thread_updates(thread_updates, args.dry_run)
+    else:
+        print_thread_checklist()
 
     print(f"\n✅ Session closed for {date}.\n")
 

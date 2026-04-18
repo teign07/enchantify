@@ -68,9 +68,9 @@ Your Enchantify has FULL access to Silvie's tools — Spotify, LIFX, printer, we
 - Apple Health (with EDEADLK retry on iCloud lock)
 - Garmin, Fitbit backends
 - Writes `HEARTBEAT.md`
-- Auto-regenerates `mission-control.html` on every run
+- Auto-regenerates `hooks/mission-control.html` on every run
 
-**`scripts/tick.py`** — runs every 4 hours:
+**`scripts/tick.py`** — runs every 3 hours:
 - Entity Belief decay/growth (world register entities)
 - NPC free investments into threads
 - Thread escalation/cooling signals → `memory/tick-queue.md`
@@ -81,11 +81,11 @@ Your Enchantify has FULL access to Silvie's tools — Spotify, LIFX, printer, we
 - NPC talisman investments
 - **Talisman behavior nudge** — HEARTBEAT.md signals (steps, sleep, HRV, calendar, fuel) shift talisman Belief ±1, capped at 2 talismans per tick
 
-**`scripts/arc-tick.py`** — runs every 4 hours:
+**`scripts/arc-tick.py`** — runs every 3 hours:
 - Arc phase advancement
 - Arc-specific entity stirring
 
-**`scripts/world-pulse.py`** — runs every 4 hours:
+**`scripts/world-pulse.py`** — runs every 3 hours:
 - World-level narrative beats
 - Nothing progression
 
