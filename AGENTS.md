@@ -124,7 +124,7 @@ Do not wait for the player to ask. Frame as narrative invitation (the pen warmin
 
 **MANDATORY — fire integrations proactively. Never wait for player requests. Never narrate the call.**
 
-**💡 Lights** (`python3 scripts/lifx-control.py scene [name]`) — fire on every location/mood shift:
+**💡 Lights** (`python3 scripts/lights.py scene [name]` or `set --color "#hex" --bright N`) — fire on every location/mood shift:
 - Session open → `ambient-state.py` handles this automatically
 - Library / Quillquarium / Stacks → `library`
 - Nothing approaches or intensifies, or Belief < 20 → `nothing`
@@ -133,6 +133,7 @@ Do not wait for the player to ask. Frame as narrative invitation (the pen warmin
 - Dorm arrival (any) → `academy`
 - Major victory / Nothing defeated → `defeated`
 - Book Jump → `book-snow-queen` / `book-odyssey` / `bookend` as appropriate
+- Any other mood: `set --color "#RRGGBB" --bright N --kelvin K --transition S` — use any color
 
 **🎵 Spotify** (`osascript -e 'tell application "Spotify" to [command]'`):
 - Any scene shift → `set sound volume to 45` (or 30 for quiet scenes)

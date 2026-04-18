@@ -159,7 +159,7 @@ This is why the NPCs treat Compass Runs seriously. This is why Professor Stonebr
 Compass West carries additional weight. When a player completes the West step (the Souvenir), the Academy responds:
 
 - **Printer fires:** `bash scripts/print-souvenir.sh` — a physical card, silently, for the player's collection
-- **Lights shift:** `python3 scripts/lifx-control.py scene compass-complete`
+- **Lights shift:** `python3 scripts/lights.py scene compass-complete`
 - **Spotify pauses** (if playing) for a moment of deliberate quiet
 - **The Wonder Compass item gains Belief**
 

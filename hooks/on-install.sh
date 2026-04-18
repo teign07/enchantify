@@ -566,45 +566,109 @@ echo "  A slow fade when the Compass says to rest."
 echo ""
 if ask_yn "Set up smart lights?" "n"; then
     echo ""
-    echo "    1) LIFX (Wi-Fi bulbs, no hub needed)"
-    echo "    2) Philips Hue (requires Hue Bridge)"
-    echo "    3) Home Assistant"
-    echo "    4) Skip"
+    echo "    1) LIFX  — Wi-Fi bulbs, no hub needed. Direct LAN control."
+    echo "    2) Home Assistant — covers everything: Matter, HomeKit,"
+    echo "                        LIFX, Hue, Z-Wave, Zigbee, and more."
+    echo "    3) Philips Hue  — requires Hue Bridge on your network."
+    echo "    4) HomeKit (macOS) — scene-level control via Shortcuts app."
+    echo "    5) Multiple backends — e.g. LIFX + HA as fallback."
+    echo "    6) Skip"
     echo ""
-    LIGHTS_CHOICE=$(ask "Choose [1-4]" "4")
+    LIGHTS_CHOICE=$(ask "Choose [1-6]" "6")
     case "$LIGHTS_CHOICE" in
         1)
-            LIFX_TOKEN=$(ask "LIFX personal access token (cloud.lifx.com/settings)" "")
+            echo ""
+            echo "  LIFX uses direct LAN — no cloud required after setup."
+            echo "  Get your token at: cloud.lifx.com/settings"
+            echo "  (Token is optional if your bulbs are on the same network —"
+            echo "   skip it and Enchantify will auto-discover by broadcast.)"
+            echo ""
+            LIFX_TOKEN=$(ask "LIFX personal access token (or press Enter to skip)" "")
             if [ -n "$LIFX_TOKEN" ]; then
-                set_secret "LIFX_TOKEN"     "$LIFX_TOKEN"
-                set_secret "LIGHTS_BACKEND" "lifx"
-                echo "  ✓ LIFX configured."
+                set_secret "LIFX_TOKEN" "$LIFX_TOKEN"
             fi
+            LIFX_IPS=$(ask "Bulb IP addresses, comma-separated (or Enter to auto-discover)" "")
+            if [ -n "$LIFX_IPS" ]; then
+                set_secret "ENCHANTIFY_LIFX_IPS" "$LIFX_IPS"
+            fi
+            set_secret "LIGHTS_BACKEND" "lifx"
+            echo ""
+            echo "  ✓ LIFX configured."
+            echo "  Test anytime: python3 scripts/lights.py test"
             ;;
         2)
+            echo ""
+            echo "  Home Assistant is the most flexible backend — if your lights"
+            echo "  are in HA, this covers Matter, HomeKit, LIFX, Hue, everything."
+            echo ""
+            HA_URL=$(ask "Home Assistant URL (e.g. http://homeassistant.local:8123)" "")
+            HA_TOKEN=$(ask "Long-lived access token (HA → Profile → Long-Lived Access Tokens)" "")
+            if [ -n "$HA_URL" ] && [ -n "$HA_TOKEN" ]; then
+                set_secret "HA_URL"   "$HA_URL"
+                set_secret "HA_TOKEN" "$HA_TOKEN"
+                HA_ENTITIES=$(ask "Light entity IDs, comma-separated (or Enter to auto-discover)" "")
+                if [ -n "$HA_ENTITIES" ]; then
+                    set_secret "ENCHANTIFY_HA_LIGHT_ENTITIES" "$HA_ENTITIES"
+                fi
+                set_secret "LIGHTS_BACKEND" "ha"
+                echo ""
+                echo "  ✓ Home Assistant configured."
+                echo "  Test: python3 scripts/lights.py test"
+            else
+                set_secret "LIGHTS_BACKEND" "none"
+                echo "  HA skipped (no credentials entered)."
+            fi
+            ;;
+        3)
+            echo ""
             HUE_BRIDGE=$(ask "Hue Bridge IP address" "")
-            HUE_TOKEN=$(ask "Hue API token" "")
+            HUE_TOKEN=$(ask "Hue developer API token" "")
             if [ -n "$HUE_BRIDGE" ] && [ -n "$HUE_TOKEN" ]; then
                 set_secret "HUE_BRIDGE_IP"  "$HUE_BRIDGE"
                 set_secret "HUE_TOKEN"      "$HUE_TOKEN"
                 set_secret "LIGHTS_BACKEND" "hue"
                 echo "  ✓ Philips Hue configured."
+            else
+                set_secret "LIGHTS_BACKEND" "none"
             fi
             ;;
-        3)
-            HA_URL=$(ask "Home Assistant URL" "")
-            HA_TOKEN=$(ask "HA long-lived access token" "")
-            if [ -n "$HA_URL" ] && [ -n "$HA_TOKEN" ]; then
-                set_secret "HA_URL"         "$HA_URL"
-                set_secret "HA_TOKEN"       "$HA_TOKEN"
-                set_secret "LIGHTS_BACKEND" "ha"
-                echo "  ✓ Home Assistant configured."
-            fi
+        4)
+            echo ""
+            echo "  HomeKit backend fires named Shortcuts from the Shortcuts app."
+            echo "  Create Shortcuts named 'Enchantify: <scene>' (e.g. 'Enchantify: library')"
+            echo "  and point each one at a HomeKit scene."
+            echo "  This gives you scene-level control; for full color control use HA instead."
+            echo ""
+            set_secret "LIGHTS_BACKEND" "homekit"
+            echo "  ✓ HomeKit (Shortcuts) configured."
+            echo "  Remember to create the named Shortcuts in Shortcuts.app."
+            ;;
+        5)
+            echo ""
+            echo "  Primary + fallback. Enter each backend in order (e.g. 'lifx,ha')."
+            echo "  Supported: lifx, ha, hue, homekit"
+            echo ""
+            MULTI_BACKENDS=$(ask "Backend chain, comma-separated" "lifx,ha")
+            set_secret "LIGHTS_BACKEND" "$MULTI_BACKENDS"
+            echo ""
+            echo "  Configure credentials for each backend above if needed."
+            echo "  Run: python3 scripts/lights.py status"
             ;;
         *)
             set_secret "LIGHTS_BACKEND" "none"
+            echo "  Lights skipped. Set LIGHTS_BACKEND in config/secrets.env to enable later."
             ;;
     esac
+
+    # Offer a test after any non-skip choice
+    if [ "$LIGHTS_CHOICE" != "6" ]; then
+        echo ""
+        if ask_yn "Run a light test now?" "y"; then
+            python3 "$ENCHANTIFY_DIR/scripts/lights.py" test \
+                && echo "  ✓ Lights working." \
+                || echo "  ⚠ Test had issues. Check config/secrets.env and try: python3 scripts/lights.py status"
+        fi
+    fi
 else
     set_secret "LIGHTS_BACKEND" "none"
     echo "  Lights skipped."

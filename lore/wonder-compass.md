@@ -107,7 +107,7 @@ See `lore/compass-run.md`. Generate each step personally. Do not be generic.
 - Increase the Wonder Compass Belief by 1 in `lore/world-register.md`
 - Fire completion effects:
   - `bash scripts/print-souvenir.sh` — physical card (silent)
-  - `python3 scripts/lifx-control.py scene compass-complete`
+  - `python3 scripts/lights.py scene compass-complete`
   - Spotify pause for deliberate quiet
 
 ---

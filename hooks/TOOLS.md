@@ -29,12 +29,17 @@
 - Current track: `tell application "Spotify" to get name of current track`
 - Principle: enhance the moment, don't dominate. Music is seasoning.
 
-**LIFX Lights** (LAN, no cloud):
-- Script: `scripts/lifx-control.py`
+**Smart Lights** (multi-backend: LIFX LAN, Home Assistant, Hue, HomeKit):
+- Script: `scripts/lights.py`
 - Bulbs: Silvie Lamp (192.168.1.244), Silvie Aura (192.168.1.5)
-- Scenes: academy, library, nothing, compass-north/east/south/west, compass-complete, book-snow-queen, book-odyssey, bookend, defeated
-- Usage: `python3 scripts/lifx-control.py scene academy`
-- Custom: `python3 scripts/lifx-control.py color [hue] [sat] [bright] [kelvin]`
+- Named scenes: academy, library, nothing, dorm, great-hall, outer-stacks, tension, wonder, revelation, compass-north/east/south/west, compass-complete, book-snow-queen, book-odyssey, bookend, defeated, emberheart, mossbloom, riddlewind, tidecrest, duskthorn
+- Scene: `python3 scripts/lights.py scene library`
+- Any color: `python3 scripts/lights.py set --color "#FF6B35"`
+- HSB: `python3 scripts/lights.py set --hue 240 --sat 80 --bright 70`
+- White: `python3 scripts/lights.py set --kelvin 2700 --bright 85`
+- With transition: `python3 scripts/lights.py set --color "deep violet" --transition 3`
+- Off/on: `python3 scripts/lights.py off` / `python3 scripts/lights.py on`
+- Backend config: `LIGHTS_BACKEND=lifx` (or `ha`, `hue`, `homekit`, comma-separated chain)
 - Principle: light shapes mood without calling attention to itself.
 
 **Printer** (Canon PIXMA MG3620):

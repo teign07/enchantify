@@ -105,11 +105,13 @@ def parse_dominant_talisman(register_text: str) -> tuple[str, str, int]:
     return best_name, best_chapter, best_belief
 
 
-def fire_lifx(scene: str) -> bool:
+def fire_lights(scene: str) -> bool:
     result = subprocess.run(
-        ["python3", str(BASE_DIR / "scripts" / "lifx-control.py"), "scene", scene],
-        capture_output=True, text=True, timeout=15
+        ["python3", str(BASE_DIR / "scripts" / "lights.py"), "scene", scene],
+        capture_output=True, text=True, timeout=20
     )
+    if result.stdout.strip():
+        print(f"  {result.stdout.strip()}")
     return result.returncode == 0
 
 
@@ -155,9 +157,9 @@ def run(dry_run: bool = False) -> None:
         print(f"[ambient-state] [DRY RUN] Spotify mood: {profile['spotify_mood']}")
         return
 
-    # Fire LIFX
-    lifx_ok = fire_lifx(profile["lifx_scene"])
-    print(f"[ambient-state] LIFX scene '{profile['lifx_scene']}': {'✓' if lifx_ok else '✗ (offline?)'}")
+    # Fire lights
+    lights_ok = fire_lights(profile["lifx_scene"])
+    print(f"[ambient-state] lights scene '{profile['lifx_scene']}': {'✓' if lights_ok else '✗ (offline or unconfigured)'}")
 
     # Write to tick-queue for Labyrinth narration
     write_ambient_seed(profile, talisman, belief)
