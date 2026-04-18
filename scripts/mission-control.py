@@ -158,14 +158,25 @@ def parse_threads() -> list[dict]:
     text = read(THREADS_F)
     register = read(REGISTER_F)
 
-    # Build belief lookup from world-register Active Threads
-    # Use (?m)^ to anchor to actual line-start headings (avoids matching inline `## Active Threads` in comments)
-    belief: dict[str, int] = {}
+    # Build belief + live-status lookup from world-register Active Threads
+    # Notes column format: [id:slug] Phase: word — description
+    belief:    dict[str, int] = {}
+    reg_phase: dict[str, str] = {}
+    reg_status: dict[str, str] = {}
     active_m = re.search(r'(?m)^## Active Threads\s*\n(.*?)(?=^## |\Z)', register, re.DOTALL)
     if active_m:
-        for m in re.finditer(r'^\|\s*([^|]+?)\s*\|\s*Thread\s*\|\s*(\d+)\s*\|',
-                             active_m.group(1), re.MULTILINE | re.IGNORECASE):
-            belief[m.group(1).strip().lower()] = int(m.group(2))
+        for m in re.finditer(
+            r'^\|\s*([^|]+?)\s*\|\s*Thread\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|',
+            active_m.group(1), re.MULTILINE | re.IGNORECASE
+        ):
+            key = m.group(1).strip().lower()
+            belief[key] = int(m.group(2))
+            notes = m.group(3).strip()
+            pm = re.search(r'[Pp]hase:\s*(\w+)(?:[^—\n]*—\s*(.+))?', notes)
+            if pm:
+                reg_phase[key] = pm.group(1).lower()
+                if pm.group(2):
+                    reg_status[key] = pm.group(2).strip().rstrip(';').strip()
 
     # Non-standard phase labels → canonical
     PHASE_ALIASES = {
@@ -205,7 +216,15 @@ def parse_threads() -> list[dict]:
 
         born_raw  = field(r'\*\*born:\*\*\s*(\S+)')
         closed_raw = field(r'\*\*closed:\*\*\s*(\S+)')
-        b = belief.get(name.lower(), 0)
+        key = name.lower()
+        b = belief.get(key, 0)
+
+        # Override phase with world-register value (updated by Flash during play)
+        if key in reg_phase:
+            rp = reg_phase[key]
+            rp = PHASE_ALIASES.get(rp, rp)
+            if rp in PHASE_ORDER or rp == "permanent":
+                phase_word = rp
 
         # Age badge
         age_note = ""
@@ -226,6 +245,7 @@ def parse_threads() -> list[dict]:
             "pressure":     field(r'\*\*pressure:\*\*\s*(.+)'),
             "nothing":      field(r'\*\*Nothing pressure:\*\*\s*(.+)'),
             "next_beat":    next_beat_val,
+            "status":       reg_status.get(key, ""),
             "last_advanced":field(r'\*\*Last advanced:\*\*\s*(.+)'),
             "born":         born_raw,
             "closed":       closed_raw,
@@ -981,13 +1001,16 @@ def render_thread_card(t: dict) -> str:
     color  = PHASE_COLOR.get(t["phase"], "#555")
     badge  = f'<span class="badge-new">new</span>' if t["age_note"] == "new" else ""
     anchor = f'<div class="card-anchor">{h(t["npc_anchor"])}</div>' if t["npc_anchor"] else ""
-    beat   = h(t["next_beat"][:160]) if t["next_beat"] else "—"
-    last   = h(t["last_advanced"]) if t["last_advanced"] else "never"
+    # Status (live, from world-register notes) takes priority over next_beat for card display
+    primary = t["status"] or t["next_beat"]
+    beat    = h(primary[:160]) if primary else "—"
+    last    = h(t["last_advanced"]) if t["last_advanced"] else "never"
     nothing_low = "low" in t["nothing"].lower() if t["nothing"] else True
     nothing_dot = f'<span class="nothing-dot" style="color:{("var(--nothing)" if not nothing_low else "var(--muted)")}" title="Nothing pressure: {h(t["nothing"])}">◆</span>'
 
     md = modal_attr(t["name"], [
         ("Phase",            f'{t["phase"].title()} · Belief {t["belief"]}'),
+        ("Current status",   t["status"]),
         ("Next beat",        t["next_beat"]),
         ("Pressure",         t["pressure"]),
         ("Nothing pressure", t["nothing"]),
