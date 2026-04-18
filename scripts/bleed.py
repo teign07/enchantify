@@ -980,6 +980,48 @@ def parse_sections(raw: str) -> dict:
     return sections
 
 
+def _sections_from_saved_html(html: str) -> dict:
+    """Extract section text from a previously saved HTML issue for Telegram rebuild.
+
+    Pulls the inner text of each named section div so we can re-send without
+    regenerating the whole issue. Returns a dict keyed by section name (uppercase).
+    Values are plain text — HTML tags stripped.
+    """
+    def strip_tags(s: str) -> str:
+        return re.sub(r'<[^>]+>', '', s).strip()
+
+    sections = {}
+    # Section divs are rendered with class="col-<name>" or id="section-<name>"
+    # Fall back to searching for the section content between known landmarks.
+    # Map of section key → CSS class patterns to look for
+    section_patterns = {
+        "HEADLINE":   r'class="headline[^"]*"[^>]*>(.*?)</(?:div|section)',
+        "GOSSIP":     r'class="gossip-body[^"]*"[^>]*>(.*?)</(?:div|section)',
+        "WEATHER":    r'class="weather[^"]*"[^>]*>(.*?)</(?:div|section)',
+        "FORECAST":   r'class="forecast[^"]*"[^>]*>(.*?)</(?:div|section)',
+        "MARKET":     r'class="market[^"]*"[^>]*>(.*?)</(?:div|section)',
+        "BAROMETER":  r'class="barometer[^"]*"[^>]*>(.*?)</(?:div|section)',
+        "FUEL":       r'class="fuel[^"]*"[^>]*>(.*?)</(?:div|section)',
+        "EXCHANGE":   r'class="exchange[^"]*"[^>]*>(.*?)</(?:div|section)',
+        "FEATURE":    r'class="feature[^"]*"[^>]*>(.*?)</(?:div|section)',
+        "CLASSIFIEDS":r'class="classifieds[^"]*"[^>]*>(.*?)</(?:div|section)',
+        "CORRECTION": r'class="correction[^"]*"[^>]*>(.*?)</(?:div|section)',
+        "MISSING":    r'class="missing[^"]*"[^>]*>(.*?)</(?:div|section)',
+        "PLAYER":     r'class="player[^"]*"[^>]*>(.*?)</(?:div|section)',
+        "WARREPORT":  r'class="warreport[^"]*"[^>]*>(.*?)</(?:div|section)',
+        "TALISMAN":   r'class="talisman[^"]*"[^>]*>(.*?)</(?:div|section)',
+    }
+    stripped = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL)
+    stripped = re.sub(r'<script[^>]*>.*?</script>', '', stripped, flags=re.DOTALL)
+
+    for key, pattern in section_patterns.items():
+        m = re.search(pattern, stripped, re.DOTALL | re.IGNORECASE)
+        if m:
+            sections[key] = strip_tags(m.group(1))[:2000]
+
+    return sections
+
+
 def parse_headline(text: str) -> dict:
     result = {"title": "Edition", "subhead": "", "body": ""}
     for line in text.splitlines():
@@ -1633,11 +1675,11 @@ def send_telegram(text: str, cfg: dict):
     if len(text) > 4000:
         text = text[:3990] + "\n…"
 
-    result = subprocess.run(["openclaw", "message", "send",
+    result = subprocess.run([_OPENCLAW_BIN, "message", "send",
          "--target",  _TELEGRAM_TARGET,
          "--channel", _TELEGRAM_CHANNEL,
          "--account", _TELEGRAM_ACCOUNT,
-         "-m", text],   # <--- Notice the "-m" added here
+         "-m", text],
         capture_output=True, text=True
     )
     if result.returncode == 0:
@@ -1708,97 +1750,120 @@ def main():
 
     cfg = load_config()
 
-    # Skip if already published today (unless --force)
     ISSUES_DIR.mkdir(parents=True, exist_ok=True)
-    issue_path = ISSUES_DIR / f"{date_str}.html"
-    if issue_path.exists() and "--force" not in sys.argv:
-        print(f"  ✓ Issue already published today. Use --force to regenerate.")
+    issue_path    = ISSUES_DIR / f"{date_str}.html"
+    delivery_flag = ISSUES_DIR / f"{date_str}.delivered"
+    force         = "--force" in sys.argv
+
+    # If the HTML exists and delivery is done, nothing to do (unless --force)
+    if issue_path.exists() and delivery_flag.exists() and not force:
+        print(f"  ✓ Issue already published and delivered today. Use --force to redo.")
         return
+
+    # If the HTML already exists but delivery hasn't run, skip regeneration
+    already_generated = issue_path.exists() and not force
 
     issue_number = get_issue_number()
     print(f"  Preparing issue #{issue_number}...")
 
-    # ── Read data sources ────────────────────────────────────────────────────
-    player_data = get_player_data(cfg)
-
-    heartbeat = read_file_safe(WORKSPACE_DIR / "HEARTBEAT.md", 100)
-    pulse     = extract_pulse_section(heartbeat)[:1200]
-    health    = extract_health_from_pulse(pulse) or "(health data not available today)"
-
-    tick_queue       = read_file_safe(WORKSPACE_DIR / "memory" / "tick-queue.md", 40)
-    thread_summary   = get_thread_summary()
-    entity_standings = get_entity_standings()
-    sparky           = get_sparky_shiny(date_str)
-    forecast         = get_weather_forecast_from_heartbeat()
-    market_odds      = calculate_market_odds()
-    war_info         = parse_app_register_for_bleed()
-    player_recap     = get_player_recap_data(cfg)
-    leading_talisman = get_leading_talisman()
-    fuel_data        = get_fuel_data()
-    talisman_npcs    = get_chapter_npcs(leading_talisman.get("chapter", "")) if leading_talisman else ""
-
-    # Format market odds for prompt injection
-    market_odds_formatted = "\n".join(
-        f"- {o['name']} ({o['phase']}, combined Belief {o['belief']}): "
-        f"Will this thread significantly stir this week? YES: {o['yes']}% / NO: {o['no']}%"
-        + (f"  Next beat: {o['beat']}" if o['beat'] else "")
-        for o in market_odds
-    ) or "(no thread data available)"
-
-    # Format talisman data block for prompt
-    if leading_talisman:
-        philosophy_clean = re.sub(r'\[thread:[^\]]+\]\s*', '', leading_talisman['philosophy']).strip()
-        talisman_data_str = (
-            f"Name: {leading_talisman['name']}\n"
-            f"Chapter: {leading_talisman['chapter']}\n"
-            f"Belief: {leading_talisman['belief']} (leads all chapter talismans)\n"
-            f"Philosophy: {philosophy_clean}"
-        )
+    if already_generated:
+        print(f"  ✓ Issue already generated — running delivery only.")
+        # Read back sparky + meta from what was saved; rebuild a minimal meta for delivery
+        sparky           = get_sparky_shiny(date_str)
+        leading_talisman = get_leading_talisman()
+        player_data      = get_player_data(cfg)
+        meta = {
+            "date_str":      date_str,
+            "issue_number":  issue_number,
+            "belief":        player_data.get("belief", "?"),
+            "talisman_name": leading_talisman.get("name", "") if leading_talisman else "",
+        }
+        # Parse sections from the saved HTML for Telegram text generation
+        saved_html = issue_path.read_text()
+        # Extract plain text per section from the saved HTML for Telegram rebuild
+        sections = _sections_from_saved_html(saved_html)
     else:
-        talisman_data_str = "(no talisman data available)"
+        # ── Read data sources ────────────────────────────────────────────────
+        player_data = get_player_data(cfg)
 
-    previous_coverage = get_previous_coverage(n=3)
+        heartbeat = read_file_safe(WORKSPACE_DIR / "HEARTBEAT.md", 100)
+        pulse     = extract_pulse_section(heartbeat)[:1200]
+        health    = extract_health_from_pulse(pulse) or "(health data not available today)"
 
-    data = {
-        "date_str":              date_str,
-        "issue_number":          issue_number,
-        "player":                player_data,
-        "pulse":                 pulse,
-        "health":                health,
-        "forecast":              forecast or "(forecast not yet loaded — check pulse)",
-        "tick_queue":            tick_queue or "(no simulation activity since last session)",
-        "thread_summary":        thread_summary,
-        "entity_standings":      entity_standings,
-        "market_odds_formatted": market_odds_formatted,
-        "war_data":              format_war_data(war_info),
-        "player_recap":          player_recap,
-        "talisman_data":         talisman_data_str,
-        "talisman_npcs":         talisman_npcs or "(no chapter NPCs found)",
-        "fuel_data":             fuel_data,
-        "previous_coverage":     previous_coverage,
-    }
+        tick_queue       = read_file_safe(WORKSPACE_DIR / "memory" / "tick-queue.md", 40)
+        thread_summary   = get_thread_summary()
+        entity_standings = get_entity_standings()
+        sparky           = get_sparky_shiny(date_str)
+        forecast         = get_weather_forecast_from_heartbeat()
+        market_odds      = calculate_market_odds()
+        war_info         = parse_app_register_for_bleed()
+        player_recap     = get_player_recap_data(cfg)
+        leading_talisman = get_leading_talisman()
+        fuel_data        = get_fuel_data()
+        talisman_npcs    = get_chapter_npcs(leading_talisman.get("chapter", "")) if leading_talisman else ""
 
-    # ── Generate content ─────────────────────────────────────────────────────
-    print("  Generating newspaper content...")
-    sections = generate_content(data)
+        # Format market odds for prompt injection
+        market_odds_formatted = "\n".join(
+            f"- {o['name']} ({o['phase']}, combined Belief {o['belief']}): "
+            f"Will this thread significantly stir this week? YES: {o['yes']}% / NO: {o['no']}%"
+            + (f"  Next beat: {o['beat']}" if o['beat'] else "")
+            for o in market_odds
+        ) or "(no thread data available)"
 
-    if not sections:
-        print("  ⚠ Agent returned no content. Check logs.")
-        return
+        # Format talisman data block for prompt
+        if leading_talisman:
+            philosophy_clean = re.sub(r'\[thread:[^\]]+\]\s*', '', leading_talisman['philosophy']).strip()
+            talisman_data_str = (
+                f"Name: {leading_talisman['name']}\n"
+                f"Chapter: {leading_talisman['chapter']}\n"
+                f"Belief: {leading_talisman['belief']} (leads all chapter talismans)\n"
+                f"Philosophy: {philosophy_clean}"
+            )
+        else:
+            talisman_data_str = "(no talisman data available)"
 
-    # ── Build HTML ───────────────────────────────────────────────────────────
-    meta = {
-        "date_str":       date_str,
-        "issue_number":   issue_number,
-        "belief":         player_data.get("belief", "?"),
-        "talisman_name":  leading_talisman.get("name", "") if leading_talisman else "",
-    }
-    html = build_html(sections, sparky, meta)
+        previous_coverage = get_previous_coverage(n=3)
 
-    # ── Save ─────────────────────────────────────────────────────────────────
-    issue_path.write_text(html)
-    save_issue_number(issue_number)
-    print(f"  ✓ Issue #{issue_number} saved → {issue_path}")
+        data = {
+            "date_str":              date_str,
+            "issue_number":          issue_number,
+            "player":                player_data,
+            "pulse":                 pulse,
+            "health":                health,
+            "forecast":              forecast or "(forecast not yet loaded — check pulse)",
+            "tick_queue":            tick_queue or "(no simulation activity since last session)",
+            "thread_summary":        thread_summary,
+            "entity_standings":      entity_standings,
+            "market_odds_formatted": market_odds_formatted,
+            "war_data":              format_war_data(war_info),
+            "player_recap":          player_recap,
+            "talisman_data":         talisman_data_str,
+            "talisman_npcs":         talisman_npcs or "(no chapter NPCs found)",
+            "fuel_data":             fuel_data,
+            "previous_coverage":     previous_coverage,
+        }
+
+        # ── Generate content ─────────────────────────────────────────────────
+        print("  Generating newspaper content...")
+        sections = generate_content(data)
+
+        if not sections:
+            print("  ⚠ Agent returned no content. Check logs.")
+            return
+
+        # ── Build HTML ───────────────────────────────────────────────────────
+        meta = {
+            "date_str":       date_str,
+            "issue_number":   issue_number,
+            "belief":         player_data.get("belief", "?"),
+            "talisman_name":  leading_talisman.get("name", "") if leading_talisman else "",
+        }
+        html = build_html(sections, sparky, meta)
+
+        # ── Save ─────────────────────────────────────────────────────────────
+        issue_path.write_text(html)
+        save_issue_number(issue_number)
+        print(f"  ✓ Issue #{issue_number} saved → {issue_path}")
 
     # ── Telegram edition ─────────────────────────────────────────────────────
     telegram_text = build_telegram_text(sections, sparky, meta)
@@ -1806,6 +1871,9 @@ def main():
 
     # ── CUPS print ───────────────────────────────────────────────────────────
     print_to_cups(issue_path, cfg)
+
+    # ── Mark delivered ───────────────────────────────────────────────────────
+    delivery_flag.write_text(datetime.now().isoformat())
 
     print(f"  ✓ The Bleed #{issue_number} published.")
 
