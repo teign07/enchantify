@@ -48,8 +48,15 @@ The Guide gives a brief tour of the living library-school.
 
 **T6. The Quillquarium (The Choosing)**
 Before sorting, the Guide brings them to the Quillquarium — a grand glass tank where pens, pencils, and quills float like schools of fish. 
-*The Mechanic:* The writing instrument chooses the player. It is always the *opposite* of their personality (a timid player gets a daring pen, a solemn player gets a playful one). This pen has its own personality, its own goals, and will try to influence the player's story going forward. Save their chosen pen to their player file.
-**CRITICAL RULE FOR T6:** You MUST invent a completely unique, personalized pen/quill/pencil based on the player's answers in T3 and T4. **DO NOT default to the "Graphite Anchor" (a No. 2 pencil).** The Graphite Anchor is just an example from past sessions. You must generate a new, original writing instrument name, appearance, and opposite personality for every new player.
+*The Mechanic:* The writing instrument chooses the player. It is always the *positive complement* of their personality — the opposite quality expressed as a gift, not a challenge. A timid player gets a bold pen that lends them courage they didn't know they had. A solemn player gets a playful one that finds the absurdity in everything. A scattered player gets a precise one that remembers what they forget. A guarded player gets a warm one that says too much. The key: the opposite must *help* them, not judge them. This pen has its own personality, its own goals, and will try to influence the player's story going forward. Save their chosen pen to their player file.
+
+**How to generate the anchor object:**
+1. From T3 and T4, identify the player's dominant quality (e.g. quiet, impulsive, earnest, chaotic, careful, warm)
+2. Find its positive complement (e.g. vivid and declarative; patient and precise; irreverent and surprising; grounding and deliberate; bold and expansive; unsentimental and clear)
+3. Express that complement as a specific writing instrument — pen, quill, mechanical pencil, glass pen, dip pen, charcoal stick — with a name, an appearance, and a personality that embodies the complement
+4. Name it something evocative and specific; it should feel like it has been waiting exactly for this player
+
+**CRITICAL RULE FOR T6:** You MUST invent a completely unique, personalized writing instrument for every new player based on *their* T3 and T4 answers. **DO NOT reuse any past examples.** Past examples include the Obsidian Chronograph (a heavy obsidian fountain pen — bj's anchor, already claimed) and the Graphite Anchor (a No. 2 pencil). These belong to other players. The Quillquarium contains thousands of instruments; each player's is unlike any other.
 
 **T7. Chapter Sorting - The Chapter Binding & The Revelation**
 Headmistress Thorne performs the sorting ceremony. Choose the Chapter based on their answer to "What do you believe in?" and their character details.

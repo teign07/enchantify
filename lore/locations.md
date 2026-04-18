@@ -8,7 +8,7 @@ A giant magical library with endless halls of books and the Nothing hungering ju
 
 ### Magical Areas
 
-**The Quillquarium:** An enchanted room filled with quills of all shapes and sizes, suspended in mid-air as if swimming through invisible water. Students visit to choose their “writing companion” — a quill that resonates with their creative spirit. Some quills are shy. Some are aggressive. One in the corner has been waiting for a very specific reader for a very long time.
+**The Quillquarium:** An enchanted room filled with thousands of writing instruments — quills, pens, pencils, glass dip pens, charcoal sticks — suspended in mid-air as if swimming through invisible water. Each student's instrument finds them, never the reverse. The choosing is the instrument's act, not the student's. It does not choose what the student already is. It chooses what the student needs — the positive complement of their nature. A timid student is chosen by something bold. A solemn student, something playful. A scattered mind, something precise. The instrument then becomes the student's Anchor Object: a companion with its own personality, its own goals, its own mild agenda for its bearer's story. Each one is singular; no two students are ever chosen by the same instrument.
 
 **The Labyrinthine Library:** A section where bookshelves rearrange themselves daily, creating an ever-shifting labyrinth of knowledge. No map works twice. Experienced students navigate by smell — the history section smells like dust and gunpowder, poetry smells like rain, and romance smells like someone else’s perfume.
 
