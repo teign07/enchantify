@@ -30,7 +30,8 @@ _VAULT_CANDIDATES = [
     Path.home() / "Library" / "Mobile Documents" / "iCloud~md~obsidian" / "Documents",
 ]
 
-def _find_vault() -> Path | None:
+def _find_vault():
+    """Return the first existing vault Path, or None."""
     for p in _VAULT_CANDIDATES:
         if p.exists():
             return p
@@ -54,7 +55,8 @@ def _create_obsidian_note(vault_name: str, filename: str, content: str) -> bool:
     return True
 
 
-def _get_vault_name() -> str | None:
+def _get_vault_name():
+    """Return the vault directory name, or None if no vault found."""
     vault = _find_vault()
     if vault:
         return vault.name
@@ -139,6 +141,7 @@ class ObsidianDriver(AppDriver):
     app_system  = "productivity"
     silent_tiers  = {"Influenced", "Controlled", "Dominated", "Sovereign"}
     consent_tiers = set()
+    USE_LLM     = True
 
     def can_act(self, tier: str, chapter: str) -> bool:
         return chapter in _NOTE_BUILDERS
@@ -171,3 +174,56 @@ class ObsidianDriver(AppDriver):
                 return f"*[Obsidian, {chapter}, silent]* A note appeared in the vault: \"{title}\""
 
         return f"*[Obsidian, {chapter}]* {narrative}"
+
+    def capabilities(self) -> list:
+        return [
+            {
+                "name": "create_note",
+                "description": "Create a new note in the Obsidian vault with a title and full body text",
+                "params": {
+                    "filename": "note filename (no .md) — evocative phrase, not a date",
+                    "body": "full note content in plain text or markdown — the chapter's voice, specific and real",
+                },
+            },
+            {
+                "name": "append_to_daily",
+                "description": "Append a short passage to today's daily note in the vault",
+                "params": {
+                    "content": "what to append — a thought, a question, a provocation from the chapter",
+                },
+            },
+        ]
+
+    def execute_spec(self, spec: dict, dry_run: bool = False) -> str:
+        action  = spec.get("action", "")
+        chapter = spec.get("chapter", "Unknown")
+
+        if action == "create_note":
+            filename   = str(spec.get("filename", f"{chapter}-{datetime.now().strftime('%Y-%m-%d')}"))
+            body       = str(spec.get("body", ""))
+            vault_name = _get_vault_name()
+            if vault_name and not dry_run:
+                _create_obsidian_note(vault_name, filename, body)
+            elif not dry_run:
+                vault_path = _find_vault()
+                if vault_path:
+                    note_path = vault_path / f"{filename}.md"
+                    note_path.write_text(body)
+            return f"*[Obsidian, {chapter}, silent]* Note planted: \"{filename}\". Open Obsidian to find it."
+
+        if action == "append_to_daily":
+            content    = str(spec.get("content", ""))
+            today      = datetime.now().strftime("%Y-%m-%d")
+            vault_path = _find_vault()
+            if vault_path and not dry_run:
+                daily = vault_path / f"{today}.md"
+                with open(daily, "a") as f:
+                    f.write(f"\n\n---\n*{chapter}:* {content}\n")
+            return f"*[Obsidian, {chapter}, silent]* Appended to {today} daily note."
+
+        return self.execute(
+            spec.get("tier", "Dominated"),
+            chapter,
+            spec.get("context", {}),
+            dry_run=dry_run,
+        )

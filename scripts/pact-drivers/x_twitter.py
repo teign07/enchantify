@@ -101,6 +101,7 @@ class XTwitterDriver(AppDriver):
     app_system  = "social"
     silent_tiers  = set()
     consent_tiers = {"Influenced", "Controlled", "Dominated", "Sovereign"}  # always consent
+    USE_LLM     = True
 
     def can_act(self, tier: str, chapter: str) -> bool:
         return chapter in _POST_BUILDERS
@@ -160,3 +161,44 @@ class XTwitterDriver(AppDriver):
                 return f"- *[X, {chapter}]* Draft queued: \"{preview}\""
 
         return f"- *[X, {chapter}]* {narrative}"
+
+    def capabilities(self) -> list:
+        return [
+            {
+                "name": "draft_post",
+                "description": "Draft a single X/Twitter post (max 280 chars) expressing the chapter's philosophy sharply",
+                "params": {
+                    "content": "the full post — complete thought, no placeholders, max 280 chars",
+                },
+            },
+            {
+                "name": "draft_thread_hook",
+                "description": "Draft the opening post of a thread that provokes replies from the chapter's angle",
+                "params": {
+                    "content": "thread-opener — a question or statement that makes people want to respond",
+                },
+            },
+        ]
+
+    def execute_spec(self, spec: dict, dry_run: bool = False) -> str:
+        action  = spec.get("action", "")
+        chapter = spec.get("chapter", "Unknown")
+        content = str(spec.get("content", ""))[:280]
+
+        if action in ("draft_post", "draft_thread_hook") and content:
+            if not dry_run:
+                from pathlib import Path
+                queue = Path(__file__).parent.parent.parent / "memory" / "post-queue.md"
+                ts    = datetime.now().strftime("%Y-%m-%d %H:%M")
+                entry = f"\n## [{ts}] {chapter} → X / Twitter ({action})\n\n{content}\n\n---\n"
+                with open(queue, "a") as f:
+                    f.write(entry)
+            preview = content[:80].rstrip() + ("…" if len(content) > 80 else "")
+            return f"- *[X, {chapter}]* Draft queued: \"{preview}\""
+
+        return self.execute(
+            spec.get("tier", "Dominated"),
+            chapter,
+            spec.get("context", {}),
+            dry_run=dry_run,
+        )

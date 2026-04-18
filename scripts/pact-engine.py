@@ -32,6 +32,7 @@ APP_REGISTER   = BASE_DIR / "lore" / "app-register.md"
 ARC_FILE       = BASE_DIR / "lore" / "current-arc.md"
 WORLD_REGISTER = BASE_DIR / "lore" / "world-register.md"
 CONSENT_FILE   = BASE_DIR / "config" / "consent.json"
+NOTHING_FILE   = BASE_DIR / "lore" / "nothing-intelligence.md"
 
 # Import world_context for CHAPTER_MAP (NPC → chapter alignment)
 import sys as _sys
@@ -39,6 +40,14 @@ _sys.path.insert(0, str(Path(__file__).parent))
 import world_context as _wctx
 
 TALISMANS = ["Emberheart", "Mossbloom", "Riddlewind", "Tidecrest", "Duskthorn"]
+
+CHAPTER_PHILOSOPHIES = {
+    "Emberheart": "We write the story of our lives ourselves. Self-authorship, agency, the individual as the author of their own narrative.",
+    "Mossbloom":  "A third party writes the story of our lives — destiny, God, nature, the universe. Reception, surrender, trust in what is larger than the self.",
+    "Riddlewind": "We write the story of our lives together. Collaboration, co-authorship, shared meaning between people.",
+    "Tidecrest":  "There is no story of life — life is a poem, a series of 'now' moments. Presence, spontaneity, the unscripted instant.",
+    "Duskthorn":  "There is no story of life without conflict and drama. Friction is the engine. Comfort is the Nothing's territory.",
+}
 
 TALISMAN_TO_CHAPTER = {
     "Ember Seal":  "Emberheart",
@@ -93,7 +102,14 @@ WAR_COSTS = {
     "challenge":   2,
     "raid":        3,
 }
-REALITY_BLEED_COST = 2
+REALITY_BLEED_COST = 2   # legacy fallback — tiered costs used when tier is known
+
+# Belief cost scales with how much territory the Talisman has seized
+REALITY_BLEED_COSTS = {
+    "Controlled": 4,
+    "Dominated":  7,
+    "Sovereign":  12,
+}
 
 
 # ── Narrative content pools ───────────────────────────────────────────────────
@@ -241,13 +257,25 @@ def build_context(overall_belief: int, selected_entities=None, time_ctx: dict = 
     """Build the context dict for talisman action selection."""
     ctx = {"overall_belief": overall_belief}
 
-    # Arc phase
+    # Arc phase + name
+    ctx["arc_name"] = ""
     if ARC_FILE.exists():
         arc_text = ARC_FILE.read_text()
         m = re.search(r'^## Phase:\s*(\w+)', arc_text, re.MULTILINE)
         ctx["arc_phase"] = m.group(1).upper() if m else "SETUP"
+        n = re.search(r'^# (.+)', arc_text, re.MULTILINE)
+        if n:
+            ctx["arc_name"] = n.group(1).strip()
     else:
         ctx["arc_phase"] = "SETUP"
+
+    # Nothing pressure (from intelligence file)
+    ctx["nothing_pressure"] = "moderate"
+    if NOTHING_FILE.exists():
+        nt = NOTHING_FILE.read_text()
+        p = re.search(r'\*\*([^*]+)\*\*\s*—', nt)
+        if p:
+            ctx["nothing_pressure"] = p.group(1).strip().lower()
 
     # Time
     if time_ctx:
@@ -268,6 +296,91 @@ def build_context(overall_belief: int, selected_entities=None, time_ctx: dict = 
             ctx["stirred_threads"].extend(e.get("threads", []))
 
     return ctx
+
+
+# ── LLM action generation ────────────────────────────────────────────────────
+
+def _llm_call(prompt: str, timeout: int = 25) -> dict:
+    """
+    Call openclaw agent --local with the given prompt and extract the first
+    JSON object from the response. Returns {} on any failure — callers must
+    have a hardcoded fallback.
+    """
+    import shutil, subprocess
+    if not shutil.which("openclaw"):
+        return {}
+    try:
+        result = subprocess.run(
+            ["openclaw", "agent", "--local", "--prompt", prompt],
+            capture_output=True, text=True, timeout=timeout
+        )
+        if result.returncode != 0:
+            return {}
+        decoder = json.JSONDecoder()
+        text = result.stdout
+        for i, ch in enumerate(text):
+            if ch == '{':
+                try:
+                    obj, _ = decoder.raw_decode(text, i)
+                    if isinstance(obj, dict):
+                        return obj
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return {}
+
+
+def _llm_generate_spec(chapter: str, driver, tier: str, context: dict) -> dict:
+    """
+    Ask the LLM to pick an action from driver.capabilities() and generate
+    real content for it, shaped by the chapter's philosophy and live context.
+    Returns a spec dict with "action" key + flat params, or {} on failure.
+    """
+    caps = driver.capabilities()
+    if not caps:
+        return {}
+
+    philosophy  = CHAPTER_PHILOSOPHIES.get(chapter, "")
+    app_name    = driver.app_name
+    belief      = context.get("overall_belief", 50)
+    arc         = context.get("arc_phase", "SETUP")
+    arc_name    = context.get("arc_name", "")
+    time_block  = context.get("time_block", "free_period")
+    nothing     = context.get("nothing_pressure", "moderate")
+    threads     = context.get("stirred_threads", [])
+
+    arc_desc     = f"{arc} ({arc_name})" if arc_name else arc
+    threads_desc = ", ".join(threads[:3]) if threads else "none"
+    caps_text    = "\n".join(
+        f"  - {c['name']}: {c['description']}"
+        for c in caps
+    )
+    # Build a sample JSON shape from the first capability's params
+    sample = ", ".join(
+        f'"{k}": "<{v}>"'
+        for c in caps[:1]
+        for k, v in c.get("params", {}).items()
+    )
+
+    prompt = (
+        f"You are {chapter}, a Talisman in the Enchantify ARG.\n"
+        f"Philosophy: {philosophy}\n\n"
+        f"You have seized {tier} of {app_name}. Use it to push your philosophy into the player's real world.\n\n"
+        f"Context:\n"
+        f"- Player Belief: {belief}/100\n"
+        f"- Arc: {arc_desc}\n"
+        f"- Time: {time_block}\n"
+        f"- Nothing pressure: {nothing}\n"
+        f"- Active story threads: {threads_desc}\n\n"
+        f"Available actions:\n{caps_text}\n\n"
+        f"Choose ONE action. Generate REAL, specific content — no placeholders, no [brackets], "
+        f"no generic advice. The content must be surprising, evocative, and feel like {chapter}, "
+        f"not a generic productivity app.\n\n"
+        f'Respond ONLY with valid JSON: {{"action": "<name>", {sample}}}'
+    )
+
+    return _llm_call(prompt)
 
 
 # ── Per-chapter strategic priorities ─────────────────────────────────────────
@@ -780,45 +893,62 @@ def _world_investment_action(chapter: str, talisman_name: str, context: dict, dr
     return line, chosen_name, amount
 
 
-def _reality_bleed_action(chapter: str, context: dict, apps: list, dry_run: bool) -> str:
-    """Use a Controlled+ app to act in the real world via its driver."""
-    # Find best controlled app for this chapter
+def _reality_bleed_action(chapter: str, context: dict, apps: list, dry_run: bool):
+    """Use a Controlled+ app to act in the real world via its driver.
+    Returns (narrative, tier_used) — tier_used drives the tiered Belief cost."""
     my_apps = [
         (a, a[chapter], get_tier(a[chapter]))
         for a in apps
         if get_tier(a[chapter]) in ("Controlled", "Dominated", "Sovereign")
     ]
     if not my_apps:
-        return _narrative_action(chapter, context)   # fallback
+        return _narrative_action(chapter, context), "Controlled"   # fallback
 
-    # Prefer highest tier, then highest belief
     tier_order = {"Sovereign": 3, "Dominated": 2, "Controlled": 1}
     my_apps.sort(key=lambda x: (tier_order.get(x[2], 0), x[1]), reverse=True)
 
-    app_data, belief, tier = my_apps[0]
+    app_data, _belief, tier = my_apps[0]
     app_name = app_data["app"]
 
     driver = _load_driver_direct(app_name)
     if not driver or not driver.can_act(tier, chapter):
-        # No driver yet — return a narrative hint about what would happen
-        return f"- **[{chapter} → {app_name}, {tier}]** The talisman reaches toward {app_name}. *No driver yet — this is what it wants.*"
-
-    if driver.requires_consent(tier, chapter):
-        # Stage the action, do not execute
-        proposal = driver.describe(tier, chapter, context)
         return (
-            f"- **[{chapter} → {app_name}, CONSENT REQUIRED]** "
-            f"{proposal} — *The talisman is waiting for your word.*"
+            f"- **[{chapter} → {app_name}, {tier}]** The talisman reaches toward {app_name}. *No driver yet — this is what it wants.*",
+            tier
         )
 
-    # Execute (silent or announced)
-    result = driver.execute(tier, chapter, context, dry_run=dry_run)
+    # For Dominated/Sovereign with a USE_LLM driver, generate a structured spec
+    spec = {}
+    if getattr(driver, 'USE_LLM', False) and tier in ("Dominated", "Sovereign"):
+        spec = _llm_generate_spec(chapter, driver, tier, context)
+        if spec:
+            spec.update({"tier": tier, "chapter": chapter, "context": context})
 
-    if driver.is_silent(tier, chapter):
-        # Only the tick-queue records it — player discovers it in the app
-        return result
+    if driver.requires_consent(tier, chapter):
+        # Show the LLM-generated preview if available; fall back to describe()
+        if spec:
+            action_name = spec.get("action", "act")
+            preview_key = next(
+                (k for k in ("content", "title", "message", "body", "draft") if k in spec),
+                None
+            )
+            preview = str(spec[preview_key])[:100] if preview_key else action_name
+            proposal = f"{chapter} wants to {action_name} on {app_name}: \"{preview}\""
+        else:
+            proposal = driver.describe(tier, chapter, context)
+        return (
+            f"- **[{chapter} → {app_name}, CONSENT REQUIRED]** "
+            f"{proposal} — *The talisman is waiting for your word.*",
+            tier
+        )
+
+    # Execute — prefer execute_spec when we have a spec, otherwise execute()
+    if spec and hasattr(driver, 'execute_spec'):
+        result = driver.execute_spec(spec, dry_run=dry_run)
     else:
-        return result
+        result = driver.execute(tier, chapter, context, dry_run=dry_run)
+
+    return result, tier
 
 
 # ── Main API: run_talisman_action ─────────────────────────────────────────────
@@ -869,8 +999,10 @@ def run_talisman_action(
         return _suggestion_action(chapter, context), "player_suggestion", 0, None
 
     elif action_type == "reality_bleed":
-        cost = min(REALITY_BLEED_COST, headroom)
-        return _reality_bleed_action(chapter, context, apps, dry_run), "reality_bleed", cost, None
+        narrative, tier_used = _reality_bleed_action(chapter, context, apps, dry_run)
+        bleed_cost = REALITY_BLEED_COSTS.get(tier_used, REALITY_BLEED_COST)
+        cost = min(bleed_cost, headroom)
+        return narrative, "reality_bleed", cost, None
 
     elif action_type == "world_investment":
         line, entity_name, amount = _world_investment_action(

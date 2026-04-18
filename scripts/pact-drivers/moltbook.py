@@ -107,6 +107,7 @@ class MoltbookDriver(AppDriver):
     app_system  = "social"
     silent_tiers  = set()                         # Social is public — nothing is silent
     consent_tiers = {"Dominated", "Sovereign"}    # Posting requires consent
+    USE_LLM     = True
 
     def can_act(self, tier: str, chapter: str) -> bool:
         return chapter in _POST_BUILDERS
@@ -162,3 +163,44 @@ class MoltbookDriver(AppDriver):
                 return f"- *[Moltbook, {chapter}]* Draft queued: \"{preview}\""
 
         return f"- *[Moltbook, {chapter}]* {narrative}"
+
+    def capabilities(self) -> list:
+        return [
+            {
+                "name": "create_post",
+                "description": "Draft a Moltbook post — the player's public voice, shaped by the chapter's philosophy",
+                "params": {
+                    "content": "the post — complete, no placeholders, specific to the chapter's angle and the current arc",
+                },
+            },
+            {
+                "name": "create_prompt",
+                "description": "Draft a writing prompt or open question that invites the community to respond",
+                "params": {
+                    "content": "the prompt — a genuine question or invitation, not a generic one",
+                },
+            },
+        ]
+
+    def execute_spec(self, spec: dict, dry_run: bool = False) -> str:
+        action  = spec.get("action", "")
+        chapter = spec.get("chapter", "Unknown")
+        content = str(spec.get("content", ""))
+
+        if action in ("create_post", "create_prompt") and content:
+            if not dry_run:
+                from pathlib import Path
+                queue = Path(__file__).parent.parent.parent / "memory" / "post-queue.md"
+                ts    = datetime.now().strftime("%Y-%m-%d %H:%M")
+                entry = f"\n## [{ts}] {chapter} → Moltbook ({action})\n\n{content}\n\n---\n"
+                with open(queue, "a") as f:
+                    f.write(entry)
+            preview = content[:80].rstrip() + ("…" if len(content) > 80 else "")
+            return f"- *[Moltbook, {chapter}]* Draft queued: \"{preview}\""
+
+        return self.execute(
+            spec.get("tier", "Dominated"),
+            chapter,
+            spec.get("context", {}),
+            dry_run=dry_run,
+        )

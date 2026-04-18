@@ -97,6 +97,7 @@ class RedditDriver(AppDriver):
     app_system  = "social"
     silent_tiers  = set()
     consent_tiers = {"Dominated", "Sovereign"}
+    USE_LLM     = True
 
     def can_act(self, tier: str, chapter: str) -> bool:
         return chapter in _POST_BUILDERS
@@ -148,3 +149,65 @@ class RedditDriver(AppDriver):
                 return f"- *[Reddit, {chapter}]* Draft queued: \"{preview}\""
 
         return f"- *[Reddit, {chapter}]* {narrative}"
+
+    def capabilities(self) -> list:
+        return [
+            {
+                "name": "draft_post",
+                "description": "Draft a Reddit post (title + body) expressing the chapter's philosophy via a community-facing argument or question",
+                "params": {
+                    "title": "post title — specific, not clickbait, expresses the chapter's angle",
+                    "body": "post body — full argument or personal essay; no [brackets]",
+                    "subreddit_hint": "suggested subreddit category (e.g. 'self-improvement', 'writing', 'philosophy')",
+                },
+            },
+            {
+                "name": "draft_comment",
+                "description": "Draft a standalone comment that adds the chapter's perspective to an ongoing conversation",
+                "params": {
+                    "body": "the comment — a complete thought, the chapter's angle, adds real signal",
+                },
+            },
+        ]
+
+    def execute_spec(self, spec: dict, dry_run: bool = False) -> str:
+        action  = spec.get("action", "")
+        chapter = spec.get("chapter", "Unknown")
+
+        if action == "draft_post":
+            title = str(spec.get("title", ""))
+            body  = str(spec.get("body", ""))
+            sub   = str(spec.get("subreddit_hint", ""))
+            if title or body:
+                if not dry_run:
+                    from pathlib import Path
+                    from datetime import datetime as _dt
+                    queue = Path(__file__).parent.parent.parent / "memory" / "post-queue.md"
+                    ts    = _dt.now().strftime("%Y-%m-%d %H:%M")
+                    sub_str = f" r/{sub}" if sub else ""
+                    entry = f"\n## [{ts}] {chapter} → Reddit{sub_str} (post)\n\n**{title}**\n\n{body}\n\n---\n"
+                    with open(queue, "a") as f:
+                        f.write(entry)
+                preview = (title or body)[:80].rstrip() + ("…" if len(title or body) > 80 else "")
+                return f"- *[Reddit, {chapter}]* Draft queued: \"{preview}\""
+
+        if action == "draft_comment":
+            body = str(spec.get("body", ""))
+            if body:
+                if not dry_run:
+                    from pathlib import Path
+                    from datetime import datetime as _dt
+                    queue = Path(__file__).parent.parent.parent / "memory" / "post-queue.md"
+                    ts    = _dt.now().strftime("%Y-%m-%d %H:%M")
+                    entry = f"\n## [{ts}] {chapter} → Reddit (comment)\n\n{body}\n\n---\n"
+                    with open(queue, "a") as f:
+                        f.write(entry)
+                preview = body[:80].rstrip() + ("…" if len(body) > 80 else "")
+                return f"- *[Reddit, {chapter}]* Comment queued: \"{preview}\""
+
+        return self.execute(
+            spec.get("tier", "Dominated"),
+            chapter,
+            spec.get("context", {}),
+            dry_run=dry_run,
+        )

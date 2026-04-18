@@ -103,6 +103,7 @@ class IMessageDriver(AppDriver):
     app_system  = "messaging"
     silent_tiers  = set()
     consent_tiers = {"Dominated", "Sovereign"}   # Always consent before contacting people
+    USE_LLM     = True
 
     def can_act(self, tier: str, chapter: str) -> bool:
         return chapter in _DRAFT_BUILDERS
@@ -155,3 +156,48 @@ class IMessageDriver(AppDriver):
                 return f"- *[iMessage, {chapter}]* Draft queued: \"{preview}\""
 
         return f"- *[iMessage, {chapter}]* {narrative}"
+
+    def capabilities(self) -> list:
+        return [
+            {
+                "name": "draft_to_self",
+                "description": "Draft a message to send to yourself — a reminder, a question, a thing to act on",
+                "params": {
+                    "message": "the message — complete, specific, no placeholders",
+                },
+            },
+            {
+                "name": "draft_to_contact",
+                "description": "Draft a message for the player to send to someone — fills in the what, not the who",
+                "params": {
+                    "message": "the draft — complete, no [brackets], specific enough to feel real",
+                    "recipient_hint": "who this is for — a role or relationship, not a name (e.g. 'the collaborator you've been avoiding')",
+                },
+            },
+        ]
+
+    def execute_spec(self, spec: dict, dry_run: bool = False) -> str:
+        action    = spec.get("action", "")
+        chapter   = spec.get("chapter", "Unknown")
+        message   = str(spec.get("message", ""))
+        recipient = str(spec.get("recipient_hint", ""))
+
+        if action in ("draft_to_self", "draft_to_contact") and message:
+            if not dry_run:
+                from pathlib import Path
+                from datetime import datetime as _dt
+                queue   = Path(__file__).parent.parent.parent / "memory" / "post-queue.md"
+                ts      = _dt.now().strftime("%Y-%m-%d %H:%M")
+                to_str  = f" → {recipient}" if recipient else ""
+                entry   = f"\n## [{ts}] {chapter} → iMessage{to_str} ({action})\n\n{message}\n\n---\n"
+                with open(queue, "a") as f:
+                    f.write(entry)
+            preview = message[:80].rstrip() + ("…" if len(message) > 80 else "")
+            return f"- *[iMessage, {chapter}]* Draft queued: \"{preview}\""
+
+        return self.execute(
+            spec.get("tier", "Dominated"),
+            chapter,
+            spec.get("context", {}),
+            dry_run=dry_run,
+        )

@@ -125,6 +125,7 @@ class AppleRemindersDriver(AppDriver):
     app_system  = "productivity"
     silent_tiers  = set()          # Reminders are meant to be seen
     consent_tiers = set()          # Still private, no consent needed
+    USE_LLM     = True
 
     def can_act(self, tier: str, chapter: str) -> bool:
         return chapter in _REMINDER_BUILDERS
@@ -156,3 +157,33 @@ class AppleRemindersDriver(AppDriver):
                 return f"- *[Reminders, {chapter}]* Added: \"{title}\""
 
         return f"- *[Reminders, {chapter}]* {narrative}"
+
+    def capabilities(self) -> list:
+        return [
+            {
+                "name": "create_reminder",
+                "description": "Create a Reminder in the Academy list with a specific title and extended notes",
+                "params": {
+                    "title": "reminder title — a concrete, specific action, not a vague directive",
+                    "notes": "extended notes — the chapter's reasoning, expressed in its own voice",
+                },
+            }
+        ]
+
+    def execute_spec(self, spec: dict, dry_run: bool = False) -> str:
+        action  = spec.get("action", "")
+        chapter = spec.get("chapter", "Unknown")
+
+        if action == "create_reminder":
+            title = str(spec.get("title", "Academy reminder"))
+            notes = str(spec.get("notes", ""))
+            if not dry_run:
+                _create_reminder(title, notes)
+            return f"- *[Reminders, {chapter}]* Created: \"{title}\""
+
+        return self.execute(
+            spec.get("tier", "Dominated"),
+            chapter,
+            spec.get("context", {}),
+            dry_run=dry_run,
+        )

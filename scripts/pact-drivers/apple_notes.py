@@ -159,6 +159,7 @@ class AppleNotesDriver(AppDriver):
     app_system  = "productivity"
     silent_tiers  = {"Influenced", "Controlled", "Dominated", "Sovereign"}
     consent_tiers = set()   # Notes is private
+    USE_LLM     = True
 
     def can_act(self, tier: str, chapter: str) -> bool:
         return chapter in _PROMPT_BUILDERS
@@ -190,3 +191,33 @@ class AppleNotesDriver(AppDriver):
                 return f"*[Apple Notes, {chapter}, silent]* A note appeared: \"{title}\". Open Notes to find it."
 
         return f"*[Apple Notes, {chapter}]* {narrative}"
+
+    def capabilities(self) -> list:
+        return [
+            {
+                "name": "create_note",
+                "description": "Create a new Apple Note with a title and multi-paragraph body",
+                "params": {
+                    "title": "note title — evocative, not functional; can be a phrase or a question",
+                    "body": "note body — the full text, possibly multi-paragraph; no markdown headers needed",
+                },
+            }
+        ]
+
+    def execute_spec(self, spec: dict, dry_run: bool = False) -> str:
+        action  = spec.get("action", "")
+        chapter = spec.get("chapter", "Unknown")
+
+        if action == "create_note":
+            title = str(spec.get("title", f"{chapter} — {datetime.now().strftime('%B %d')}"))
+            body  = str(spec.get("body", ""))
+            if not dry_run:
+                _create_note(title, body)
+            return f"*[Apple Notes, {chapter}, silent]* A note appeared: \"{title}\". Open Notes to find it."
+
+        return self.execute(
+            spec.get("tier", "Dominated"),
+            chapter,
+            spec.get("context", {}),
+            dry_run=dry_run,
+        )
