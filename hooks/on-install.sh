@@ -1008,6 +1008,19 @@ PLAYEREOF
     fi
 fi
 
+# Generate personal memory files from templates
+TODAY=$(date +"%Y-%m-%d")
+for tmpl in arc-spine patterns; do
+    dest="$ENCHANTIFY_DIR/memory/${tmpl}.md"
+    src="$ENCHANTIFY_DIR/memory/${tmpl}.template.md"
+    if [ ! -f "$dest" ] && [ -f "$src" ]; then
+        sed \
+            -e "s|{{PLAYER_NAME}}|${PLAYER_NAME:-Wanderer}|g" \
+            -e "s|{{DATE}}|$TODAY|g" \
+            "$src" > "$dest"
+    fi
+done
+
 # Cron jobs
 CRON_BASE="$ENCHANTIFY_DIR"
 PYTHON="/usr/bin/python3"

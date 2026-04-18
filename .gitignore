@@ -38,6 +38,8 @@ config/bj_tutorial_state.json
 
 # ─── Session memory (personal) ────────────────────────────────────────────────
 memory/2026-*.md
+memory/arc-spine.md
+memory/patterns.md
 memory/diary/
 memory/dreams/
 memory/field-reports/
@@ -80,3 +82,7 @@ __pycache__/
 node_modules/
 hooks/USER.md
 USER.md
+
+# ─── Generated tool reference (personal, created by installer) ───────────────
+TOOLS.md
+hooks/TOOLS.md
