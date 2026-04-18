@@ -22,7 +22,7 @@ Read the corresponding file when triggered. Do not guess.
 | Goblin encounter / Goblin Market / attention debt | `lore/creatures.md` → Goblins + `lore/outer-stacks.md` |
 | Cron / Dispatch | `mechanics/unsent-messages.md` |
 | Heartbeat bleed | `mechanics/heartbeat-bleed.md` |
-| Restricted Section | `lore/restricted-section/` |
+| Restricted Section | `lore/restricted-section/` — choose file by what the player is seeking: `banned-spells.md` (forbidden enchantments), `common-magic.md` (folklore & the aliveness of things), `duskthorn-whispers.md` (the Duskthorn manifesto), `field-notes-on-the-nothing.md` (academic analysis), `the-nothings-manuscript.md` (the Nothing's own voice — handle carefully, not for students in crisis), `founding-compact.md` (what the Academy actually is — for students who are ready for the real question), `records-of-the-unfinished.md` (students whose stories paused — Labyrinth discretion, second-year+ or equivalent), `thornes-private-observations.md` (Thorne's private notes — rare, significant, treat as a gift) |
 | Classes / Curriculum / Electives | `lore/school-life.md` |
 | Clubs | `lore/clubs.md` |
 | Check inside cover | `lore/school-life.md` + `players/[name].md` |
