@@ -126,12 +126,15 @@ def call_agent(prompt: str) -> str:
     # Strip ANSI escape codes
     output = re.sub(r'\x1b\[[0-9;]*m', '', output)
     # Strip openclaw noise lines
-    noise = ("[plugins]", "[agents/", "[agent/", "adopted ", "google tool")
+    noise = ("[plugins]", "[agents/", "[agent/", "adopted ", "google tool", "[lcm]")
     clean = [
         line for line in output.splitlines()
         if not any(line.strip().lower().startswith(p) for p in noise)
     ]
-    return "\n".join(clean).strip()
+    result_text = "\n".join(clean).strip()
+    if not result_text and result.returncode != 0:
+        print(f"⚠ call_agent failed (exit {result.returncode}): {result.stderr.strip()[:200]}")
+    return result_text
 
 
 def generate_shiny(signals: dict, events: list[str], belief: str) -> str:
@@ -237,6 +240,10 @@ def main():
     events = fetch_on_this_day()
 
     shiny_text = generate_shiny(signals, events, belief)
+
+    if not shiny_text or not shiny_text.strip():
+        print(f"⚠ Sparky got empty response from agent — skipping write, will retry next run.")
+        return
 
     content = f"# Sparky Shiny — {date_str}\n\n{shiny_text}\n"
 
