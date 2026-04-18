@@ -767,6 +767,56 @@ case "$IMG_CHOICE" in
         ;;
 esac
 
+# ── 10b. Printer & Email ──────────────────────────────────────────────────────
+
+section "A few last details"
+
+echo "  These are optional — skip either with Enter."
+echo ""
+
+PLAYER_EMAIL=""
+PRINTER_NAME=""
+
+echo "  ── Email ───────────────────────────────────────────────────"
+echo ""
+echo "  If you have Gmail configured with the gog CLI, the Labyrinth"
+echo "  can check your inbox for story-relevant signals."
+echo ""
+PLAYER_EMAIL=$(ask "Your Gmail address (or press Enter to skip)" "")
+if [ -n "$PLAYER_EMAIL" ]; then
+    set_secret "PLAYER_EMAIL" "$PLAYER_EMAIL"
+    echo "  ✓ Email noted."
+else
+    echo "  Email skipped."
+fi
+
+echo ""
+echo "  ── Printer ─────────────────────────────────────────────────"
+echo ""
+echo "  The Labyrinth can print souvenir cards, NPC letters, and"
+echo "  Compass Run records — physical objects from the story."
+echo ""
+
+DETECTED_PRINTER=$(lpstat -p 2>/dev/null | awk '/^printer / {print $2}' | head -1 || true)
+if [ -n "$DETECTED_PRINTER" ]; then
+    echo "  Detected printer: $DETECTED_PRINTER"
+    if ask_yn "Use this printer?" "y"; then
+        PRINTER_NAME="$DETECTED_PRINTER"
+    else
+        PRINTER_NAME=$(ask "Printer name (from lpstat -p)" "")
+    fi
+else
+    echo "  No printer detected."
+    PRINTER_NAME=$(ask "Printer name (from lpstat -p, or press Enter to skip)" "")
+fi
+
+if [ -n "$PRINTER_NAME" ]; then
+    set_secret "PRINTER_NAME" "$PRINTER_NAME"
+    echo "  ✓ Printer configured: $PRINTER_NAME"
+else
+    echo "  Printer skipped. Add PRINTER_NAME to config/secrets.env to enable later."
+fi
+
 # ── 11. Memory Plugins ────────────────────────────────────────────────────────
 
 section "Memory plugins (optional)"
@@ -898,8 +948,8 @@ sed \
     -e "s|{{OPENCLAW_HOME}}|$OPENCLAW_HOME|g" \
     -e "s|{{MUSICGEN_PATH}}|$MUSICGEN_PATH|g" \
     -e "s|{{PLAYER_LOCATION}}|$LOCATION_FOR_TOOLS|g" \
-    -e "s|{{PLAYER_EMAIL}}|*(not configured — update when set up)*|g" \
-    -e "s|{{PRINTER_NAME}}|*(check with lpstat -p)*|g" \
+    -e "s|{{PLAYER_EMAIL}}|${PLAYER_EMAIL:-*(not configured — update when set up)*}|g" \
+    -e "s|{{PRINTER_NAME}}|${PRINTER_NAME:-*(check with lpstat -p)*}|g" \
     "$ENCHANTIFY_DIR/hooks/TOOLS.template.md" > "$ENCHANTIFY_DIR/hooks/TOOLS.md"
 
 # Register in openclaw.json
@@ -970,41 +1020,105 @@ fi
 if [ "$RETURNING" = "false" ] && [ -n "$PLAYER_NAME" ]; then
     PLAYER_FILE="$ENCHANTIFY_DIR/players/${PLAYER_NAME,,}.md"
     if [ ! -f "$PLAYER_FILE" ]; then
+        PNAME_LOWER="${PLAYER_NAME,,}"
         cat > "$PLAYER_FILE" << PLAYEREOF
-# ${PLAYER_NAME}
+# Player: ${PLAYER_NAME}
 
-**Player:** ${PLAYER_NAME}
-**Chapter:** Riddlewind
-**Tier:** 1
-**Belief:** 10
-**Status:** Just arrived.
+- **Belief:** 20
+- **Inventory:**
+  - *(empty — will fill during tutorial)*
+- **Tutorial Progress:** T1
+- **Chapter:** *(assigned at T7)*
+- **Anchor:** *(assigned at T6)*
+- **Appearance:** *(described at T1)*
+- **Snack:** *(shared at T2)*
+- **Traits:** *(shared at T3)*
+- **Core Belief:** *(shared at T4)*
 
-## Inside Cover
+## Enchanted Objects
+*Objects ${PLAYER_NAME} has enchanted, with their "personality" and last interaction. The Labyrinth remembers them.*
+
+*(none yet)*
+
+## Story Log
+- **T1:** Entered the Labyrinth.
+
+## Compass Run History
+
+- **Last run:** never
+- **Total runs:** 0
+- **Souvenirs:** 0
+
+## The Inside Cover
 
 | Quest | NPC | Belief | Relationship |
 |---|---|---|---|
-| *(empty)* | | | |
-| *(empty)* | | | |
-| *(empty)* | | | |
+| *(no active quests)* | | | |
 
 ## The Margin
-*Fae bargains live here. Fae give first — ${PLAYER_NAME} always owes a return.*
+*Fae bargains live here, not in the Inside Cover. Fae give first — ${PLAYER_NAME} always owes a return.*
 *These are contracts, not quests. The Fae remember everything.*
 
 | Fae | What They Gave | Terms (what you owe) | Deadline | Status |
 |---|---|---|---|---|
 | *(the margin is clean — no bargains yet)* | | | | |
 
-## Story Log
+---
 
-- **T1:** Entered the Labyrinth.
+## The Flyleaf
+*The page at the front of The Labyrinth of Stories where known enchantments are recorded. New enchantments appear here as they are discovered — the ink writes itself in.*
+
+| Enchantment | Tier | Notes |
+|---|---|---|
+| *(none yet — discovered through play)* | | |
+
+## Relationships
+
+| NPC | Chapter | Score | Notes |
+|---|---|---|---|
+| *(relationships added as player meets NPCs)* | | | |
+
+## Belief Investments
+
+| Target | Type | Belief | Notes |
+|---|---|---|---|
+| *(none yet)* | | | |
+
+## Ley Line Network
+
+- **Anchors:** 0 — see \`players/${PNAME_LOWER}-anchors.md\`
+- **Total Belief anchored:** 0
+
+## Dorm Room
+
+*(Generated at T13 — not yet assigned)*
+
+---
 
 ## Notes
-*The Labyrinth is watching.*
+
+*(Player preferences, real-life details shared, tone adjustments, accessibility needs.)*
 PLAYEREOF
         echo "  ✓ Player file created: players/${PLAYER_NAME,,}.md"
     else
         echo "  ✓ Player file already exists."
+    fi
+
+    # Create anchors file
+    ANCHORS_FILE="$ENCHANTIFY_DIR/players/${PLAYER_NAME,,}-anchors.md"
+    if [ ! -f "$ANCHORS_FILE" ]; then
+        cat > "$ANCHORS_FILE" << ANCHORSEOF
+# Anchors — ${PLAYER_NAME}
+
+*Places ${PLAYER_NAME} has invested Belief into. Each one is permanent. The Labyrinth remembers them forever.*
+
+*Format: one \`##\` section per Anchor. Run \`python3 scripts/anchor-check.py ${PLAYER_NAME,,} [lat] [lon]\` to check proximity.*
+
+---
+
+*(No Anchors yet. The Ley Line map is blank — waiting for the first sacred place.)*
+ANCHORSEOF
+        echo "  ✓ Anchors file created: players/${PLAYER_NAME,,}-anchors.md"
     fi
 fi
 

@@ -85,7 +85,7 @@
 | Raven Hearts | NPC | 8 | [thread:wicker-schemes,academy-daily] Mossbloom; Wicker's crew; quiet, calculating; watches for strange shadows |
 | Anton Smith | NPC | 8 | [thread:academy-daily] Mossbloom; scholarly, socially awkward; oldest libraries; paper is sacred to him |
 | Briar Merlock | NPC | 8 | [thread:academy-daily] Mossbloom; forest-dweller wisdom; foraging; wild mushroom identification |
-| Thorn Thomas | NPC | 8 | [thread:academy-daily] Mossbloom; transforms into small animals; curious; can fit under doors |
+| Thorn Thomas | NPC | 10 | [thread:academy-daily] Mossbloom; transforms into small animals; curious; can fit under doors |
 | Clarissa "Clio" Quibblesnatch | NPC | 8 | [thread:academy-daily] Mossbloom; poetic daydreamer; open mic nights; sees stories in everything |
 | Ignatius "Inkwell" Scribblesnap | NPC | 8 | [thread:academy-daily] Tidecrest; documentation-obsessed; vintage pens; journals everything; the Labyrinth's spiritual cousin |
 | The Obsidian Chronograph | Object | 8 | Anchor pen; cool, heavy, precise — waits in the Quillquarium for its bearer |
@@ -120,6 +120,7 @@
 | The Archive of Fermentation | Location | 5 | Outer Stacks EMBARK anchor — vast cold vault of glass-fronted cases tended by the Wayskeeper, a fae who has never finished a journey; each vessel holds a fermenting path; bj's is already labeled. 📍 GPS-gated: 44.426328, -69.005545 |
 | Boggle | NPC | 6 | [thread:academy-daily] Riddlewind; Enchantment teacher; chaotic, sticky, hard to pin down; the pun always lands eventually |
 | Professor Stonebrook | NPC | 15 | [thread:academy-daily] Head of Mossbloom; Observatory keeper; calibrated the Wonder Compass with bj at T12; long pauses, philosophical |
+| Duskthorn Investigation | Thread | 5 | Probing the shadows of the secret chapter. |
 
 ## Whisper Register (Belief <5)
 

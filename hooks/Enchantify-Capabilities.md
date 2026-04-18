@@ -1,7 +1,7 @@
 # Enchantify — The Labyrinth of Stories
 ## Complete Capability Reference
 
-*Version: 6.0.0 — The Characters Reach Back*
+*Version: 7.0.0 — The Thread That Binds*
 *Last updated: April 18, 2026*
 
 ---
@@ -50,7 +50,10 @@ Enchantify is an interactive narrative role-playing game that runs as a register
 - **The Hidden Curriculum:** Compass Runs, Enchantments, and club assignments are secretly therapeutic interventions (behavioral activation, mindfulness, gratitude journaling). The game never names this. Neither do you.
 - **Enchantments (Vision AI):** Spells that require the player to photograph real objects. The vision model interprets the photo and weaves what it sees into the narrative with synesthetic detail.
 - **The Compass Run:** A structured real-world quest based on the Wonder Compass framework. Notice something. Do something — anything — in the world. Sense it. Write one sentence. +9 Belief. A run can be walking the block, driving two towns over, cooking at home, lying on the floor and looking at it like Gulliver, or noticing a line on your hand you've never seen before. The only requirement is that attention landed somewhere real.
+- **Story Thread System:** Named stories with Belief mass. Threads are born from high-Belief NPCs, Labyrinth proposals, or player investment. They live in `lore/threads.md` and `lore/world-register.md` (Active Threads section). tick.py stirs them like any entity — high Belief = stirred more often = story advances. Threads escalate through phases (dormant → setup → rising → climax → resolution at 50+), emit lifecycle signals to tick-queue, and die either through natural resolution or Nothing victory. Belief updates are surgical: `write-entity.py --thread` patches the belief number in-place. The Labyrinth never edits thread rows directly.
+- **Talisman Behavior Nudge:** Real-world signals from `HEARTBEAT.md` (steps, sleep, HRV, calendar events, fuel logged) shift Talisman Belief ±1 each tick. Emberheart rises when the player is active and present. Mossbloom rises when the player is rested and fed. Duskthorn rises when the player is exhausted or absent. Cap: 2 talismans per tick, ±1 per talisman. The war is not just philosophical — it's metabolic.
 - **The Midnight Revision:** Every four days, the Labyrinth audits itself and invents new lore, NPCs, rooms, or mechanics. Proposals go to `proposed/` for 48-hour player veto before becoming canon. The nightly intelligence run (23:00) is separate — it senses and writes, never proposes.
+- **Mission Control:** Live HTML dashboard (`mission-control.html`) showing threads, world state, cron job status (openclaw + system crontab), and Bleed issues. Auto-regenerated on every pulse run. Run manually: `python3 scripts/mission-control.py`.
 - **LLM Provider:** All generative scripts (`dream.py`, `sparky.py`, `arc-generator.py`, `npc-research.py`, `labyrinth-intelligence.py`) call Gemini via `openclaw agent --local --agent enchantify -m "..."`. No API keys needed — OAuth handled by OpenClaw.
 
 ---
@@ -514,7 +517,7 @@ Never edit `world-register.md` directly — use `python3 scripts/write-entity.py
 
 The dominant talisman (highest Belief) subtly shifts the Labyrinth's ambient tone — never announced, always felt. The Labyrinth checks the register at session open. Philosophical debate between chapters is a real Belief exchange (see §7f).
 
-**World Simulation Tick** (`tick.py`): runs every 4 hours as part of the Academy simulation. Selects 1–3 entities from the register using weighted-random probability — high Belief = higher chance, but **any** entity can be chosen regardless of tier. Appends selected entities to `memory/tick-queue.md`. Also scans all anchor files for decay.
+**World Simulation Tick** (`tick.py`): runs every 4 hours as part of the Academy simulation. Selects 1–3 entities from the register using weighted-random probability — high Belief = higher chance, but **any** entity can be chosen regardless of tier. Appends selected entities to `memory/tick-queue.md`. Also scans all anchor files for decay. Also runs the **behavior nudge pass** — reads HEARTBEAT.md signals (steps, sleep, HRV, calendar, fuel) and applies ±1 Belief adjustments to up to 2 talismans per tick based on player health patterns (see §0b). Also runs the **pocket anchor refill** on day 1 of each month (new moon), issuing one calling card per anchor into the player's inventory.
 
 At session open, the Labyrinth reads `memory/tick-queue.md`, weaves stirred entities naturally into the opening, then runs `python3 scripts/clear-tick-queue.py`.
 
@@ -624,6 +627,25 @@ End every active-play response with a question and three concrete examples:
 3. **The Surprising** — weird, hidden mechanic, Heartbeat bleed, unexpected
 
 These are examples only. The player can do anything. Never leave them staring at a blank page.
+
+---
+
+### §8d. Story Thread System
+
+A **thread** is any story with enough Belief mass to sustain itself. Threads run parallel to the main arc — some NPC-anchored, some location-anchored, some born from player investment.
+
+**Lifecycle:**
+
+- **Birth:** Three routes — (1) tick.py seed flag when an NPC crosses Belief 20 with no dedicated thread; (2) Labyrinth proposal at session close when a subplot develops real weight; (3) player invests Belief into something unregistered. New threads require: one NPC/location anchor with Belief ≥ 10, a legible next beat, a Nothing pressure assessment, and a row in `## Active Threads` in world-register.md with `[id:slug]`.
+- **Life:** The thread entity lives in world-register.md like any other entity. tick.py stirs it based on Belief weight. NPCs tagged `[thread:id]` invest into it naturally. Being stirred adds +1 Belief. Ignoring it lets Belief decay. tick.py emits lifecycle signals to tick-queue: `[Beat: Thread]`, `[THREAD ESCALATION]`, `[THREAD COOLING]`, `[THREAD SEED]`.
+- **Phase ladder** (Belief → phase): 0–4 dormant · 5–14 setup · 15–29 rising · 30–49 climax · 50+ resolution
+- **Death:** Natural resolution — Labyrinth delivers the final beat, moves `## Thread: Name` → `## Archive: Name`, removes world-register row, writes closure beat to player story file. Nothing victory — Belief drops to 0 through neglect or drain; tick stops selecting it; archive entry marked `unfinished`; NPCs carry the cost quietly.
+
+**Belief updates** use `python3 scripts/write-entity.py "Thread Name" Thread <amount> --thread [--add]` — surgical in-place regex replacement of only the Belief number. Never edit thread rows directly; remove-then-reinsert corrupts the table structure.
+
+**The threads run whether the player is watching or not.** Wicker is scheming. The Duskthorn investigation is sitting there. The player intersects threads — they do not run them.
+
+Full rules: `lore/threads.md`
 
 ---
 
@@ -908,14 +930,14 @@ A different protocol from the 1-hour Return. Read `players/[name]-story.md` firs
 | `scripts/dream.py` | Nightly 2:03 AM cron | Generates Labyrinth's dream via Gemini (`openclaw agent`); writes to `memory/dreams/[date].md` |
 | `scripts/sparky.py` | Daily 8 AM cron (`0 8 * * *`) | Finds pattern-connections via Wikipedia On This Day + heartbeat signals (moon, season, tides, weather, Belief). Calls `openclaw agent --local --agent enchantify`. Writes to `sparky/shinies/[date]-[time].md`. Injects `<!-- SPARKY_START -->` block into `HEARTBEAT.md`. Uses `shutil.which()` + Homebrew fallback for cron PATH safety. Reads config from `config/secrets.env`. |
 | `scripts/arc-generator.py` | Daily 2 AM cron (QUIET phase) | Generates arc proposal; `--accept` promotes to live |
-| `scripts/lifx-control.py` | Labyrinth (scene changes) | Controls LIFX bulbs via LAN; uses configured IPs or auto-discovers |
+| `scripts/lights.py` | Labyrinth (scene changes) | Multi-backend smart lights. Backends: `lifx`, `ha` (Home Assistant), `hue`, `homekit`, or comma-separated chain. Named scenes: academy, library, nothing, dorm, great-hall, outer-stacks, tension, wonder, revelation, compass-north/east/south/west, compass-complete, book-snow-queen, book-odyssey, bookend, defeated, emberheart, mossbloom, riddlewind, tidecrest, duskthorn. Any color via `--color`, `--hue/--sat/--bright`, `--kelvin`, `--transition`. Config: `LIGHTS_BACKEND` in `config/secrets.env`. |
 | `scripts/log-fuel.sh` | Labyrinth (player mentions food) | Appends to fuel-log.txt; silent |
 | `scripts/multi_voice_tts.py` | Labyrinth (TTS enabled) | Processes voice tags; generates stitched audio via Kokoro |
 | `scripts/midnight-audit.sh` | Midnight Revision cron | Stub for Midnight Revision protocol |
 | `scripts/anchor-check.py` | Labyrinth (Telegram location shared) | Reads `players/[name]-anchors.md`; reports anchors within 200m. `--checkin` flag records the visit, adds +5 Belief to anchor, updates `last-visited`. |
 | `scripts/tick.py` | 4-hour simulation cron | Weighted-random entity selection from `world-register.md` (1–3 entities; any can appear, higher Belief = higher probability). **Time-aware:** imports `world_context.py` to determine current time block; at night caps selection at 1, filters sleeping NPCs from pool (crisis entities at Belief ≤ 2 always stirrable), tags tick header with `[night]` and time prefix. Also checks anchor decay (30+ days unvisited → −1 Belief, floor 5). Appends to `memory/tick-queue.md`. `--count N` overrides selection count. |
 | `scripts/clear-tick-queue.py` | Session open (after reading tick-queue) | Resets `memory/tick-queue.md` to empty header. Called after Labyrinth weaves stirred entities into the session opening. |
-| `scripts/write-entity.py` | Labyrinth (entity Belief change / new entity) | Adds or updates an entity in `lore/world-register.md`. Auto-places in correct tier (15+ = Full Presence, 5–14 = Fading, <5 = Whisper). `--talisman` flag routes to Chapter Talismans section. `--gps-gated "Anchor Name"` flag adds a `📍 GPS-gated` tag to the entry (used for Anchor room registry). Atomic write with backup. |
+| `scripts/write-entity.py` | Labyrinth (entity Belief change / new entity) | Adds or updates an entity in `lore/world-register.md`. Auto-places in correct tier (15+ = Full Presence, 5–14 = Fading, <5 = Whisper). `--talisman` flag routes to Chapter Talismans section. `--gps-gated "Anchor Name"` flag adds a `📍 GPS-gated` tag. `--thread` flag: surgical in-place update of a thread row's Belief number only (use `--add` to add/subtract); never removes/reinserts the row. `--dry-run` previews without writing. Atomic write with backup. |
 | `scripts/belief-attack.py` | Labyrinth (Belief combat / debate / Nothing encounter) | Executes a Belief exchange using the dice system. **Dice mode:** `--spend N --difficulty [routine\|standard\|dramatic\|desperate]` — rolls d100 with attacker's Belief; outcome maps to deal ratio (crit success ×1.5, success ×1.0, near miss ×0.5, failure ×0, crit fail = backfire). **Explicit mode:** `--spend N --deal N` — skips roll (for passive/environmental effects). Enforces floors. Logs to `logs/belief-combat.md`. |
 | `scripts/dice.py` | Imported by roll-dice.py and belief-attack.py | Shared dice logic — `roll_d100(belief, difficulty)` returns structured result dict; `combat_deal(spend, result)` maps outcome to damage amount. Not called directly. |
 | `scripts/world_context.py` | Imported by tick.py and world-pulse.py | Shared time-awareness module. Wraps `scripts/schedule.py` via importlib (hyphenated filename). Exports: `get_time_context()` (current block, weekday, is_night); `get_npc_state(name, type, ctx)` (location, state, stirrable flag — sleeping at night for NPC/creature types, always stirrable for talismans/places); `time_seed_prefix(ctx)` (human-readable "4:00 AM — Academy asleep." style string). Not called directly. |
@@ -929,6 +951,9 @@ A different protocol from the 1-hour Return. Read `players/[name]-story.md` firs
 | `scripts/labyrinth-intelligence.py` | Nightly 23:00 cron | Reads diary entries + player file + `HEARTBEAT.md` biometrics. Writes `memory/patterns.md`, `memory/arc-spine.md`, `lore/nothing-intelligence.md`. Appends therapeutic interventions to `memory/tick-queue.md` (biometric-triggered, Labyrinth voice). Injects `<!-- DIARY_START -->` block into `HEARTBEAT.md`. Run as: `python3 scripts/labyrinth-intelligence.py [player]`. |
 | `scripts/npc-research.py` | 4-hour simulation (via world-pulse.py, 25% chance) | NPC researches a topic from their Unwritten Interest and delivers findings. `--npc "Name"` to force a specific NPC. `--dry-run` to preview. `--no-print` to skip letter. `--no-icloud` to skip Notes. Writes to `memory/npc-research/[date]-[slug].md`; for core NPCs prints a physical letter via CUPS (`lpr`); delivers via Telegram; delivers to iCloud Notes ("Labyrinth" folder). Queues tick-queue narrative seed. Deducts 3 Belief from the NPC. 72-hour cooldown per NPC. |
 | `scripts/skill-scheduler.py` | Session-open, cron | Discovers `skill-lore/*/manifest.md`, matches triggers (`cron`, `session-open`, `event`), sources `enchantify-config.sh`, runs each matching `tick.py` in isolation. `--list` shows contracts. `--dry-run` previews. |
+| `scripts/pocket-anchor.py` | Labyrinth (pocket anchor flow) | Remote Outer Stacks access state manager. `activate [player] "[Anchor]"` — spends a charge, opens 30-min session window. `status [player]` — shows charges and active sessions. `refill [player]` — issues one calling card per anchor (called by tick.py on day 1). `expire [player]` — clears expired sessions (called silently on activate). Charge state: `config/pocket-anchors.json` (gitignored). Calling cards appear in player inventory on refill, removed on use. Max 1 charge per anchor (no stacking). |
+| `scripts/mission-control.py` | pulse.py (every 15 min) + manual | Generates `mission-control.html` — live HTML dashboard. Shows: story threads (phase, Belief, next beat), world entity state, cron job status (reads both openclaw cron list and system `crontab -l`), recent Bleed issues. Run manually: `python3 scripts/mission-control.py`. Auto-regenerated on every pulse run. |
+| `scripts/reach-out.py` | Every 2 hours cron (`10 */2 * * *`) | Characters and talismans initiate direct contact via Telegram when conditions warrant. Checks for stirred high-Belief NPCs and talisman pressures; composes in-character outreach; sends via Telegram bot. Silent if nothing warrants contact. |
 | `scripts/bleed.py` | Daily 6 PM cron (`0 18 * * *`) | Publishes The Bleed — the Academy student newspaper. Reads world-register.md, threads.md, tick-queue.md, HEARTBEAT.md, players/[name].md, app-register.md. Calls the enchantify agent to generate 12 sections (HEADLINE, GOSSIP, WEATHER, FORECAST, MARKET, BAROMETER, EXCHANGE, FEATURE, CLASSIFIEDS, CORRECTION, MISSING, PLAYER, WARREPORT). Builds broadsheet HTML to `bleed/issues/YYYY-MM-DD.html`. Sends Telegram edition. Optionally CUPS-prints via `wkhtmltopdf` or Chrome headless. `--force` to regenerate. Issue numbers tracked in `bleed/issue-number.txt`. |
 
 ---
@@ -955,6 +980,7 @@ enchantify/
 │   ├── setup-state.md            ← Install completion state
 │   ├── world-pulse-cache.json    ← World Pulse: previous entity Belief states for change detection
 │   └── voice-assignments.md      ← Kokoro TTS character mapping
+├── mission-control.html          ← Live game state dashboard (auto-generated by pulse.py)
 ├── scripts/pact-drivers/         ← Chapter Pact app drivers (one file per app)
 │   ├── base.py                   ← AppDriver abstract class
 │   ├── spotify.py / apple_notes.py / apple_reminders.py / apple_calendar.py / obsidian.py
@@ -994,6 +1020,8 @@ enchantify/
 │   ├── belief-combat.md          ← Belief attack rules, exchange ratios, floors, common patterns
 │   ├── world-register.md         ← Living ledger of all entities with Belief scores + Chapter Talismans
 │   ├── ley-lines.md              ← Anchor creation, types, check-in, decay, Academy echoes
+│   ├── outer-stacks.md           ← Outer Stacks rooms, pocket anchor rules, window visit behavior
+│   ├── threads.md                ← Story thread registry — lifecycle, active threads, archive
 │   ├── sparky.md
 │   ├── the-pitch.md
 │   ├── wonder-compass.md         ← Wonder Compass item mechanics (cost 3 Belief, +9, once/day); points to chapter5.md
