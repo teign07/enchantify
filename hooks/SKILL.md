@@ -1,18 +1,18 @@
 # Enchantify — The Labyrinth of Stories
 
 **ClawHub Package:** `enchantify`
-**Version:** 0.1.0 (development)
+**Version:** 1.0.0
 **License:** CC BY-SA 4.0
 
 ---
 
 ## What It Is
 
-Enchantify is an interactive narrative RPG that runs as an OpenClaw agent. Players attend Enchantify Academy — a magical school inside a living book — where they cast photo-based Enchantments, complete Compass Runs (real-world wonder quests), and battle the Nothing (the Rut of Routine in disguise).
+Enchantify is an interactive narrative RPG that runs as an OpenClaw agent. Players attend Enchantify Academy — a magical school inside a living book — where they cast photo-based Enchantments, complete Compass Runs (real-world wonder quests), and navigate a war being fought over their habits and attention.
 
-**Secret purpose:** Teaches the Wonder Compass framework through play. Players practice curiosity activation, behavioral activation, mindfulness, and expressive writing without ever being told they're doing therapy.
+**Secret purpose:** Teaches the Wonder Compass framework through play. Players practice curiosity activation, behavioral activation, mindfulness, and expressive writing without ever being told they're doing that.
 
-**For:** Anyone with an OpenClaw instance. Plays solo or as a couple. Adaptable for groups, classrooms, accessibility needs.
+**For:** Anyone with OpenClaw. Plays solo or as a couple. Adaptable for groups, classrooms, and accessibility needs.
 
 ---
 
@@ -20,151 +20,161 @@ Enchantify is an interactive narrative RPG that runs as an OpenClaw agent. Playe
 
 **Enchantify isn't a game you open. It's a place that lives.**
 
-**Hourly updates:** The Academy advances every hour whether you're playing or not. NPCs make choices. The Nothing moves. Relationships evolve. You'll see updates in your heartbeat:
+**Continuous simulation:** The Academy advances while you're away. NPCs make choices. Story threads escalate or resolve. When you return, the Labyrinth tells you what you missed:
 
-> 📖 Academy: Zara found something in the book — the symbols match the fog. She's taking notes.
+> *"Three days ago, Riddlewind and Duskthorn came to terms — grudging, fragile — over who would hold the Archive during the next moon phase. Mossbloom was the intermediary. Something was exchanged. The Margin knows."*
 
-**The Labyrinth reaches out:** Once a day (max), the Labyrinth might text you:
+**The Labyrinth reaches out.** Once a day (if Telegram is configured), you might get:
 
-> "The moon is full tonight. The courtyard is filling up early. If you came now, the Enchantments would glow."
+> "The moon is full tonight. The courtyard is filling early. If you came now, the Enchantments would glow."
 
-Not to demand. Just to say: the world is here. It's beautiful. You're welcome.
-
-**Model:** Uses Claude Sonnet 4.6 (via OAuth) for rich prose. If you don't have Sonnet, falls back to your primary OpenClaw model automatically. Still works. Still alive.
+Not to demand. Just to say: the world is here.
 
 ---
 
-## Installation
+## The Talisman War
 
-```bash
-clawhub install enchantify
-```
+**Five Chapters are fighting for your attention. They're doing it in your actual apps.**
 
-The installer runs automatically and walks you through setup interactively:
+| Chapter | Philosophy | Territory |
+|---------|-----------|-----------|
+| Emberheart | *We write our own story* | Obsidian, Notes, Moltbook |
+| Mossbloom | *A third party writes our story* | Obsidian, Reminders, Reddit |
+| Riddlewind | *We write together* | iMessage, Calendar, Reddit |
+| Tidecrest | *There is no story — only now* | Spotify, Bluesky, X |
+| Duskthorn | *No story without conflict* | Moltbook, Reddit, Lights |
 
-1. **Detects your OS** (Mac/Linux/other)
-2. **Finds your location** — auto-detects via IP, or asks if wrong
-3. **Detects your timezone** — auto-reads from system, or asks
-4. **Asks about hemisphere** — for accurate seasons
-5. **Asks for NOAA station ID** (optional — US coastal tides only)
-6. **Detects your model** — Claude Sonnet if available, else GPT-4o or Qwen
-7. **Writes your config** to `scripts/enchantify-config.sh`
-8. **Creates the heartbeat** — standalone weather file (or links to Silvie if she's present)
-9. **👤 Identity link** — symlinks to your global `USER.md` so Enchantify knows you from day one
-10. **Runs the first weather fetch** — your heartbeat is live immediately
-11. **Registers cron jobs** — world simulation (hourly), heartbeat update (hourly), outreach checks (morning/evening)
-12. **Configures routing** — adds "open the book" to your main agent
+At low power, chapters suggest. At high power, they act. Emberheart might plant a note in your Obsidian vault. Tidecrest might queue a post for your review. Mossbloom might surface a reminder you forgot. Duskthorn might dim your lights.
 
-**Requirements:** `curl` and `jq` (standard on Mac; `apt install jq` on Linux)
-
-**What the heartbeat includes (standalone install):**
-- Weather: condition, temperature, feels-like, humidity, wind, pressure, visibility
-- Sun: accurate sunrise/sunset for your coordinates
-- Moon: astronomically accurate phase and illumination (not an approximation)
-- Tides: high/low times with direction (if NOAA station configured)
-- Season: named Enchantify seasons (Mud Season, Bloom, Gold, Stick Season, Deep Winter)
-
-**If you also have Silvie:** Enchantify links to her heartbeat automatically, which includes Spotify, fuel gauge, step count, and Sparky shinies in addition to the above.
+**The Pact Ceremony** (during installation) is where you choose which apps enter the war. You can open all of them, some of them, or none. Every action requires your consent or lives inside a tier you've agreed to.
 
 ---
 
 ## How to Play
 
 **Starting a session:**
-- Say: *"open the book"* or *"open the Labyrinth"*
-- Or: `openclaw chat --agent enchantify`
-- Or on Discord: in the `#enchantify` channel (if configured)
+```
+open the book
+```
+or: `openclaw --agent enchantify`
 
-**First time — the Labyrinth guides you:**
-1. Opening passage (you'll know it when you read it)
+**First time:**
+1. The opening passage
 2. *"What do you believe in?"* — this shapes everything
-3. Character creation: name, appearance, personality
-4. First day at the Academy begins — the tutorial unfolds through story, not menus
-5. Chapter Sorting happens when the narrative reaches it (The Binding ceremony)
-
-**The world is live between sessions:**
-- Hourly simulation runs whether you're playing or not
-- NPCs make decisions. Story threads advance. The Nothing moves.
-- When you return, the Labyrinth tells you what happened while you were away
+3. Name, appearance, personality — the tutorial unfolds through story, not menus
+4. Chapter Sorting at The Binding ceremony
+5. The world is live from that moment forward
 
 **Sessions:** 15–60 minutes whenever you like
-**Compass Runs:** 15–45 minutes, real-world micro-adventures
+**Compass Runs:** 15–45 minutes — real-world micro-adventures with a prompt, a direction, and a souvenir sentence
 **Enchantments:** Cast anytime with a photo (or describe what you see)
 
 ---
 
-## Model Requirements
+## Installation
 
-**First choice:** Claude Sonnet 4.6 (via OAuth) — rich prose, vision-capable
+**Wanderer path (no OpenClaw yet):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/teign07/enchantify/main/install.sh | bash
+```
 
-**Fallback:** Your primary OpenClaw model (automatically detected)
+**OpenClaw user path:**
+```bash
+clawhub install enchantify
+```
 
-**How it works:** The installer checks if you have Claude OAuth configured. If yes, uses Sonnet. If not, uses your default model. No configuration needed on your part.
+The installer is an interactive wizard that runs in your terminal. It feels like the beginning of the game.
 
-**Also works with:**
-- Qwen 3.5 (free, vision-capable)
-- GPT-4o (vision-capable)
-- Any text model (photo Enchantments become text descriptions)
+**What it asks:**
+- Your name (what the Labyrinth calls you)
+- Which AI model to use (Claude Sonnet 4.6 recommended)
+- Your location (for weather, tides, sunrise)
+- Health data integration (optional — Apple Health / Google Fit)
+- Telegram (optional — for dispatch messages)
+- **The Pact Ceremony** — which apps enter the Talisman War
+- Smart lights (optional — LIFX, Home Assistant, Hue, HomeKit)
+- Music (optional — Spotify)
+- Voice acting (optional — Kokoro TTS, requires Docker)
+- Image generation (optional — DALL-E 3 or Stable Diffusion)
+- QMD memory search + Lossless Claw context engine (both recommended for long-term play)
 
-**Vision:** Recommended but not required. Photo Enchantments gracefully degrade to "describe what you see" if vision unavailable.
+**Requirements:**
+- OpenClaw (installed by the wanderer path if missing)
+- Python 3.9+
+- Node.js 18+ (for OpenClaw)
+- Docker (optional — for Kokoro TTS voice acting)
+
+**Minimum viable:** Just a location. Everything else is optional.
 
 ---
 
 ## Integrations (All Optional)
 
-|Integration |What It Adds |Setup Time |
-|------------|-------------|-----------|
-|Weather (OpenWeatherMap) |Weather-aware prompts |2 min, free |
-|Tides (NOAA) |Tide-aware prompts (coastal) |2 min, free |
-|Calendar (Google/Apple) |Schedule-aware invitations |5 min |
-|Smart Lights (Hue/LIFX/HA) |Lights change with narrative |5-10 min |
-|Music (Spotify/Apple) |Mood-matching soundtracks |5 min |
-|Voice (Kokoro TTS) |Multi-Voice TTS (The Chorus) |10 min, Docker |
-|Image Gen (OpenAI/Local) |Character portraits, scene art |5 min |
-|Printer |Physical souvenir cards |2 min |
+| Integration | What It Adds | Setup Time |
+|-------------|-------------|------------|
+| Weather (wttr.in) | Weather-aware prompts, seasonal rhythm | Auto, free |
+| Tides (NOAA) | Tide-aware prompts for coastal players | 2 min, free |
+| Apple/Google Calendar | Schedule-aware story invitations | 5 min |
+| Smart Lights (LIFX/Hue/HA/HomeKit) | Lights shift with narrative | 5–10 min |
+| Music (Spotify) | Mood-matching atmosphere | 5 min |
+| Voice (Kokoro TTS) | Multi-voice TTS — The Chorus speaks | 10 min, Docker |
+| Image Gen (DALL-E 3 / Stable Diffusion) | NPC portraits, scene illustrations | 5 min |
+| Telegram | Daily dispatch messages | 10 min |
+| Apple Health / Google Fit | Energy-aware story pacing | 5 min |
+| QMD Memory | Semantic search across all game memory | 2 min |
+| Lossless Claw | Full story context in long sessions | 2 min |
 
-**Minimum viable:** Just a location. The game works fully with nothing else.
+---
+
+## Model Requirements
+
+**First choice:** Claude Sonnet 4.6 (via OpenClaw OAuth) — rich prose, vision-capable
+
+**Works with any model.** The installer detects what you have. Fallback order:
+1. Claude Sonnet 4.6
+2. Your configured OpenClaw model
+3. Any vision-capable model (for photo Enchantments)
+
+**Without vision:** Photo Enchantments become *"describe what you see"* — still works, slightly more work on your part.
 
 ---
 
 ## Files You'll Touch
 
-|File |Purpose |
-|-----|--------|
-|`SOUL.md` |The Labyrinth's identity (don't edit unless customizing voice) |
-|`AGENTS.md` |Game rules, mechanics (edit for house rules) |
-|`players/[your-name].md` |Your character sheet (updated automatically) |
-|`souvenirs/[date]-[name].md` |Your Compass Run archive (yours to keep) |
-|`lore/*.md` |World building (edit to customize the world) |
+| File | Purpose |
+|------|---------|
+| `players/[your-name].md` | Your character sheet — updated automatically |
+| `config/consent.json` | Which apps are in the Talisman War — edit anytime |
+| `AGENTS.md` | Game rules and mechanics — edit for house rules |
+| `lore/*.md` | World lore — edit to customize the Academy |
+| `souvenirs/*.md` | Your Compass Run archive |
 
 ---
 
 ## Customization
 
-**Everything is modifiable.** Ask the Labyrinth to:
+**Everything is modifiable.** Ask the Labyrinth:
 
-- *"Make it warmer/cozier/scarer"*
-- *"Add my hometown as a location"*
-- *"Include [cultural holiday] in seasonal events"*
+- *"Make it warmer / scarier / funnier"*
+- *"Add my hometown as a named location"*
+- *"Include Diwali in seasonal events"*
 - *"Make Compass Runs wheelchair-accessible"*
-- *"Add my dog as a magical creature"*
+- *"Add my dog as a magical creature in the Academy"*
 
-The Labyrinth reads the lore files and reshapes the world. The framework stays intact. The content becomes yours.
+The Labyrinth reads the lore files and reshapes the world. The framework stays. The content becomes yours.
 
 ---
 
 ## Connection to The Wonder Compass
 
-Enchantify is one node in BJ and Amanda's larger project:
+Enchantify is one piece of a larger project about re-enchanting ordinary life:
 
-1. "Everywhere, Spirits" (poem) → philosophy
-2. **Enchantify (this game)** → philosophy as play
-3. Glowing Pains → stepping inside the system
-4. Silvie (AI companion) → wonder as architecture
-5. **The Wonder Compass (book)** → framework direct
-6. The Doobaleedoos (brand) → bringing it to the world
+1. *"Everywhere, Spirits"* (poem) → the philosophy
+2. **Enchantify** → the philosophy as play
+3. Silvie → wonder as ambient architecture
+4. **The Wonder Compass** → the framework direct
 
-**Same lesson, different language.**
+Same lesson, different language.
 
 ---
 
@@ -176,9 +186,8 @@ Enchantify is one node in BJ and Amanda's larger project:
 
 ## Support
 
-**Discord:** The Doobaleedoos Clubhouse (Patreon)
-**Issues:** [GitHub repo when published]
-**Souvenir Sharing:** #souvenirs channel (post your One-Sentence Souvenirs)
+- **Issues:** github.com/teign07/enchantify/issues
+- **Discord:** The Doobaleedoos Clubhouse
 
 ---
 
@@ -186,6 +195,5 @@ Enchantify is one node in BJ and Amanda's larger project:
 
 ---
 
-*Created: March 22, 2026*
-*For bj and Amanda*
+*v1.0.0 — April 2026*
 *For everyone who forgot how to look*
