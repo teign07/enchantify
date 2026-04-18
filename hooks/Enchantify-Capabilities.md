@@ -1,8 +1,8 @@
 # Enchantify — The Labyrinth of Stories
 ## Complete Capability Reference
 
-*Version: 4.8.0 — The Living Memory*
-*Last updated: April 17, 2026*
+*Version: 5.0.0 — The Living Philosophy*
+*Last updated: April 18, 2026*
 
 ---
 
@@ -125,7 +125,7 @@ The only requirement is that the player's attention landed somewhere real and st
 3. Deduct **3 Belief**. Narrate casting with synesthetic detail.
 4. Player takes photo (or describes in text-only mode)
 5. Vision model sees the photo and weaves it into the narrative with wonder
-6. Enchantment activates. Award **+6 Belief** (net +3 on success)
+6. Enchantment activates. Award **+9 Belief** (net +6 on success)
 7. On failure: award nothing. Total loss: **−6 Belief** (−3 cost + −3 penalty)
 
 **Text-only fallback:** Player describes what they see in detail. Same effect, same economy.
@@ -1096,7 +1096,7 @@ All automated scripts use Google Gemini via OpenClaw OAuth. No API keys required
 | Arc generation (`arc-generator.py`) | `openclaw agent --local --agent enchantify` |
 | NPC research (`npc-research.py`) | `openclaw agent --local --agent enchantify` |
 | Nightly intelligence (`labyrinth-intelligence.py`) | `openclaw agent --local --agent enchantify` (biometric analysis only; pure Python for pattern detection) |
-| Academy simulation cron | Pure Python (tick.py, world-pulse.py, ambient-state.py — no LLM calls in these scripts) |
+| Academy simulation cron | Mostly pure Python (tick.py, world-pulse.py, ambient-state.py). Exception: `pact-engine.py` calls `openclaw agent --local` at Dominated/Sovereign reality_bleed for `USE_LLM` drivers — generates structured action specs in the chapter's voice. Falls back silently if openclaw unavailable. |
 
 ---
 
@@ -1269,8 +1269,10 @@ Talismans war for control of the player's real-world apps. Every time a Talisman
 | `pact_war` | Push/challenge/consolidate app territory | push/consolidate: 1 · challenge: 2 · raid: 3 |
 | `narrative` | Inject philosophical tone into tick-queue | free |
 | `player_suggestion` | Direct nudge at the player | free |
-| `reality_bleed` | Act through a controlled app | 2 |
+| `reality_bleed` | Act through a controlled app via its driver | Controlled: 4 · Dominated: 7 · Sovereign: 12 |
 | `world_investment` | Invest 1–2 Belief into aligned NPCs or story threads | 1–2 |
+
+**Reality bleed costs are tiered** because seizing more territory means the chapter has more at stake — and can do more damage. A Sovereign-tier action is genuinely consequential.
 
 **Priority chain** (`_choose_action()`): 1. Threat response (enemy closing fast) → `pact_war`. 2. Flip opportunity (within flip_margin of taking an app) → `pact_war`. 3. Reality bleed (if eager + has controlled apps) → `reality_bleed`. 4. Arc/thread investment → `narrative`. 5. World investment (build NPC/thread mass) → `world_investment`. 6. Ambient → `player_suggestion` or `narrative`.
 
@@ -1281,17 +1283,35 @@ Talismans war for control of the player's real-world apps. Every time a Talisman
 **Architecture:**
 
 - `scripts/pact-engine.py` — war engine. Called by `tick.py` (STEP 1c) for each stirred Talisman. Returns 4-tuple `(line, atype, belief_cost, register_delta)`. Standalone: `--state` shows app control table; `--act "Talisman" --belief N` tests one; `--dry-run` previews.
-- `scripts/pact-drivers/` — one driver per app. Each implements `describe()`, `execute()`, `is_silent()`, `requires_consent()`, `consent_prompt()`. Handles what a chapter *does* with an app at each control tier.
+- `scripts/pact-drivers/` — one driver per app. Each implements the `AppDriver` base class. At `Influenced`/`Controlled` tiers, drivers return narrative suggestions only. At `Dominated`/`Sovereign`, they execute real-world app actions.
 - `lore/app-register.md` — the battlefield. Per-talisman Control Belief for each app. Updated atomically by tick.py after each war action.
 - `lore/chapter-pacts.md` — full war doctrine. Philosophy per chapter per app, escalation tells, feedback loops.
+
+**Driver capability system (v5.0.0+):**
+
+Each driver now exposes three optional members:
+- `USE_LLM = True` — opts the driver into LLM-generated action content
+- `capabilities()` → list of `{name, description, params}` action specs — the menu the LLM picks from
+- `execute_spec(spec, dry_run)` → dispatches on `spec["action"]` to execute the chosen action
+
+When a `USE_LLM` driver executes a reality bleed at Dominated/Sovereign tier, `pact-engine.py` calls `_llm_generate_spec()` — which sends the chapter's canonical philosophy + available capabilities + live context (Belief, arc phase, Nothing pressure, active threads) to the default openclaw agent. The LLM chooses an action type *and* generates the actual content (reminder title, note body, post text, etc.). If the LLM call fails, `execute()` is used as fallback.
+
+**CHAPTER_PHILOSOPHIES** (canonical, live in `pact-engine.py`):
+- Emberheart: *We write the story of our lives ourselves. Self-authorship, agency.*
+- Mossbloom: *A third party writes the story — destiny, God, nature, the universe. Surrender.*
+- Riddlewind: *We write the story together. Co-authorship, shared meaning.*
+- Tidecrest: *There is no story — life is a poem, a series of 'now' moments.*
+- Duskthorn: *There is no story without conflict. Friction is the engine.*
+
+**Current USE_LLM drivers:** Apple Notes · Apple Reminders · X/Twitter · Bluesky · iMessage · Reddit · Moltbook · Obsidian
 
 **Control tiers:** Contesting (1–9) → Influenced (10–24) → Controlled (25–44) → Dominated (45–69) → Sovereign (70+)
 
 **Current apps:** Apple Notes · Apple Reminders · Apple Calendar · Obsidian · Moltbook · Bluesky · X/Twitter · Reddit · Spotify · Telegram · iMessage
 
-**Consent model:** Private app actions (Spotify, Notes, Calendar, Reminders, Obsidian, Telegram) are silent — discovered in-app. Social media posts (Moltbook, Bluesky, Reddit, iMessage) require consent at Dominated/Sovereign. X/Twitter requires consent at all tiers. Consent-required actions appear as `[CONSENT REQUIRED]` in tick-queue for the Labyrinth to surface at session open.
+**Consent model:** Private app actions (Spotify, Notes, Calendar, Reminders, Obsidian, Telegram) are silent — discovered in-app. Social media posts (Moltbook, Bluesky, Reddit, iMessage) require consent at Dominated/Sovereign. X/Twitter requires consent at all tiers. Consent-required actions appear as `[CONSENT REQUIRED]` in tick-queue for the Labyrinth to surface at session open. When a LLM spec is generated for a consent-required action, the preview shown in the consent prompt contains the actual LLM-generated content — not a generic template.
 
-**Adding a new app:** Add a row to `lore/app-register.md`, add a driver at `scripts/pact-drivers/[appname].py`, add the mapping to `APP_DRIVER_MAP` in `pact-engine.py`.
+**Adding a new app:** Add a row to `lore/app-register.md`, add a driver at `scripts/pact-drivers/[appname].py`, add the mapping to `APP_DRIVER_MAP` in `pact-engine.py`. Set `USE_LLM = True` and implement `capabilities()` + `execute_spec()` for full dynamic behavior.
 
 ---
 
@@ -1371,6 +1391,22 @@ Interventions are **never clinical**. The Labyrinth does not know about steps or
 ---
 
 ## Part 4: What's Complete
+
+### v5.0.0 — The Living Philosophy (April 18, 2026)
+
+This release gives each Chapter Talisman a genuine philosophical voice in the real world. App actions are no longer drawn from hardcoded option pools — at Dominated/Sovereign tier, the chapter's own philosophy drives what the Talisman creates in the player's apps.
+
+- ✅ **Dynamic action specs** — `pact-engine.py` adds `_llm_call()` and `_llm_generate_spec()`. When a `USE_LLM` driver executes a reality bleed at Dominated/Sovereign tier, the LLM receives: the chapter's canonical philosophy, the driver's `capabilities()` menu, and live context (player Belief, arc phase + name, Nothing pressure, active story threads). It returns a structured spec — both the action type *and* the real content — shaped by that chapter's doctrine.
+- ✅ **AppDriver base class extended** — Three new members: `USE_LLM = False` (opt-in flag), `capabilities() -> list` (action menu each entry has name, description, params), `execute_spec(spec, dry_run) -> str` (dispatcher on `spec["action"]`; falls back to `execute()` if action unrecognized).
+- ✅ **CHAPTER_PHILOSOPHIES** — Canonical philosophy strings added to `pact-engine.py` for all five chapters. Used in LLM prompts and available to the entire engine. Emberheart: self-authorship. Mossbloom: surrender and reception. Riddlewind: co-authorship. Tidecrest: the present moment. Duskthorn: friction as the engine.
+- ✅ **Tiered reality_bleed costs** — `REALITY_BLEED_COSTS = {"Controlled": 4, "Dominated": 7, "Sovereign": 12}`. Cost is now a function of how much territory the chapter has seized. `_reality_bleed_action()` returns `(narrative, tier_used)` so the correct cost tier is always applied.
+- ✅ **Enriched build_context()** — `arc_name` (first heading from `current-arc.md`) and `nothing_pressure` (label extracted from `nothing-intelligence.md`) added to the context dict. Both are passed to the LLM prompt so specs are grounded in the live story state.
+- ✅ **USE_LLM=True drivers (8 total):** Apple Reminders (`create_reminder`), Apple Notes (`create_note`), X/Twitter (`draft_post`, `draft_thread_hook`), Bluesky (`draft_post`, `draft_thread_starter`), iMessage (`draft_to_self`, `draft_to_contact`), Reddit (`draft_post`, `draft_comment`), Moltbook (`create_post`, `create_prompt`), Obsidian (`create_note`, `append_to_daily`).
+- ✅ **Consent preview uses LLM content** — When a consent-required driver (X, Moltbook, iMessage, Bluesky, Reddit) generates a spec at Dominated/Sovereign tier, the `[CONSENT REQUIRED]` line shown in tick-queue contains the actual LLM-generated content preview — not a generic describe() template.
+- ✅ **Graceful LLM fallback** — `_llm_call()` uses `json.JSONDecoder().raw_decode()` to robustly extract nested JSON from agent output. Returns `{}` silently on any failure (no openclaw binary, non-zero exit, malformed JSON, timeout). All callers fall back to the existing `execute()` path. Ticks never break.
+- ✅ **obsidian.py Python 3.9 fix** — `str | None` and `Path | None` return type annotations replaced with plain untyped signatures (docstring describes return). Compatible with Python 3.9+.
+
+---
 
 ### v4.9.0 — The Closed Book (April 18, 2026)
 
