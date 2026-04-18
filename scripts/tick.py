@@ -45,6 +45,29 @@ DECAY_THRESHOLD_DAYS   = 30
 DECAY_AMOUNT           = 1
 ANCHOR_FLOOR           = 5
 
+# ── Thread lifecycle ──────────────────────────────────────────────────────────
+# Phase bands: Belief range → phase label.
+# The phase field in world-register.md is the *narrative* phase (may lag Belief by 1-2 sessions).
+# Escalation notes signal the Labyrinth to deliver the shift; it updates the register at session close.
+THREAD_STIR_GAIN    = 1    # Belief gained per stir (threads grow slower than NPCs)
+THREAD_BELIEF_CAP   = 65   # threads close narratively before reaching NPC cap
+THREAD_SEED_BELIEF  = 20   # min NPC Belief to flag as a potential thread seed
+
+PHASE_BANDS = [
+    (0,   4,  "dormant"),
+    (5,  14,  "setup"),
+    (15, 29,  "rising"),
+    (30, 49,  "climax"),
+    (50, 999, "resolution"),
+]
+PHASE_ORDER = ["dormant", "setup", "rising", "climax", "resolution"]
+
+def belief_to_phase_band(belief: int) -> str:
+    for lo, hi, label in PHASE_BANDS:
+        if lo <= belief <= hi:
+            return label
+    return "dormant"
+
 INVESTMENT_CHANCE      = 0.25   # probability a stirred NPC invests per tick (talisman)
 FREE_INVESTMENT_CHANCE = 0.12   # probability a stirred NPC makes a secondary investment
 INVESTMENT_MIN         = 1      # minimum Belief invested per event
@@ -361,15 +384,21 @@ def run_npc_stir_gains(selected, register_text, dry_run=False):
     count = 0
 
     for e in selected:
-        if e['type'].lower() not in ('npc', 'creature'):
-            continue  # Thread, Object, Location, Talisman — no stir gain
+        etype = e['type'].lower()
+        if etype not in ('npc', 'creature', 'thread'):
+            continue  # Object, Location, Talisman — no stir gain
 
-        current = get_belief_in_text(text, e['name'])
-        if current is None or current >= NPC_BELIEF_CAP:
+        # Skip permanent threads (academy-daily — they don't escalate)
+        if etype == 'thread' and 'permanent' in e.get('notes', '').lower():
             continue
 
-        gain  = random.randint(NPC_STIR_GAIN_MIN, NPC_STIR_GAIN_MAX)
-        new_b = min(NPC_BELIEF_CAP, current + gain)
+        current = get_belief_in_text(text, e['name'])
+        cap     = THREAD_BELIEF_CAP if etype == 'thread' else NPC_BELIEF_CAP
+        if current is None or current >= cap:
+            continue
+
+        gain  = THREAD_STIR_GAIN if etype == 'thread' else random.randint(NPC_STIR_GAIN_MIN, NPC_STIR_GAIN_MAX)
+        new_b = min(cap, current + gain)
 
         if dry_run:
             print(f"  [dry-run] Stir gain: {e['name']}  {current} → {new_b}")
@@ -477,8 +506,8 @@ def run_npc_free_investments(selected, all_entities, register_text, dry_run=Fals
                 continue
             if cand['name'] in talisman_names:
                 continue  # talisman investments handled separately
-            if cand['type'].lower() in ('arc', 'thread'):
-                continue  # threads/arcs are narrative scaffolding, not investment targets
+            if cand['type'].lower() == 'arc':
+                continue  # arc entities are narrative scaffolding, not investment targets
             if cand['belief'] <= 0:
                 continue
 
@@ -486,6 +515,11 @@ def run_npc_free_investments(selected, all_entities, register_text, dry_run=Fals
             cand_threads = set(cand.get('threads', []))
             if npc_threads & cand_threads:     # shared story thread → strongest pull
                 score += 3
+            # Thread entities use [id:slug] not [thread:slug] — match against NPC's thread tags
+            if cand['type'].lower() == 'thread':
+                id_m = re.search(r'\[id:([^\]]+)\]', cand.get('notes', ''))
+                if id_m and id_m.group(1) in npc_threads:
+                    score += 4  # NPC invests in "their" thread — strong pull
             cand_chapter = world_context.CHAPTER_MAP.get(cand['name'])
             if chapter and cand_chapter == chapter:  # same chapter family
                 score += 2
@@ -540,6 +574,102 @@ def run_npc_free_investments(selected, all_entities, register_text, dry_run=Fals
                   f"NPC {npc_b}→{new_npc_b}, Target {target_b}→{new_target_b}")
 
     return seeds, text
+
+
+# ── Thread lifecycle ──────────────────────────────────────────────────────────
+
+def check_thread_escalations(entities, dry_run=False) -> list[str]:
+    """
+    Compare each thread entity's current Belief against its registered phase.
+    If Belief has crossed a phase threshold, write an escalation or cooling note to queue.
+    Permanent threads (academy-daily) are skipped — they don't escalate.
+    """
+    queue_lines = []
+    for e in entities:
+        if e['type'].lower() != 'thread':
+            continue
+        if 'permanent' in e.get('notes', '').lower():
+            continue
+
+        belief_band = belief_to_phase_band(e['belief'])
+
+        # Parse registered phase from world-register notes: "Phase: setup — ..."
+        phase_m = re.search(r'Phase:\s*(\w+)', e.get('notes', ''), re.IGNORECASE)
+        if not phase_m:
+            continue
+        current_phase = phase_m.group(1).lower()
+        # Normalise alternate labels
+        if current_phase in ('escalating', 'escalation'):
+            current_phase = 'rising'
+        if current_phase not in PHASE_ORDER:
+            continue
+
+        band_idx  = PHASE_ORDER.index(belief_band)
+        phase_idx = PHASE_ORDER.index(current_phase)
+
+        if band_idx > phase_idx:
+            queue_lines.append(
+                f"- **[THREAD ESCALATION: {e['name']}]** Belief {e['belief']} places this thread "
+                f"in `{belief_band}` phase (currently registered as `{current_phase}`). "
+                f"Labyrinth: deliver this phase shift naturally over the next session — "
+                f"not announced, just felt. Update the phase in `lore/world-register.md` notes at session close."
+            )
+            if dry_run:
+                print(f"  [dry-run] Thread escalation: {e['name']} {current_phase} → {belief_band}")
+        elif band_idx < phase_idx and current_phase not in ('dormant',):
+            queue_lines.append(
+                f"- **[THREAD COOLING: {e['name']}]** Belief {e['belief']} has dropped below "
+                f"the `{current_phase}` threshold. Something has deflated. "
+                f"Labyrinth: let this thread's quieting register in NPC behavior and ambient texture. "
+                f"Update phase in `lore/world-register.md` at session close if the shift feels right."
+            )
+            if dry_run:
+                print(f"  [dry-run] Thread cooling: {e['name']} {current_phase} → {belief_band}")
+
+    return queue_lines
+
+
+def check_thread_seeds(entities, dry_run=False) -> list[str]:
+    """
+    Flag high-Belief NPCs with no dedicated thread tag as potential thread seeds.
+    A seed isn't a thread — it's a signal to the Labyrinth that narrative mass is accumulating.
+    Avoids re-flagging the same NPC if they already appear in a THREAD SEED entry this week.
+    """
+    # Check tick-queue for recently flagged seeds (last ~14 ticks worth of content)
+    recent_seeds: set[str] = set()
+    if QUEUE.exists():
+        queue_text = QUEUE.read_text()
+        # Only look at entries from the last ~100 lines to avoid unbounded reads
+        recent_lines = queue_text.splitlines()[-100:]
+        for line in recent_lines:
+            m = re.search(r'\[THREAD SEED:\s*([^\]]+)\]', line)
+            if m:
+                recent_seeds.add(m.group(1).strip().lower())
+
+    queue_lines = []
+    for e in entities:
+        if e['type'].lower() != 'npc':
+            continue
+        if e['belief'] < THREAD_SEED_BELIEF:
+            continue
+        if e['name'].lower() in recent_seeds:
+            continue  # Already flagged recently — don't spam
+
+        # Only flag if their only thread tag is academy-daily (or none)
+        non_daily = [t for t in e.get('threads', []) if t != 'academy-daily']
+        if non_daily:
+            continue  # Already has a dedicated thread
+
+        queue_lines.append(
+            f"- **[THREAD SEED: {e['name']}]** Belief {e['belief']} — "
+            f"narrative mass accumulating without a named thread. "
+            f"Labyrinth: if this session touches them meaningfully, "
+            f"consider proposing a named subplot. Use as Rule of Three option 3 if confirmed."
+        )
+        if dry_run:
+            print(f"  [dry-run] Thread seed: {e['name']} (Belief {e['belief']})")
+
+    return queue_lines
 
 
 # ── Anchor decay ──────────────────────────────────────────────────────────────
@@ -875,6 +1005,28 @@ def main():
         print(f"  ⚠ {len(fae_lines)} overdue fae bargain(s) — added to queue.")
     else:
         print("  No overdue fae bargains.")
+
+    # ── 2c. Thread escalations ────────────────────────────────────────────────
+    print("Checking thread phase shifts...")
+    escalation_lines = check_thread_escalations(entities, dry_run=args.dry_run)
+    if escalation_lines:
+        queue_lines.append("")
+        queue_lines.append("*Thread phase shifts:*")
+        queue_lines.extend(escalation_lines)
+        print(f"  {len(escalation_lines)} thread phase change(s) detected.")
+    else:
+        print("  No thread phase changes.")
+
+    # ── 2d. Thread seeds ──────────────────────────────────────────────────────
+    print("Checking thread seeds...")
+    seed_lines = check_thread_seeds(entities, dry_run=args.dry_run)
+    if seed_lines:
+        queue_lines.append("")
+        queue_lines.append("*Emerging thread seeds:*")
+        queue_lines.extend(seed_lines)
+        print(f"  {len(seed_lines)} thread seed(s) flagged.")
+    else:
+        print("  No new thread seeds.")
 
     # ── 3. Write queue ────────────────────────────────────────────────────────
     output = "\n".join(queue_lines) + "\n"

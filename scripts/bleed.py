@@ -129,18 +129,49 @@ def get_player_data(cfg: dict) -> dict:
 
 
 def get_thread_summary() -> str:
-    content = read_file_safe(WORKSPACE_DIR / "lore" / "threads.md")
+    threads_content  = read_file_safe(WORKSPACE_DIR / "lore" / "threads.md")
+    register_content = read_file_safe(WORKSPACE_DIR / "lore" / "world-register.md")
+
+    # Build belief lookup from world-register Active Threads section
+    thread_belief: dict[str, int] = {}
+    active_section_m = re.search(r'## Active Threads(.*?)(?=^## |\Z)', register_content, re.DOTALL | re.MULTILINE)
+    if active_section_m:
+        row_re = re.compile(r'^\|\s*([^|]+?)\s*\|\s*Thread\s*\|\s*(\d+)\s*\|', re.MULTILINE | re.IGNORECASE)
+        for m in row_re.finditer(active_section_m.group(1)):
+            thread_belief[m.group(1).strip().lower()] = int(m.group(2))
+
     lines = []
-    for section in re.split(r'^## Thread: ', content, flags=re.MULTILINE)[1:]:
+    for section in re.split(r'^## Thread: ', threads_content, flags=re.MULTILINE)[1:]:
         slines = section.strip().splitlines()
         name = slines[0].strip() if slines else "?"
         phase_m    = re.search(r'\*\*phase:\*\*\s*(.+)', section)
         pressure_m = re.search(r'\*\*pressure:\*\*\s*(.+)', section)
         beat_m     = re.search(r'\*\*Next beat:\*\*\s*(.+)', section)
+        born_m     = re.search(r'\*\*born:\*\*\s*(\S+)', section)
         phase    = phase_m.group(1).strip() if phase_m else "?"
         pressure = pressure_m.group(1).strip() if pressure_m else "?"
         beat     = beat_m.group(1).strip()[:120] if beat_m else ""
-        lines.append(f"- {name} [{phase}, pressure: {pressure}]: {beat}")
+        belief   = thread_belief.get(name.lower(), 0)
+
+        # Coverage priority hint for the LLM
+        if belief >= 30:
+            priority = "CLIMAX — front page or feature"
+        elif belief >= 15:
+            priority = "rising — section feature"
+        elif born_m and born_m.group(1) != "—":
+            try:
+                from datetime import date as _date
+                born = _date.fromisoformat(born_m.group(1))
+                if (_date.today() - born).days <= 7:
+                    priority = "new this week — emerging narrative"
+                else:
+                    priority = "setup"
+            except ValueError:
+                priority = "setup"
+        else:
+            priority = "background"
+
+        lines.append(f"- {name} [Belief {belief}, {phase}, {priority}]: {beat}")
     return "\n".join(lines)
 
 
@@ -752,8 +783,9 @@ DATA FEEDS (synthesize into journalism — never quote data directly):
 SIMULATION ACTIVITY (tick queue):
 {data['tick_queue']}
 
-THREAD STATES:
+THREAD STATES (Belief = narrative mass; coverage priority noted per thread):
 {data['thread_summary']}
+Coverage weight: CLIMAX threads → front page or feature; "new this week" threads → Emerging Narrative callout or classified seed; rising → section feature; background/dormant → gossip or passing mention only.
 
 ENTITY STANDINGS (Belief = public influence):
 {data['entity_standings']}
