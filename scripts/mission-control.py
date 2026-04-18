@@ -62,24 +62,47 @@ def parse_threads() -> list[dict]:
     register = read(REGISTER_F)
 
     # Build belief lookup from world-register Active Threads
+    # Use (?m)^ to anchor to actual line-start headings (avoids matching inline `## Active Threads` in comments)
     belief: dict[str, int] = {}
-    active_m = re.search(r'## Active Threads(.*?)(?=^## |\Z)', register, re.DOTALL | re.MULTILINE)
+    active_m = re.search(r'(?m)^## Active Threads\s*\n(.*?)(?=^## |\Z)', register, re.DOTALL)
     if active_m:
         for m in re.finditer(r'^\|\s*([^|]+?)\s*\|\s*Thread\s*\|\s*(\d+)\s*\|',
                              active_m.group(1), re.MULTILINE | re.IGNORECASE):
             belief[m.group(1).strip().lower()] = int(m.group(2))
+
+    # Non-standard phase labels → canonical
+    PHASE_ALIASES = {
+        "escalating": "rising",
+        "quiet":      "permanent",  # academy-daily
+        "rising,":    "rising",
+        "setup,":     "setup",
+        "climax,":    "climax",
+        "dormant,":   "dormant",
+    }
 
     threads = []
     for section in re.split(r'^## Thread: ', text, flags=re.MULTILINE)[1:]:
         lines = section.strip().splitlines()
         name = lines[0].strip() if lines else "?"
 
+        # Skip template placeholders and meta-threads
+        if name.startswith("["):            continue  # e.g. [Anchor Name]
+        if "Adding New Threads" in name:    continue
+        next_beat_raw = re.search(r'\*\*Next beat:\*\*\s*(.+)', section)
+        next_beat_val = next_beat_raw.group(1).strip() if next_beat_raw else ""
+        if next_beat_val.startswith("*(read from"):  continue  # Current Arc defers elsewhere
+        if next_beat_val.startswith("["):             continue  # template placeholder
+
         def field(pat):
             m = re.search(pat, section)
             return m.group(1).strip() if m else ""
 
-        phase_raw = field(r'\*\*phase:\*\*\s*(.+)')
-        phase_word = phase_raw.split()[0].lower() if phase_raw else "dormant"
+        phase_raw  = field(r'\*\*phase:\*\*\s*(.+)')
+        first_word = phase_raw.split()[0].lower().rstrip(",") if phase_raw else "dormant"
+        phase_word = PHASE_ALIASES.get(first_word, first_word)
+        # If the raw string contains "permanent", force it
+        if "permanent" in phase_raw.lower():
+            phase_word = "permanent"
         if phase_word not in PHASE_ORDER and phase_word != "permanent":
             phase_word = "dormant"
 
@@ -105,7 +128,7 @@ def parse_threads() -> list[dict]:
             "belief":       b,
             "pressure":     field(r'\*\*pressure:\*\*\s*(.+)'),
             "nothing":      field(r'\*\*Nothing pressure:\*\*\s*(.+)'),
-            "next_beat":    field(r'\*\*Next beat:\*\*\s*(.+)'),
+            "next_beat":    next_beat_val,
             "last_advanced":field(r'\*\*Last advanced:\*\*\s*(.+)'),
             "born":         born_raw,
             "closed":       closed_raw,
@@ -135,11 +158,13 @@ def parse_entities() -> tuple[list, list, list]:
     in_talismans = False
     in_active    = False
     for line in text.splitlines():
-        if "## Chapter Talismans" in line:
+        # Only trigger on actual section headings (line-start ##), not inline mentions
+        stripped = line.strip()
+        if re.match(r'^## Chapter Talismans', stripped):
             in_talismans = True; in_active = False; continue
-        if "## Active Threads" in line:
+        if re.match(r'^## Active Threads', stripped):
             in_active = True; in_talismans = False; continue
-        if line.startswith("## ") and "Active Threads" not in line and "Chapter Talismans" not in line:
+        if re.match(r'^## (?!Active Threads|Chapter Talismans)', stripped):
             in_talismans = False; in_active = False
 
         m = row_re.match(line)
