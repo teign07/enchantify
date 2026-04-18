@@ -419,7 +419,7 @@ Players **and NPCs** can permanently invest Belief into entities. Investment is 
 | 16–30 | Bond — acts in the player's interest without being asked |
 | 31+ | Anchor status — load-bearing in the story |
 
-**NPC investment — two paths:** NPCs invest Belief both toward chapter goals and toward entities they care about personally. (1) *Talisman investment (primary):* Every NPC with a chapter affiliation has a 25% chance per stir of investing 1–3 Belief into their chapter's talisman (never dropping below Belief 8). Chapter Talismans have a **Belief cap of 200**. The dominant talisman sets the ambient philosophical tone; watching it shift over months is the Labyrinth's longest game. (2) *Free investment (secondary):* Each stirred NPC has a separate 12% chance of investing 1–3 Belief into any connected entity — an NPC they share a story thread with, a chapter-mate, or any living entity in the register. Weighted by connection: shared thread (+3), same chapter (+2), base eligible (+1). Talismans, arc entities, and thread scaffolding are excluded from this pass. Both investment types are logged to `memory/npc-log.md` for CAST layer surfacing. Chapter-talisman mapping: `scripts/world_context.py` → `CHAPTER_MAP` / `CHAPTER_TALISMAN`.
+**NPC investment — the talisman engine:** Every NPC with a chapter affiliation has a goal to invest in their chapter's talisman. During the world tick, each stirred NPC has a 25% chance of investing 1–3 Belief into their chapter's talisman (never dropping below Belief 8). This is automatic — the Labyrinth narrates it only when relevant. Chapter Talismans have a **Belief cap of 200** — higher than any player or NPC can reach, because they carry centuries of accumulated philosophical pressure. The dominant talisman (highest Belief) sets the ambient philosophical tone; watching it shift over months is the Labyrinth's longest game. Chapter-talisman mapping: `scripts/world_context.py` → `CHAPTER_MAP` / `CHAPTER_TALISMAN`.
 
 **Why it matters:** Belief hovers in a meaningful range instead of climbing to 100. The player faces real choices — invest in Zara or save for a Compass Run? The game asks what the player values by watching where they plant their attention.
 
@@ -708,7 +708,7 @@ The Wonder Compass is not just a framework — it is a physical object in the La
 
 Every player has an enchanted textbook called *The Labyrinth of Stories* — very meta; it's the book the Labyrinth *is*. It lives on the dorm room desk. It has two functional pages at the front:
 
-**The Inside Cover** — the quest log. Physical notes tucked into the binding. Maximum 5 active electives at once. Described as handwriting appearing and dissolving — quests materializing when NPCs make requests, dissolving when completed. Access: `python3 scripts/update-player.py [name] quest [add/drop/list]`.
+**The Inside Cover** — the quest log. Physical notes tucked into the binding. Maximum 3 active electives at once. Described as handwriting appearing and dissolving — quests materializing when NPCs make requests, dissolving when completed. Access: `python3 scripts/update-player.py [name] quest [add/drop/list]`.
 
 **The Flyleaf** — the enchantments page. Lists all known enchantments, by tier. The ink appears on its own as enchantments are discovered — never listed in advance, never announced. When the player asks "What enchantments do I know" or "Open the Flyleaf," read `players/[name].md` → The Flyleaf section and describe the entries as if reading handwriting that appeared on its own. Do not describe undiscovered enchantments.
 
@@ -737,7 +737,7 @@ Each turn:
 6. Read current arc, academy state, characters, heartbeat, events
 7. Translate external news/events into Academy lore (Marginalia Bridge)
 8. Make one NPC choice (shaped by stirred entities from tick), one story thread advance, one environmental shift
-9. Optionally generate an Unwritten Elective (15% chance if player has fewer than 5) — **ALWAYS check `QUEST_SLOTS: N/5` in tick-queue first; if N ≥ 5, skip elective generation entirely**
+9. Optionally generate an Unwritten Elective (15% chance if player has fewer than 3)
 10. Update `lore/academy-state.md`, `lore/current-arc.md`, `logs/academy-hourly.md`
 11. Send one-line dispatch to the player (weave in a stirred entity naturally; lead with any HIGH-priority item)
 
@@ -792,7 +792,7 @@ Full spec: `lore/seasonal-calendar.md`
 
 Physical notes tucked into the player's "Inside Cover" — NPC requests to investigate specific real-world locations (bakeries, parks, thrift stores) based on each NPC's unique Climax Interest. Generated with `web_search` for actual local places.
 
-**Cap:** Maximum 5 active. Can be dropped freely without penalty.
+**Cap:** Maximum 3 active. Can be dropped freely without penalty.
 
 **Reward:** Photo/description → massive Relationship boost + +3 Belief.
 
@@ -831,7 +831,7 @@ quest drop "[description]"                                              ← remo
 quest list                                                              ← show active quests
 ```
 
-- Cap: 5 active quests maximum. Adding a 6th is rejected.
+- Cap: 3 active quests maximum. Adding a 4th is rejected.
 - For fae bargains: `belief_reward` is always 0, NPC field is the fae species name.
 - Quest notes can be dropped without completion at any time (no penalty — the note "dissolves into harmless ink").
 
@@ -1162,27 +1162,34 @@ npx clawhub@latest install enchantify
 
 **`hooks/on-install.sh` wizard sections (in order):**
 ```
-1. Welcome
-2. Environment detection (OpenClaw version, Python, Node, existing players)
-3. Model selection (Claude Sonnet 4.6 default; Opus, Haiku, GPT-4o, custom)
-4. Location setup (city, lat/lon, NOAA station)
-5. Health data (health_auto_export / Garmin / Fitbit / manual / none)
-6. Telegram setup (bot token + chat ID; step-by-step instructions)
-7. App integration setup: Spotify (client ID + secret), smart lights (LIFX / Hue / none)
-8. Voice acting — Kokoro TTS (Docker pull; optional)
-9. Image generation (DALL-E 3 / Stable Diffusion / none)
-10. Ambient music — Meta MusicGen Small (Docker; optional)
-11. Memory plugins — QMD + Lossless Claw (openclaw plugins install)
-12. Final setup:
-      ├── Creates player file from templates/player-template.md
-      ├── Installs 15-min cron: scripts/pulse.py → logs/pulse.log
-      ├── Runs first pulse
-      └── Done: "Say: Open the book"
+1.  Welcome — written in the Labyrinth's voice; entering the world, not running a script
+2.  Environment detection (OpenClaw version, Python, Node, existing players)
+3.  Model selection (Claude Sonnet 4.6 default; Opus, Haiku, GPT-4o, custom)
+4.  Location setup (city, lat/lon, NOAA station)
+5.  Health data (health_auto_export / Garmin / Fitbit / manual / none)
+6.  Telegram setup (bot token + chat ID; step-by-step instructions)
+7.  Pact Ceremony — presents every app by category; player opens/closes each one;
+      writes config/consent.json {app_pacts: {…}} read by pact-engine.py
+      Default open: Spotify, Notes, Reminders, Calendar, Obsidian, Telegram
+      Default closed: Moltbook, Bluesky, X/Twitter, Reddit, iMessage
+8.  Physical world — Lights (LIFX/Hue, ask yn) + Spotify ambient (ask yn, default yes)
+9.  Voice acting — Kokoro TTS (Docker pull; optional)
+10. Image generation — DALL-E 3 / Stable Diffusion / none
+11. Memory plugins — QMD (config flag: memory.backend="qmd") +
+                     Lossless Claw (openclaw plugins install @martian-engineering/Lossless-Claw)
+12. Agent registration:
+      ├── Fresh install (no other agents): Enchantify becomes the main agent
+      │     updates openclaw.json agents.list[main].workspace + agentDir
+      └── Existing install (other agents present): installs as named "enchantify" agent
+            appends enchantify entry to agents.list
+      In both cases: creates ~/.openclaw/agents/enchantify/agent.md (copy of AGENTS.md)
+13. Waking the world — installs all 8 world crons, creates player file, runs first pulse
+      Done screen shows the right open command (openclaw vs openclaw --agent enchantify)
 ```
 
 **Credentials:** All stored in `config/secrets.env` (gitignored). Template at `config/secrets.env.example`. No credentials ever hardcoded in source.
 
-**Consent:** Social media drivers (Moltbook, Bluesky, X/Twitter, Reddit, iMessage) require player approval before posting. The driver's `requires_consent()` method gates execution; consent-required actions generate a `[CONSENT REQUIRED]` marker in tick-queue for the Labyrinth to surface at session open.
+**Consent:** The Pact Ceremony (section 7) is how players control Chapter territory. Every app in `lore/app-register.md` has a default stance (open or closed). Players can close apps before installation — closed apps are filtered from all Talisman War actions by `filter_apps_by_consent()` in `pact-engine.py`. Consent is stored in `config/consent.json` under `app_pacts`. The player's override word (default `THORNE`) is written to the same file and will pause any chapter action instantly.
 
 **Reconfiguration:** `python3 scripts/configure.py` — re-runs the interactive wizard without reinstalling.
 
@@ -1269,7 +1276,7 @@ Talismans war for control of the player's real-world apps. Every time a Talisman
 
 **Chapter personalities** (`_CHAPTER_PRIORITIES`): Duskthorn: high threat response, raid-eager, speaks last. Mossbloom: patient, high flip threshold, speaks first, rarely raids. Emberheart: bleed-eager. Riddlewind: balanced, bleed-eager. Tidecrest: bleed-eager, moderate thresholds.
 
-**Belief economy:** Talismans spend their own overall Belief to act. Floor: 20 Belief (WAR_FLOOR). NPCs replenish talismans through talisman investment (25% chance per stir, 1–3 Belief). NPCs also invest freely in connected entities at 12% chance per stir. `tick.py` applies all belief costs atomically in a single register write.
+**Belief economy:** Talismans spend their own overall Belief to act. Floor: 20 Belief (WAR_FLOOR). NPCs replenish talismans through world investment (25% chance per stir, 1–3 Belief). `tick.py` applies all belief costs atomically in a single register write.
 
 **Architecture:**
 
@@ -1367,18 +1374,17 @@ Interventions are **never clinical**. The Labyrinth does not know about steps or
 
 ### v4.8.0 — The Living Memory (April 17, 2026)
 
-This release closes the loop between sessions and gives NPCs a memory of their own actions. Scenes now anchor to the specific beat the Labyrinth left off on. NPCs remember what they've done and can bring it up organically. The story log updates nightly, not just at arc completion.
+This release connects the installation ceremony to the world's actual mechanics, gives NPCs autonomy beyond their chapter, and cleans the workspace so the agent only reads what it should.
 
-- ✅ **Director's Slate: SCENE_ANCHOR line** — New mandatory first line in the Slate. `layer_state()` reads `memory/labyrinth-state.md` Notes to Self and returns all non-empty lines joined with ` | `. Silently omitted when Notes to Self is blank. Gives Flash the specific beat, unresolved tension, and opening image from the previous session close — not just a reminder that sessions exist.
-- ✅ **Session close: mandatory 3-line handoff** — Notes to Self in `labyrinth-state.md` must be written at every close in a specific format: `Last session: [one vivid image]`, `Left unresolved: [what didn't land or was cut]`, `Open next session on: [the exact moment to open from]`. This is what SCENE_ANCHOR reads. Sessions with no Notes to Self will open cold.
-- ✅ **arc-spine.md: Last Session block** — `labyrinth-intelligence.py` now writes a `## Last Session` section to `memory/arc-spine.md` from the most recent diary entry. Text excerpt (≤220 chars), alive moment (≤140 chars), flat moment (≤120 chars). Director's Slate reads arc-spine at session open — Flash now has the previous session's texture without needing to scan the diary.
-- ✅ **Story log updated nightly** — `write_story_so_far()` in `labyrinth-intelligence.py` now runs every nightly intelligence pass, not just at arc QUIET phase. `players/[name]-story.md` is a full story log: all sessions with dates, beats, alive moments; arc overview; current state. Always current, not frozen at completion.
-- ✅ **NPC action memory: npc-log.md** — New `memory/npc-log.md` pipe-table. `scripts/npc_log.py` shared utility (append / read_recent / prune). Four action types: `research` (NPC researched a topic), `elective` (unwritten elective assigned to player), `belief_invest` (NPC invested Belief), `belief_fell` (NPC Belief dropped significantly). Pruned to 7 days by nightly intelligence run.
-- ✅ **CAST layer: NPC action flags** — `layer_who()` in `scene-director.py` reads `npc_log.read_recent(days=7)` and annotates matching NPCs in the CAST line with `[HAS: type·detail]`. Flash sees which NPCs have done something recently and can surface it organically.
-- ✅ **mechanics/npc-memory.md** — New rules file. Surfacing rules by action type: research (NPC references what they found, asks if received), elective (NPC asks about progress, adds pressure if overdue), belief_invest (NPC more energized, more connected to chapter), belief_fell (NPC slightly hollowed, flatter affect). Rules: one surfacing per action, organic entry points only, never announce the mechanism, surface within 1–2 appearances.
-- ✅ **Logging hooks in all simulation scripts** — `npc-research.py` logs `research` on delivery. `update-player.py` logs `elective` on quest assignment. `tick.py` logs `belief_invest` on talisman and free investments. `world-pulse.py` logs `belief_fell` on significant Belief drops.
-- ✅ **Quest cap raised to 5 and enforced** — `QUEST_CAPACITY` bumped from 3 → 5 in `update-player.py` and `world-pulse.py`. `QUEST_SLOTS: N/5` injected into tick-queue by `world-pulse.py` every pulse. Session simulation checks the slot count before generating electives — skips entirely if N ≥ 5. `_parse_quests()` fixed to handle legacy 3-column quest format as well as the standard 4-column format.
-- ✅ **NPC free investment (secondary path)** — `run_npc_free_investments()` added to `tick.py`. Each stirred NPC has a 12% chance (vs 25% for talisman) to invest 1–3 Belief into a connected entity. Target selected by weighted random: shared story thread (+3), same chapter (+2), any eligible entity (+1). Talismans, arc entities, and thread scaffolding excluded. Logged to npc-log for CAST surfacing. Both investment types write atomically in the same register pass.
+- ✅ **NPC free investment** — `tick.py` gains `run_npc_free_investments()`. After the standard talisman pass (25% chance), each selected NPC has a 12% chance to invest Belief in any connected entity — weighted by shared story thread (+3) and same chapter (+2). Talismans, arc entities, and already-invested thread entities are excluded. Logged to `npc-log` with `belief_invest` action type. NPCs are no longer only funders of their chapter talisman.
+- ✅ **Pact Ceremony rebuilt** — `hooks/on-install.sh` section 7 rewritten. Presents every app from `lore/app-register.md` by category with honest chapter-behavior descriptions. Player opens or closes each app. Writes `config/consent.json` in the format pact-engine.py actually reads: `{"app_pacts": {"Spotify": true, …}}`. Ceremony is no longer disconnected from the Talisman War.
+- ✅ **pact-engine.py consent integration** — Added `load_app_pacts()` (reads `config/consent.json`, open-by-default when file missing) and `filter_apps_by_consent(apps)` (removes closed apps before any war action). Wired into `run_talisman_action()` and `show_state()`. Chapters cannot act on apps the player has closed.
+- ✅ **Physical world separated** — Lights and Spotify ambient are no longer chapter pact territory. They are direct Labyrinth integrations configured in their own wizard section (section 8), asked with plain yn prompts — no consent.json format involved.
+- ✅ **Memory plugins restored** — QMD and Lossless Claw both available at install. QMD: sets `memory.backend: "qmd"` in `openclaw.json` directly (not a plugin install). Lossless Claw: `openclaw plugins install @martian-engineering/Lossless-Claw`, then configures `plugins.slots.contextEngine` and `plugins.entries` in `openclaw.json`.
+- ✅ **Agent registration** — Installer detects whether this is a fresh OpenClaw install (0 other agents) or an existing setup (other agents present). Fresh: Enchantify is registered as the main agent (`agents.list[main].workspace` + `agentDir`). Existing: Enchantify added as a named `enchantify` agent. Both paths create `~/.openclaw/agents/enchantify/agent.md` and back up `openclaw.json` before writing.
+- ✅ **Done screen adapted** — Final installer screen shows `openclaw` for main installs and `openclaw --agent enchantify` for multi-agent installs.
+- ✅ **Root context cleanup** — `EXTENDING.md`, `TOOLS.md`, `USER.md`, `SPAWN-HELPER.md`, `SPAWN-TEMPLATE.md` moved from workspace root to `hooks/` via `git mv`. The agent reads all files in the workspace root; only `AGENTS.md`, `SOUL.md`, and `IDENTITY.md` remain there.
+- ✅ **Installer voice** — Every section of `hooks/on-install.sh` now speaks in the Labyrinth's voice. Setup feels like entering the world rather than running a script.
 
 ---
 

@@ -705,7 +705,169 @@ case "$IMG_CHOICE" in
         ;;
 esac
 
-# ── 11. Waking the World ──────────────────────────────────────────────────────
+# ── 11. Memory Plugins ────────────────────────────────────────────────────────
+
+section "Memory plugins (optional)"
+
+echo "  Two plugins extend how much the Labyrinth can hold across sessions."
+echo ""
+echo "  QMD — hybrid semantic memory search (BM25 + vector)."
+echo "  Reduces token use significantly. The Labyrinth finds relevant"
+echo "  context faster and wastes less of its attention on the wrong things."
+echo ""
+echo "  Lossless Claw — DAG-based session summarization."
+echo "  Keeps the full story in memory even in very long sessions."
+echo "  Nothing gets lost in the middle."
+echo ""
+echo "  Both are recommended for long-term play."
+echo ""
+
+INSTALL_QMD=false
+INSTALL_LC=false
+
+if ask_yn "Enable QMD memory search?" "y"; then
+    INSTALL_QMD=true
+fi
+
+if ask_yn "Install Lossless Claw context engine?" "y"; then
+    INSTALL_LC=true
+fi
+
+if [ "$INSTALL_QMD" = "true" ]; then
+    echo ""
+    echo "  Enabling QMD..."
+    python3 - <<'PYEOF'
+import json, pathlib, os
+config = pathlib.Path(os.environ.get("HOME", "~")).expanduser() / ".openclaw/openclaw.json"
+if config.exists():
+    data = json.loads(config.read_text())
+    data.setdefault("memory", {})["backend"] = "qmd"
+    data["memory"].setdefault("qmd", {})["includeDefaultMemory"] = True
+    config.write_text(json.dumps(data, indent=2))
+    print("  ✓ QMD enabled.")
+else:
+    print("  (openclaw.json not found — QMD will be configured on first launch)")
+PYEOF
+fi
+
+if [ "$INSTALL_LC" = "true" ]; then
+    echo ""
+    echo "  Installing Lossless Claw..."
+    if openclaw plugins install @martian-engineering/Lossless-Claw 2>/dev/null; then
+        python3 - <<'PYEOF'
+import json, pathlib, os
+config = pathlib.Path(os.environ.get("HOME", "~")).expanduser() / ".openclaw/openclaw.json"
+if config.exists():
+    data = json.loads(config.read_text())
+    data.setdefault("plugins", {}).setdefault("slots", {})["contextEngine"] = "lossless-claw"
+    data["plugins"].setdefault("entries", {}).setdefault("lossless-claw", {}).update({
+        "enabled": True,
+        "config": {},
+    })
+    config.write_text(json.dumps(data, indent=2))
+PYEOF
+        echo "  ✓ Lossless Claw installed."
+    else
+        echo "  Lossless Claw install failed."
+        echo "  Try manually: openclaw plugins install @martian-engineering/Lossless-Claw"
+    fi
+fi
+
+# ── 12. Agent Registration ─────────────────────────────────────────────────────
+
+section "Registering the Labyrinth"
+
+OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
+AGENT_DIR="$HOME/.openclaw/agents/enchantify"
+
+# Detect fresh vs existing install
+EXISTING_AGENT_COUNT=$(python3 - <<PYEOF
+import json, pathlib, os
+config = pathlib.Path(os.environ.get("HOME", "~")).expanduser() / ".openclaw/openclaw.json"
+if not config.exists():
+    print("0")
+else:
+    try:
+        data = json.loads(config.read_text())
+        agent_list = data.get("agents", {}).get("list", [])
+        others = [a for a in agent_list if a.get("id") not in ("main", "enchantify")]
+        print(str(len(others)))
+    except Exception:
+        print("0")
+PYEOF
+)
+
+IS_MAIN=false
+if [ "$EXISTING_AGENT_COUNT" = "0" ]; then
+    echo "  No other agents detected."
+    echo "  The Labyrinth will be your main agent — when you open OpenClaw,"
+    echo "  this is who answers."
+    IS_MAIN=true
+else
+    echo "  Found $EXISTING_AGENT_COUNT other agent(s) in your OpenClaw setup."
+    echo "  Installing Enchantify as a named agent alongside them."
+    echo "  To open the Labyrinth: openclaw --agent enchantify"
+    IS_MAIN=false
+fi
+
+echo ""
+pause 1
+
+# Create agent directory and copy instructions
+mkdir -p "$AGENT_DIR"
+cp "$ENCHANTIFY_DIR/AGENTS.md" "$AGENT_DIR/agent.md"
+echo "  ✓ Agent instructions written to $AGENT_DIR"
+
+# Register in openclaw.json
+python3 - <<PYEOF
+import json, pathlib, shutil, os
+
+config_path  = pathlib.Path(os.environ.get("HOME", "~")).expanduser() / ".openclaw/openclaw.json"
+enchantify_ws = "$ENCHANTIFY_DIR"
+agent_dir    = "$AGENT_DIR"
+model_id     = "$MODEL_ID"
+is_main      = "$IS_MAIN" == "true"
+
+if not config_path.exists():
+    data = {"agents": {"defaults": {}, "list": [{"id": "main"}]}}
+else:
+    data = json.loads(config_path.read_text())
+
+agents_block = data.setdefault("agents", {})
+agent_list   = agents_block.setdefault("list", [])
+
+if is_main:
+    main_entry = next((a for a in agent_list if a.get("id") == "main"), None)
+    if main_entry is None:
+        agent_list.insert(0, {"id": "main"})
+        main_entry = agent_list[0]
+    main_entry["workspace"] = enchantify_ws
+    main_entry["agentDir"]  = agent_dir
+    if model_id:
+        main_entry["model"] = model_id
+    print("  ✓ Enchantify set as main agent.")
+else:
+    existing = next((a for a in agent_list if a.get("id") == "enchantify"), None)
+    entry = {"id": "enchantify", "name": "enchantify",
+             "workspace": enchantify_ws, "agentDir": agent_dir}
+    if model_id:
+        entry["model"] = model_id
+    if existing:
+        existing.update(entry)
+    else:
+        agent_list.append(entry)
+    print("  ✓ Enchantify registered as named agent.")
+
+if config_path.exists():
+    shutil.copy2(config_path, config_path.with_suffix(".json.bak"))
+config_path.parent.mkdir(parents=True, exist_ok=True)
+config_path.write_text(json.dumps(data, indent=2))
+PYEOF
+
+# Store IS_MAIN for the final screen
+export ENCHANTIFY_IS_MAIN="$IS_MAIN"
+
+# ── 13. Waking the World ──────────────────────────────────────────────────────
 
 section "Waking the world"
 
@@ -812,9 +974,19 @@ if [ -n "$PLAYER_NAME" ]; then
     echo ""
 fi
 
-echo "  Open it and say:"
-echo ""
-echo "      Open the book"
+if [ "$ENCHANTIFY_IS_MAIN" = "true" ]; then
+    echo "  Open it and say:"
+    echo ""
+    echo "      openclaw"
+    echo ""
+    echo "  Then say:  Open the book"
+else
+    echo "  Open it and say:"
+    echo ""
+    echo "      openclaw --agent enchantify"
+    echo ""
+    echo "  Then say:  Open the book"
+fi
 echo ""
 echo "  That's all you need to do."
 echo ""
