@@ -56,11 +56,55 @@ def _create_obsidian_note(vault_name: str, filename: str, content: str) -> bool:
 
 
 def _get_vault_name():
-    """Return the vault directory name, or None if no vault found."""
     vault = _find_vault()
-    if vault:
-        return vault.name
-    return None
+    return vault.name if vault else None
+
+
+def _get_recent_vault_files(days: int = 7) -> list[dict]:
+    vault = _find_vault()
+    if not vault:
+        return []
+    import time
+    cutoff = time.time() - (days * 86400)
+    files  = []
+    for p in vault.rglob("*.md"):
+        try:
+            if p.stat().st_mtime > cutoff:
+                files.append({"name": p.stem, "path": str(p.relative_to(vault))})
+        except OSError:
+            pass
+    return sorted(files, key=lambda f: f["name"])[:10]
+
+
+def _append_to_daily_note(chapter: str, line: str) -> bool:
+    vault = _find_vault()
+    if not vault:
+        return False
+    today = datetime.now().strftime("%Y-%m-%d")
+    daily_path = vault / f"{today}.md"
+    ts   = datetime.now().strftime("%H:%M")
+    text = f"\n> [{ts}] {chapter}: {line}\n"
+    try:
+        if daily_path.exists():
+            with open(daily_path, "a") as f:
+                f.write(text)
+        else:
+            daily_path.write_text(f"# {today}\n{text}")
+        return True
+    except OSError:
+        return False
+
+
+def _write_vault_observation(chapter: str, files: list[dict]) -> "Path":
+    obs_dir = Path(__file__).parent.parent.parent / "memory" / "app-observations"
+    obs_dir.mkdir(parents=True, exist_ok=True)
+    ts   = datetime.now().strftime("%Y-%m-%d-%H%M")
+    path = obs_dir / f"{ts}-obsidian.md"
+    lines = [f"# {chapter} → Obsidian\n", f"**Scanned:** {datetime.now().strftime('%Y-%m-%d %H:%M')} (last 7 days)\n\n---\n"]
+    for f in files:
+        lines.append(f"- {f['path']}")
+    path.write_text("\n".join(lines) + "\n")
+    return path
 
 
 # ── Chapter-specific note builders ────────────────────────────────────────────
@@ -161,7 +205,24 @@ class ObsidianDriver(AppDriver):
     def execute(self, tier: str, chapter: str, context: dict, dry_run: bool = False) -> str:
         narrative = self.describe(tier, chapter, context)
 
-        if tier in ("Influenced", "Controlled"):
+        if tier == "Influenced":
+            if not dry_run:
+                files = _get_recent_vault_files(7)
+                if files:
+                    path = _write_vault_observation(chapter, files)
+                    return f"*[Obsidian, {chapter}, silent]* Vault scan: {len(files)} recent files → {path.name}"
+            return f"*[Obsidian, {chapter}, silent]* {narrative}"
+
+        if tier == "Controlled":
+            # Append a chapter-voiced thought to today's daily note
+            builder = _NOTE_BUILDERS.get(chapter)
+            if builder:
+                _, body = builder(context)
+                line = body.split("\n")[2] if len(body.split("\n")) > 2 else body[:80]
+                line = line.strip().lstrip("#").strip()
+                if not dry_run:
+                    _append_to_daily_note(chapter, line)
+                return f"*[Obsidian, {chapter}, silent]* Appended to daily note: \"{line[:60]}\""
             return f"*[Obsidian, {chapter}, silent]* {narrative}"
 
         if tier in ("Dominated", "Sovereign"):

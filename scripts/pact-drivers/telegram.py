@@ -123,8 +123,8 @@ _CONTROLLED_VOICE = {
 class TelegramDriver(AppDriver):
     app_name    = "Telegram"
     app_system  = "messaging"
-    silent_tiers  = {"Influenced", "Controlled"}
-    consent_tiers = set()   # Enchantify channel is private Labyrinth broadcast
+    silent_tiers  = {"Influenced"}   # Controlled now sends a quiet version
+    consent_tiers = set()
 
     def can_act(self, tier: str, chapter: str) -> bool:
         return chapter in _MESSAGE_BUILDERS
@@ -143,13 +143,25 @@ class TelegramDriver(AppDriver):
         return f"{chapter} stirs in Telegram."
 
     def execute(self, tier: str, chapter: str, context: dict, dry_run: bool = False) -> str:
-        narrative = self.describe(tier, chapter, context)
+        builder = _MESSAGE_BUILDERS.get(chapter)
 
-        if tier in ("Influenced", "Controlled"):
-            return f"*[Telegram, {chapter}, silent]* {narrative}"
+        if tier == "Influenced":
+            return f"*[Telegram, {chapter}, silent]* {self.describe(tier, chapter, context)}"
+
+        if tier == "Controlled":
+            # Send a quiet, stripped-down version — no formatting, just the impulse
+            if builder:
+                full_msg = builder(context)
+                # Strip markdown/emoji for the quiet version
+                import re
+                quiet = re.sub(r"[*_`~\U0001F300-\U0001FFFF]", "", full_msg).strip()
+                if not dry_run:
+                    _send_message(quiet)
+                preview = quiet[:60].rstrip() + ("…" if len(quiet) > 60 else "")
+                return f"*[Telegram, {chapter}, quiet]* Sent: \"{preview}\""
+            return f"*[Telegram, {chapter}, quiet]* {self.describe(tier, chapter, context)}"
 
         if tier in ("Dominated", "Sovereign"):
-            builder = _MESSAGE_BUILDERS.get(chapter)
             if builder:
                 msg = builder(context)
                 if not dry_run:
@@ -157,4 +169,4 @@ class TelegramDriver(AppDriver):
                 preview = msg[:60].rstrip() + ("…" if len(msg) > 60 else "")
                 return f"- *[Telegram, {chapter}]* Dispatched: \"{preview}\""
 
-        return f"- *[Telegram, {chapter}]* {narrative}"
+        return f"- *[Telegram, {chapter}]* {self.describe(tier, chapter, context)}"

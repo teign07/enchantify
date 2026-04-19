@@ -23,8 +23,30 @@ Talisman doctrines on iMessage:
 """
 
 import random
+import subprocess
 from datetime import datetime
+from pathlib import Path
 from .base import AppDriver
+
+BASE = Path(__file__).parent.parent.parent
+_TELEGRAM_TARGET  = "8729557865"
+_TELEGRAM_CHANNEL = "telegram"
+_TELEGRAM_ACCOUNT = "enchantify"
+
+
+def _send_telegram(text: str) -> bool:
+    try:
+        subprocess.run(
+            ["openclaw", "message", "send",
+             "--target",  _TELEGRAM_TARGET,
+             "--channel", _TELEGRAM_CHANNEL,
+             "--account", _TELEGRAM_ACCOUNT,
+             text],
+            capture_output=True, timeout=10,
+        )
+        return True
+    except Exception:
+        return False
 
 
 def _riddlewind_draft(context: dict) -> str:
@@ -135,8 +157,20 @@ class IMessageDriver(AppDriver):
 
     def execute(self, tier: str, chapter: str, context: dict, dry_run: bool = False) -> str:
         narrative = self.describe(tier, chapter, context)
+        builder   = _DRAFT_BUILDERS.get(chapter)
 
-        if tier in ("Influenced", "Controlled"):
+        if tier == "Influenced":
+            return f"- *[iMessage, {chapter}]* {narrative}"
+
+        if tier == "Controlled":
+            # Draft delivered via Telegram as a prompt to reach out
+            if builder:
+                draft = builder(context)
+                msg   = f"💬 *iMessage prompt from {chapter}:*\n\n{draft}\n\n_(Fill in the recipient and send from Messages)_"
+                if not dry_run:
+                    _send_telegram(msg)
+                preview = draft[:60].rstrip() + ("…" if len(draft) > 60 else "")
+                return f"- *[iMessage, {chapter}]* Draft sent to Telegram: \"{preview}\""
             return f"- *[iMessage, {chapter}]* {narrative}"
 
         if tier in ("Dominated", "Sovereign"):

@@ -17,9 +17,68 @@ Talisman doctrines on Bluesky:
   Duskthorn   — Surface the tension. The thing the thread is avoiding.
 """
 
+import json
 import random
+import urllib.request
+import urllib.parse
 from datetime import datetime
+from pathlib import Path
 from .base import AppDriver
+
+BASE = Path(__file__).parent.parent.parent
+
+BSKY_PUBLIC_API = "https://public.api.bsky.app/xrpc"
+
+
+def _bsky_search(query: str, limit: int = 5) -> list[dict]:
+    encoded = urllib.parse.quote_plus(query)
+    url = f"{BSKY_PUBLIC_API}/app.bsky.feed.searchPosts?q={encoded}&limit={limit}"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "enchantify/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read())
+        posts = []
+        for post in data.get("posts", []):
+            record = post.get("record", {})
+            author = post.get("author", {})
+            posts.append({
+                "text":   record.get("text", "")[:300],
+                "handle": author.get("handle", ""),
+                "uri":    post.get("uri", ""),
+                "likes":  post.get("likeCount", 0),
+            })
+        return posts
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+def _write_bsky_findings(chapter: str, query: str, posts: list[dict]) -> Path:
+    findings_dir = BASE / "memory" / "bsky-findings"
+    findings_dir.mkdir(parents=True, exist_ok=True)
+    ts   = datetime.now().strftime("%Y-%m-%d-%H%M")
+    slug = "".join(c if c.isalnum() or c == "-" else "-" for c in query.lower())[:40]
+    path = findings_dir / f"{ts}-{slug}.md"
+    lines = [
+        f"# {chapter} → Bluesky Search\n",
+        f"**Query:** {query}  \n**Searched:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n---\n",
+    ]
+    for p in posts:
+        if "error" in p:
+            lines.append(f"- Error: {p['error']}")
+        else:
+            lines.append(f"- **@{p['handle']}** (likes: {p['likes']})")
+            lines.append(f"  > {p['text'][:200]}")
+    path.write_text("\n".join(lines) + "\n")
+    return path
+
+
+_CHAPTER_SEARCH_TOPICS = {
+    "Riddlewind": ["open questions", "collaborative thinking", "epistemology", "asking good questions"],
+    "Tidecrest":  ["what's happening now", "spontaneous moments", "live reactions", "in the moment"],
+    "Emberheart": ["personal essays", "honest takes", "original positions", "creative work"],
+    "Mossbloom":  ["slow thinking", "long reads", "nature observation", "quiet work"],
+    "Duskthorn":  ["uncomfortable truths", "tensions", "things people avoid saying", "shadow work"],
+}
 
 
 def _riddlewind_post(context: dict) -> str:
@@ -128,10 +187,16 @@ class BlueSkyDriver(AppDriver):
         return super().consent_prompt(tier, chapter, context)
 
     def execute(self, tier: str, chapter: str, context: dict, dry_run: bool = False) -> str:
-        narrative = self.describe(tier, chapter, context)
+        topics = _CHAPTER_SEARCH_TOPICS.get(chapter, ["interesting ideas"])
+        query  = context.get("query") or random.choice(topics)
 
         if tier in ("Influenced", "Controlled"):
-            return f"- *[Bluesky, {chapter}]* {narrative}"
+            if not dry_run:
+                posts = _bsky_search(query)
+                path  = _write_bsky_findings(chapter, query, posts)
+                count = len([p for p in posts if "error" not in p])
+                return f"- *[Bluesky, {chapter}]* Searched '{query}' — {count} posts → {path.name}"
+            return f"- *[Bluesky, {chapter}]* Would search Bluesky: '{query}'"
 
         if tier in ("Dominated", "Sovereign"):
             builder = _POST_BUILDERS.get(chapter)
@@ -154,6 +219,14 @@ class BlueSkyDriver(AppDriver):
     def capabilities(self) -> list:
         return [
             {
+                "name": "search",
+                "description": "Search Bluesky public API for posts matching a query — no auth required",
+                "params": {
+                    "query": "what to search for — expresses the chapter's current curiosity",
+                    "limit": "(optional) number of results, default 5",
+                },
+            },
+            {
                 "name": "draft_post",
                 "description": "Draft a Bluesky post expressing the chapter's philosophy — complete, no placeholders",
                 "params": {
@@ -173,6 +246,17 @@ class BlueSkyDriver(AppDriver):
         action  = spec.get("action", "")
         chapter = spec.get("chapter", "Unknown")
         content = str(spec.get("content", ""))
+
+        if action == "search":
+            query = str(spec.get("query", ""))
+            limit = int(spec.get("limit", 5))
+            if query:
+                if not dry_run:
+                    posts = _bsky_search(query, limit)
+                    path  = _write_bsky_findings(chapter, query, posts)
+                    count = len([p for p in posts if "error" not in p])
+                    return f"- *[Bluesky, {chapter}]* Searched '{query}' — {count} posts → {path.name}"
+                return f"- *[Bluesky, {chapter}]* Would search: '{query}'"
 
         if action in ("draft_post", "draft_thread_starter") and content:
             if not dry_run:

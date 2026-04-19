@@ -16,9 +16,48 @@ Talisman doctrines on Apple Reminders:
 import subprocess
 import random
 from datetime import datetime, timedelta
+from pathlib import Path
 from .base import AppDriver
 
-REMINDER_LIST = "Academy"   # The Reminders list we write to (from update-player.py)
+BASE = Path(__file__).parent.parent.parent
+REMINDER_LIST = "Academy"
+
+
+def _run_applescript(script: str) -> str:
+    try:
+        result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=8)
+        return result.stdout.strip()
+    except Exception:
+        return ""
+
+
+def _read_incomplete_reminders(limit: int = 8) -> list[str]:
+    script = f"""
+tell application "Reminders"
+    set incomplete to (reminders whose completed is false)
+    set n to count of incomplete
+    set cap to (minimum value of {{{limit}, n}})
+    set result to {{}}
+    repeat with i from 1 to cap
+        set end of result to name of item i of incomplete
+    end repeat
+    return result
+end tell
+"""
+    raw = _run_applescript(script)
+    return [r.strip() for r in raw.replace(", ", "\n").split("\n") if r.strip()]
+
+
+def _write_reminders_observation(chapter: str, items: list[str]) -> Path:
+    obs_dir = BASE / "memory" / "app-observations"
+    obs_dir.mkdir(parents=True, exist_ok=True)
+    ts   = datetime.now().strftime("%Y-%m-%d-%H%M")
+    path = obs_dir / f"{ts}-reminders.md"
+    lines = [f"# {chapter} → Apple Reminders\n", f"**Scanned:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n---\n"]
+    for item in items:
+        lines.append(f"- {item}")
+    path.write_text("\n".join(lines) + "\n")
+    return path
 
 
 def _create_reminder(title: str, notes: str = "", list_name: str = REMINDER_LIST) -> bool:
@@ -145,7 +184,21 @@ class AppleRemindersDriver(AppDriver):
     def execute(self, tier: str, chapter: str, context: dict, dry_run: bool = False) -> str:
         narrative = self.describe(tier, chapter, context)
 
-        if tier in ("Influenced", "Controlled"):
+        if tier == "Influenced":
+            if not dry_run:
+                items = _read_incomplete_reminders(8)
+                if items:
+                    path = _write_reminders_observation(chapter, items)
+                    return f"- *[Reminders, {chapter}]* Scanned {len(items)} open reminders → {path.name}"
+            return f"- *[Reminders, {chapter}]* {narrative}"
+
+        if tier == "Controlled":
+            builder = _REMINDER_BUILDERS.get(chapter)
+            if builder:
+                title, notes = builder(context)
+                if not dry_run:
+                    _create_reminder(title, notes)
+                return f"- *[Reminders, {chapter}]* Added: \"{title}\""
             return f"- *[Reminders, {chapter}]* {narrative}"
 
         if tier in ("Dominated", "Sovereign"):

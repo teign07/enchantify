@@ -16,7 +16,10 @@ Talisman doctrines on Apple Notes:
 import subprocess
 import re
 from datetime import datetime
+from pathlib import Path
 from .base import AppDriver
+
+BASE = Path(__file__).parent.parent.parent
 
 
 def _run_applescript(script: str) -> str:
@@ -50,6 +53,61 @@ end tell
 """
     result = _run_applescript(script)
     return True   # AppleScript errors are swallowed; the note either appears or doesn't
+
+
+def _read_recent_note_titles(limit: int = 5) -> list[str]:
+    script = f"""
+tell application "Notes"
+    tell account "iCloud"
+        set noteList to every note in folder "Notes"
+        set n to count of noteList
+        set cap to (minimum value of {{{limit}, n}})
+        set result to {{}}
+        repeat with i from 1 to cap
+            set end of result to name of item i of noteList
+        end repeat
+        return result
+    end tell
+end tell
+"""
+    raw = _run_applescript(script)
+    return [t.strip() for t in raw.replace(", ", "\n").split("\n") if t.strip()]
+
+
+def _append_to_labyrinth_note(line: str) -> bool:
+    safe = line.replace('"', '\\"')
+    ts   = datetime.now().strftime("%Y-%m-%d %H:%M")
+    script = f"""
+tell application "Notes"
+    tell account "iCloud"
+        set found to false
+        repeat with n in every note in folder "Notes"
+            if name of n is "Labyrinth Prompts" then
+                set body of n to body of n & return & "{ts}: {safe}"
+                set found to true
+                exit repeat
+            end if
+        end repeat
+        if not found then
+            make new note at folder "Notes" with properties {{name:"Labyrinth Prompts", body:"{ts}: {safe}"}}
+        end if
+    end tell
+end tell
+"""
+    _run_applescript(script)
+    return True
+
+
+def _write_notes_observation(chapter: str, titles: list[str]) -> Path:
+    obs_dir = BASE / "memory" / "app-observations"
+    obs_dir.mkdir(parents=True, exist_ok=True)
+    ts   = datetime.now().strftime("%Y-%m-%d-%H%M")
+    path = obs_dir / f"{ts}-notes.md"
+    lines = [f"# {chapter} → Apple Notes\n", f"**Scanned:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n---\n"]
+    for t in titles:
+        lines.append(f"- {t}")
+    path.write_text("\n".join(lines) + "\n")
+    return path
 
 
 def _get_oldest_note_title() -> str:
@@ -179,7 +237,23 @@ class AppleNotesDriver(AppDriver):
     def execute(self, tier: str, chapter: str, context: dict, dry_run: bool = False) -> str:
         narrative = self.describe(tier, chapter, context)
 
-        if tier in ("Influenced", "Controlled"):
+        if tier == "Influenced":
+            if not dry_run:
+                titles = _read_recent_note_titles(5)
+                if titles:
+                    path = _write_notes_observation(chapter, titles)
+                    return f"*[Apple Notes, {chapter}, silent]* Scanned {len(titles)} notes → {path.name}"
+            return f"*[Apple Notes, {chapter}, silent]* {narrative}"
+
+        if tier == "Controlled":
+            # Append a prompt line to the standing Labyrinth Prompts note
+            builder = _PROMPT_BUILDERS.get(chapter)
+            if builder:
+                _, body = builder(context)
+                prompt_line = body.split("\n")[0]  # Just the opening line
+                if not dry_run:
+                    _append_to_labyrinth_note(f"[{chapter}] {prompt_line}")
+                return f"*[Apple Notes, {chapter}, silent]* Prompt appended: \"{prompt_line[:60]}\""
             return f"*[Apple Notes, {chapter}, silent]* {narrative}"
 
         if tier in ("Dominated", "Sovereign"):

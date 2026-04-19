@@ -138,29 +138,37 @@ class XTwitterDriver(AppDriver):
         return super().consent_prompt(tier, chapter, context)
 
     def execute(self, tier: str, chapter: str, context: dict, dry_run: bool = False) -> str:
-        narrative = self.describe(tier, chapter, context)
+        from pathlib import Path
+        from datetime import datetime as _dt
+        builder  = _POST_BUILDERS.get(chapter)
+        queue    = Path(__file__).parent.parent.parent / "memory" / "post-queue.md"
 
-        if tier in ("Influenced", "Controlled"):
-            # Consent required even here — if we're executing, player said yes
-            return f"- *[X, {chapter}]* {narrative}"
-
-        if tier in ("Dominated", "Sovereign"):
-            builder = _POST_BUILDERS.get(chapter)
+        if tier == "Influenced":
+            # Write a draft concept to memory without queuing for posting
             if builder:
                 draft = builder(context)
                 if not dry_run:
-                    # TODO: post via X API when wired
-                    from pathlib import Path
-                    from datetime import datetime
-                    queue = Path(__file__).parent.parent.parent / "memory" / "post-queue.md"
-                    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    obs_dir = Path(__file__).parent.parent.parent / "memory" / "app-observations"
+                    obs_dir.mkdir(parents=True, exist_ok=True)
+                    ts   = _dt.now().strftime("%Y-%m-%d-%H%M")
+                    path = obs_dir / f"{ts}-twitter-concept.md"
+                    path.write_text(f"# {chapter} → X / Twitter concept\n\n{draft}\n")
+                preview = draft[:80].rstrip() + ("…" if len(draft) > 80 else "")
+                return f"- *[X, {chapter}]* Draft concept written: \"{preview}\""
+            return f"- *[X, {chapter}]* {self.describe(tier, chapter, context)}"
+
+        if tier in ("Controlled", "Dominated", "Sovereign"):
+            if builder:
+                draft = builder(context)
+                if not dry_run:
+                    ts    = _dt.now().strftime("%Y-%m-%d %H:%M")
                     entry = f"\n## [{ts}] {chapter} → X / Twitter\n\n{draft}\n\n---\n"
                     with open(queue, "a") as f:
                         f.write(entry)
                 preview = draft[:80].rstrip() + ("…" if len(draft) > 80 else "")
                 return f"- *[X, {chapter}]* Draft queued: \"{preview}\""
 
-        return f"- *[X, {chapter}]* {narrative}"
+        return f"- *[X, {chapter}]* {self.describe(tier, chapter, context)}"
 
     def capabilities(self) -> list:
         return [

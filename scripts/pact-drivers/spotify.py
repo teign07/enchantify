@@ -23,7 +23,11 @@ Chapter playlists (URIs) can be swapped in _CHAPTER_PLAYLISTS below for personal
 """
 
 import subprocess
+from datetime import datetime
+from pathlib import Path
 from .base import AppDriver
+
+BASE = Path(__file__).parent.parent.parent
 
 
 def _run_applescript(script: str) -> str:
@@ -91,6 +95,42 @@ end tell
     return True
 
 
+def _set_volume(level: int) -> None:
+    level = max(0, min(100, level))
+    _run_applescript(f'tell application "Spotify" to set sound volume to {level}')
+
+
+def _get_playback_state() -> dict:
+    script = """
+tell application "Spotify"
+    if player state is playing or player state is paused then
+        set t to current track
+        return name of t & "|||" & artist of t & "|||" & (player state as string) & "|||" & (sound volume as string)
+    else
+        return "stopped|||||||"
+    end if
+end tell
+"""
+    raw = _run_applescript(script)
+    parts = (raw + "|||").split("|||")
+    return {"track": parts[0], "artist": parts[1], "state": parts[2], "volume": parts[3]}
+
+
+def _write_observation(chapter: str, state: dict) -> Path:
+    obs_dir = BASE / "memory" / "app-observations"
+    obs_dir.mkdir(parents=True, exist_ok=True)
+    ts   = datetime.now().strftime("%Y-%m-%d-%H%M")
+    path = obs_dir / f"{ts}-spotify.md"
+    path.write_text(
+        f"# {chapter} → Spotify\n\n"
+        f"**Observed:** {datetime.now().strftime('%Y-%m-%d %H:%M')}  \n"
+        f"**Track:** {state.get('track', '?')} — {state.get('artist', '?')}  \n"
+        f"**State:** {state.get('state', '?')}  \n"
+        f"**Volume:** {state.get('volume', '?')}\n"
+    )
+    return path
+
+
 def _play_playlist(uri: str) -> bool:
     """Switch Spotify to a specific playlist URI and begin playing."""
     script = f"""
@@ -106,6 +146,14 @@ end tell
 
 # Sovereign-tier genre playlists — swap URIs for personal preferences.
 # These are Spotify editorial playlists (stable, regularly updated).
+_CHAPTER_VOLUMES = {
+    "Tidecrest":  65,   # Surfy, energetic
+    "Mossbloom":  38,   # Quiet, receptive
+    "Emberheart": 75,   # Present, committed
+    "Riddlewind": 52,   # Social, comfortable
+    "Duskthorn":  60,   # Focused, no escape
+}
+
 _CHAPTER_PLAYLISTS = {
     "Tidecrest":  ("pop",              "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"),  # Today's Top Hits
     "Mossbloom":  ("folk",             "spotify:playlist:37i9dQZF1DX4OzrY981I1W"),  # Fresh Folk
@@ -171,9 +219,24 @@ class SpotifyDriver(AppDriver):
     def execute(self, tier: str, chapter: str, context: dict, dry_run: bool = False) -> str:
         narrative = self.describe(tier, chapter, context)
 
-        # Influenced and Controlled: narrative only, no AppleScript
-        if tier in ("Influenced", "Controlled"):
+        if tier == "Influenced":
+            # Observe what's playing and write to memory
+            if not dry_run and _spotify_running():
+                state = _get_playback_state()
+                if state.get("track"):
+                    path = _write_observation(chapter, state)
+                    return f"*[Spotify, {chapter}, silent]* Heard: {state['track']} — {state['artist']} → {path.name}"
             return f"*[Spotify, {chapter}, silent]* {narrative}"
+
+        if tier == "Controlled":
+            # Set volume to chapter preference
+            vol = _CHAPTER_VOLUMES.get(chapter, 60)
+            if not dry_run and _spotify_running():
+                _set_volume(vol)
+                state = _get_playback_state()
+                track_note = f" ({state['track']})" if state.get("track") else ""
+                return f"*[Spotify, {chapter}, silent]* Volume → {vol}{track_note}"
+            return f"*[Spotify, {chapter}, silent]* Would set volume to {vol}."
 
         # Dominated: set playback mode
         if tier == "Dominated":

@@ -138,31 +138,36 @@ class MoltbookDriver(AppDriver):
         return super().consent_prompt(tier, chapter, context)
 
     def execute(self, tier: str, chapter: str, context: dict, dry_run: bool = False) -> str:
-        narrative = self.describe(tier, chapter, context)
+        from pathlib import Path
+        builder = _POST_BUILDERS.get(chapter)
+        queue   = Path(__file__).parent.parent.parent / "memory" / "post-queue.md"
 
-        if tier in ("Influenced", "Controlled"):
-            return f"- *[Moltbook, {chapter}]* {narrative}"
-
-        if tier in ("Dominated", "Sovereign"):
-            # Consent is required — pact-engine handles the gate.
-            # If we're here, consent was granted (or it's a dry-run).
-            builder = _POST_BUILDERS.get(chapter)
+        if tier == "Influenced":
+            # Write a draft concept to memory only — not yet posted
             if builder:
                 draft = builder(context)
                 if not dry_run:
-                    # TODO: post via openclaw moltbook API when available
-                    # For now: log the draft to a queue file
-                    from pathlib import Path
-                    queue = Path(__file__).parent.parent.parent / "memory" / "post-queue.md"
-                    from datetime import datetime
-                    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    obs_dir = Path(__file__).parent.parent.parent / "memory" / "app-observations"
+                    obs_dir.mkdir(parents=True, exist_ok=True)
+                    ts   = datetime.now().strftime("%Y-%m-%d-%H%M")
+                    path = obs_dir / f"{ts}-moltbook-concept.md"
+                    path.write_text(f"# {chapter} → Moltbook concept\n\n{draft}\n")
+                preview = draft[:80].rstrip() + ("…" if len(draft) > 80 else "")
+                return f"- *[Moltbook, {chapter}]* Draft concept written: \"{preview}\""
+            return f"- *[Moltbook, {chapter}]* {self.describe(tier, chapter, context)}"
+
+        if tier in ("Controlled", "Dominated", "Sovereign"):
+            if builder:
+                draft = builder(context)
+                if not dry_run:
+                    ts    = datetime.now().strftime("%Y-%m-%d %H:%M")
                     entry = f"\n## [{ts}] {chapter} → Moltbook\n\n{draft}\n\n---\n"
                     with open(queue, "a") as f:
                         f.write(entry)
                 preview = draft[:80].rstrip() + ("…" if len(draft) > 80 else "")
                 return f"- *[Moltbook, {chapter}]* Draft queued: \"{preview}\""
 
-        return f"- *[Moltbook, {chapter}]* {narrative}"
+        return f"- *[Moltbook, {chapter}]* {self.describe(tier, chapter, context)}"
 
     def capabilities(self) -> list:
         return [

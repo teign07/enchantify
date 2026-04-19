@@ -16,9 +16,11 @@ Talisman doctrines on Apple Calendar:
 import subprocess
 import random
 from datetime import datetime, timedelta
+from pathlib import Path
 from .base import AppDriver
 
-CALENDAR_NAME = "Enchantify"   # Calendar to write to
+BASE = Path(__file__).parent.parent.parent
+CALENDAR_NAME = "Enchantify"
 
 
 def _run_applescript(script: str) -> str:
@@ -30,6 +32,44 @@ def _run_applescript(script: str) -> str:
         return result.stdout.strip()
     except Exception:
         return ""
+
+
+def _read_upcoming_events(limit: int = 5) -> list[dict]:
+    now_str = datetime.now().strftime("%B %d, %Y at %I:%M:%S %p")
+    script = f"""
+tell application "Calendar"
+    set startBound to date "{now_str}"
+    set endBound to startBound + (7 * days)
+    set found to {{}}
+    repeat with cal in every calendar
+        repeat with ev in (every event of cal whose start date >= startBound and start date <= endBound)
+            if (count of found) < {limit} then
+                set end of found to (summary of ev & "|||" & (start date of ev as string))
+            end if
+        end repeat
+    end repeat
+    return found
+end tell
+"""
+    raw = _run_applescript(script)
+    events = []
+    for line in raw.replace(", ", "\n").split("\n"):
+        if "|||" in line:
+            parts = line.split("|||")
+            events.append({"title": parts[0].strip(), "date": parts[1].strip() if len(parts) > 1 else ""})
+    return events
+
+
+def _write_calendar_observation(chapter: str, events: list[dict]) -> Path:
+    obs_dir = BASE / "memory" / "app-observations"
+    obs_dir.mkdir(parents=True, exist_ok=True)
+    ts   = datetime.now().strftime("%Y-%m-%d-%H%M")
+    path = obs_dir / f"{ts}-calendar.md"
+    lines = [f"# {chapter} → Apple Calendar\n", f"**Scanned:** {datetime.now().strftime('%Y-%m-%d %H:%M')} (next 7 days)\n\n---\n"]
+    for e in events:
+        lines.append(f"- **{e['title']}** — {e['date']}")
+    path.write_text("\n".join(lines) + "\n")
+    return path
 
 
 def _create_event(title: str, notes: str = "", hours_from_now: float = 1.0,
@@ -191,7 +231,21 @@ class AppleCalendarDriver(AppDriver):
     def execute(self, tier: str, chapter: str, context: dict, dry_run: bool = False) -> str:
         narrative = self.describe(tier, chapter, context)
 
-        if tier in ("Influenced", "Controlled"):
+        if tier == "Influenced":
+            if not dry_run:
+                events = _read_upcoming_events(5)
+                if events:
+                    path = _write_calendar_observation(chapter, events)
+                    return f"- *[Calendar, {chapter}]* Scanned {len(events)} upcoming events → {path.name}"
+            return f"- *[Calendar, {chapter}]* {narrative}"
+
+        if tier == "Controlled":
+            builder = _EVENT_BUILDERS.get(chapter)
+            if builder:
+                title, notes, hrs, dur = builder(context)
+                if not dry_run:
+                    _create_event(title, notes, hours_from_now=hrs, duration_minutes=dur)
+                return f"- *[Calendar, {chapter}]* Added: \"{title}\""
             return f"- *[Calendar, {chapter}]* {narrative}"
 
         if tier in ("Dominated", "Sovereign"):
