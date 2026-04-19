@@ -51,6 +51,7 @@ the Labyrinth generates the events JSON itself and passes it in:
   "fae_bargains": [],
   "quests_completed": [],
   "quests_added": [],
+  "compass_runs_completed": 0,         // integer — Compass Runs fully completed this session
   "session_summary": "...",            // 2-3 sentence narrative summary
   "most_alive_moment": "...",          // most vivid real moment
   "what_fell_flat": null,              // or string
@@ -785,6 +786,28 @@ def main():
         apply_thread_updates(thread_updates, args.dry_run)
     else:
         print_thread_checklist()
+
+    # ── Step 5: Earning ──
+    compass_runs  = events.get("compass_runs_completed", 0) or 0
+    enchantments  = len(events.get("enchantments_cast",  []) or [])
+    earn_total    = 0.0
+    earn_args     = []
+
+    earn_args.append((0.50, "Session completed"))
+    if compass_runs:
+        earn_args.append((compass_runs * 2.00, f"Compass Run{'s' if compass_runs > 1 else ''} ×{compass_runs}"))
+    if enchantments:
+        earn_args.append((enchantments * 1.00, f"Enchantment{'s' if enchantments > 1 else ''} ×{enchantments}"))
+
+    if earn_args:
+        print("\n5. Crediting spend balance…")
+        spend_script = BASE / "scripts" / "spend.py"
+        for amount, reason in earn_args:
+            earn_total += amount
+            cmd = [sys.executable, str(spend_script), "--earn", str(amount), reason]
+            if args.dry_run:
+                cmd.append("--dry-run")
+            subprocess.run(cmd, capture_output=False)
 
     print(f"\n✅ Session closed for {date}.\n")
 

@@ -28,6 +28,8 @@ config/bj.md
 config/beej.md
 config/beej_tutorial_state.json
 config/bj_tutorial_state.json
+config/spend-ledger.json
+config/spend-consent.json
 
 # ─── Session memory (personal) ────────────────────────────────────────────────
 memory/2026-*.md
