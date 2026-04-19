@@ -66,13 +66,13 @@ The Academy week maps to real days so `scripts/schedule.py` can provide time-awa
 
 | Day | Morning Class (9–11 AM) | Afternoon Class (1–3 PM) | Club (7 PM) |
 |-----|------------------------|--------------------------|-------------|
-| **Sunday** | — | — | Compass Society |
+| **Sunday** | Book Jumping — Permancer | — | Compass Society |
 | **Monday** | Art of the Glint — Boggle | Ink-Binding — Villanelle | Inkwright Society |
 | **Tuesday** | Wayfinding & Kineticism — Momort | Synesthetic Resonance — Euphony | Marginalia Guild |
 | **Wednesday** | Art of the Glint — Boggle | Quiet Hours — Stonebrook | — |
 | **Thursday** | Wayfinding & Kineticism — Momort | Ink-Binding — Villanelle | Marginalia Guild |
-| **Friday** | Synesthetic Resonance — Euphony | Independent Study | Book Jumpers |
-| **Saturday** | — (Still) | — | — |
+| **Friday** | Synesthetic Resonance — Euphony | Basic Enchantments — Wispwood | Book Jumpers |
+| **Saturday** | Compass Running — Stonebrook | — (Still) | — |
 
 ---
 
@@ -120,29 +120,46 @@ These are real passages from *The Wonder Compass* that professors may use in cla
 **Prof. Stonebrook (Rest):**
 > *"Rest lives at the center of the Compass because sometimes the most radical thing you can do is stop. This is not laziness. This is not giving up. The Compass is not a mandate for frantic adventuring — that's just the Rut wearing a different coat. Rest is the source. Everything else spins around it."*
 
+**Prof. Wispwood (Basic Enchantments):**
+> *"An enchantment is not a trick you perform on an object. It is a conversation you start. The object has been waiting. It has always been waiting. Your job is to say something true enough that it answers. Hold it. Look at it. Now tell it what it knows about you. That is the whole lesson. That is the only lesson. The rest is practice."*
+
+> *"You are not adding magic to the world. You are noticing magic that was already there and giving it a form it can keep. The photo is the proof. The sentence is the lock. Together they hold it in place long enough for you to believe it — and belief is the Enchantment."*
+
+**Prof. Permancer (Book Jumping):**
+> *"Every text is a door. Most people stand outside and read about the room through the keyhole. That is called literature appreciation. We are doing something else. We are going inside. You will note the date, your Belief score, and what you were thinking about when you crossed. These details matter. The text will remember them even if you don't."*
+
+> *"The question is not whether you can get in. You can always get in. The question is whether you can come back unchanged enough to function in this room. The Labyrinth recommends you can. I am less sanguine. Bring something to hold onto. Zara knows what to bring."*
+
 **Headmistress Thorne (general, low-Belief moments):**
 > *"Your brain has decided your life is so predictable that it doesn't need to actually show it to you anymore. That is the crisis. And you don't need to move to Bali to fix it. You need to see the one you already have."*
 *(Source: Read This First)*
+
+### Scheduled Classes (The Practice)
+
+Three classes run on fixed weekly slots — not Foundation theory but active practice. These are where knowledge becomes something you do.
+
+| Class | Professor | Day/Time | Room | What it is |
+|-------|-----------|----------|------|------------|
+| **Basic Enchantments** | Prof. Luna Wispwood | Friday 1–3 PM | The Quillquarium | Learning to address objects directly — the animist act of casting. Students bring real objects and practice speaking to them in ways that hold. The objects in the Quillquarium respond to good casting. |
+| **Compass Running** | Prof. Cedric Stonebrook | Saturday 9–11 AM | The Observatory | Practicum in running the full Compass cycle. Not theory — actual runs. Students depart from the Observatory and return with a report. Stonebrook calibrated the Wonder Compass; he teaches the run the way the compass was designed. |
+| **Book Jumping** | Prof. Archibald Permancer | Sunday 9–11 AM | Room of Chrono-Tomes | Controlled text entry — falling into a book and coming back. Permancer tracks entries and exits obsessively. He counts students before and after. He has good reason to. Zara Finch is the student guide; she's better at the physical act of jumping than Permancer and he knows it. |
 
 ### Specialized Tracks (The Depth)
 
 Once the Foundation is laid, students pursue specialized studies:
 
-- **Enchantment Theory** — Prof. Luna Wispwood (The mechanics of the Pen and Quill)
 - **Mythopoeic Thought** — Prof. Ignatius Imatook (Creating and sustaining imaginary worlds)
 - **Allegorical Arts** — Prof. Maxwell Thorne (Everything has a second meaning)
 - **Historical Fiction** — Prof. Archibald Permancer (The dark history of the Labyrinth)
-- **Book Jumping** — Zara Finch (Practicum only — falling into the text)
 
 ### Elective (Choose at T-milestone)
 BJ has not yet chosen an elective. Options available to Tidecrest first-years:
 
-- **Book Jumping Practicum** (Zara could be his guide — she's skilled)
 - **Allegorical Arts** — Prof. Maxwell Thorne (everything has a second meaning)
 - **Historical Fiction Lab** — Prof. Archibald Permancer (occasional dark edges)
 - **Compass Cartography** (independent study — traces the history of Compass Runs through the Academy's past)
 
-*Prompt BJ to choose an elective when the moment feels natural — not as a form to fill out, but as a conversation. Zara would have opinions.*
+*Note: Book Jumping is now a scheduled class, so it no longer needs to be chosen as an elective. Prompt BJ to choose an elective when the moment feels natural — not as a form to fill out, but as a conversation. Zara would have opinions.*
 
 ---
 

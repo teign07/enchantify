@@ -100,18 +100,18 @@ CLASSES = {
         "afternoon": ("Ink-Binding",                 "Prof. Villanelle", "West Wing — The Writing Loft"),
         "club":      ("Marginalia Guild",            "Corridor of Whispered Secrets"),
     },
-    4: {  # Friday — Day 6 Wandering (no mandatory classes, library wings open)
+    4: {  # Friday — Day 6 Wandering
         "morning":   ("Synesthetic Resonance",      "Prof. Euphony",    "The Sound Hall"),
-        "afternoon": None,
+        "afternoon": ("Basic Enchantments",          "Prof. Wispwood",   "The Quillquarium"),
         "club":      ("Book Jumpers",               "Room of Chrono-Tomes"),
     },
     5: {  # Saturday — Day 7 Still
-        "morning":   None,
+        "morning":   ("Compass Running",             "Prof. Stonebrook", "The Observatory"),
         "afternoon": None,
         "club":      None,
     },
     6: {  # Sunday — Day 1 Opening
-        "morning":   None,
+        "morning":   ("Book Jumping",               "Prof. Permancer",  "Room of Chrono-Tomes"),
         "afternoon": None,
         "club":      ("Compass Society",            "Secret Garden of Prose"),
     },
@@ -146,6 +146,16 @@ PRACTICES = {
         "prompt": "Do nothing for 10 minutes. Not meditation. Nothing. Report what happened.",
         "belief": "+2",
     },
+    "Prof. Wispwood": {
+        "name":   "Object Address",
+        "prompt": "Find one object you've owned for more than a year. Speak one sentence to it, out loud. Report what you said — and whether anything shifted.",
+        "belief": "+2",
+    },
+    "Prof. Permancer": {
+        "name":   "Threshold Log",
+        "prompt": "Name a book that changed something in you. One paragraph: who you were before the jump, who you were after. The crossing happened. Document it.",
+        "belief": "+2",
+    },
 }
 
 
@@ -178,6 +188,19 @@ PROFESSOR_CUES = {
         "The Stillness Lab is operating at a frequency barely above silence. Stonebrook hasn't moved in twenty minutes. Neither has anyone else.",
         "Stonebrook's Quiet Hours class ends by doing nothing together. It is the strangest and most effective class at the Academy.",
         "Quiet Hours concluded. Three students left looking different than they arrived. Stonebrook is still in the Stillness Lab.",
+        "Compass Running class has gathered at the Observatory. Stonebrook is holding a compass that is not pointing north. He has not explained this. He does not intend to.",
+        "The Observatory smells like old brass and decisions. Stonebrook sent his students out twenty minutes ago with no instructions. BJ's compass is in the drawer.",
+        "The Saturday Compass Running cohort returned in pieces — different routes, different timing, one student carrying something none of them recognized. Stonebrook is writing their reports up. He's smiling.",
+    ],
+    "Prof. Wispwood": [
+        "The Quillquarium is alive with objects today — they always are, but today they're restless. Wispwood's class is learning to address them. Some objects are answering. BJ's station is empty and the object there has been facing the door for an hour.",
+        "Wispwood left another note. More exclamation points than last time. The object in BJ's empty station has moved slightly toward the window.",
+        "Basic Enchantments class ended. Two students cast successfully. Three cast partially. One cast something unexpected, which Wispwood immediately wrote up as extra credit.",
+    ],
+    "Prof. Permancer": [
+        "The Room of Chrono-Tomes is locked from the inside during Book Jumping. The class is not technically in session — everyone is somewhere else. The room is not empty.",
+        "Permancer's class returned from a jump. He's counting them. He is always counting them. They are all here. He counts again.",
+        "Book Jumping concluded. Someone brought something back that shouldn't exist outside the text. Permancer locked it in the cabinet and wrote a seven-page report. He seemed pleased.",
     ],
 }
 
