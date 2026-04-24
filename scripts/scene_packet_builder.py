@@ -126,7 +126,7 @@ def main() -> int:
         "target": args.target,
         "channel": args.channel,
         "account": args.account,
-        "routing_model": "openai-codex/gpt-5.4-mini",
+        "routing_model": "claude-cli/claude-haiku-4-5",
         "text": {
             "text": scene_text,
         },

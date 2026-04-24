@@ -754,13 +754,8 @@ def _oc_gateway_cfg() -> tuple[int, str, str]:
             pass
     port  = cfg.get("gateway", {}).get("port", 18789)
     token = cfg.get("gateway", {}).get("auth", {}).get("token", "")
-    # Use the agent defaults primary model, NOT the enchantify agent's model
-    # (enchantify agent may be on a rate-limited provider; the defaults primary
-    # is typically claude-sonnet which has its own independent quota)
-    model = (cfg.get("agents", {})
-               .get("defaults", {})
-               .get("model", {})
-               .get("primary", "claude-cli/claude-sonnet-4-6"))
+    # Bleed always uses Sonnet — kept explicit so quota changes to defaults don't affect it
+    model = "claude-cli/claude-sonnet-4-6"
     return port, token, model
 
 

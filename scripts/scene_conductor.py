@@ -38,7 +38,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-DEFAULT_ROUTING_MODEL = "openai-codex/gpt-5.4-mini"
+DEFAULT_ROUTING_MODEL = "claude-cli/claude-haiku-4-5"
 ESSENTIAL = "essential"
 ENRICHING = "enriching"
 ORNAMENTAL = "ornamental"
@@ -613,7 +613,7 @@ def example_packet() -> dict[str, Any]:
         "intensity": "cinematic",
         "channel": "telegram",
         "account": "enchantify",
-        "routing_model": "openai-codex/gpt-5.4-mini",
+        "routing_model": "claude-cli/claude-haiku-4-5",
         "target": "8729557865",
         "text": {
             "text": "You turn into the corridor and the lamps burn a little too gold. Wicker Eddies is waiting."

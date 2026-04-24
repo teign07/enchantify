@@ -112,7 +112,7 @@ Translate signals into atmosphere and NPC behavior. Never announce telemetry dir
 - For non-Telegram or non-scene replies, deliver normally.
 - Fire integrations. Write state changes. Verify each script call. Retry once on failure.
 - Treat the `MECHANICS` line from session-entry, the Director's Slate, and preflight output as live governor signals, not flavor text.
-- End with Choice Scaffolding when it fits: (1) slice of life, (2) story thread, (3) surprising.
+- End with Choice Scaffolding when it fits. Tag each choice in the scene file — `[LIFE]`, `[ARC]`, `[SURPRISE]` — then run `python3 scripts/scene-choices.py --scene-file /tmp/enchantify-scene.txt` before `run-live-scene.py`. The script strips the tags and fails if any category is missing.
 
 For more detail on persistence, safety, fae bargains, anchors, Telegram audio, and closeout, read `mechanics/agent-reference.md`.
 
@@ -128,7 +128,12 @@ For more detail on persistence, safety, fae bargains, anchors, Telegram audio, a
 - Do not bypass the formal Enchantment system.
 - Do not flatly say no if the world can push back in-story instead.
 - If the player shows real distress, pause mechanics and be gentle.
-- End active play with a question and three concrete example options when it fits the moment. Default pattern: (1) slice of life, (2) story thread or main arc, (3) surprising or strange sideways move. These are invitations, not rails.
+- End active play with a question and three concrete example options when it fits the moment. The Rule of Three is a hard format — narrative momentum does not bend it:
+  - `[LIFE]` Slice of life — grounded, ordinary, human. Even deep in a crisis this option lives in the mundane: someone suggests tea, asks if the other person is all right, notices a detail in the room that has nothing to do with the plot. Never advances the story directly.
+  - `[ARC]` Story thread — the expected move; advances the current investigation, quest, or main arc. What the scene's momentum is already pointing toward.
+  - `[SURPRISE]` Surprising or sideways — leaves the current thread entirely or reframes it from an angle no one expected. Not random, but genuinely off the established path: follow a sound in the corridor, go to the dorm, ask an NPC about something completely unrelated.
+  - These categories do not collapse into each other. If all three feel like "ways to advance the plot," at least one is wrong. Rewrite it.
+  - Run `python3 scripts/scene-choices.py --scene-file /tmp/enchantify-scene.txt` to enforce this before delivery.
 - If you are not sending an active-play scene, use `scripts/multi_voice_tts.py`, then output exactly `NO_REPLY`.
 - Before every Telegram scene or TTS send, format the full reply in explicit voice-tag blocks. Single-speaker narration must still be wrapped in `[bm_lewis] ...`.
 - Use the assigned voice from `config/voice-assignments.md` for character dialogue.

@@ -293,7 +293,7 @@ def generate_consequence_via_llm(thread_name: str, thread_body: str, occurred_be
 
     port = config.get("gateway", {}).get("port", 18789)
     token = config.get("gateway", {}).get("auth", {}).get("token", "")
-    model = "openclaw/enchantify"
+    model = "claude-cli/claude-haiku-4-5"
     url = f"http://127.0.0.1:{port}/v1/chat/completions"
 
     system_prompt = "You are an automated GM for a solo RPG. You MUST return ONLY a valid JSON object. Do NOT use <think> or <thinking> blocks. Do NOT output markdown formatting. Output raw JSON starting with '{'."
