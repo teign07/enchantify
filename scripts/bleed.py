@@ -22,12 +22,17 @@ import os
 import re
 import sys
 import json
+import html
+from html import unescape as html_unescape
 import shutil
 import subprocess
 import urllib.request
 from datetime import datetime, date
 from pathlib import Path
+from typing import Optional
 import sys as _sys
+
+from scene_ledger import append_entry as append_scene_ledger_entry, load_entries as load_scene_ledger_entries
 
 SCRIPT_DIR   = Path(__file__).parent
 WORKSPACE_DIR = SCRIPT_DIR.parent
@@ -42,6 +47,8 @@ except ImportError:
 
 ISSUE_NUMBER_FILE = WORKSPACE_DIR / "bleed" / "issue-number.txt"
 ISSUES_DIR        = WORKSPACE_DIR / "bleed" / "issues"
+ISSUE_IMAGES_DIR  = WORKSPACE_DIR / "bleed" / "images"
+CLASSIFIEDS_LEDGER_DIR = WORKSPACE_DIR / "logs" / "classifieds-ledger"
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -114,7 +121,7 @@ def get_sparky_shiny(date_str: str) -> str:
 def get_player_data(cfg: dict) -> dict:
     player = cfg.get("ENCHANTIFY_DEFAULT_PLAYER", "bj")
     content = read_file_safe(WORKSPACE_DIR / "players" / f"{player}.md", 15)
-    data = {}
+    data = {"name": player}
 
     m = re.search(r'\*\*Belief:\*\*\s*(\d+)', content)
     data["belief"] = m.group(1) if m else "?"
@@ -741,9 +748,10 @@ _OPENCLAW_BIN = (
 )
 
 def call_agent(prompt: str) -> str:
+    # claude-cli/claude-sonnet-4-6 via agents.defaults.model.primary in openclaw.json
     result = subprocess.run(
         [_OPENCLAW_BIN, "agent", "--local", "--agent", "enchantify", "-m", prompt],
-        capture_output=True, text=True, timeout=240
+        capture_output=True, text=True, timeout=600
     )
     output = result.stdout.strip()
 
@@ -761,6 +769,291 @@ def call_agent(prompt: str) -> str:
 
 
 # ── Content generation ────────────────────────────────────────────────────────
+
+def get_outer_stacks_brief(player_name: str) -> str:
+    """Blend anchor reality with wider Outer Stacks pressure for a dedicated column."""
+    def grab(pattern: str, text: str, default: str = "", flags: int = 0, group: int = 1) -> str:
+        m = re.search(pattern, text, flags)
+        return m.group(group).strip() if m else default
+
+    def short(text: str, n: int) -> str:
+        text = (text or "").strip()
+        return text[:n] + "…" if len(text) > n else text
+
+    def load_json(path: Path) -> dict:
+        if not path.exists():
+            return {}
+        try:
+            return json.loads(path.read_text())
+        except Exception:
+            return {}
+
+    lore = read_file_safe(WORKSPACE_DIR / "lore" / "outer-stacks.md", 260)
+    heartbeat = read_file_safe(WORKSPACE_DIR / "HEARTBEAT.md", 140)
+    pulse = extract_pulse_section(heartbeat)
+    anchors_text = read_file_safe(WORKSPACE_DIR / "players" / f"{player_name}-anchors.md")
+    register_text = read_file_safe(WORKSPACE_DIR / "lore" / "world-register.md")
+    queue_text = read_file_safe(WORKSPACE_DIR / "memory" / "tick-queue.md", 60)
+    pocket_state = load_json(WORKSPACE_DIR / "config" / "pocket-anchors.json")
+    classifieds_dir = WORKSPACE_DIR / "logs" / "classifieds-ledger"
+    scene_dir = WORKSPACE_DIR / "logs" / "scene-ledger"
+
+    anchor_bits = []
+    for section in re.split(r'^## ', anchors_text, flags=re.MULTILINE)[1:]:
+        lines = section.strip().splitlines()
+        name = lines[0].strip() if lines else "?"
+        atype = grab(r'\*\*Type:\*\*\s*(.+)', section, default="?")
+        belief = grab(r'\*\*Belief invested:\*\*\s*(\d+)', section, default="?")
+        echo = grab(r'\*\*Academy echo:\*\*\s*(.+)', section, flags=re.DOTALL, default="")
+        room = grab(r'\*\*Outer Stacks room:\*\*\s*(.+)', section, flags=re.DOTALL, default="")
+        rule = grab(r'\*\*Local rule:\*\*\s*(.+)', section, flags=re.DOTALL, default="")
+        visit_count = grab(r'\*\*Visit count:\*\*\s*(\d+)', section, default="0")
+        anchor_bits.append(
+            f"- ANCHOR: {name} | {atype} | Belief {belief} | visits {visit_count} | echo: {short(echo, 120)} | room: {short(room, 160)} | rule: {short(rule, 120)}"
+        )
+    if not anchor_bits:
+        anchor_bits.append("- ANCHOR: none yet established")
+
+    pocket_bits = []
+    for anchor_name, state in (pocket_state.get(player_name) or {}).items():
+        charges = state.get("charges", 0)
+        active = state.get("active_session")
+        if active and active.get("expires_at"):
+            pocket_bits.append(f"- CARD: {anchor_name} | {charges} charges | active until {active.get('expires_at')}")
+        else:
+            pocket_bits.append(f"- CARD: {anchor_name} | {charges} charges")
+    if not pocket_bits:
+        pocket_bits.append("- CARD: no pocket-anchor state yet")
+
+    seasonal_bits = []
+    season = grab(r'- \*\*Season:\*\*\s*(.+)', pulse, default="")
+    moon = grab(r'- \*\*Moon:\*\*\s*(.+)', pulse, default="")
+    weather = grab(r'- \*\*Belfast Feel:\*\*\s*(.+)', pulse, default="")
+    if season:
+        seasonal_bits.append(f"- SEASON: {season}")
+    if moon:
+        seasonal_bits.append(f"- MOON: {moon}")
+    if weather:
+        seasonal_bits.append(f"- WEATHER PRESSURE: {weather}")
+
+    outer_entities = []
+    for line in register_text.splitlines():
+        if "Outer Stacks" in line or "anchor" in line.lower() or "Goblin Index Empire" in line:
+            clean = line.strip()
+            if clean.startswith("|"):
+                outer_entities.append(clean)
+    outer_entities = outer_entities[:6]
+
+    frontier_activity = []
+    for line in queue_text.splitlines():
+        low = line.lower()
+        if any(k in low for k in ["anchor", "outer stacks", "goblin", "market", "chronograph", "crossroads", "fermentation", "wayskeeper", "hearthkin"]):
+            frontier_activity.append(line.strip())
+    if not frontier_activity:
+        frontier_activity.append("No direct frontier stir recorded in tick-queue; treat this as quiet pressure, not absence.")
+    frontier_activity = frontier_activity[:6]
+
+    lore_signals = []
+    for needle in [
+        "The worst thing the Nothing does to an Outer Stacks room is make it boring",
+        "The only way to enter the Outer Stacks is through an Anchor room",
+        "The Fae in the Outer Stacks are wilder versions",
+        "Room Evolution",
+        "Pocket Anchors (Accessibility)",
+    ]:
+        if needle in lore:
+            lore_signals.append(needle)
+
+    ledger_bits = []
+    if classifieds_dir.exists():
+        recent = sorted(classifieds_dir.glob("*.json"))[-1:]
+        for path in recent:
+            payload = load_json(path)
+            ledger_bits.append(f"- CLASSIFIEDS LEDGER: {path.name} | {payload.get('count', 0)} open hooks")
+    else:
+        ledger_bits.append("- CLASSIFIEDS LEDGER: none yet — frontier coverage must rely on state, not prior postings")
+
+    if scene_dir.exists():
+        recent = sorted(scene_dir.glob("*.jsonl"))[-1:]
+        for path in recent:
+            ledger_bits.append(f"- SCENE LEDGER: {path.name} present")
+    else:
+        ledger_bits.append("- SCENE LEDGER: none yet — no realized frontier scenes have been recorded")
+
+    parts = ["ANCHOR INFLUENCE (do not let this become the whole column):"]
+    parts.extend(anchor_bits[:3])
+    parts.append("")
+    parts.append("POCKET ANCHOR STATE:")
+    parts.extend(pocket_bits[:4])
+    parts.append("")
+    parts.append("SEASONAL / NOTHING PRESSURE:")
+    parts.extend(seasonal_bits[:4])
+    parts.extend(f"- LORE: {x}" for x in lore_signals[:4])
+    parts.append("")
+    parts.append("WIDER OUTER STACKS SIGNALS:")
+    parts.extend(f"- REGISTER: {x}" for x in outer_entities)
+    parts.extend(f"- QUEUE: {x}" for x in frontier_activity)
+    parts.extend(ledger_bits)
+
+    return "\n".join(parts)
+
+
+def build_classified_leads() -> str:
+    """Deterministic leads for classifieds so they anchor to real state."""
+    leads = []
+
+    # Thread beats and pressures
+    threads_content = read_file_safe(WORKSPACE_DIR / "lore" / "threads.md")
+    register_content = read_file_safe(WORKSPACE_DIR / "lore" / "world-register.md")
+    thread_belief: dict[str, int] = {}
+    active_section_m = re.search(r'## Active Threads(.*?)(?=^## |\Z)', register_content, re.DOTALL | re.MULTILINE)
+    if active_section_m:
+        row_re = re.compile(r'^\|\s*([^|]+?)\s*\|\s*Thread\s*\|\s*(\d+)\s*\|', re.MULTILINE | re.IGNORECASE)
+        for m in row_re.finditer(active_section_m.group(1)):
+            thread_belief[m.group(1).strip().lower()] = int(m.group(2))
+
+    thread_rows = []
+    for section in re.split(r'^## Thread: ', threads_content, flags=re.MULTILINE)[1:]:
+        slines = section.strip().splitlines()
+        name = slines[0].strip() if slines else "?"
+        phase_m = re.search(r'\*\*phase:\*\*\s*(.+)', section)
+        pressure_m = re.search(r'\*\*pressure:\*\*\s*(.+)', section)
+        beat_m = re.search(r'\*\*Next beat:\*\*\s*(.+)', section)
+        belief = thread_belief.get(name.lower(), 0)
+        thread_rows.append({
+            "name": name,
+            "belief": belief,
+            "phase": phase_m.group(1).strip() if phase_m else "?",
+            "pressure": pressure_m.group(1).strip() if pressure_m else "?",
+            "beat": beat_m.group(1).strip()[:140] if beat_m else "",
+        })
+    thread_rows.sort(key=lambda x: -x["belief"])
+    for t in thread_rows[:4]:
+        leads.append(f"- THREAD LEAD: {t['name']} | Belief {t['belief']} | {t['phase']} | pressure: {t['pressure']} | next: {t['beat']}")
+
+    # High-belief entities / talismans
+    entity_lines = get_entity_standings().splitlines()
+    for line in entity_lines[:4]:
+        if line.strip():
+            leads.append(f"- ENTITY LEAD: {line.strip().lstrip('- ').strip()}")
+
+    # Recent simulation/tick activity
+    tick_queue = read_file_safe(WORKSPACE_DIR / "memory" / "tick-queue.md", 40)
+    tick_lines = []
+    for line in tick_queue.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("- **") or line.startswith("Narrative seed:") or line.startswith("*Raw:"):
+            tick_lines.append(line)
+    for line in tick_lines[:6]:
+        leads.append(f"- SIM LEAD: {line[:180]}")
+
+    return "\n".join(leads) if leads else "(no classified leads available)"
+
+
+def record_classifieds_hooks(date_str: str, issue_number: int, classifieds_text: str) -> None:
+    """Persist published classifieds as hooks for later play/state use."""
+    if not classifieds_text.strip():
+        return
+    CLASSIFIEDS_LEDGER_DIR.mkdir(parents=True, exist_ok=True)
+    out = CLASSIFIEDS_LEDGER_DIR / f"{date_str}.json"
+
+    blocks = [b.strip() for b in re.split(r'\n\s*\n', classifieds_text) if b.strip()]
+    entries = []
+    for idx, block in enumerate(blocks, 1):
+        label = "NOTICE"
+        m = re.match(r'^([A-Z][A-Z ]+):\s*(.*)', block, re.DOTALL)
+        body = block
+        if m:
+            label = m.group(1).strip()
+            body = m.group(2).strip()
+        entries.append({
+            "id": f"{date_str}-classified-{idx}",
+            "issue_number": issue_number,
+            "date": date_str,
+            "label": label,
+            "text": body,
+            "raw": block,
+            "status": "open",
+        })
+
+    payload = {
+        "date": date_str,
+        "issue_number": issue_number,
+        "entries": entries,
+        "count": len(entries),
+    }
+    out.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+def build_outer_stacks_fallback(data: dict) -> str:
+    brief = (data.get("outer_stacks") or "").strip()
+    if not brief:
+        return ""
+    lines = [l.strip() for l in brief.splitlines() if l.strip()]
+    anchors = [l[2:] for l in lines if l.startswith("- ANCHOR:")][:2]
+    cards = [l[2:] for l in lines if l.startswith("- CARD:")][:2]
+    pressure = [l[2:] for l in lines if l.startswith("- SEASON:") or l.startswith("- MOON:") or l.startswith("- WEATHER PRESSURE:")][:3]
+    wider = [l[2:] for l in lines if l.startswith("- REGISTER:") or l.startswith("- QUEUE:")][:4]
+
+    parts = []
+    if anchors:
+        parts.append("Two doors currently hold the frontier nearest the Academy. " + " ".join(anchors) + ".")
+    if cards:
+        parts.append("Pocket-anchor conditions are live rather than theoretical. " + " ".join(cards) + ".")
+    if pressure:
+        parts.append("The wider conditions matter out there. " + " ".join(pressure) + ".")
+    if wider:
+        parts.append("Beyond the player’s own thresholds, the frontier is still moving. " + " ".join(wider) + ".")
+    return "\n\n".join(parts)
+
+
+def validate_generated_sections(sections: dict) -> list[str]:
+    required = ["HEADLINE", "GOSSIP", "FEATURE", "CLASSIFIEDS", "OUTERSTACKS", "FORECAST", "MARKET"]
+    errors = []
+    for key in required:
+        text = (sections.get(key) or "").strip()
+        if not text:
+            errors.append(f"missing section: {key}")
+    outer = (sections.get("OUTERSTACKS") or "").strip()
+    if outer and len(outer) < 120:
+        errors.append("OUTERSTACKS too short")
+    return errors
+
+
+def ensure_scene_ledger_seed(date_str: str, issue_number: int, sections: dict, meta: dict) -> None:
+    existing = load_scene_ledger_entries(date_str)
+    if existing:
+        return
+    outer = (sections.get("OUTERSTACKS") or "").strip()
+    if not outer:
+        return
+    payload = {
+        "recorded_at": datetime.now().isoformat(),
+        "player": meta.get("player_name", "bj"),
+        "scene_id": f"bleed-frontier-{date_str}",
+        "title": f"Bleed Frontier Desk #{issue_number}",
+        "mood": "observant",
+        "intensity": "quiet",
+        "target": "bleed",
+        "channel": "internal",
+        "text": outer,
+        "voice": "",
+        "sequence": ["bleed", "frontier-desk"],
+        "results": {"delivery_ok": True, "essential_ok": True, "source": "bleed-bootstrap"},
+        "delivery_ok": True,
+        "essential_ok": True,
+        "director_slate": "",
+        "session_entry": "",
+        "story": "Frontier Desk bootstrap from published Bleed issue.",
+        "cast": sections.get("OUTERSTACKS", "")[:400],
+        "feel": sections.get("FORECAST", "")[:200],
+        "schedule": meta.get("date_str", date_str),
+        "source_systems": ["bleed", "outerstacks", "bootstrap"],
+    }
+    append_scene_ledger_entry(payload, date_str=date_str)
+
 
 def generate_content(data: dict) -> dict:
     prompt = f"""You are writing THE BLEED — the Academy student newspaper.
@@ -798,8 +1091,14 @@ PLAYER STATUS:
 PLAYER STORY DATA (for The Correspondent section):
 {data['player_recap']}
 
+CLASSIFIED LEADS (real hooks for the classifieds section):
+{data['classified_leads']}
+
 CHAPTER WAR DATA (for The War Report section):
 {data['war_data']}
+
+OUTER STACKS DATA (for the frontier / book-jump column):
+{data['outer_stacks']}
 
 LEADING CHAPTER TALISMAN (for The Ascendant column):
 {data['talisman_data']}
@@ -917,9 +1216,25 @@ previous coverage block above and choose something that hasn't been the focus re
 ===CLASSIFIEDS===
 [5-6 classified notices. Each one 2-4 sentences — enough to feel real and slightly eerie.
 Mix labels: LOST: / FOUND: / NOTICE: / SEEKING: / WARNING: / REWARD: / POSITION AVAILABLE: etc.
-These are story seeds. The reader should want to investigate at least two of them.
+These are story seeds, but they are also live game hooks.
+At least 3 classifieds must be directly grounded in the provided CLASSIFIED LEADS.
+At least 1 classified must point toward a real current thread, entity, talisman, item, or location.
+At least 1 classified must create a forward hook that could matter in a later session, as if the notice itself may alter what happens next.
+Write them so they work in both directions: reflecting the Academy's current state, and adding new pressure, opportunity, or mystery back into it.
 CONSTRAINT: Every classified must be written fresh. Check the previous coverage block above —
 do not reuse any classified text, even partially. New issue, new listings. Postings expire.]
+
+===OUTERSTACKS===
+[The frontier / book-jump column. 3-5 paragraphs. Report on the Outer Stacks as a real adjacent territory.
+This section should be influenced by the player's current anchors, but not dominated by them.
+Use a three-source blend:
+1. current anchors and their specific room logic
+2. wider Outer Stacks conditions, creatures, or pressures
+3. one sign of movement beyond the player's known rooms, suggesting the frontier is larger than their two doors
+At most half the section should focus directly on named anchors.
+The section should make the Outer Stacks feel alive, nearby, and partially unsupervised.
+Dry, observant, slightly dangerous. Treat book-jump conditions, goblin economies, room rules, and anchor echoes as ordinary reporting.
+Do not reveal hidden surprises that should only be discovered on first visit, but do report consequences, rumors, conditions, and pressures around them.]
 
 ===CORRECTION===
 [One dry, formal correction. Deadpan and specific. 1-2 sentences. Brief is correct here.]
@@ -1013,45 +1328,92 @@ def parse_sections(raw: str) -> dict:
 
 
 def _sections_from_saved_html(html: str) -> dict:
-    """Extract section text from a previously saved HTML issue for Telegram rebuild.
-
-    Pulls the inner text of each named section div so we can re-send without
-    regenerating the whole issue. Returns a dict keyed by section name (uppercase).
-    Values are plain text — HTML tags stripped.
-    """
+    """Extract section text from a previously saved HTML issue for Telegram rebuild."""
     def strip_tags(s: str) -> str:
-        return re.sub(r'<[^>]+>', '', s).strip()
+        s = re.sub(r'<br\s*/?>', '\n', s, flags=re.IGNORECASE)
+        s = re.sub(r'</p\s*>', '\n\n', s, flags=re.IGNORECASE)
+        s = re.sub(r'<[^>]+>', '', s)
+        return html_unescape(s).strip()
 
-    sections = {}
-    # Section divs are rendered with class="col-<name>" or id="section-<name>"
-    # Fall back to searching for the section content between known landmarks.
-    # Map of section key → CSS class patterns to look for
-    section_patterns = {
-        "HEADLINE":   r'class="headline[^"]*"[^>]*>(.*?)</(?:div|section)',
-        "GOSSIP":     r'class="gossip-body[^"]*"[^>]*>(.*?)</(?:div|section)',
-        "WEATHER":    r'class="weather[^"]*"[^>]*>(.*?)</(?:div|section)',
-        "FORECAST":   r'class="forecast[^"]*"[^>]*>(.*?)</(?:div|section)',
-        "MARKET":     r'class="market[^"]*"[^>]*>(.*?)</(?:div|section)',
-        "BAROMETER":  r'class="barometer[^"]*"[^>]*>(.*?)</(?:div|section)',
-        "FUEL":       r'class="fuel[^"]*"[^>]*>(.*?)</(?:div|section)',
-        "EXCHANGE":   r'class="exchange[^"]*"[^>]*>(.*?)</(?:div|section)',
-        "FEATURE":    r'class="feature[^"]*"[^>]*>(.*?)</(?:div|section)',
-        "CLASSIFIEDS":r'class="classifieds[^"]*"[^>]*>(.*?)</(?:div|section)',
-        "CORRECTION": r'class="correction[^"]*"[^>]*>(.*?)</(?:div|section)',
-        "MISSING":    r'class="missing[^"]*"[^>]*>(.*?)</(?:div|section)',
-        "PLAYER":     r'class="player[^"]*"[^>]*>(.*?)</(?:div|section)',
-        "WARREPORT":  r'class="warreport[^"]*"[^>]*>(.*?)</(?:div|section)',
-        "TALISMAN":   r'class="talisman[^"]*"[^>]*>(.*?)</(?:div|section)',
-    }
+    def between(text: str, start: str, end: str) -> str:
+        m = re.search(re.escape(start) + r'(.*?)' + re.escape(end), text, re.DOTALL)
+        return m.group(1) if m else ""
+
+    def extract_feature(text: str) -> str:
+        block = between(text, '<div class="col-head">Feature</div>', '<div class="col-head">Classifieds</div>')
+        if not block:
+            return ""
+        title_m = re.search(r'<div class="feature-title">(.*?)</div>', block, re.DOTALL)
+        byline_m = re.search(r'<div class="byline">(.*?)</div>', block, re.DOTALL)
+        body = re.sub(r'<div class="feature-title">.*?</div>', '', block, count=1, flags=re.DOTALL)
+        body = re.sub(r'<div class="byline">.*?</div>', '', body, count=1, flags=re.DOTALL)
+        body = re.sub(r'<div class="feature-image-wrap">.*?</div>', '', body, count=1, flags=re.DOTALL)
+        parts = []
+        if title_m:
+            parts.append(f"Title: {strip_tags(title_m.group(1))}")
+        if byline_m:
+            parts.append(f"Byline: {strip_tags(byline_m.group(1))}")
+        body_text = strip_tags(body)
+        if body_text:
+            parts.append(f"Body: {body_text}")
+        return '\n'.join(parts).strip()
+
+    def extract_headline(text: str) -> str:
+        title_m = re.search(r'<div class="headline">(.*?)</div>', text, re.DOTALL)
+        sub_m = re.search(r'<div class="subhead">(.*?)</div>', text, re.DOTALL)
+        body_m = re.search(r'<div class="headline-body">(.*?)</div>', text, re.DOTALL)
+        parts = []
+        if title_m:
+            parts.append(f"Title: {strip_tags(title_m.group(1))}")
+        if sub_m:
+            parts.append(f"Subhead: {strip_tags(sub_m.group(1))}")
+        if body_m:
+            parts.append(f"Body: {strip_tags(body_m.group(1))}")
+        return '\n'.join(parts).strip()
+
+    def extract_after_label(text: str, label: str, next_label: str = None) -> str:
+        start = f'<div class="col-head">{label}</div>'
+        if next_label:
+            end = f'<div class="col-head">{next_label}</div>'
+            return strip_tags(between(text, start, end))
+        part = text.split(start, 1)
+        return strip_tags(part[1]) if len(part) == 2 else ""
+
     stripped = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL)
     stripped = re.sub(r'<script[^>]*>.*?</script>', '', stripped, flags=re.DOTALL)
 
-    for key, pattern in section_patterns.items():
-        m = re.search(pattern, stripped, re.DOTALL | re.IGNORECASE)
-        if m:
-            sections[key] = strip_tags(m.group(1))[:2000]
+    sections = {}
+    sections['HEADLINE'] = extract_headline(stripped)
+    sections['FEATURE'] = extract_feature(stripped)
 
-    return sections
+    simple_pairs = [
+        ('GOSSIP', 'Gossip &amp; Corridor Whispers', 'The Barometer'),
+        ('BAROMETER', 'The Barometer', 'The Provisions Log'),
+        ('FUEL', 'The Provisions Log', 'The Exchange'),
+        ('EXCHANGE', 'The Exchange', 'Today at the Academy'),
+        ('PLAYER', 'The Correspondent', 'Chapter War Report'),
+        ('WARREPORT', 'Chapter War Report', 'Academy Meteorological Society'),
+        ('WEATHER', 'Academy Meteorological Society', 'Story Forecast'),
+        ('FORECAST', 'Story Forecast', 'Thread Futures Market'),
+        ('MARKET', 'Thread Futures Market', 'Feature'),
+        ('CLASSIFIEDS', 'Classifieds', 'Sparky\'s Corner'),
+        ('CORRECTION', 'The Correction', 'The Missing'),
+        ('MISSING', 'The Missing', None),
+    ]
+    for key, label, next_label in simple_pairs:
+        val = extract_after_label(stripped, label, next_label)
+        if val:
+            sections[key] = val[:4000]
+
+    outer = between(stripped, '<section id="section-outerstacks"', '</section>')
+    if outer:
+        sections['OUTERSTACKS'] = strip_tags(outer)[:4000]
+
+    talisman = between(stripped, '<div class="content-row row-talisman">', '</div></div></div>')
+    if talisman and 'The Ascendant' in talisman:
+        sections['TALISMAN'] = strip_tags(talisman)[:4000]
+
+    return {k: v for k, v in sections.items() if v}
 
 
 def parse_headline(text: str) -> dict:
@@ -1128,6 +1490,112 @@ def build_timetable_html() -> str:
     return "\n".join(lines)
 
 
+def parse_feature_parts(feature: str) -> dict:
+    feature_title = ""
+    feature_byline = ""
+    feature_body = feature or ""
+    if feature:
+        text = feature.strip()
+
+        title_m = re.search(r'(?mi)^Title:\s*(.+)$', text)
+        byline_m = re.search(r'(?mi)^Byline:\s*(.+)$', text)
+        body_m = re.search(r'(?mis)^Body:\s*(.+)$', text)
+        if title_m or byline_m or body_m:
+            feature_title = title_m.group(1).strip() if title_m else ""
+            feature_byline = byline_m.group(1).strip() if byline_m else ""
+            if body_m:
+                feature_body = body_m.group(1).strip()
+            else:
+                # LLM wrote Title:/Byline: labels but no Body: label — strip the label
+                # lines and treat everything else as the body (matches old behavior)
+                body_lines = [l for l in text.splitlines()
+                              if not re.match(r'^(Title|Byline|Body):\s*', l.strip(), re.IGNORECASE)]
+                feature_body = "\n".join(body_lines).strip()
+        else:
+            lines = text.splitlines()
+            if lines and not lines[0].startswith("By ") and len(lines[0]) < 80:
+                feature_title = lines[0].strip().strip("*#").strip()
+                rest = "\n".join(lines[1:]).strip()
+                if rest.startswith("By ") or rest.startswith("*By "):
+                    byline_line = rest.splitlines()[0]
+                    feature_byline = byline_line.strip().strip("*").strip()
+                    feature_body = "\n".join(rest.splitlines()[1:]).strip()
+                else:
+                    feature_body = rest
+
+        # Fallback: if body is still empty after all extraction, strip label lines and
+        # use whatever remains — mirrors old `feature_body = feature` default safety net
+        if not feature_body:
+            body_lines = [l for l in text.splitlines()
+                          if not re.match(r'^(Title|Byline|Body):\s*', l.strip(), re.IGNORECASE)]
+            feature_body = "\n".join(body_lines).strip()
+
+    return {
+        "title": feature_title,
+        "byline": feature_byline,
+        "body": feature_body,
+    }
+
+
+def build_feature_image_prompt(feature: str, meta: dict) -> str:
+    parts = parse_feature_parts(feature)
+    title = parts.get("title") or "The Bleed feature story"
+    body = re.sub(r'\s+', ' ', parts.get("body") or "").strip()
+    context_bits = [
+        meta.get("headline_title", ""),
+        meta.get("headline_body", ""),
+        meta.get("gossip", ""),
+        meta.get("market", ""),
+        meta.get("weather", ""),
+    ]
+    fallback_context = re.sub(r'\s+', ' ', ' '.join(bit for bit in context_bits if bit)).strip()
+    scene_basis = body[:900] if body else fallback_context[:900]
+    return (
+        f"Feature illustration for The Bleed, issue #{meta.get('issue_number')}. "
+        f"Story title: {title}. "
+        f"Illustrate the most vivid in-world scene or symbolic image suggested by this story and surrounding issue context: {scene_basis}. "
+        "Style: whimsical, dark, modern anime with pops of color, like Studio Ghibli with a Neil Gaiman shadow. "
+        "Vertical editorial illustration, atmospheric, magical-school newspaper art, elegant, slightly eerie, richly specific, no text, no caption, no border, no watermark."
+    )
+
+
+def generate_feature_image(feature: str, meta: dict) -> Optional[Path]:
+    parts = parse_feature_parts(feature)
+    title = (parts.get("title") or "").strip()
+    body = (parts.get("body") or "").strip()
+    if not title and not body:
+        return None
+
+    ISSUE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    output = ISSUE_IMAGES_DIR / f"{meta['date_str']}-feature.png"
+    cmd = [
+        sys.executable,
+        str(SCRIPT_DIR / "drawthings_scene.py"),
+        "--prompt",
+        build_feature_image_prompt(feature, meta),
+        "--output",
+        str(output),
+        "--width",
+        "1024",
+        "--height",
+        "1536",
+        "--steps",
+        "4",
+        "--cfg-scale",
+        "1.0",
+        "--timeout-seconds",
+        "300",
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode == 0 and output.exists():
+        print(f"  ✓ Feature image generated → {output}")
+        return output
+
+    detail = (proc.stderr or proc.stdout or "Draw Things feature image generation failed").strip()
+    print(f"  ⚠ Feature image skipped: {detail}")
+    return None
+
+
 def build_html(sections: dict, sparky: str, meta: dict) -> str:
     hl          = parse_headline(sections.get("HEADLINE", ""))
     gossip      = sections.get("GOSSIP", "")
@@ -1144,6 +1612,7 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     missing     = sections.get("MISSING", "")
     player_box  = sections.get("PLAYER", "")
     war_report  = sections.get("WARREPORT", "")
+    outerstacks = sections.get("OUTERSTACKS", "")
     talisman    = sections.get("TALISMAN", "")
 
     date_obj  = datetime.strptime(meta["date_str"], "%Y-%m-%d")
@@ -1151,21 +1620,15 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
 
     sparky_html = paragraphs(sparky) if sparky else "<p><em>(a sleeping dot)</em></p>"
 
-    # Extract feature title/byline if the LLM included them
-    feature_title = ""
-    feature_byline = ""
-    feature_body = feature
-    if feature:
-        lines = feature.strip().splitlines()
-        if lines and not lines[0].startswith("By ") and len(lines[0]) < 80:
-            feature_title = lines[0].strip().strip("*#").strip()
-            rest = "\n".join(lines[1:]).strip()
-            if rest.startswith("By ") or rest.startswith("*By "):
-                byline_line = rest.splitlines()[0]
-                feature_byline = byline_line.strip().strip("*").strip()
-                feature_body = "\n".join(rest.splitlines()[1:]).strip()
-            else:
-                feature_body = rest
+    feature_parts = parse_feature_parts(feature)
+    feature_title = feature_parts["title"]
+    feature_byline = feature_parts["byline"]
+    feature_body = feature_parts["body"]
+    feature_image = meta.get("feature_image") or ""
+    feature_image_html = (
+        '<div class="feature-image-wrap"><img class="feature-image" src="' + html.escape(feature_image) + '" alt="Feature story illustration"></div>'
+        if feature_image else ""
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -1328,6 +1791,18 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     font-size: 13pt;
     line-height: 1.15;
     margin-bottom: 4pt;
+  }}
+
+  .feature-image-wrap {{
+    margin-bottom: 8pt;
+  }}
+
+  .feature-image {{
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid #bbb;
+    background: #efe7d8;
   }}
 
   /* ── RIGHT RAIL (barometer + exchange stacked) ── */
@@ -1535,6 +2010,8 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
   <!-- ROW 2b: The Ascendant — leading chapter talisman column -->
   {'<div class="content-row row-talisman"><div class="col" style="padding-right:0;"><div class="col-head">The Ascendant &mdash; ' + (meta.get("talisman_name","") or "Chapter Talisman") + '</div><div class="talisman-body">' + paragraphs(talisman) + '</div></div></div>' if talisman else ''}
 
+  {'<section id="section-outerstacks" class="content-row row-talisman"><div class="col outerstacks" style="padding-right:0;"><div class="col-head">Outer Stacks &mdash; Frontier Desk</div><div class="war-report-body">' + paragraphs(outerstacks) + '</div></div></section>' if outerstacks else ''}
+
   <!-- ROW 3: Weather | Story Forecast | Predictions Market -->
   <div class="content-row row-forecasts">
 
@@ -1562,6 +2039,7 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
       <div class="col-head">Feature</div>
       {'<div class="feature-title">' + feature_title + '</div>' if feature_title else ''}
       {'<div class="byline">' + feature_byline + '</div>' if feature_byline else ''}
+      {feature_image_html}
       {paragraphs(feature_body)}
     </div>
 
@@ -1651,6 +2129,10 @@ def build_telegram_text(sections: dict, sparky: str, meta: dict) -> str:
     if war_report:
         parts += [f"<b>Chapter War Report</b>", esc(war_report[:600] + ("…" if len(war_report) > 600 else "")), ""]
 
+    outerstacks = sections.get("OUTERSTACKS", "")
+    if outerstacks:
+        parts += [f"<b>Outer Stacks — Frontier Desk</b>", esc(outerstacks[:700] + ("…" if len(outerstacks) > 700 else "")), ""]
+
     talisman_col = sections.get("TALISMAN", "")
     if talisman_col:
         talisman_label = meta.get("talisman_name", "Chapter Talisman")
@@ -1731,6 +2213,7 @@ def html_to_pdf(html_path: Path) -> Path:
     if shutil.which("wkhtmltopdf"):
         r = subprocess.run(
             ["wkhtmltopdf", "--page-size", "Letter", "--quiet",
+             "--enable-local-file-access",
              str(html_path), str(pdf_path)],
             capture_output=True, timeout=30
         )
@@ -1811,11 +2294,13 @@ def main():
         sparky           = get_sparky_shiny(date_str)
         leading_talisman = get_leading_talisman()
         player_data      = get_player_data(cfg)
+        existing_feature_image = ISSUE_IMAGES_DIR / f"{date_str}-feature.png"
         meta = {
             "date_str":      date_str,
             "issue_number":  issue_number,
             "belief":        player_data.get("belief", "?"),
             "talisman_name": leading_talisman.get("name", "") if leading_talisman else "",
+            "feature_image": f"../images/{existing_feature_image.name}" if existing_feature_image.exists() else "",
         }
         # Parse sections from the saved HTML for Telegram text generation
         saved_html = issue_path.read_text()
@@ -1873,8 +2358,10 @@ def main():
             "tick_queue":            tick_queue or "(no simulation activity since last session)",
             "thread_summary":        thread_summary,
             "entity_standings":      entity_standings,
+            "classified_leads":      build_classified_leads(),
             "market_odds_formatted": market_odds_formatted,
             "war_data":              format_war_data(war_info),
+            "outer_stacks":          get_outer_stacks_brief(player_data.get("name", "bj")),
             "player_recap":          player_recap,
             "talisman_data":         talisman_data_str,
             "talisman_npcs":         talisman_npcs or "(no chapter NPCs found)",
@@ -1890,13 +2377,34 @@ def main():
             print("  ⚠ Agent returned no content. Check logs.")
             return
 
+        if not (sections.get("OUTERSTACKS") or "").strip():
+            fallback = build_outer_stacks_fallback(data)
+            if fallback:
+                sections["OUTERSTACKS"] = fallback
+                print("  ↺ OUTERSTACKS missing from model output — used deterministic fallback.")
+
         # ── Build HTML ───────────────────────────────────────────────────────
+        headline_parts = parse_headline(sections.get("HEADLINE", ""))
+        feature_image_path = generate_feature_image(sections.get("FEATURE", ""), {
+            "date_str": date_str,
+            "issue_number": issue_number,
+            "headline_title": headline_parts.get("title", ""),
+            "headline_body": headline_parts.get("body", ""),
+            "gossip": sections.get("GOSSIP", ""),
+            "market": sections.get("MARKET", ""),
+            "weather": sections.get("WEATHER", ""),
+        })
         meta = {
             "date_str":       date_str,
             "issue_number":   issue_number,
             "belief":         player_data.get("belief", "?"),
             "talisman_name":  leading_talisman.get("name", "") if leading_talisman else "",
+            "player_name":    player_data.get("name", "bj"),
+            "feature_image":  f"../images/{feature_image_path.name}" if feature_image_path else "",
         }
+        errors = validate_generated_sections(sections)
+        if errors:
+            print("  ⚠ Section validation issues: " + "; ".join(errors))
         html = build_html(sections, sparky, meta)
 
         # ── Save ─────────────────────────────────────────────────────────────
@@ -1910,6 +2418,10 @@ def main():
 
     # ── CUPS print ───────────────────────────────────────────────────────────
     print_to_cups(issue_path, cfg)
+
+    classifieds_text = sections.get("CLASSIFIEDS", "")
+    record_classifieds_hooks(date_str, meta["issue_number"], classifieds_text)
+    ensure_scene_ledger_seed(date_str, meta["issue_number"], sections, meta)
 
     # ── Mark delivered ───────────────────────────────────────────────────────
     delivery_flag.write_text(datetime.now().isoformat())

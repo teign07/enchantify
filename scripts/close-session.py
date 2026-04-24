@@ -84,6 +84,9 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from scene_ledger import load_entries as load_scene_ledger_entries
+from thread_sync import sync_thread_files
+
 BASE        = Path(__file__).parent.parent
 SESSIONS_F  = Path.home() / ".openclaw" / "agents" / "enchantify" / "sessions" / "sessions.json"
 SESSIONS_D  = SESSIONS_F.parent
@@ -421,9 +424,13 @@ def update_arc_spine(events: dict, date: str, dry_run: bool):
     spine_path = BASE / "memory" / "arc-spine.md"
     content = read_file(spine_path)
     summary = events.get("session_summary", "").strip()
+    scene_ledger = events.get("scene_ledger", {})
 
     if not summary:
         return
+
+    if scene_ledger.get("titles"):
+        summary = summary.rstrip() + f"\n\nRecent scene titles: {', '.join(scene_ledger.get('titles', [])[-3:])}."
 
     # Update belief state line if we have a final belief
     belief_final = events.get("belief_final")
@@ -549,6 +556,73 @@ def update_player_file(events: dict, player: str, dry_run: bool):
     write_file(path, content, dry_run)
 
 
+def update_labyrinth_state_from_events(events: dict, dry_run: bool):
+    scene_ledger = events.get("scene_ledger", {})
+    if not scene_ledger:
+        return
+
+    state_path = BASE / "memory" / "labyrinth-state.md"
+    content = read_file(state_path)
+    if not content:
+        return
+
+    titles = scene_ledger.get("titles", [])[-3:]
+    failures = scene_ledger.get("delivery_failures", [])
+    latest_text = (scene_ledger.get("latest_text") or "").strip()
+
+    watching = []
+    if titles:
+        watching.append("Recent realized scenes: " + ", ".join(titles))
+    if latest_text:
+        watching.append("Latest delivered scene texture: " + latest_text[:220])
+    if failures:
+        watching.append("Delivery weak points observed: " + "; ".join((f.get("title") or f.get("scene_id") or "scene") for f in failures[:3]))
+    if not watching:
+        return
+
+    new_block = "\n".join(f"- {line}" for line in watching)
+    content = re.sub(
+        r'(## What It\'s Watching\n)([\s\S]*?)(?=\n## |\Z)',
+        lambda m: m.group(1) + "\n" + new_block + "\n",
+        content,
+    )
+    write_file(state_path, content, dry_run)
+
+
+def scene_ledger_digest(date: str) -> dict:
+    entries = load_scene_ledger_entries(date)
+    if not entries:
+        return {"entries": [], "scene_ids": [], "titles": [], "delivery_failures": [], "latest_text": ""}
+
+    scene_ids = []
+    titles = []
+    delivery_failures = []
+    latest_text = ""
+    for entry in entries:
+        scene_id = entry.get("scene_id")
+        title = entry.get("title")
+        if scene_id:
+            scene_ids.append(scene_id)
+        if title:
+            titles.append(title)
+        if entry.get("delivery_ok") is False or entry.get("essential_ok") is False:
+            delivery_failures.append({
+                "scene_id": scene_id,
+                "title": title,
+                "essential_ok": entry.get("essential_ok"),
+                "delivery_ok": entry.get("delivery_ok"),
+            })
+        if entry.get("text"):
+            latest_text = entry.get("text")
+    return {
+        "entries": entries,
+        "scene_ids": scene_ids,
+        "titles": titles,
+        "delivery_failures": delivery_failures,
+        "latest_text": latest_text,
+    }
+
+
 # ── Thread state updaters ─────────────────────────────────────────────────────
 
 THREADS_MD   = BASE / "lore" / "threads.md"
@@ -557,62 +631,18 @@ REGISTER_MD  = BASE / "lore" / "world-register.md"
 
 def update_thread_in_register(name: str, phase: str, status: str, dry_run: bool):
     """Update the Notes column for a thread row in world-register.md Active Threads."""
-    content = read_file(REGISTER_MD)
-
-    # Match the row regardless of "The " prefix, case-insensitive
-    bare = re.sub(r'^[Tt]he\s+', '', name)
-    row_pat = re.compile(
-        r'^(\|\s*(?:The\s+)?' + re.escape(bare) + r'\s*\|\s*Thread\s*\|\s*\d+\s*\|)\s*([^|]*)\|',
-        re.MULTILINE | re.IGNORECASE
-    )
-    m = row_pat.search(content)
-    if not m:
+    result = sync_thread_files(name, phase=phase, status=status, dry_run=dry_run)
+    if not result.get("register_changed"):
         print(f"  · Thread '{name}' not found in world-register Active Threads — skipping register update")
-        return
-
-    # Preserve [id:slug] tag from the existing notes
-    old_notes = m.group(2)
-    id_tag = re.search(r'\[id:[^\]]+\]', old_notes)
-    id_prefix = id_tag.group(0) + ' ' if id_tag else ''
-
-    new_notes = f' {id_prefix}Phase: {phase} — {status} '
-    new_row = m.group(1) + new_notes + '|'
-    content = content[:m.start()] + new_row + content[m.end():]
-    write_file(REGISTER_MD, content, dry_run)
 
 
 def update_thread_in_threads_md(name: str, phase: str, next_beat: str, dry_run: bool):
     """Update **phase:** and optionally **Next beat:** in the threads.md section."""
-    content = read_file(THREADS_MD)
-
-    # Find the section for this thread
-    bare = re.sub(r'^[Tt]he\s+', '', name)
-    section_pat = re.compile(
-        r'(^## Thread:\s*(?:The\s+)?' + re.escape(bare) + r'.*?$)(.*?)(?=^## |\Z)',
-        re.MULTILINE | re.DOTALL | re.IGNORECASE
-    )
-    m = section_pat.search(content)
-    if not m:
+    from datetime import date as _date
+    last_advanced = _date.today().isoformat() if next_beat else None
+    result = sync_thread_files(name, phase=phase, next_beat=next_beat, last_advanced=last_advanced, dry_run=dry_run)
+    if not result.get("threads_changed"):
         print(f"  · Thread '{name}' not found in threads.md — skipping threads.md update")
-        return
-
-    section = m.group(2)
-
-    # Update **phase:**
-    if phase:
-        section = re.sub(r'(\*\*phase:\*\*\s*).*', rf'\g<1>{phase}', section)
-
-    # Update **Next beat:**
-    if next_beat:
-        section = re.sub(r'(\*\*Next beat:\*\*\s*).*', rf'\g<1>{next_beat}', section)
-
-        # Update **Last advanced:**
-        from datetime import date as _date
-        today = _date.today().isoformat()
-        section = re.sub(r'(\*\*Last advanced:\*\*\s*).*', rf'\g<1>{today}', section)
-
-    new_content = content[:m.start(2)] + section + content[m.end():]
-    write_file(THREADS_MD, new_content, dry_run)
 
 
 def print_thread_checklist():
@@ -678,6 +708,7 @@ def main():
     args = parser.parse_args()
 
     date = args.date or datetime.now(LOCAL_TZ).strftime("%Y-%m-%d")
+    ledger = scene_ledger_digest(date)
     print(f"\n📖 Closing session for {args.player} on {date}")
 
     # ── Step 1: Build transcript ──
@@ -765,6 +796,10 @@ def main():
     show("Enchantments",     events.get("enchantments_cast"))
     show("NPC interactions", events.get("npc_interactions"))
     show("Summary",          events.get("session_summary"))
+    if ledger["titles"]:
+        show("Scene ledger", ", ".join(ledger["titles"][-3:]))
+    if ledger["delivery_failures"]:
+        show("Delivery issues", ledger["delivery_failures"])
 
     # Save raw extracted JSON alongside transcript for debugging
     events_path = BASE / "logs" / "transcripts" / f"{date}-events.json"
@@ -772,12 +807,21 @@ def main():
         events_path.write_text(json.dumps(events, indent=2, ensure_ascii=False))
         print(f"  ✓ Events JSON saved → {events_path.relative_to(BASE)}")
 
+    if ledger["entries"]:
+        events["scene_ledger"] = {
+            "scene_ids": ledger["scene_ids"],
+            "titles": ledger["titles"],
+            "delivery_failures": ledger["delivery_failures"],
+            "latest_text": ledger["latest_text"][:1000],
+        }
+
     # ── Step 3: Cascade to state files ──
     print("\n3. Updating state files…")
     update_diary(events, date, args.player, args.dry_run)
     update_arc_spine(events, date, args.dry_run)
     update_nothing_intelligence(events, date, args.dry_run)
     update_player_file(events, args.player, args.dry_run)
+    update_labyrinth_state_from_events(events, args.dry_run)
 
     # ── Step 4: Thread updates ──
     thread_updates = events.get("thread_updates", [])

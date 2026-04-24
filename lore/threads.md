@@ -78,9 +78,9 @@ Two endings:
 **entities:** Boggle, Great Hall, fae species (all tagged academy-daily in register)
 **Nothing pressure:** low — the Nothing makes the ordinary feel hollow, not absent. Meals taste of nothing. Boggle's puns land wrong. The corridor light flattens.
 
-**Next beat:** A stray cat from the grotto—smelling of old parchment and damp stone—has taken up residence on the Riddlewind table, batting at the Obsidian Chronograph whenever it ticks.
+**Next beat:A few students start exaggerating their steps and clapping in deliberate rhythm to shake off the silver-ink drag, turning the corridor shuffle into a half-joking march toward lunch. Professor Boggle, realizing the room needs stronger nonsense, climbs onto a bench and begins calling out increasingly awful puns until the first real groans crack the damp spell and the spicy ice finally starts to melt.
 
-**Last advanced:** 2026-04-15
+**Last advanced:2026-04-21
 **born:** 2026-04-01
 **closed:** —
 
@@ -112,16 +112,16 @@ Two endings:
 
 **id:** `zara-inkwright`
 **type:** npc-subplot
-**phase:** setup
+**phase:rising
 **pressure:** low *(will rise — portfolio deadline is approaching, Wicker knows)*
 **npc_anchor:** Zara Finch (Belief 23)
 **locations:** The Library, Inkwright Society Hall, Zara's usual corner of the Great Hall
 **entities:** Zara Finch
 **Nothing pressure:** medium — the Nothing would love to make her doubt the portfolio is good enough. Self-erasure before the deadline.
 
-**Next beat:** She's working on something she keeps covering when people walk past. She needs one more piece of evidence — something real, not performed. She hasn't asked for help yet.
+**Next beat:The glowing 'Believe' rune expands, fracturing Zara's portfolio pages into shifting inkwells. She must now choose: extract the runes to protect her work or let them dissolve into the paper, risking their permanent loss.
 
-**Last advanced:** 2026-04-12
+**Last advanced:2026-04-21
 **born:** 2026-04-12
 **closed:** —
 
@@ -138,9 +138,9 @@ Two endings:
 **entities:** Wicker Eddies
 **Nothing pressure:** high — Wicker is adjacent to the Nothing. His schemes drain Belief from others as a feature, not a side effect. The Nothing doesn't control him; they simply have similar tastes.
 
-**Next beat:** His crew has been quieter than usual. Quiet Wicker is worse than loud Wicker. Something is being planned. It involves the exhibition.
+**Next beat:The ink-black rot pulses with a rhythmic, sickening heat, seeking to undo the 'overwriting' bj performed during the last confrontation. As Zara's Belief continues to drain into the slogans, bj must find the three 'Dissent Anchors' and re-anchor them with a physical detail from his current surroundings to stop the bleed.
 
-**Last advanced:** 2026-04-12
+**Last advanced:2026-04-19
 **born:** 2026-04-01
 **closed:** —
 
@@ -152,16 +152,16 @@ Two endings:
 
 **id:** `duskthorn-investigation`
 **type:** mystery
-**phase:** dormant *(player hasn't engaged — but the thread is running)*
-**pressure:** low *(will rise — the west corridor has been sealed two weeks longer than it should be)*
-**npc_anchor:** Headmistress Thorne (Belief 85) — unknowingly
+**phase:rising
+**pressure:** high *(the player has engaged, and Thorne is active)*
+**npc_anchor:** Headmistress Thorne (Belief 83)
 **locations:** Duskthorn Common Areas, The West Corridor, The Restricted Section, Headmistress's Office
-**entities:** Headmistress Thorne, Dusk Thorn Talisman
+**entities:** Headmistress Thorne, Dusk Thorn Talisman, Victor Ebonheart
 **Nothing pressure:** high — something in Duskthorn is already adjacent to absence. The sealed corridor smells of it.
 
-**Next beat:** The west corridor has been sealed for two weeks longer than scheduled. No explanation was given. No one mentions it. The Dusk Thorn talisman has been reading higher than its chapter's actual influence warrants.
+**Next beat:The rogue shadow successfully unlocks the Restricted Section, but as the player follows it across the threshold, the 'curated' pass begins to pulse with a cold light that drains warmth directly from their hand. Inside the silent archive, the shadow detaches from the floor entirely, and the player must decide whether to chase it into the light-swallowing depths or retreat before the freezing pass becomes impossible to hold.
 
-**Last advanced:** never (dormant)
+**Last advanced:2026-04-19
 **born:** 2026-04-01
 **closed:** —
 

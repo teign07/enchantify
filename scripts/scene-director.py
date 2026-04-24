@@ -36,8 +36,18 @@ import json
 from datetime import datetime, date, timedelta
 from pathlib import Path
 
+from scene_ledger import load_entries as load_scene_ledger_entries
+
 _SCRIPT_DIR = Path(__file__).parent
 WORKSPACE   = _SCRIPT_DIR.parent
+
+MECHANICS_DIR = WORKSPACE / "mechanics"
+if str(MECHANICS_DIR) not in sys.path:
+    sys.path.insert(0, str(MECHANICS_DIR))
+try:
+    import mechanics_state
+except ImportError:
+    mechanics_state = None
 
 # ── Import schedule module ─────────────────────────────────────────────────────
 
@@ -80,6 +90,86 @@ def latest_file(directory: Path, glob: str = "*.md") -> Path:
 
 def truncate(s: str, n: int = 120) -> str:
     return s[:n] + "…" if len(s) > n else s
+
+
+def parse_world_register_entities() -> list[dict]:
+    text = read_safe(WORKSPACE / "lore" / "world-register.md")
+    entities = []
+    row_re = re.compile(r"^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|", re.MULTILINE)
+    for m in row_re.finditer(text):
+        name, etype, belief, notes = m.groups()
+        clean_name = name.strip()
+        if clean_name.lower() in ("entity", "talisman", "name", "---", ""):
+            continue
+        entities.append({
+            "name": clean_name,
+            "type": etype.strip(),
+            "belief": int(belief),
+            "notes": notes.strip(),
+        })
+    return entities
+
+
+def parse_recent_tick_entities(limit: int = 12) -> list[str]:
+    text = read_safe(WORKSPACE / "memory" / "tick-queue.md")
+    names = []
+    lines = [line for line in text.splitlines() if line.strip().startswith("-")]
+    for line in reversed(lines):
+        thread_match = re.search(r"stirred\s+—\s+([^\(\[]+)", line)
+        if thread_match:
+            name = thread_match.group(1).strip().strip("*")
+            if name and name not in names:
+                names.append(name)
+                if len(names) >= limit:
+                    break
+            continue
+
+        entity_match = re.search(r"\*\*([^*\[][^*]+)\*\*\s*\((?:NPC|Location|Object|Tool|fae|Fae|Thread|Talisman)", line)
+        if entity_match:
+            name = entity_match.group(1).strip()
+            if name and not name.startswith("[") and name not in names:
+                names.append(name)
+                if len(names) >= limit:
+                    break
+    return names
+
+
+def layer_cast_suggestions() -> str:
+    """
+    Recommend a grounded cast from the simulation itself.
+    Prefer fresh stirred entities, then highest-Belief NPCs/locations/objects.
+    """
+    entities = parse_world_register_entities()
+    recent = parse_recent_tick_entities()
+    by_name = {e["name"]: e for e in entities}
+
+    picks = []
+    for name in recent:
+        entity = by_name.get(name)
+        if entity and entity["type"].lower() in ("npc", "location", "object", "tool", "fae", "thread"):
+            picks.append(("fresh", entity))
+
+    weighted = [
+        e for e in entities
+        if e["type"].lower() in ("npc", "location", "object")
+    ]
+    weighted.sort(key=lambda e: e["belief"], reverse=True)
+    for entity in weighted:
+        if entity["name"] not in {e["name"] for _, e in picks}:
+            picks.append(("weight", entity))
+        if len(picks) >= 5:
+            break
+
+    formatted = []
+    for source, entity in picks[:5]:
+        tag = "fresh" if source == "fresh" else f"B{entity['belief']}"
+        note = entity.get("notes", "")
+        note = re.sub(r"\[thread:[^\]]+\]\s*", "", note).strip()
+        note = re.sub(r"\[id:[^\]]+\]\s*", "", note).strip()
+        note = truncate(note, 60) if note else entity["type"]
+        formatted.append(f"{entity['name']} ({tag}) — {note}")
+
+    return " | ".join(formatted)
 
 
 # ── Layer 1: WHO ───────────────────────────────────────────────────────────────
@@ -414,6 +504,37 @@ def layer_player(player_name: str) -> str:
 
 # ── Layer 6: SCHEDULE ──────────────────────────────────────────────────────────
 
+def layer_mechanics(player_name: str) -> str:
+    if mechanics_state is None:
+        return "mechanics-state unavailable"
+
+    state = mechanics_state.get_mechanics_state(WORKSPACE, player_name)
+    parts = [f"belief-band:{state['belief_band']}"]
+
+    if state["should_offer_compass"]:
+        parts.append("compass:offer-now")
+    elif state["compass_locked_today"]:
+        parts.append("compass:already-used-today")
+
+    if state["should_offer_enchantment"]:
+        parts.append("enchantment:offer-now")
+
+    if state.get("consecutive_declines", 0) >= 3:
+        parts.append(f"declines:{state['consecutive_declines']} (next refusal costs belief)")
+    elif state.get("consecutive_declines", 0) > 0:
+        parts.append(f"declines:{state['consecutive_declines']}")
+
+    if state["should_roll"]:
+        parts.append("dice:roll-on-risk")
+    else:
+        parts.append("dice:only-if-uncertain-and-interesting")
+
+    if state.get("last_compass_run"):
+        parts.append(f"last-run:{state['last_compass_run']}")
+
+    return " | ".join(parts)
+
+
 def layer_schedule() -> str:
     """Return compact schedule line: block, class in session, next class."""
     if not _SCHEDULE_OK:
@@ -455,6 +576,66 @@ def layer_schedule() -> str:
         parts.append(f"CUE: {truncate(cue, 80)}")
 
     return " · ".join(parts)
+
+
+# ── Layer 7: DREAM ─────────────────────────────────────────────────────────────
+
+def layer_bleed_hooks() -> str:
+    """Recent open classifieds plus realized-scene bleed, surfaced as live pressure."""
+    ledger_dir = WORKSPACE / "logs" / "classifieds-ledger"
+    hook_parts = []
+
+    if ledger_dir.exists():
+        files = sorted(ledger_dir.glob("*.json"))
+        if files:
+            try:
+                data = json.loads(files[-1].read_text(encoding="utf-8"))
+            except Exception:
+                data = {}
+
+            weighted = []
+            label_weight = {
+                "WARNING": 5,
+                "NOTICE": 4,
+                "SEEKING": 3,
+                "LOST": 3,
+                "FOUND": 2,
+                "REWARD": 2,
+            }
+            for entry in data.get("entries", []):
+                if entry.get("status") != "open":
+                    continue
+                label = (entry.get("label") or "NOTICE").upper()
+                text = (entry.get("text") or "").strip()
+                if not text:
+                    continue
+                weighted.append((label_weight.get(label, 1), f"{label}: {truncate(text, 90)}"))
+
+            weighted.sort(key=lambda item: item[0], reverse=True)
+            hook_parts.extend(text for _w, text in weighted[:3])
+
+    scene_parts = []
+    try:
+        entries = load_scene_ledger_entries()
+    except Exception:
+        entries = []
+
+    for entry in reversed(entries):
+        title = (entry.get("title") or "").strip()
+        text = (entry.get("text") or "").strip()
+        if not text:
+            continue
+        if title and "Bleed Frontier Desk" in title:
+            scene_parts.append(f"Frontier pressure: {truncate(text.splitlines()[0].strip(), 100)}")
+            break
+
+    parts = []
+    if hook_parts:
+        parts.append("open hooks -> " + " | ".join(hook_parts))
+    if scene_parts:
+        parts.extend(scene_parts)
+
+    return " | ".join(parts)
 
 
 # ── Layer 7: DREAM ─────────────────────────────────────────────────────────────
@@ -606,20 +787,23 @@ def build_slate(player_name: str) -> dict:
     return {
         "SCENE_ANCHOR": layer_state(),           # empty when not yet written
         "CAST":         layer_who(),
+        "CAST_GROUND":  layer_cast_suggestions(),
         "FEEL":         layer_feel(),
         "STORY":        layer_story(),
         "TALISMAN":     layer_talisman(),
         "NOTHING":      layer_nothing(player_name),
         "RESEARCH":     layer_research(),        # empty string when no fresh notes
         "PLAYER":       layer_player(player_name),
+        "MECHANICS":    layer_mechanics(player_name),
         "SCHEDULE":     layer_schedule(),
+        "BLEED":        layer_bleed_hooks(),
         "DREAM":        layer_dream(),
         "SUPPRESS":     layer_suppress(player_name),
     }
 
 
-_SLATE_KEYS = ("SCENE_ANCHOR", "CAST", "FEEL", "STORY", "TALISMAN", "NOTHING",
-               "RESEARCH", "PLAYER", "SCHEDULE", "DREAM", "SUPPRESS")
+_SLATE_KEYS = ("SCENE_ANCHOR", "CAST", "CAST_GROUND", "FEEL", "STORY", "TALISMAN", "NOTHING",
+               "RESEARCH", "PLAYER", "MECHANICS", "SCHEDULE", "BLEED", "DREAM", "SUPPRESS")
 
 
 def print_slate(player_name: str, slate_only: bool = False):
@@ -668,8 +852,10 @@ def main():
             "4": ("NOTHING",      lambda: layer_nothing(player_name)),
             "R": ("RESEARCH",     lambda: layer_research()),
             "5": ("PLAYER",       lambda: layer_player(player_name)),
+            "M": ("MECHANICS",    lambda: layer_mechanics(player_name)),
             "6": ("SCHEDULE",     lambda: layer_schedule()),
             "7": ("DREAM",        lambda: layer_dream()),
+            "B": ("BLEED",        lambda: layer_bleed_hooks()),
             "S": ("SUPPRESS",     lambda: layer_suppress(player_name)),
         }
         if debug_layer in layers:
@@ -677,7 +863,7 @@ def main():
             print(f"\n[Layer {debug_layer}: {name}]")
             print(fn())
         else:
-            print(f"Unknown layer '{debug_layer}'. Valid: A, 1–7, T, R, S")
+            print(f"Unknown layer '{debug_layer}'. Valid: A, 1–7, B, M, T, R, S")
         return
 
     print_slate(player_name, slate_only=slate_only)

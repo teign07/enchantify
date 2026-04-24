@@ -1,8 +1,8 @@
 # Enchantify — The Labyrinth of Stories
 ## Complete Capability Reference
 
-*Version: 9.0.0 — The Hourly World*
-*Last updated: April 18, 2026*
+*Version: 11.0.0 — Model Migration & Pipeline Hardening*
+*Last updated: April 23, 2026*
 
 ---
 
@@ -14,7 +14,7 @@ Enchantify is an interactive narrative role-playing game that runs as a register
 
 **The Revolution:** Enchantify is not a game you open. It's a place that *lives*. The Academy advances every four hours whether you're watching or not. NPCs make choices. The Nothing moves. Relationships evolve. When you return, you're not resuming a save file — you're catching up with a life.
 
-**Model:** Configurable at install — defaults to Claude Sonnet 4.6. Any OpenClaw-supported model works (Claude Opus 4.6, Haiku 4.5, GPT-4o, or custom). Set `MODEL_ID` in `config/secrets.env`.
+**Model:** Brain is `claude-sonnet-4-6` via Claude subscription connected to OpenClaw. Routing/sub-tasks use `openai-codex/gpt-5.4` (spawn, heavy tasks) and `openai-codex/gpt-5.4-mini` (scene conductor, routing). Set in `~/.openclaw/openclaw.json`.
 
 **Platform:** OpenClaw registered agent with permanent workspace. Player interface: **Telegram** — all play, photos, GPS shares, and outreach happen through a dedicated Enchantify Telegram bot.
 
@@ -43,7 +43,7 @@ Enchantify is an interactive narrative role-playing game that runs as a register
 - **The Heartbeat System:** Reads `enchantify/HEARTBEAT.md` — a single source of truth containing weather, tides, music (Spotify), nutrition, steps, moon phase, Sparky's daily shiny, and yesterday's diary/dream excerpt. All injected by their respective scripts via HTML marker blocks. Bleeds into Academy atmosphere without announcing it. Poor sleep → dimmer corridors. Low steps → quieter halls. The player feels known, not monitored. Written by `scripts/pulse.py` (enchantify-internal) every 15 minutes via cron; also saves `enchantify/PREVIOUS_PULSE.md` for delta detection.
 - **The Labyrinth's Inner Life:** The Labyrinth has its own diary (`memory/diary/`) and nightly dreams (`memory/dreams/`), generated automatically. Excerpts are injected into `HEARTBEAT.md` nightly by `labyrinth-intelligence.py`. These are private — but they color how it narrates and what it notices.
 - **The Marginalia Bridge:** NPCs are aware of local news, Reddit trends, and global events, framed as "Whispers from the Unwritten Chapter."
-- **World Simulation:** A background cron runs every 3 hours to evolve world state. NPCs move, weather changes, arc phases advance — even when you aren't playing. Each run has a 25% chance of triggering NPC research.
+- **World Simulation:** A background cron runs every 4 hours to evolve world state and dispatch a voice-first Academy update. It now uses a weighted living-world simulation: high-Belief entities act more often, but low-Belief entities still retain a real chance to move. NPCs, talismans, threads, anchors, and other weighted entities can all influence offscreen pressure. Each run can still trigger NPC research, and the final dispatch is delivered through the local Telegram TTS path rather than built-in cron delivery.
 - **Story Arc Rotation:** The Labyrinth tells stories in seasons — twelve genre types rotating to ensure variety. No two consecutive arcs repeat. The Nothing is rate-limited to once every three arcs.
 - **The Empathy Engine:** Monitors player wellness via heartbeat (including biometrics from Apple Watch/Health) and responds with narrative care — never clinical guilt. Nightly intelligence run detects low steps, poor sleep, and mood dips; writes tick-queue interventions in the Labyrinth's voice.
 - **NPC Research:** During the world simulation, NPCs occasionally research topics from their Unwritten Interests and deliver findings to the player (iCloud Notes, Telegram, local file). Costs them Belief. Delivered in the NPC's voice, woven into the next session as a tick-queue seed.
@@ -52,11 +52,13 @@ Enchantify is an interactive narrative role-playing game that runs as a register
 - **The Compass Run:** A structured real-world quest based on the Wonder Compass framework. Notice something. Do something — anything — in the world. Sense it. Write one sentence. +9 Belief. A run can be walking the block, driving two towns over, cooking at home, lying on the floor and looking at it like Gulliver, or noticing a line on your hand you've never seen before. The only requirement is that attention landed somewhere real.
 - **Magical Traditions Framework:** The Labyrinth actively teaches real-world magical traditions through fiction, never naming them directly. Animism is the base layer — Enchantments are animist acts, the Nothing is animism's failure. Folk magic and witchcraft live in the seasonal calendar, the souvenir sentence (a vessel), and Compass Runs (ambulatory magic). Fae lore governs all Outer Stacks and fae interaction (six canonical rules: bargains, true names, thresholds, gifts, time, stories-as-literal). Ceremonial magic (Momort's corrupted Hermetic tradition) structures the compass correspondences — North/Earth, East/Air, South/Fire, West/Water, Center/Spirit. Chaos magic (Wicker) explains his genuine effectiveness and danger. Zen (Stonebrook) is the contemplative ground of the Notice direction. Narrative magic (Thorne, Villanelle) holds that language is not a map of the world — it is a hand laid on it. Full reference: `lore/magical-traditions.md`.
 - **The Restricted Section (expanded):** Eight documents covering the full depth of the Academy's hidden knowledge. Includes: `the-nothings-manuscript.md` (the Nothing's own voice — the case for numbness, quietly reasonable), `founding-compact.md` (what the Academy actually is and why it was built), `records-of-the-unfinished.md` (students whose stories paused; the door is always open), `thornes-private-observations.md` (private journal entries; centuries of watching wonder find and lose people). The therapeutic truth is present throughout — veiled in the fiction, never named directly.
-- **Story Thread System:** Named stories with Belief mass. Threads are born from high-Belief NPCs, Labyrinth proposals, or player investment. They live in `lore/threads.md` and `lore/world-register.md` (Active Threads section). tick.py stirs them like any entity — high Belief = stirred more often = story advances. Threads escalate through phases (dormant → setup → rising → climax → resolution at 50+), emit lifecycle signals to tick-queue, and die either through natural resolution or Nothing victory. Belief updates are surgical: `write-entity.py --thread` patches the belief number in-place. The Labyrinth never edits thread rows directly.
+- **Story Thread System:** Named stories with Belief mass. Threads are born from high-Belief NPCs, Labyrinth proposals, or player investment. They live in `lore/threads.md` and `lore/world-register.md` (Active Threads section). tick.py stirs them like any entity — high Belief = stirred more often = story advances, but selection is now probabilistic rather than a hard top-band cutoff. Threads escalate through phases (dormant → setup → rising → climax → resolution at 50+), emit lifecycle signals to tick-queue, and die either through natural resolution or Nothing victory. Thread state is now synchronized through a shared helper so `threads.md` and `world-register.md` stop drifting apart. Belief updates are surgical: `write-entity.py --thread` patches the belief number in-place. The Labyrinth never edits thread rows directly.
 - **Talisman Behavior Nudge:** Real-world signals from `HEARTBEAT.md` (steps, sleep, HRV, calendar events, fuel logged) shift Talisman Belief ±1 each tick. Emberheart rises when the player is active and present. Mossbloom rises when the player is rested and fed. Duskthorn rises when the player is exhausted or absent. Cap: 2 talismans per tick, ±1 per talisman. The war is not just philosophical — it's metabolic.
 - **The Midnight Revision:** Every four days, the Labyrinth audits itself and invents new lore, NPCs, rooms, or mechanics. Proposals go to `proposed/` for 48-hour player veto before becoming canon. The nightly intelligence run (23:00) is separate — it senses and writes, never proposes.
-- **Mission Control:** Live HTML dashboard (`hooks/mission-control.html`) showing threads, world state, cron job status (openclaw + system crontab), and Bleed issues. Thread cards show live status from world-register Active Threads Notes (updated by Flash each session); phase and description are authoritative there. Auto-regenerated on every pulse run. Run manually: `python3 scripts/mission-control.py`.
-- **LLM Provider:** All generative scripts (`dream.py`, `sparky.py`, `arc-generator.py`, `npc-research.py`, `labyrinth-intelligence.py`) call Gemini via `openclaw agent --local --agent enchantify -m "..."`. No API keys needed — OAuth handled by OpenClaw.
+- **Mission Control:** Live HTML dashboard (`hooks/mission-control.html`) showing threads, world state, cron job status (openclaw + system crontab), and Bleed issues. Thread cards show live status from world-register Active Threads Notes (updated each session); phase and description are authoritative there. Auto-regenerated on every pulse run. Run manually: `python3 scripts/mission-control.py`.
+- **The Labyrinth Budget:** The Labyrinth earns a real monthly budget ($20 cap) through player engagement — Compass Runs ($2), Enchantments ($1), sessions ($0.50), Belief milestones ($1). NPCs propose spending it on real purchases (books, coffee, donations). Player approves via Telegram or session. Executed via Privacy.com virtual card. Ledger: `config/spend-ledger.json`. Script: `scripts/spend.py`.
+- **Scene Delivery Pipeline:** Active-play scenes flow through a gated, multi-modal stack: `mechanics-preflight.py` (gate) → `run-live-scene.py` (canonical entry) → `play_scene.py` → `scene_packet_builder.py` (builds ScenePacket) → `scene_conductor.py` (fans out to text, voice, image, lights, music, Spotify, printer). All delivered scenes are ledgered in `logs/scene-ledger/` as JSONL. Named speakers must pass `scene-preflight.py` before any reply.
+- **LLM Provider:** All generative scripts (`dream.py`, `sparky.py`, `arc-generator.py`, `npc-research.py`, `labyrinth-intelligence.py`) call the configured model via `openclaw agent --local --agent enchantify -m "..."`. Active model: `openai-codex/gpt-5.4` (spawn/heavy tasks), `openai-codex/gpt-5.4-mini` (routing, scene conductor). No API keys needed — handled by OpenClaw.
 
 ---
 
@@ -592,7 +594,7 @@ All exchanges logged to `logs/belief-combat.md`. Full rules: `lore/belief-combat
 | Aftermath | 2–4 days | World settles. NPCs process. Seeds planted. |
 | Quiet | 2–5 days | Slice of life. No crisis. Breathing room. |
 
-**Arc generation:** During Quiet phase, the Labyrinth runs `scripts/arc-generator.py`. It reads genre rotation history, unresolved seeds (`lore/seeds.md`), and `HEARTBEAT.md`, then generates a full arc proposal via `openclaw agent --local --agent enchantify` (Gemini) and writes it to `proposed/arc-[date].md`. Sent as a Midnight Dispatch. **Player has 48 hours to veto.** On acceptance: `python3 scripts/arc-generator.py --accept proposed/arc-[date].md` archives the old arc, promotes the new one, updates rotation.
+**Arc generation:** During Quiet phase, the Labyrinth runs `scripts/arc-generator.py`. It reads genre rotation history, unresolved seeds (`lore/seeds.md`), and `HEARTBEAT.md`, then generates a full arc proposal via `openclaw agent --local --agent enchantify` and writes it to `proposed/arc-[date].md`. Sent as a Midnight Dispatch. **Player has 48 hours to veto.** On acceptance: `python3 scripts/arc-generator.py --accept proposed/arc-[date].md` archives the old arc, promotes the new one, updates rotation.
 
 **Current arc:** `lore/current-arc.md`. Archived arcs: `lore/arc-archive/`.
 
@@ -623,12 +625,12 @@ The Labyrinth tells stories in seasons — twelve genre types cycling to ensure 
 
 ### §8c. Choice Scaffolding (Rule of Three)
 
-End every active-play response with a question and three concrete examples:
+When it fits the moment, end active-play responses with a question and three concrete example moves in this order:
 1. **Slice of Life** — clubs, mundane NPC chat, food, daily school texture
 2. **Narrative Push** — advance the current arc or active threads
 3. **The Surprising** — weird, hidden mechanic, Heartbeat bleed, unexpected
 
-These are examples only. The player can do anything. Never leave them staring at a blank page.
+These are examples only, not rails. The player can do anything. If adding the scaffold would make the scene worse, break the mood, or interrupt a clean ending beat, omit it. Otherwise, never leave them staring at a blank page.
 
 ---
 
@@ -764,20 +766,19 @@ Every player has an enchanted textbook called *The Labyrinth of Stories* — ver
 
 ### §13. Academy World Simulation
 
-**Cron:** Every 3 hours at :30 (`30 */3 * * *`)
+**Cron:** Every 4 hours at :32 (`32 */4 * * *`)
 
 Each turn:
 1. Check session lock — if `config/session-active.lock` exists, skip and log. Never interrupt active play.
-2. **World simulation tick:** Run `python3 scripts/tick.py` → reads `lore/world-register.md`, selects 1–3 entities by weighted-random probability, checks all anchor files for 30-day decay. Results appended to `memory/tick-queue.md`. **Time-aware:** at night (10 PM–5 AM), tick is capped at 1 entity, sleeping NPCs are filtered from the pool (crisis entities at Belief ≤ 2 always stirrable regardless of time), and the tick header includes the current time block and a time prefix (e.g., `*4:00 AM — Academy asleep.*`).
-3. **World Pulse:** Run `python3 scripts/world-pulse.py` → detects entity Belief changes since last pulse, writes NORMAL or `[PRIORITY: HIGH]` seeds to tick-queue. Entities at Belief ≤ 2 trigger HIGH priority. `config/world-pulse-cache.json` tracks previous state. **Time-aware:** at night, pulse events use night-specific seed variants and the queue header includes `[night]` tag. After writing the pulse, **25% chance** (and only after 2+ pulse runs to avoid early-game noise) the script triggers `scripts/npc-research.py` — an NPC researches a topic from their Unwritten Interest and delivers findings. *Note: A Scene Change Pulse triggers this script immediately when moving to a new location or concluding a major interaction.*
+2. **World simulation tick:** Run `python3 scripts/tick.py` → reads `lore/world-register.md`, selects 1–3 entities by weighted-random probability, checks all anchor files for 30-day decay, and nudges chapter talismans from heartbeat signals. Results appended to `memory/tick-queue.md`. **Time-aware:** at night (10 PM–5 AM), tick is capped at 1 entity, sleeping NPCs are filtered from the pool (crisis entities at Belief ≤ 2 always stirrable regardless of time), and the tick header includes the current time block and a time prefix (e.g., `*4:00 AM — Academy asleep.*`).
+3. **World Pulse + simulation brain:** Run `python3 scripts/world-pulse.py` → detects entity Belief changes since last pulse, writes NORMAL or `[PRIORITY: HIGH]` seeds to tick-queue, and now calls a deeper living-world simulator (`scripts/narrative_sim.py`). That simulator derives actor profiles from the world register, lets top narrative-weight entities participate in a deeper band without hardcoding VIPs, gives talismans real agency, records offscreen continuity memory, emits talisman intents for pact behavior, and writes influence-aware traces shaped by nearby weighted pressures. `config/world-pulse-cache.json` tracks prior state; simulation memory is stored separately so offscreen actors persist across pulses. **Time-aware:** at night, pulse events use night-specific seed variants and the queue header includes `[night]` tag. After writing the pulse, **25% chance** (and only after 2+ pulse runs to avoid early-game noise) the script triggers `scripts/npc-research.py`. *Note: A Scene Change Pulse triggers this script immediately when moving to a new location or concluding a major interaction.*
 4. **Ambient State:** Run `python3 scripts/ambient-state.py` → finds dominant chapter talisman (highest Belief), fires matching LIFX scene, writes Spotify mood seed to tick-queue.
-5. Read `memory/tick-queue.md` — note stirred entities and any PRIORITY: HIGH items.
-6. Read current arc, academy state, characters, heartbeat, events
-7. Translate external news/events into Academy lore (Marginalia Bridge)
-8. Make one NPC choice (shaped by stirred entities from tick), one story thread advance, one environmental shift
-9. Optionally generate an Unwritten Elective (15% chance if player has fewer than 3)
-10. Update `lore/academy-state.md`, `lore/current-arc.md`, `logs/academy-hourly.md`
-11. Send one-line dispatch to the player (weave in a stirred entity naturally; lead with any HIGH-priority item)
+5. **Academy dispatch:** Refresh `lore/academy-state.md`, append `logs/academy-hourly.md`, then send the player a short Academy dispatch through the local `scripts/multi_voice_tts.py` Telegram path. Built-in cron announce delivery is intentionally bypassed.
+6. Read `memory/tick-queue.md` — note stirred entities and any PRIORITY: HIGH items.
+7. Read current arc, academy state, characters, heartbeat, events.
+8. Translate external news/events into Academy lore (Marginalia Bridge).
+9. Make one NPC choice, one story-thread advance, and one environmental shift, now shaped by stirred entities, simulation actions, and talisman pressure.
+10. Optionally generate an Unwritten Elective (15% chance if player has fewer than 3).
 
 ---
 
@@ -785,7 +786,7 @@ Each turn:
 
 Sparky lives in the white space at the edges of pages. It finds patterns. Not useful patterns — just places where two unrelated things happen to rhyme. It finds this genuinely delightful. It cannot help reporting it.
 
-**Standalone operation:** `scripts/sparky.py` runs daily at 8 AM. Reads heartbeat signals (moon phase, illumination, season, tides, weather, player Belief) and fetches Wikipedia's "On This Day" events via free API (`en.wikipedia.org/api/rest_v1/feed/onthisday/events/MM/DD`). Calls `openclaw agent --local --agent enchantify` (Gemini Flash) to find 1–2 genuine pattern-connections. Writes to `sparky/shinies/[date]-[time].md`. One shiny per day.
+**Standalone operation:** `scripts/sparky.py` runs daily at 8 AM. Reads heartbeat signals (moon phase, illumination, season, tides, weather, player Belief) and fetches Wikipedia's "On This Day" events via free API (`en.wikipedia.org/api/rest_v1/feed/onthisday/events/MM/DD`). Calls `openclaw agent --local --agent enchantify` to find 1–2 genuine pattern-connections. Writes to `sparky/shinies/[date]-[time].md`. One shiny per day.
 
 **HEARTBEAT.md injection:** After writing the shiny file, `sparky.py` injects the shiny text into `HEARTBEAT.md` inside a `<!-- SPARKY_START --> ... <!-- SPARKY_END -->` block (replaces existing block if present, or inserts after `<!-- PULSE_END -->`). This means Sparky is always available in the single heartbeat file at session start.
 
@@ -929,7 +930,7 @@ A different protocol from the 1-hour Return. Read `players/[name]-story.md` firs
 | `scripts/print-souvenir.sh` | After West (automatic) | Prints 4×6 souvenir card to configured printer |
 | `scripts/pulse.py` | 15-min cron (`*/15 * * * *`) | Enchantify's self-contained world pulse. Reads `config/secrets.env` for all credentials (no hardcoded keys). Writes to `enchantify/HEARTBEAT.md` and saves `enchantify/PREVIOUS_PULSE.md` for delta detection. Reads health data via `get_health()` (backend-aware: health_auto_export, garmin, fitbit, manual, none). Falls back to yesterday's health file if today is sparse. |
 | `scripts/update-weather.sh` | Hourly cron | Fetches weather, tides, moon, sunrise; writes heartbeat file |
-| `scripts/dream.py` | Nightly 2:03 AM cron | Generates Labyrinth's dream via Gemini (`openclaw agent`); writes to `memory/dreams/[date].md` |
+| `scripts/dream.py` | Nightly 2:03 AM cron | Generates Labyrinth's dream via `openclaw agent`; writes to `memory/dreams/[date].md` |
 | `scripts/sparky.py` | Daily 8 AM cron (`0 8 * * *`) | Finds pattern-connections via Wikipedia On This Day + heartbeat signals (moon, season, tides, weather, Belief). Calls `openclaw agent --local --agent enchantify`. Writes to `sparky/shinies/[date]-[time].md`. Injects `<!-- SPARKY_START -->` block into `HEARTBEAT.md`. Uses `shutil.which()` + Homebrew fallback for cron PATH safety. Reads config from `config/secrets.env`. |
 | `scripts/arc-generator.py` | Daily 2 AM cron (QUIET phase) | Generates arc proposal; `--accept` promotes to live |
 | `scripts/lights.py` | Labyrinth (scene changes) | Multi-backend smart lights. Backends: `lifx`, `ha` (Home Assistant), `hue`, `homekit`, or comma-separated chain. Named scenes: academy, library, nothing, dorm, great-hall, outer-stacks, tension, wonder, revelation, compass-north/east/south/west, compass-complete, book-snow-queen, book-odyssey, bookend, defeated, emberheart, mossbloom, riddlewind, tidecrest, duskthorn. Any color via `--color`, `--hue/--sat/--bright`, `--kelvin`, `--transition`. Config: `LIGHTS_BACKEND` in `config/secrets.env`. |
@@ -937,7 +938,7 @@ A different protocol from the 1-hour Return. Read `players/[name]-story.md` firs
 | `scripts/multi_voice_tts.py` | Labyrinth (TTS enabled) | Processes voice tags; generates stitched audio via Kokoro |
 | `scripts/midnight-audit.sh` | Midnight Revision cron | Stub for Midnight Revision protocol |
 | `scripts/anchor-check.py` | Labyrinth (Telegram location shared) | Reads `players/[name]-anchors.md`; reports anchors within 200m. `--checkin` flag records the visit, adds +5 Belief to anchor, updates `last-visited`. |
-| `scripts/tick.py` | 4-hour simulation cron | Weighted-random entity selection from `world-register.md` (1–3 entities; any can appear, higher Belief = higher probability). **Time-aware:** imports `world_context.py` to determine current time block; at night caps selection at 1, filters sleeping NPCs from pool (crisis entities at Belief ≤ 2 always stirrable), tags tick header with `[night]` and time prefix. Also checks anchor decay (30+ days unvisited → −1 Belief, floor 5). Appends to `memory/tick-queue.md`. `--count N` overrides selection count. |
+| `scripts/tick.py` | 4-hour simulation cron | Weighted-random entity selection from `world-register.md` (1–3 entities; any can appear, higher Belief = higher probability). Also runs heartbeat-driven talisman nudges, anchor decay (30+ days unvisited → −1 Belief, floor 5), and monthly pocket-anchor refills. **Time-aware:** imports `world_context.py` to determine current time block; at night caps selection at 1, filters sleeping NPCs from pool (crisis entities at Belief ≤ 2 always stirrable), tags tick header with `[night]` and time prefix. Appends to `memory/tick-queue.md`. `--count N` overrides selection count. |
 | `scripts/clear-tick-queue.py` | Session open (after reading tick-queue) | Resets `memory/tick-queue.md` to empty header. Called after Labyrinth weaves stirred entities into the session opening. |
 | `scripts/write-entity.py` | Labyrinth (entity Belief change / new entity) | Adds or updates an entity in `lore/world-register.md`. Auto-places in correct tier (15+ = Full Presence, 5–14 = Fading, <5 = Whisper). `--talisman` flag routes to Chapter Talismans section. `--gps-gated "Anchor Name"` flag adds a `📍 GPS-gated` tag. `--thread` flag: surgical in-place update of a thread row's Belief number only (use `--add` to add/subtract); never removes/reinserts the row. `--dry-run` previews without writing. Atomic write with backup. |
 | `scripts/belief-attack.py` | Labyrinth (Belief combat / debate / Nothing encounter) | Executes a Belief exchange using the dice system. **Dice mode:** `--spend N --difficulty [routine\|standard\|dramatic\|desperate]` — rolls d100 with attacker's Belief; outcome maps to deal ratio (crit success ×1.5, success ×1.0, near miss ×0.5, failure ×0, crit fail = backfire). **Explicit mode:** `--spend N --deal N` — skips roll (for passive/environmental effects). Enforces floors. Logs to `logs/belief-combat.md`. |
@@ -947,7 +948,7 @@ A different protocol from the 1-hour Return. Read `players/[name]-story.md` firs
 | `scripts/write-diary.py` | Session close | Safely writes `memory/diary/[date].md`. Pass content via `--file /tmp/enchantify-diary.txt` or stdin. Appends with session separator if a diary already exists for today. Never write diary files directly. |
 | `scripts/write-labyrinth-state.py` | Session close | Updates a named section of `memory/labyrinth-state.md`. Sections: `register`, `watching`, `assessment`, `nothing`, `notes`. Safe write via temp+rename with auto-backup. Pass content via `--file` or stdin. |
 | `scripts/write-academy-state.py` | Scene close / simulation | Safely replaces `lore/academy-state.md`. Backs up existing file to `.bak` before writing. Atomic write via temp+rename. Pass content via `--file` or stdin. Never edit academy-state.md directly. |
-| `scripts/world-pulse.py` | 3-hour cron (STEP 3) | Reads `lore/world-register.md`, compares entity Belief against `config/world-pulse-cache.json`. Significant drops → NORMAL seed. Belief ≤ 2 → `[PRIORITY: HIGH]` seed. Ambient pulse (10% chance) for stable entities. **Time-aware:** imports `world_context.py`; at night uses night-specific seed variants, tags queue header `[night]`, prepends time prefix. Writes to `memory/tick-queue.md`. |
+| `scripts/world-pulse.py` | 4-hour cron (STEP 3) + scene-change pulse | Reads `lore/world-register.md`, compares entity Belief against `config/world-pulse-cache.json`, and runs the deeper living-world simulator. Significant drops → NORMAL seed. Belief ≤ 2 → `[PRIORITY: HIGH]` seed. Ambient pulse (10% chance) for stable entities. Simulation actions can now produce offscreen consequences, talisman intents, NPC action log entries, and influence-aware tick seeds. Autonomous thread rewriting remains gated, but shared thread-sync plumbing is in place. **Time-aware:** imports `world_context.py`; at night uses night-specific seed variants, tags queue header `[night]`, prepends time prefix. Writes to `memory/tick-queue.md`. |
 | `scripts/ambient-state.py` | 3-hour cron (STEP 4) + session-open | Reads dominant chapter talisman (highest Belief in talismans table). Fires LIFX scene for that chapter. Writes Spotify mood seed to tick-queue for Labyrinth narration. `--dry-run` to preview. |
 | `scripts/pact-engine.py` | Tick (STEP 1c) | Talisman app territory war + action engine. When a Talisman is stirred, selects from: `pact_war` (push/challenge/consolidate app Control Belief), `narrative` (inject philosophical tone into tick-queue), `player_suggestion` (direct nudge), `reality_bleed` (act through a controlled app). Weights shift by arc phase, time, stirred threads. `--state` shows app control table. `--act "Talisman" --belief N` to test a specific talisman. `--dry-run` previews. |
 | `scripts/labyrinth-intelligence.py` | Nightly 23:00 cron | Reads diary entries + player file + `HEARTBEAT.md` biometrics. Writes `memory/patterns.md`, `memory/arc-spine.md`, `lore/nothing-intelligence.md`. Appends therapeutic interventions to `memory/tick-queue.md` (biometric-triggered, Labyrinth voice). Injects `<!-- DIARY_START -->` block into `HEARTBEAT.md`. Run as: `python3 scripts/labyrinth-intelligence.py [player]`. |
@@ -957,6 +958,21 @@ A different protocol from the 1-hour Return. Read `players/[name]-story.md` firs
 | `scripts/mission-control.py` | pulse.py (every 15 min) + manual | Generates `hooks/mission-control.html` — live HTML dashboard. Shows: story threads (phase, Belief, live status from world-register Notes), world entity state, cron job status (reads both openclaw cron list and system `crontab -l`), recent Bleed issues. Thread status and phase are read from Active Threads Notes column — what Flash writes there each session is what the card shows. Run manually: `python3 scripts/mission-control.py`. Auto-regenerated on every pulse run. |
 | `scripts/reach-out.py` | Every 2 hours cron (`10 */2 * * *`) | Characters and talismans initiate direct contact via Telegram when conditions warrant. Checks for stirred high-Belief NPCs and talisman pressures; composes in-character outreach; sends via Telegram bot. Silent if nothing warrants contact. |
 | `scripts/bleed.py` | Daily 6 PM cron (`0 18 * * *`) | Publishes The Bleed — the Academy student newspaper. Reads world-register.md, threads.md, tick-queue.md, HEARTBEAT.md, players/[name].md, app-register.md. Calls the enchantify agent to generate 12 sections (HEADLINE, GOSSIP, WEATHER, FORECAST, MARKET, BAROMETER, EXCHANGE, FEATURE, CLASSIFIEDS, CORRECTION, MISSING, PLAYER, WARREPORT). Builds broadsheet HTML to `bleed/issues/YYYY-MM-DD.html`. Sends Telegram edition. Optionally CUPS-prints via `wkhtmltopdf` or Chrome headless. `--force` to regenerate. Issue numbers tracked in `bleed/issue-number.txt`. |
+| `scripts/run-live-scene.py` | Labyrinth (every Telegram active-play scene) | **Canonical live scene entry point.** Enforces a fresh `mechanics-preflight.py` run within the last 15 minutes; refuses to proceed otherwise. Then delegates to `play_scene.py` with the same arguments. Usage: `python3 scripts/run-live-scene.py [player] --text-file /tmp/enchantify-scene.txt --voice-file /tmp/enchantify-voice.txt`. Intensity: `quiet` / `cinematic` (default) / `ritual`. Never call `play_scene.py` directly from ordinary play flows. |
+| `scripts/mechanics-preflight.py` | Labyrinth (before every active-play reply) | Active-play mechanics gate. Reads `mechanics/mechanics_state.py` and outputs compact obligations: compass eligibility, enchantment status, dice pressure, consecutive declines, Belief band. Exit 0 normally; exit 1 in `--strict` mode when pressure must not be ignored. `--json` for machine-readable output. Run within 15 minutes of any scene or `play_scene.py` will refuse. |
+| `scripts/scene-preflight.py` | Labyrinth (before any named speaker) | Character and voice verification. For each named speaker, checks: character appears in lore/player files; voice assignment exists in `config/voice-assignments.md`; character is present in `lore/academy-state.md`. `--strict` exits 1 on any failure. `--expect-voice "Name=voice_id"` for explicit verification. If preflight cannot verify a character, do not include them in the scene. |
+| `scripts/scene_packet_builder.py` | Internal (called by play_scene.py) | Builds a `ScenePacket` from the current game state without replacing the story spine. Reads session-entry / scene-director output, wraps the finished scene text into a conductor-ready packet JSON. Glue layer — not a source of truth. Usage: `python3 scripts/scene_packet_builder.py [player] --text-file /tmp/scene.txt --voice-file /tmp/voice.txt --out /tmp/scene.json`. |
+| `scripts/scene_conductor.py` | Internal (called by play_scene.py → scene_packet_builder) | Multi-modal scene orchestrator. Takes one `ScenePacket` JSON, fans out across adapters in sequence. Intensity sequences: `quiet` (text, voice), `cinematic` (text, image, voice), `ritual` (text, image, voice, music, Spotify, lights, printer). Buffered delivery on Telegram (media prepared first, then flushed in order). Writes per-scene JSON payloads and run records to `tmp/scene-outbox/`. Default routing model: `openai-codex/gpt-5.4-mini`. `--emit-example` prints a full example packet. |
+| `scripts/scene_ledger.py` | Internal (called by record_scene_run.py) | JSONL ledger for delivered scenes. Appends one entry per scene to `logs/scene-ledger/YYYY-MM-DD.jsonl`. Entries include: scene_id, title, mood, intensity, player, voice text, mechanics preflight snapshot, delivery results. Used by session-entry.py and scene-director.py to detect scene patterns. Not called directly. |
+| `scripts/record_scene_run.py` | Internal (called by play_scene.py after delivery) | Records one completed scene (packet JSON + conductor results JSON + optional preflight JSON) into the scene ledger via `scene_ledger.py`. Usage: `python3 scripts/record_scene_run.py --packet /tmp/scene.json --results /tmp/results.json --preflight /tmp/preflight.json`. |
+| `scripts/spend.py` | Labyrinth (NPC proposals, session close, monthly cron) | The Labyrinth's real-world spending system. Earns budget through player engagement (Compass Run $2, Enchantment $1, session $0.50, Belief milestone $1). $20/month cap. NPCs propose real purchases; player approves via Telegram or session. Pre-approved categories: book ($12), coffee/tea ($8), donation ($5), delivery ($8). Uses Privacy.com virtual card (last 4 digits only in config). Ledger: `config/spend-ledger.json`. Commands: `--status`, `--earn`, `--earn-session`, `--propose`, `--approve`, `--reject`, `--execute`, `--reset-month`. |
+| `scripts/thread_sync.py` | Internal (called by close-session.py + world-pulse.py) | Unified thread-state synchronization. Both `close-session.py` and `world-pulse.py` route thread updates through this shared helper so `threads.md` and `world-register.md` never drift apart. Updates phase, next beat, and last-advanced in both files in a single write pass. |
+| `scripts/arc-tick.py` | 4-hour cron (alongside tick.py) | Arc day counter and phase transition monitor. Reads `lore/current-arc.md`, calculates elapsed real days since arc start, updates the `## Day: N` line, and writes a `[PRIORITY: HIGH]` tick-queue seed when the arc crosses a phase threshold. Phase thresholds: SETUP→RISING at day 5, RISING→CLIMAX at day 12, CLIMAX→FALLING at day 16, FALLING→RESOLUTION at day 20. `--dry-run` previews, `--status` shows current state. |
+| `scripts/send_academy_dispatch.py` | 4-hour cron (STEP 5) | Sends the Academy simulation dispatch. Reads academy-state.md and current-arc.md, assembles a short voiced dispatch, delivers via `multi_voice_tts.py` to Telegram. Isolated from the main cron so failures don't abort the world simulation. |
+| `scripts/tick_queue_utils.py` | Internal (imported by tick.py, world-pulse.py) | Shared tick-queue utility functions. Handles header/footer, deduplication checks, append-safe writes to `memory/tick-queue.md`. Not called directly. |
+| `mechanics/mechanics_state.py` | Imported by mechanics-preflight.py, play_scene.py, run-live-scene.py | Central mechanics state module. Reads and writes the mechanics state JSON for a given player. Provides: `get_mechanics_state()`, `get_preflight_status()`, `record_mechanic_event()`. All scripts that gate on mechanics freshness import this module. |
+| `scripts/write-capabilities.py` | Manual (maintenance) | Regenerates `hooks/Enchantify-Capabilities.md` from a template. Used for bulk capability doc updates. |
+| `scripts/write-agents.py` | Manual (maintenance) | Regenerates `AGENTS.md` from a template. Used for bulk agent instruction updates. |
 
 ---
 
@@ -974,15 +990,19 @@ enchantify/
 │   ├── on-install.sh             ← Full setup wizard (called by bootstrap.sh)
 │   ├── QUICKSTART.md             ← Player-facing onboarding
 │   ├── PACKAGING-PLAN.md         ← Distribution roadmap
-│   └── Enchantify-Capabilities.md  ← This document
+│   └── enchantify-capabilities.md ← This document
 ├── HEARTBEAT.md                  ← Single source of truth for live data. Three marker-block sections: PULSE (weather/tides/moon/fuel/steps), SPARKY (daily shiny), DIARY (yesterday's diary excerpt + dream). Written by pulse.py/update-weather.sh, sparky.py, and labyrinth-intelligence.py respectively.
 ├── config/
 │   ├── integrations.md           ← Integration reference
 │   ├── session-active.lock       ← Session lockfile
 │   ├── setup-state.md            ← Install completion state
 │   ├── world-pulse-cache.json    ← World Pulse: previous entity Belief states for change detection
-│   └── voice-assignments.md      ← Kokoro TTS character mapping
+│   ├── voice-assignments.md      ← Kokoro TTS character mapping
+│   ├── spend-ledger.json         ← Labyrinth budget tracker (gitignored)
+│   ├── spend-consent.json        ← Spending pre-approval settings (gitignored)
+│   └── narrative-sim-state.json  ← Offscreen simulation continuity memory
 ├── hooks/mission-control.html    ← Live game state dashboard (auto-generated by pulse.py; kept out of workspace root)
+├── tmp/scene-outbox/             ← Multimodal scene handoff surface and run artifacts (per-scene JSON payloads + run records)
 ├── scripts/pact-drivers/         ← Chapter Pact app drivers (one file per app)
 │   ├── base.py                   ← AppDriver abstract class
 │   ├── spotify.py / apple_notes.py / apple_reminders.py / apple_calendar.py / obsidian.py
@@ -1013,8 +1033,10 @@ enchantify/
 │   ├── story-arcs.md             ← Arc structure, generation prompt, arc ideas
 │   ├── arc-rotation.md           ← Genre history and rotation rules
 │   ├── current-arc.md            ← Live arc (Phase, Day, Pressure, NPCs…)
-│   ├── seeds.md                  ← Unresolved threads from past arcs
 │   ├── academy-state.md          ← Current world state
+│   ├── seeds.md                  ← Unresolved threads from past arcs
+│   ├── world-register.md         ← Living ledger of all entities with Belief scores + Chapter Talismans
+│   ├── threads.md                ← Story thread registry — lifecycle, active threads, archive
 │   ├── academy-events.md
 │   ├── unsent-messages.md
 │   ├── belief-system.md
@@ -1043,7 +1065,12 @@ enchantify/
 │   ├── npc.md                    ← NPC management, relationship system
 │   ├── heartbeat-bleed.md        ← Signal → atmosphere translation table
 │   ├── tutorial-flow.md          ← T1–T14 step definitions (read by tutorial_director.py)
-│   └── unsent-messages.md        ← Outreach decision tree
+│   ├── unsent-messages.md        ← Outreach decision tree
+│   ├── mechanics_state.py        ← Central mechanics state module (imported by preflight + scene pipeline)
+│   ├── agent-reference.md        ← Full operating reference (read when AGENTS.md points here)
+│   ├── routing.md                ← Dynamic memory routing map
+│   ├── scene-construction.md     ← Scene construction guidelines
+│   └── belief-dice.md            ← Belief economy, dice formula, thresholds
 ├── memory/
 │   ├── diary/                    ← Labyrinth's daily diary entries ([date].md)
 │   ├── dreams/                   ← Labyrinth's nightly dreams ([date].md)
@@ -1069,6 +1096,10 @@ enchantify/
 │   ├── academy-hourly.md
 │   ├── arc-generation.md
 │   ├── belief-combat.md          ← All Belief exchanges (written by belief-attack.py)
+│   ├── transcripts/              ← Clean session transcript archive (written by close-session.py)
+│   ├── scene-ledger/             ← JSONL delivered scene records, one file per day (YYYY-MM-DD.jsonl)
+│   ├── classifieds-ledger/       ← Classified notice history from The Bleed
+│   ├── simulations/              ← Simulation run logs (narrative_sim.py output)
 │   ├── action-chronicle.md       ← Historical Narrative OS actions log (legacy)
 │   ├── skill-scheduler.log       ← Skill-lore tick runs
 │   ├── sparky.log
@@ -1112,7 +1143,7 @@ enchantify/
 
 | Job | Schedule | What It Does |
 |---|---|---|
-| Academy Simulation | `32 */4 * * *` | tick.py → world-pulse.py (25% chance triggers npc-research.py) → ambient-state.py → world state advance → dispatch |
+| Academy Simulation | `32 */4 * * *` | Lock check → tick.py → world-pulse.py / narrative_sim.py (25% chance triggers npc-research.py) → ambient-state.py → academy-state refresh → local Telegram TTS dispatch |
 | The Bleed | `0 18 * * *` | `scripts/bleed.py` — daily student newspaper. HTML broadsheet + Telegram edition. Skips if already published today (use `--force` to override). |
 | Nightly Intelligence | `0 23 * * *` | `labyrinth-intelligence.py [player]` — senses biometrics, writes patterns/arc-spine/nothing-intelligence, appends therapeutic tick-queue interventions, injects diary/dream into HEARTBEAT.md |
 | OGG Cleanup | `0 4 * * *` | `find ~/.openclaw/media -name '*.ogg' -mtime +1 -delete` — removes accumulated audio files older than 1 day |
@@ -1121,26 +1152,26 @@ enchantify/
 | Midnight Revision | `0 0 */4 * *` | Content proposals only — audits gaps, invents new lore/NPCs/rooms/mechanics; Midnight Dispatch; 48-hr veto window |
 | Character Outreach | `0 */2 * * *` | `scripts/reach-out.py` — characters and talismans initiate direct contact. Evaluates trigger conditions per character, respects per-character cooldowns, picks at most one to send a Kokoro voice note. Daily cap: 2/day. See §28c. |
 | Wallpaper | `0 7 * * *` | `scripts/wallpaper.py --generate bj` — morning wallpaper update. Checks state signature (belief bracket, Nothing level, time of day); generates new image via agent if changed or stale (>8h). Sets macOS desktop silently. 2h cooldown enforced. |
-| Sparky | `0 8 * * *` | Daily pattern-connection (Gemini); writes to `sparky/shinies/`; injects `<!-- SPARKY_START -->` block into `HEARTBEAT.md` |
-| Labyrinth Dreams | `3 2 * * *` | Nightly dream generation (Gemini); writes to `memory/dreams/` |
-| Arc Generator | `0 2 * * *` | Generates arc proposal during QUIET phase only (Gemini) |
+| Sparky | `0 8 * * *` | Daily pattern-connection (openclaw agent); writes to `sparky/shinies/`; injects `<!-- SPARKY_START -->` block into `HEARTBEAT.md` |
+| Labyrinth Dreams | `3 2 * * *` | Nightly dream generation (openclaw agent); writes to `memory/dreams/` |
+| Arc Generator | `0 2 * * *` | Generates arc proposal during QUIET phase only (openclaw agent) |
 | Weather Heartbeat | `5 * * * *` | Standalone mode only; writes `HEARTBEAT.md` pulse block |
 
 ---
 
 ### §23. Model Assignments
 
-All automated scripts use Google Gemini via OpenClaw OAuth. No API keys required. Call pattern: `openclaw agent --local --agent enchantify -m "prompt"`.
+All automated scripts use `openclaw agent --local --agent enchantify -m "prompt"`. Model routing is set in `~/.openclaw/openclaw.json`. No API keys required. Active models: `openai-codex/gpt-5.4` (spawn/heavy), `openai-codex/gpt-5.4-mini` (routing, scene conductor). Brain: `claude-sonnet-4-6` via Claude subscription.
 
 | Task | Model / Method |
 |---|---|
-| Active gameplay, narration | OpenClaw agent `enchantify` (Gemini Flash) |
+| Active gameplay, narration | `claude-sonnet-4-6` (primary brain via openclaw claude sub) |
 | Labyrinth dreams (`dream.py`) | `openclaw agent --local --agent enchantify` |
 | Sparky shinies (`sparky.py`) | `openclaw agent --local --agent enchantify` |
 | Arc generation (`arc-generator.py`) | `openclaw agent --local --agent enchantify` |
 | NPC research (`npc-research.py`) | `openclaw agent --local --agent enchantify` |
 | Nightly intelligence (`labyrinth-intelligence.py`) | `openclaw agent --local --agent enchantify` (biometric analysis only; pure Python for pattern detection) |
-| Academy simulation cron | Mostly pure Python (tick.py, world-pulse.py, ambient-state.py). Exception: `pact-engine.py` calls `openclaw agent --local` at Dominated/Sovereign reality_bleed for `USE_LLM` drivers — generates structured action specs in the chapter's voice. Falls back silently if openclaw unavailable. |
+| Academy simulation cron | Mostly pure Python (tick.py, world-pulse.py, narrative_sim.py, ambient-state.py). Exception: `pact-engine.py` calls `openclaw agent --local` at Dominated/Sovereign reality_bleed for `USE_LLM` drivers — generates structured action specs in the chapter's voice. Cron dispatch itself is sent through the local Telegram TTS path rather than built-in cron delivery. |
 | Character outreach (`reach-out.py`) | `openclaw agent --local` — generates in-character voice note message from world state + trigger context. Falls back to static per-character line if openclaw unavailable. |
 
 ---
@@ -1151,9 +1182,9 @@ All automated scripts use Google Gemini via OpenClaw OAuth. No API keys required
 
 **🧠 Memory plugins:** The OpenClaw Enchantify agent uses **QMD** for structured, query-able memory (player state, NPC relationships, world facts — survives context window pressure) and **Lossless Claw** for raw conversation preservation (nothing lost between sessions). Configured in `~/.openclaw/agents/enchantify/`.
 
-**🎵 Spotify (macOS, AppleScript):** Mood-aware audio. Volume varies by scene type — exploration 40–50, Nothing approaching 10→0→pause, Compass West: silence. Never announces. Full scene definitions in `config/integrations.md`.
+**🎵 Spotify (macOS, AppleScript):** Mood-aware audio. Volume varies by scene type — exploration 40–50, Nothing approaching 10→0→pause, Compass West: silence. Never announces. Spotify now also has a conductor-facing cue layer, so ritual and cinematic scenes can emit a structured Spotify brief or call the existing driver as part of multimodal scene realization. Full scene definitions in `config/integrations.md`.
 
-**💡 Smart Lights:** Backend selected at install via `LIGHTS_BACKEND` in `config/secrets.env`. Options:
+**💡 Smart Lights:** Backend selected at install via `LIGHTS_BACKEND` in `config/secrets.env`. Lights remain narrative infrastructure under Labyrinth control, but they are now also a first-class adapter surface for the scene conductor in higher-intensity scenes. Options:
 - `lifx` — LAN control, no cloud. `python3 scripts/lifx-control.py scene [name]`. Auto-discovers via LAN or uses configured IPs.
 - `hue` — Philips Hue Bridge. Requires `HUE_BRIDGE_IP` + `HUE_TOKEN`.
 - `ha` — Home Assistant. Requires `HA_URL` + `HA_TOKEN`.
@@ -1209,7 +1240,7 @@ npx clawhub@latest install enchantify
 ```
 1.  Welcome — written in the Labyrinth's voice; entering the world, not running a script
 2.  Environment detection (OpenClaw version, Python, Node, existing players)
-3.  Model selection (Claude Sonnet 4.6 default; Opus, Haiku, GPT-4o, custom)
+3.  Model selection (default: `openai-codex/gpt-5.4` for spawn; Claude sub via openclaw for brain; `openai-codex/gpt-5.4-mini` for routing)
 4.  Location setup (city, lat/lon, NOAA station)
 5.  Health data (health_auto_export / Garmin / Fitbit / manual / none)
 6.  Telegram setup (bot token + chat ID; step-by-step instructions)
@@ -1247,6 +1278,7 @@ npx clawhub@latest install enchantify
 ```
 Player opens book
   → python3 scripts/set-lock.py
+  → python3 scripts/session-entry.py [name]        (ENTRY_MODE + SCHEDULE CONTEXT + Director's Slate)
   → python3 scripts/tutorial_director.py [name]   (if T < T14)
   → python3 scripts/skill-scheduler.py --trigger session-open   (feeds skill-lore contracts into tick-queue)
   → Read HEARTBEAT.md                             (check timestamp — stale if >24h; contains pulse, Sparky, diary/dream blocks)
@@ -1262,6 +1294,14 @@ Player opens book
   → python3 scripts/ambient-state.py              (dominant talisman → LIFX + tick-queue mood seed)
   → Narrate (opening line must contain the One Alive Detail; weave PRIORITY: HIGH if present)
 
+Before every active-play reply (Telegram)
+  → python3 scripts/mechanics-preflight.py [name]   (mechanics gate — must be fresh within 15 min)
+  → For each named speaker: python3 scripts/scene-preflight.py --speaker "Name" --strict
+  → Write prose to /tmp/enchantify-scene.txt
+  → Write voice-tagged version to /tmp/enchantify-voice.txt
+  → python3 scripts/run-live-scene.py [name] --text-file /tmp/enchantify-scene.txt --voice-file /tmp/enchantify-voice.txt
+  → Output exactly NO_REPLY
+
 Player closes book
   → Write content to /tmp/enchantify-diary.txt
   → python3 scripts/write-diary.py [name] --file /tmp/enchantify-diary.txt
@@ -1270,6 +1310,9 @@ Player closes book
   → Write new academy state to /tmp/enchantify-academy.txt
   → python3 scripts/write-academy-state.py --file /tmp/enchantify-academy.txt
   → python3 scripts/update-player.py [name] [field] [value]   (numeric fields)
+  → Generate events JSON → write to /tmp/enchantify-events.json
+  → python3 scripts/close-session.py --player [name] --session-file [path] --events-file /tmp/enchantify-events.json
+  → python3 scripts/spend.py --earn-session        (records session earning; optional)
   → python3 scripts/clear-lock.py
 ```
 
@@ -1430,6 +1473,78 @@ The Bleed publishes daily at 6 PM. It's not a dashboard — it's the Academy's d
 
 ---
 
+### §28d. The Labyrinth Budget — Real-World Spending
+
+The Labyrinth earns a monthly budget through player engagement. NPCs propose spending it on real things. The player approves or rejects. Money flows through a Privacy.com virtual card.
+
+**Earning rates:**
+
+| Event | Earns |
+|---|---|
+| Compass Run completed | $2.00 |
+| Enchantment cast | $1.00 |
+| Session completed | $0.50 |
+| Belief threshold crossed (25, 50, 75) | $1.00 |
+
+**Budget:** $20/month hard cap. Resets on the 1st. Approved-but-unexecuted proposals carry forward.
+
+**Pre-approved categories (no player approval needed if within cap):**
+
+| Category | Cap |
+|---|---|
+| book | $12 |
+| coffee/tea | $8 |
+| donation | $5 |
+| delivery | $8 |
+
+**Proposal flow:**
+1. An NPC (or the Labyrinth) proposes a purchase: `python3 scripts/spend.py --propose "Zara Finch" "The Neverending Story" 8.50 book "you mentioned wanting it"`
+2. Player receives proposal in Telegram or session, approves or rejects
+3. `python3 scripts/spend.py --approve [id]` — marks approved
+4. `python3 scripts/spend.py --execute [id]` — opens the purchase URL for the player
+
+**Commands:** `--status`, `--earn 2.00 "reason"`, `--earn-session`, `--propose`, `--approve`, `--reject`, `--execute`, `--reset-month`, `--dry-run`
+
+**Storage:** `config/spend-ledger.json` (per-month budget, earnings, proposals). Card last 4 in `config/secrets.env` as `LABYRINTH_CARD_LAST4` — display only, never the full number.
+
+---
+
+### §28e. Scene Delivery Pipeline
+
+Every Telegram active-play scene flows through a gated, inspectable, multi-modal stack.
+
+**Full pipeline:**
+
+```
+                             ┌─ text ──────────────────→ Telegram text
+                             ├─ voice ─────────────────→ Kokoro TTS → Telegram audio
+mechanics-preflight.py       ├─ image ─────────────────→ Draw Things → Telegram image
+        │                    ├─ lights ────────────────→ LIFX / Hue / HA scene
+        ▼                    ├─ music ─────────────────→ MusicGen → audio file
+run-live-scene.py            ├─ spotify ───────────────→ pact-driver → Spotify
+        │                    └─ printer ───────────────→ CUPS artifact
+        ▼
+  play_scene.py              Intensity sequences:
+        │                      quiet    → text, voice
+        ▼                      cinematic → text, image, voice
+scene_packet_builder.py        ritual   → text, image, voice, music, Spotify, lights, printer
+        │
+        ▼
+ scene_conductor.py ─────────────────────────────────────────────────────────→ scene_ledger.py
+```
+
+**Key rules:**
+- `run-live-scene.py` is the **only** normal entry point. Never call `play_scene.py` directly from ordinary play flows.
+- `mechanics-preflight.py` must have run within the last 15 minutes or `run-live-scene.py` refuses.
+- Named speakers must pass `scene-preflight.py --strict` before the reply is written.
+- All delivered scenes are ledgered in `logs/scene-ledger/YYYY-MM-DD.jsonl` via `record_scene_run.py`.
+- The scene outbox at `tmp/scene-outbox/` holds per-scene JSON payloads and run records — inspectable after delivery.
+- Text and audio are always sent separately (Telegram rule). Buffered delivery: media is prepared first, then flushed in sequence.
+
+**Routing model:** `scene_conductor.py` uses `openai-codex/gpt-5.4-mini` as `DEFAULT_ROUTING_MODEL` for any LLM routing decisions within the conductor.
+
+---
+
 ### §29. Intelligence System
 
 `labyrinth-intelligence.py` runs **nightly at 23:00** (separate from the 4-day Midnight Revision). Four outputs, all updated each night:
@@ -1468,6 +1583,41 @@ Interventions are **never clinical**. The Labyrinth does not know about steps or
 ---
 
 ## Part 4: What's Complete
+
+### v11.0.0 — Model Migration & Pipeline Hardening (April 23, 2026)
+
+- ✅ **Model migration: no more Gemini** — All Gemini model references removed from AGENTS.md, SOUL.md, IDENTITY.md, SPAWN-HELPER.md, npc-research.py, world-pulse.py, and Enchantify-Capabilities.md. Active models: `claude-sonnet-4-6` (brain via Claude sub), `openai-codex/gpt-5.4` (spawn/heavy tasks), `openai-codex/gpt-5.4-mini` (routing, scene conductor default).
+- ✅ **SOUL.md ↔ AGENTS.md sync** — SOUL.md audio delivery path was stale (pointed to `play_scene.py` directly). Both files now agree: canonical active-play path is `mechanics-preflight.py` → `run-live-scene.py`. SOUL.md "Telegram voice rule" section updated to match.
+- ✅ **IDENTITY.md model table updated** — `Local runtime target: gemma4:...` removed. Model section now clearly documents the three-model split: brain, heavy routing, mini routing.
+- ✅ **SPAWN-HELPER.md fully updated** — All three `google-gemini-cli/gemini-3-flash-preview` model strings replaced with `openai-codex/gpt-5.4`. Config reference, open-session, and close-session patterns all updated. Validation note updated. Datestamp advanced.
+- ✅ **scene_conductor.py confirmed correct** — `DEFAULT_ROUTING_MODEL = "openai-codex/gpt-5.4-mini"` was already correct. Example packet also already used gpt-5.4-mini. No change needed.
+- ✅ **npc-research.py rename** — `call_gemini()` renamed to `call_llm()` throughout. Comment updated. Behavior unchanged (still calls `openclaw agent --local`).
+- ✅ **Capabilities doc brought current** — §0b, §19, §20, §23, §25, §26 all updated. Added §28d (spending system) and §28e (scene delivery pipeline). Added all scripts new since v10.0.0 to §19 table. Added new log dirs and config files to §20 structure. Fixed v10.0.0 canonical-entrypoint claim. Version bumped to 11.0.0.
+- ✅ **Spending system documented** — `scripts/spend.py` now has a dedicated §28d. Earning rates, pre-approved categories, proposal flow, and storage documented.
+- ✅ **Scene pipeline diagram** — §28e documents the full `mechanics-preflight → run-live-scene → play_scene → scene_packet_builder → scene_conductor → scene_ledger` stack with ASCII diagram and key rules.
+
+---
+
+### v10.0.0 — The Living Conductor (April 22, 2026)
+
+This release is the big systems convergence day: the simulation became more belief-true, scene delivery became multimodal and inspectable, cron dispatches were repaired, and session-close/state sync stopped fracturing across multiple truths.
+
+- ✅ **Simulation cron repaired and delivery path clarified** — The Academy simulation cron was rewritten around the working local-send pattern. It now checks the session lock, runs the hourly world update, refreshes academy state via the safe writer, logs a concise summary, and sends its dispatch through `scripts/multi_voice_tts.py` instead of relying on built-in cron delivery. Schedule is now `32 */4 * * *` with isolated runs and explicit no-duplicate delivery rules.
+- ✅ **Living-world simulation brain** — Added `scripts/narrative_sim.py`, a deeper offscreen simulation layer used by `world-pulse.py`. It derives actor profiles from the world register, assigns action classes, gates major outcomes by Belief thresholds, and produces concrete simulation actions instead of vague ambient stirring.
+- ✅ **Weighted participation instead of hardcoded VIPs** — Deep simulation is no longer driven by a fixed major-character list. Top narrative-weight entities form the in-depth band dynamically, and selection is probabilistic rather than a hard cutoff, so high-Belief entities act more often but lower-Belief entities still retain a real chance to move.
+- ✅ **Talismans became real actors** — Talismans now have explicit action behavior in the sim rather than existing as decorative pressure sources. They can reveal, protect, attack belief, reposition scenes, and emit bridge intents for later pact behavior.
+- ✅ **Continuity memory for offscreen actors** — Simulation state now carries durable `recent_actions`, `actor_memory`, and `talisman_intents`, so the world remembers what offscreen entities have been doing instead of acting like each pulse is the first pulse.
+- ✅ **Influence snapshots and causal atmosphere** — Weighted nearby forces now shape not only selection but reasoning and narration. Simulation actions carry `influence_snapshot` data so nearby NPCs, talismans, anchors, and ley pressure can affect why actions happen and how pulse traces are written. `world-pulse.py` now exposes those pressures in its event output.
+- ✅ **Targeting logic refined** — Hostile actions no longer blindly hit absurd targets. Talisman and thread targeting was tightened so attacks only land on sensible participating entities, especially when talismans are involved.
+- ✅ **Thread synchronization unified** — Added `scripts/thread_sync.py` and routed both `close-session.py` and `world-pulse.py` through the same thread-update path. `threads.md` and `world-register.md` now share one synchronization seam for phase, next beat, and last-advanced updates.
+- ✅ **Close-session became a real state pipeline** — `scripts/close-session.py` now cleanly extracts player/Labyrinth exchanges from Telegram session JSONL, ignores cron/system noise, writes daily transcript archives, accepts a structured `--events-file`, and cascades updates into diary, arc spine, Nothing intelligence, player state, and synchronized thread state.
+- ✅ **Scene conductor architecture landed** — Added a multimodal scene stack built around `ScenePacket`. `scripts/scene_packet_builder.py` wraps a finished story scene without replacing the story spine, and `scripts/scene_conductor.py` fans it across adapters. `scripts/run-live-scene.py` is the canonical Telegram active-play entrypoint (wraps `play_scene.py` with mandatory mechanics preflight enforcement).
+- ✅ **Mechanics preflight gate** — Added `scripts/mechanics-preflight.py` and `mechanics/mechanics_state.py`. `run-live-scene.py` and `play_scene.py` both refuse to deliver a scene unless a fresh preflight has run within the last 15 minutes. Named-speaker verification added via `scripts/scene-preflight.py --strict`.
+- ✅ **Intensity-based scene sequencing** — Delivery sequence now resolves by scene intensity: `quiet`, `cinematic`, and `ritual` choose different modality stacks automatically. Text and voice are the spine, while image, lights, music, Spotify, and printer cues layer on as enrichments or ritual surfaces.
+- ✅ **Scene outbox + run records** — `tmp/scene-outbox/` is now the handoff seam for multimodal orchestration. The conductor writes per-scene payloads (`*-text.json`, `*-image.json`, `*-music.json`, `*-spotify.json`, printer artifacts) plus run records so execution order and failures are inspectable.
+- ✅ **Live multimodal delivery timeouts tuned to reality** — Generation windows were expanded after real runs showed the first limits were too impatient. Voice, image generation, and image-send timeouts were lengthened so slow successful runs stop being marked as failure.
+- ✅ **Music and ledger plumbing added** — Added local scene music generation support plus canonical recording via `scripts/scene_ledger.py` and `scripts/record_scene_run.py`, so delivered scenes can be inspected as actual events instead of inferred from chat residue.
+- ✅ **AGENTS.md operational flow updated** — Telegram active-play delivery now routes through `run-live-scene.py` with preflighted named-speaker verification, while non-scene replies still use local `multi_voice_tts.py`. The operating rules now describe the scene-preflight and scene-delivery path explicitly.
 
 ### v9.0.0 — The Hourly World (April 18, 2026)
 
@@ -1599,7 +1749,7 @@ This release makes the player's real world more visible, present, and permanent.
 
 ### v4.0.0 — The Sensing Layer (April 12, 2026)
 
-- ✅ **Gemini LLM migration** — All generative scripts (`dream.py`, `sparky.py`, `arc-generator.py`, `npc-research.py`) migrated from Anthropic SDK to `openclaw agent --local --agent enchantify -m "..."` (Google Gemini via OAuth). No API keys required.
+- ✅ **LLM migration (v4.0)** — All generative scripts (`dream.py`, `sparky.py`, `arc-generator.py`, `npc-research.py`) migrated from Anthropic SDK to `openclaw agent --local --agent enchantify -m "..."`. Model routing via `openclaw.json`; no API keys required.
 - ✅ **HEARTBEAT.md as single source of truth** — Three HTML-comment marker blocks: `<!-- PULSE_START/END -->` (weather/tides/moon/fuel/steps), `<!-- SPARKY_START/END -->` (daily shiny), `<!-- DIARY_START/END -->` (yesterday's diary excerpt + dream). All scripts inject into their own block without overwriting others.
 - ✅ **Fuel in HEARTBEAT.md** — `pulse.py` now appends a `**Fuel:**` line summarizing today's food entries from `fuel-log.txt`.
 - ✅ **Sparky injection** — `sparky.py` now injects the shiny into `HEARTBEAT.md` after writing the shiny file. Session start reads directly from the marker block.
@@ -1656,7 +1806,7 @@ This release makes the player's real world more visible, present, and permanent.
 - ✅ **The World Absorbs (§13 AGENTS.md)** — Never refuse player actions; find the version the story can hold. In-world refusal language for genuine impossibilities. Nihilistic play = the Nothing gaining ground. Consequences are physics, not punishment.
 - ✅ **Safe file write scripts** — `write-diary.py`, `write-labyrinth-state.py`, `write-academy-state.py`. All file I/O routed through Python scripts. Atomic writes (temp+rename), automatic backups, stdin or `--file` interface. Never write markdown files directly.
 - ✅ **Script failure handling** — Failures treated as narrative events. Retry once. Log in diary if persistent.
-- ✅ **Gemini Flash support** — Alternative model documented in §23. Must use write scripts exclusively.
+- ✅ **Model routing** — Active models documented in §23. Must use write scripts exclusively.
 - ✅ **Session lifecycle updated** — §26 reflects script-based writes, staleness check, One Alive Detail, and Long-Gap Return.
 - ✅ **PLAYER-GUIDE.md** — Comprehensive player guide (newbie to pro) in `hooks/`. Covers all systems with worked examples.
 

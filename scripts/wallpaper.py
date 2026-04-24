@@ -43,6 +43,10 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+import urllib.parse
+import urllib.request
+import time
+import base64
 
 SCRIPT_DIR = Path(__file__).parent
 WORKSPACE  = SCRIPT_DIR.parent
@@ -451,55 +455,54 @@ def cleanup_old(keep: int = ARCHIVE_KEEP) -> None:
 
 def generate_via_agent(prompt: str, size: str = "1792x1024"):
     """
-    Call the openclaw agent to generate the image.
-    The agent must call image_generate and output the file path.
-    Returns path string or None on failure.
+    Bypasses OpenClaw and sends the prompt directly to Draw Things running locally.
+    Configured specifically for FLUX.1 5-bit models.
     """
-    msg = (
-        f"Generate a desktop wallpaper image using the image_generate tool. "
-        f"Use size=\"{size}\". Use this exact prompt — do not modify it:\n\n"
-        f"{prompt}\n\n"
-        f"After generating, output EXACTLY one line in this format and nothing else:\n"
-        f"WALLPAPER_PATH: /full/path/to/saved/image.png"
-    )
-
-    result = subprocess.run(
-        ["openclaw", "agent", "--local", "--agent", "enchantify", "-m", msg],
-        capture_output=True, text=True, timeout=600
-    )
-
-    output = result.stdout.strip()
-    # Strip ANSI
-    output = re.sub(r'\x1b\[[0-9;]*m', '', output)
-
-    # Try the explicit WALLPAPER_PATH marker first
-    m = re.search(r'WALLPAPER_PATH:\s*(\S+)', output)
-    if m:
-        path = m.group(1).strip()
-        if Path(path).exists():
-            return path
-
-    # Fall back: scan known openclaw image storage locations for the most recent PNG
-    search_dirs = [
-        Path.home() / ".openclaw" / "media" / "tool-image-generation",
-        Path.home() / ".openclaw" / "media" / "generated",
-        Path("/tmp"),
-    ]
-    candidates = []
-    for d in search_dirs:
-        if d.exists():
-            candidates.extend(d.glob("*.png"))
-
-    if candidates:
-        newest = max(candidates, key=lambda p: p.stat().st_mtime)
-        # Only use if it was created in the last 5 minutes
-        age_minutes = (datetime.now().timestamp() - newest.stat().st_mtime) / 60
-        if age_minutes < 5:
-            print(f"[wallpaper] Found recent image at: {newest}")
-            return str(newest)
-
-    print(f"[wallpaper] Could not locate generated image. Agent output:\n{output[:400]}")
-    return None
+    print("[wallpaper] Sending prompt to local Draw Things API (FLUX mode)...")
+    
+    width, height = 1280, 720 
+    
+    url = "http://127.0.0.1:8080/sdapi/v1/txt2img"
+    
+    payload = {
+        "prompt": prompt,
+        "negative_prompt": "",  # FLUX doesn't use negative prompts
+        "width": width,
+        "height": height,
+        "steps": 4,             # 4 steps for FLUX Schnell
+        "cfg_scale": 1.0,       # 1.0 CFG for FLUX Schnell
+        "seed": -1
+    }
+    
+    data = json.dumps(payload).encode('utf-8')
+    req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+    
+    try:
+        start_time = time.time()
+        # The M4 chip should blast through 4 steps of 5-bit FLUX in roughly 10-15 seconds.
+        with urllib.request.urlopen(req, timeout=120) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            
+            if "images" in result and len(result["images"]) > 0:
+                image_data = base64.b64decode(result["images"][0])
+                
+                temp_path = "/tmp/enchantify_generated_wallpaper.png"
+                with open(temp_path, "wb") as f:
+                    f.write(image_data)
+                
+                elapsed = time.time() - start_time
+                print(f"[wallpaper] FLUX generation complete in {elapsed:.1f} seconds on M4!")
+                return temp_path
+            else:
+                print("[wallpaper] Error: No image data returned from Draw Things.")
+                return None
+                
+    except urllib.error.URLError as e:
+        print(f"[wallpaper] Draw Things API failed. Is the app open and HTTP API enabled in settings? Error: {e}")
+        return None
+    except Exception as e:
+        print(f"[wallpaper] Unexpected error: {e}")
+        return None
 
 
 # ── Commands ──────────────────────────────────────────────────────────────────

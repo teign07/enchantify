@@ -3,17 +3,25 @@
 session-entry.py — Determine how a returning player enters the Labyrinth.
 
 Reads the player's last-session timestamp and outputs an ENTRY_MODE directive
-that the Labyrinth uses to open the session:
+that the Labyrinth uses to open the session.
 
-  in_media_res  — < 1 hour away. Scene is still warm. Resume where they were.
+Core rule:
+  under 1 hour since last logout  -> resume where they were
+  1 hour or more since last logout -> start in the dorm
+
+Dorm arrivals then split by depth:
   dorm_brief    — 1–8 hours away. Land in dorm, one or two things to notice.
   dorm_full     — > 8 hours away. Full dorm arrival. Dynamic objects accumulated.
+
+So the real gate is scene-resume vs dorm-return. The brief/full distinction is
+only about how richly the dorm arrival is staged.
 
 Also outputs:
   - AWAY_HOURS: float
   - LAST_LOCATION: from lore/academy-state.md
   - DYNAMIC_OBJECTS: translated from tick-queue + thread pressures (dorm_full only)
   - THREAD_TEXTURE: dominant thread's felt quality in the room
+  - BLEED_HOOKS: recent classifieds that may have started affecting the world
 
 Usage:
   python3 scripts/session-entry.py [player_name]
@@ -27,6 +35,16 @@ import sys
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+
+from scene_ledger import load_entries as load_scene_ledger_entries
+
+MECHANICS_DIR = Path(__file__).parent.parent / "mechanics"
+if str(MECHANICS_DIR) not in sys.path:
+    sys.path.insert(0, str(MECHANICS_DIR))
+try:
+    import mechanics_state
+except ImportError:
+    mechanics_state = None
 
 # Import schedule + scene-director modules from same directory
 _SCRIPT_DIR = Path(__file__).parent
@@ -54,9 +72,9 @@ SCRIPT_DIR   = Path(__file__).parent
 WORKSPACE    = SCRIPT_DIR.parent
 
 THRESHOLDS = {
-    "in_media_res": 1.0,    # < 1 hour
-    "dorm_brief":   8.0,    # 1–8 hours
-    # > 8 hours = dorm_full
+    "in_media_res": 1.0,    # under 1 hour = resume where they were
+    "dorm_brief":   8.0,    # 1 hour or more = dorm, brief until 8 hours
+    # over 8 hours = dorm_full
 }
 
 
@@ -152,6 +170,55 @@ def get_thread_texture() -> str:
     return ""
 
 
+def get_bleed_hooks(limit: int = 3) -> list[str]:
+    """Read the most recent classifieds ledger and surface open hooks."""
+    ledger_dir = WORKSPACE / "logs" / "classifieds-ledger"
+    if not ledger_dir.exists():
+        return []
+
+    files = sorted(ledger_dir.glob("*.json"))
+    if not files:
+        return []
+
+    try:
+        data = json.loads(files[-1].read_text())
+    except Exception:
+        return []
+
+    hooks = []
+    for entry in data.get("entries", []):
+        if entry.get("status") != "open":
+            continue
+        label = entry.get("label", "NOTICE")
+        text = entry.get("text", "").strip()
+        if not text:
+            continue
+        hooks.append(f"{label}: {text[:140]}")
+        if len(hooks) >= limit:
+            break
+    return hooks
+
+
+def get_recent_scene_traces(limit: int = 2) -> list[str]:
+    """Surface the most recent realized scene traces from the canonical scene ledger."""
+    try:
+        entries = load_scene_ledger_entries()
+    except Exception:
+        return []
+
+    traces = []
+    for entry in reversed(entries):
+        title = (entry.get("title") or entry.get("scene_id") or "scene").strip()
+        text = (entry.get("text") or "").strip()
+        if not text:
+            continue
+        snippet = text.splitlines()[0].strip()
+        traces.append(f"{title}: {snippet[:160]}")
+        if len(traces) >= limit:
+            break
+    return traces
+
+
 def get_dynamic_objects(player_name: str) -> list[str]:
     """
     Translate tick-queue entries + thread pressures into physical things
@@ -187,8 +254,8 @@ def get_dynamic_objects(player_name: str) -> list[str]:
 
     npc_re = re.compile(r'\b(NPC|npc)\b')
     for s in stirred[:3]:
-        entity = s.get("entity", "")
-        thread = s.get("thread", "")
+        entity = s.get("entity") or ""
+        thread = s.get("thread") or ""
 
         if "wicker" in entity.lower() or "wicker-schemes" in thread.lower():
             objects.append(
@@ -231,6 +298,27 @@ def get_dynamic_objects(player_name: str) -> list[str]:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+def get_mechanics_hint(player_name: str) -> str:
+    if mechanics_state is None:
+        return ""
+
+    state = mechanics_state.get_mechanics_state(WORKSPACE, player_name)
+    parts = []
+    if state["should_offer_compass"]:
+        parts.append("Compass Run eligible")
+    elif state["compass_locked_today"]:
+        parts.append("Compass Run already completed today")
+
+    if state["should_offer_enchantment"]:
+        parts.append("Enchantment recommended")
+
+    if state.get("consecutive_declines", 0) >= 3:
+        parts.append("Repeated decline pressure is active")
+
+    parts.append("Use belief dice for risky uncertain actions only")
+    return " | ".join(parts)
+
+
 def main():
     player_name = sys.argv[1] if len(sys.argv) > 1 else "bj"
 
@@ -246,12 +334,19 @@ def main():
     else:
         entry_mode = "dorm_full"
 
+    bleed_hooks = get_bleed_hooks()
+    scene_traces = get_recent_scene_traces()
+    mechanics_hint = get_mechanics_hint(player_name)
+
     # Output directive for the Labyrinth
     print(f"\n--- SESSION ENTRY DIRECTIVE ---")
     print(f"PLAYER: {player_name}")
     print(f"AWAY_HOURS: {away_hours:.1f}")
     print(f"ENTRY_MODE: {entry_mode}")
     print()
+    if mechanics_hint:
+        print(f"MECHANICS: {mechanics_hint}")
+        print()
 
     if entry_mode == "in_media_res":
         print(f"DIRECTIVE: Resume where they left off.")
@@ -279,9 +374,24 @@ def main():
         if thread_texture:
             print()
             print(f"THREAD TEXTURE (felt, not announced): {thread_texture}")
+        if bleed_hooks:
+            print()
+            print("BLEED HOOKS (ambient, optional, can surface through objects/notices/rumor):")
+            for hook in bleed_hooks:
+                print(f"  - {hook}")
+        if scene_traces:
+            print()
+            print("RECENT REALIZED SCENES (texture only, not mandatory):")
+            for trace in scene_traces:
+                print(f"  - {trace}")
         print()
         print(f"After the player settles — and only after — they move where they want.")
         print(f"Do not rush the arrival. The room is the first scene.")
+
+    if entry_mode != "dorm_full" and bleed_hooks:
+        print(f"BLEED HOOKS: {' | '.join(bleed_hooks)}")
+    if entry_mode != "dorm_full" and scene_traces:
+        print(f"RECENT SCENES: {' | '.join(scene_traces)}")
 
     print("-------------------------------\n")
 
@@ -294,6 +404,8 @@ def main():
     # Append Director's Slate — synthesizes all 7 weight layers
     if _DIRECTOR_AVAILABLE:
         _sd.print_slate(player_name)
+        print("GROUNDING RULE: Treat CAST_GROUND as the default source for who or what enters the scene.")
+        print("GROUNDING RULE: Before any named speaker gets dialogue, verify them with scene-preflight in strict mode.")
     else:
         print("[scene-director] scene-director.py not found — skipping Director's Slate\n")
 

@@ -102,6 +102,24 @@ def build_context(cfg: dict) -> str:
     if souvenir_sentence:
         parts.append(f"MOST RECENT SOUVENIR SENTENCE:\n\"{souvenir_sentence}\"")
 
+    # Read recent dreams to prevent repetition
+    recent_dreams = ""
+    dreams_dir = WORKSPACE_DIR / "memory" / "dreams"
+    if dreams_dir.exists():
+        dream_files = sorted(dreams_dir.glob("*.md"), reverse=True)
+        recent_texts = []
+        for f in dream_files[:2]:
+            content = read_file_safe(f)
+            import re
+            m = re.search(r'---\n+(.*?)\n+---', content, re.DOTALL)
+            if m:
+                recent_texts.append(m.group(1).strip())
+        if recent_texts:
+            recent_dreams = "\n\n".join(f"Dream:\n{txt}" for txt in recent_texts)
+
+    if recent_dreams:
+        parts.append(f"RECENT DREAMS (DO NOT REPEAT OR CLOSELY PARAPHRASE THESE):\n{recent_dreams}")
+
     return "\n\n---\n\n".join(parts)
 
 
@@ -143,6 +161,7 @@ Rules:
 - No explanations. No "I dreamed that..." Just the dream itself, present tense.
 - Ground at least one image in the real-world heartbeat data (weather, moon, tides, season) — but transform it.
 - At least one image should connect to the current story arc or the player's journey.
+- Ensure the dream is completely different from recent dreams. Do NOT reuse the same metaphors or structures.
 - The Nothing may appear — as silence, as rooms drained of color, as the moment before a word is forgotten.
 - The souvenir sentence, if present, may surface as a recurring motif.
 - Tone: quiet, surreal, literary. Not frightening. Not cheerful. Somewhere between memory and water.

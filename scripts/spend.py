@@ -40,6 +40,7 @@ import sys
 import uuid
 from datetime import date, datetime
 from pathlib import Path
+from typing import Optional
 
 BASE         = Path(__file__).parent.parent
 LEDGER_F     = BASE / "config" / "spend-ledger.json"
@@ -271,7 +272,7 @@ def propose(
     return proposal_id
 
 
-def _find_proposal(data: dict, proposal_id: str) -> dict | None:
+def _find_proposal(data: dict, proposal_id: str) -> Optional[dict]:
     for p in data["proposals"]:
         if p["id"] == proposal_id:
             return p

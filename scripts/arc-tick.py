@@ -6,9 +6,8 @@ Reads lore/current-arc.md, calculates real elapsed days since the arc started,
 updates the ## Day: N line, and writes a tick-queue priority seed when the arc
 crosses a phase transition threshold.
 
-Does NOT auto-advance phases — that requires narrative judgment from the Labyrinth.
-Instead it flags the transition as [PRIORITY: HIGH] so the Labyrinth can surface
-it at the next session open.
+Primarily updates the day counter and acts as a fallback nudge if the simulation
+has not yet advanced the arc on its own.
 
 Phase thresholds (default):
   SETUP     → RISING    at Day 5
@@ -69,6 +68,8 @@ PHASE_TRANSITION_NOTES = {
         "Consider advancing to RESOLUTION — let things settle, show the scar."
     ),
 }
+
+GRACE_DAYS = 2
 
 
 def read_arc():
@@ -228,11 +229,15 @@ def main():
             print(f"[arc-tick] Phase transition seed already in queue — skipping duplicate.")
         else:
             next_phase = PHASE_TRANSITION_NOTES[phase][0]
-            print(f"[arc-tick] Day {real_day} >= threshold {threshold}: flagging {phase} → {next_phase} transition")
+            overdue = real_day - threshold
+            if overdue < GRACE_DAYS:
+                print(f"[arc-tick] Day {real_day} >= threshold {threshold}, but giving simulation {GRACE_DAYS} day(s) of grace.")
+                return
+            print(f"[arc-tick] Day {real_day} >= threshold {threshold}: fallback-flagging {phase} → {next_phase} transition")
             new_queue = append_phase_seed(queue_text, phase, real_day, title, dry_run=dry_run)
             if not dry_run:
                 write_queue(new_queue)
-                print(f"[arc-tick] [PRIORITY: HIGH] seed written to tick-queue.")
+                print(f"[arc-tick] [PRIORITY: HIGH] fallback seed written to tick-queue.")
 
 
 if __name__ == "__main__":

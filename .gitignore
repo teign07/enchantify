@@ -83,8 +83,22 @@ logs/health.log
 logs/schedule.log
 logs/sparky.log
 logs/wallpaper.log
+logs/classifieds-ledger/
+logs/scene-gallery/
+logs/scene-ledger/
+logs/simulations/
+logs/transcripts/
 lore/*.md.bak
 lore/**/*.md.bak
+
+# ─── Runtime state (auto-generated) ─────────────────────────────────────────
+config/narrative-sim-state.json
+memory/.dreams/
+tmp/
+
+# ─── Editor / OS backup files ─────────────────────────────────────────────────
+*.bak
+*\ copy.py
 
 # ─── macOS ────────────────────────────────────────────────────────────────────
 .DS_Store

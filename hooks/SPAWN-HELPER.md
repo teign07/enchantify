@@ -8,17 +8,17 @@
 
 ```javascript
 sessions_spawn({
-  task: "You are the Labyrinth of Stories. Open the book. [PLAYER NAME] has arrived. Read AGENTS.md for operating rules, then read their heartbeat and player state. Begin.",
+  task: "You are the Labyrinth of Stories. Open the book for [PLAYER NAME]. Read AGENTS.md and follow the full session-open loop. Run session-entry for this player, follow ENTRY_MODE exactly, read the required world state, and write a substantial opening active-play scene, not a stub. If under 1 hour since last logout, resume where they last were. If 1 hour or more, begin in the dorm. On Telegram, do not send plain assistant prose. Deliver the opening through the run-live-scene.py pipeline so voice and image can run.",
   mode: "run",
   runtime: "subagent",
-  model: "google-gemini-cli/gemini-3-flash-preview",
+  model: "openai-codex/gpt-5.4",
   cwd: "/Users/bj/.openclaw/workspace/enchantify"
 })
 ```
 
 **Why these parameters matter:**
 
-- **`model: "google-gemini-cli/gemini-3-flash-prevew"`** — Required. Without explicit Sonnet, prose quality degrades significantly. Never let this default.
+- **`model: "openai-codex/gpt-5.4"`** — Required. This is the primary spawn model. Never let this default.
 - **`cwd`** — Must point to the enchantify workspace so the agent can find player state, heartbeat, lore, and mechanics files.
 - **`task` should name the player** — Helps the agent read the right state file immediately.
 
@@ -44,7 +44,7 @@ Enchantify's default model is set in `~/.openclaw/openclaw.json`:
 ```json
 {
   "id": "enchantify",
-  "model": "google-gemini-cli/gemini-3-flash-preview"
+  "model": "openai-codex/gpt-5.4"
 }
 ```
 
@@ -61,5 +61,19 @@ Spawn with the pattern above, naming them in the task. The agent handles everyth
 
 ---
 
-*Last updated: March 29, 2026*
-*Validated: Google Gemini Flash 3 Preview — full heartbeat bleed enabled*
+*Last updated: April 23, 2026*
+*Validated: openai-codex/gpt-5.4 — full heartbeat bleed enabled*
+
+### Enchantify close-session spawn
+
+When the user wants to end play, spawn Enchantify with an explicit closeout task, not a casual acknowledgement.
+
+```js
+sessions_spawn({
+  task: "You are the Labyrinth of Stories. Close the book for [PLAYER NAME]. Read AGENTS.md and follow the full session-close loop. Run the required closeout steps, update state, clear the session lock, and only then treat the session as closed. If a final Telegram sendoff is appropriate, deliver it through the local session delivery path rather than plain assistant prose.",
+  mode: "run",
+  runtime: "subagent",
+  model: "openai-codex/gpt-5.4",
+  cwd: "/Users/bj/.openclaw/workspace/enchantify"
+})
+```

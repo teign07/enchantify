@@ -9,6 +9,8 @@ Usage:
   python3 scripts/mission-control.py --open    # generate + open in browser
   python3 scripts/mission-control.py --serve   # serve on http://localhost:9191
 """
+import base64
+import mimetypes
 import os
 import re
 import sys
@@ -25,6 +27,7 @@ THREADS_F   = BASE / "lore" / "threads.md"
 REGISTER_F  = BASE / "lore" / "world-register.md"
 CURRENT_ARC = BASE / "lore" / "current-arc.md"
 QUEUE_F     = BASE / "memory" / "tick-queue.md"
+SIM_LOG_DIR = BASE / "logs" / "simulations"
 PATTERNS_F  = BASE / "memory" / "patterns.md"
 ISSUES_DIR  = BASE / "bleed" / "issues"
 LOGS_DIR    = BASE / "logs"
@@ -32,6 +35,8 @@ PLAYERS_DIR = BASE / "players"
 HEARTBEAT_F = BASE / "HEARTBEAT.md"
 NOTHING_F   = BASE / "lore" / "nothing-intelligence.md"
 ARC_SPINE_F = BASE / "memory" / "arc-spine.md"
+SCENE_LEDGER_DIR = BASE / "logs" / "scene-ledger"
+SCENE_OUTBOX_DIR = BASE / "tmp" / "scene-outbox"
 
 _OPENCLAW = shutil.which("openclaw") or "/opt/homebrew/bin/openclaw"
 
@@ -53,7 +58,7 @@ PHASE_COLOR = {
     "permanent":  "#374151",
 }
 
-PHASE_ORDER = ["dormant", "setup", "rising", "climax", "resolution"]
+PHASE_ORDER =["dormant", "setup", "rising", "climax", "resolution"]
 PHASE_PCT   = {"dormant": 0, "setup": 20, "rising": 45, "climax": 70, "resolution": 92, "permanent": 0}
 
 # ── Academy schedule constants ────────────────────────────────────────────────
@@ -124,7 +129,7 @@ CLASS_INFO = {
     },
 }
 
-TIME_BLOCKS = [
+TIME_BLOCKS =[
     ("early_morning",   "Early Morning",   "5–8:59 AM",    "Academy breathes. Stonebrook territory. Few students up."),
     ("morning_class",   "Morning Class",   "9–10:59 AM",   "First class in session."),
     ("mid_morning",     "Mid Morning",     "11–11:59 AM",  "Class ending; students moving between halls."),
@@ -157,6 +162,7 @@ def read(path: Path) -> str:
 def parse_threads() -> list[dict]:
     text = read(THREADS_F)
     register = read(REGISTER_F)
+    live_overlay = build_thread_live_overlay()
 
     # Build belief + live-status lookup from world-register Active Threads
     # Notes column format: [id:slug] Phase: word — description
@@ -172,7 +178,7 @@ def parse_threads() -> list[dict]:
             key = m.group(1).strip().lower()
             belief[key] = int(m.group(2))
             notes = m.group(3).strip()
-            pm = re.search(r'[Pp]hase:\s*(\w+)(?:[^—\n]*—\s*(.+))?', notes)
+            pm = re.search(r'[Pp]hase:\s*(\w+)(?:.*?[\-–—]\s*(.+))?', notes)
             if pm:
                 reg_phase[key] = pm.group(1).lower()
                 if pm.group(2):
@@ -188,7 +194,7 @@ def parse_threads() -> list[dict]:
         "dormant,":   "dormant",
     }
 
-    threads = []
+    threads =[]
     for section in re.split(r'^## Thread: ', text, flags=re.MULTILINE)[1:]:
         lines = section.strip().splitlines()
         name = lines[0].strip() if lines else "?"
@@ -196,26 +202,31 @@ def parse_threads() -> list[dict]:
         # Skip template placeholders and meta-threads
         if name.startswith("["):            continue  # e.g. [Anchor Name]
         if "Adding New Threads" in name:    continue
-        next_beat_raw = re.search(r'\*\*Next beat:\*\*\s*(.+)', section)
+
+        # NEW FORGIVING PARSER: Handles missing spaces and asterisks
+        next_beat_raw = re.search(r'\*\*Next beat[:*]*\s*(.+)', section, re.IGNORECASE)
         next_beat_val = next_beat_raw.group(1).strip() if next_beat_raw else ""
         if next_beat_val.startswith("*(read from"):  continue  # Current Arc defers elsewhere
         if next_beat_val.startswith("["):             continue  # template placeholder
 
-        def field(pat):
-            m = re.search(pat, section)
+        def field(key_name):
+            # Matches the key name, any mix of colons/asterisks, optional spaces, and captures the text
+            pat = rf'\*\*{key_name}[:*]*\s*(.+)'
+            m = re.search(pat, section, re.IGNORECASE)
             return m.group(1).strip() if m else ""
 
-        phase_raw  = field(r'\*\*phase:\*\*\s*(.+)')
+        phase_raw  = field("phase")
         first_word = phase_raw.split()[0].lower().rstrip(",") if phase_raw else "dormant"
         phase_word = PHASE_ALIASES.get(first_word, first_word)
+        
         # If the raw string contains "permanent", force it
         if "permanent" in phase_raw.lower():
             phase_word = "permanent"
         if phase_word not in PHASE_ORDER and phase_word != "permanent":
             phase_word = "dormant"
 
-        born_raw  = field(r'\*\*born:\*\*\s*(\S+)')
-        closed_raw = field(r'\*\*closed:\*\*\s*(\S+)')
+        born_raw   = field("born")
+        closed_raw = field("closed")
         key = name.lower()
         b = belief.get(key, 0)
 
@@ -230,27 +241,31 @@ def parse_threads() -> list[dict]:
         age_note = ""
         if born_raw and born_raw not in ("—", "-", ""):
             try:
-                born = date.fromisoformat(born_raw)
+                # Clean the date string in case the LLM added trailing words
+                clean_date = born_raw.split()[0]
+                born = date.fromisoformat(clean_date)
                 days = (date.today() - born).days
                 if days <= 7:
                     age_note = "new"
             except ValueError:
                 pass
 
+        overlay = live_overlay.get(key, {})
         threads.append({
             "name":         name,
             "phase":        phase_word,
             "phase_raw":    phase_raw,
             "belief":       b,
-            "pressure":     field(r'\*\*pressure:\*\*\s*(.+)'),
-            "nothing":      field(r'\*\*Nothing pressure:\*\*\s*(.+)'),
+            "pressure":     field("pressure"),
+            "nothing":      field("Nothing pressure"),
             "next_beat":    next_beat_val,
             "status":       reg_status.get(key, ""),
-            "last_advanced":field(r'\*\*Last advanced:\*\*\s*(.+)'),
+            "last_advanced":field("Last advanced"),
             "born":         born_raw,
             "closed":       closed_raw,
             "age_note":     age_note,
-            "npc_anchor":   field(r'\*\*npc_anchor:\*\*\s*(.+)'),
+            "npc_anchor":   field("npc_anchor"),
+            "live":         overlay,
         })
 
     # Sort: climax first, then by belief desc
@@ -299,7 +314,7 @@ def parse_arc() -> dict:
     resolution_block = section("Resolution Paths")
 
     # Extract resolution paths as bullet list
-    res_paths = []
+    res_paths =[]
     for m in re.finditer(r'^-\s+\*\*(.+?)\*\*[:\s]*(.+)', resolution_block, re.MULTILINE):
         res_paths.append({"label": m.group(1).strip(), "text": m.group(2).strip()})
 
@@ -324,7 +339,7 @@ def parse_arc() -> dict:
 def parse_entities() -> tuple[list, list, list]:
     """Returns (npcs, threads_register, talismans)."""
     text = read(REGISTER_F)
-    npcs, threads_r, talismans = [], [], []
+    npcs, threads_r, talismans = [],[], []
 
     row_re = re.compile(
         r'^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|',
@@ -351,7 +366,7 @@ def parse_entities() -> tuple[list, list, list]:
         except ValueError: continue
 
         thread_m = re.search(r'\[thread:([^\]]+)\]', notes)
-        threads_tag = [t.strip() for t in thread_m.group(1).split(",")] if thread_m else []
+        threads_tag =[t.strip() for t in thread_m.group(1).split(",")] if thread_m else[]
         clean_notes = re.sub(r'\[thread:[^\]]+\]', '', notes).strip().strip(";").strip()
 
         if in_talismans:
@@ -384,7 +399,7 @@ def parse_player(name: str = "bj") -> dict:
 
     # Quests from Inside Cover
     cover_m = re.search(r'## The Inside Cover\n(.*?)(?=\n##|\Z)', text, re.DOTALL)
-    quests = []
+    quests =[]
     if cover_m:
         for m in re.finditer(r'\|\s*\*\*([^*]+)\*\*\s*\|([^|]*)\|\s*\*\*ACTIVE\*\*', cover_m.group(1)):
             quests.append({"npc": m.group(1).strip(), "desc": m.group(2).strip()})
@@ -395,13 +410,13 @@ def parse_player(name: str = "bj") -> dict:
     if margin_m:
         for m in re.finditer(r'^\|\s*([^|*][^|]*)\|\s*([^|]+)\|\s*([^|]+)\|\s*([^|]+)\|\s*([^|]+)\|',
                              margin_m.group(1), re.MULTILINE):
-            fae, gave, terms, deadline, status = [x.strip() for x in m.groups()]
+            fae, gave, terms, deadline, status =[x.strip() for x in m.groups()]
             if fae and not fae.startswith("*"):
                 bargains.append({"fae": fae, "status": status, "deadline": deadline})
 
     # Inventory
     inv_m = re.search(r'\*\*Inventory:\*\*\s*\n(.*?)(?=\n-\s*\*\*[A-Z]|\n##|\Z)', text, re.DOTALL)
-    inventory = []
+    inventory =[]
     if inv_m:
         for m in re.finditer(
             r'^\s*-\s*\*\*([^*]+):\*\*\s*(?:\*([^*]*)\*)?\s*(.*)',
@@ -427,7 +442,7 @@ def parse_player(name: str = "bj") -> dict:
 
 def parse_tick_queue(limit: int = 30) -> list[dict]:
     text = read(QUEUE_F)
-    entries = []
+    entries =[]
     for line in reversed(text.splitlines()):
         line = line.strip()
         if not line or line.startswith("#") or line.startswith("*"):
@@ -453,6 +468,90 @@ def parse_tick_queue(limit: int = 30) -> list[dict]:
             break
 
     return entries  # already reversed (newest first)
+
+
+def parse_simulation_feed(limit: int = 40) -> list[dict]:
+    if not SIM_LOG_DIR.exists():
+        return []
+    files = sorted(SIM_LOG_DIR.glob("*.jsonl"))
+    if not files:
+        return []
+
+    entries = []
+    for path in reversed(files):
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except Exception:
+            continue
+        for line in reversed(lines):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            entries.append(obj)
+            if len(entries) >= limit:
+                return entries
+    return entries
+
+
+def _thread_key(name: str) -> str:
+    return (name or "").strip().lower()
+
+
+def build_thread_live_overlay(limit: int = 200) -> dict[str, dict]:
+    feed = parse_simulation_feed(limit=limit)
+    overlay: dict[str, dict] = {}
+
+    for entry in feed:
+        thread_name = entry.get("thread_name") or entry.get("name")
+        if not thread_name:
+            continue
+        key = _thread_key(thread_name)
+        bucket = overlay.setdefault(key, {
+            "latest_event": None,
+            "events": [],
+            "last_ts": "",
+            "last_actor": "",
+            "last_action": "",
+            "last_intensity": "",
+            "latest_narrative": "",
+            "latest_reason": "",
+            "latest_target": "",
+            "influence_snapshot": [],
+            "consequence_summary": [],
+        })
+
+        bucket["events"].append(entry)
+        ts = entry.get("timestamp", "")
+        if ts >= bucket["last_ts"]:
+            bucket["latest_event"] = entry
+            bucket["last_ts"] = ts
+            bucket["last_actor"] = entry.get("actor", "")
+            bucket["last_action"] = entry.get("action", entry.get("kind", ""))
+            bucket["last_intensity"] = entry.get("intensity", "")
+            bucket["latest_narrative"] = entry.get("narrative", "")
+            bucket["latest_reason"] = entry.get("reason", "")
+            bucket["latest_target"] = entry.get("target", "")
+            bucket["influence_snapshot"] = entry.get("influence_snapshot", []) or []
+
+        if entry.get("kind") == "consequence":
+            summary = entry.get("narrative") or entry.get("raw") or ""
+            if summary and summary not in bucket["consequence_summary"]:
+                bucket["consequence_summary"].append(summary)
+
+    return overlay
+
+
+def _short_local_ts(ts: str) -> str:
+    if not ts:
+        return ""
+    try:
+        return datetime.fromisoformat(ts).strftime("%m-%d %H:%M")
+    except Exception:
+        return ts
 
 
 def parse_bleed_status() -> dict:
@@ -501,7 +600,7 @@ def parse_anchors(name: str = "bj") -> list[dict]:
     text = read(BASE / "players" / f"{name}-anchors.md")
     if not text:
         return []
-    anchors = []
+    anchors =[]
     for section in re.split(r'^## ', text, flags=re.MULTILINE)[1:]:
         lines = section.strip().splitlines()
         anchor_name = lines[0].strip()
@@ -582,14 +681,14 @@ def parse_forecast(talismans: list) -> dict:
     if sparky_m:
         sparky = re.sub(r'###[^\n]+\n|\*\d{4}-\d{2}-\d{2}\*\n?', '', sparky_m.group(1)).strip()
 
-    diary_entries = []
+    diary_entries =[]
     diary_m = re.search(r'<!-- DIARY_START -->(.*?)<!-- DIARY_END -->', hb, re.DOTALL)
     if diary_m:
         for m in re.finditer(r'\*(Diary|Dream)\s*\([^)]+\):\*\s*(.+)', diary_m.group(1)):
             diary_entries.append({"kind": m.group(1), "text": m.group(2).strip()})
 
     # ── Unwritten Whispers ──
-    whispers = []
+    whispers =[]
     w_m = re.search(r'### 📜 Current Whispers from the Unwritten\s*\n(.*?)(?=\n---|\n## |\Z)',
                     state, re.DOTALL)
     if w_m:
@@ -597,7 +696,7 @@ def parse_forecast(talismans: list) -> dict:
             whispers.append({"title": m.group(1).strip(), "text": m.group(2).strip()})
 
     # ── Academy environment ──
-    env_rows = []
+    env_rows =[]
     env_m = re.search(r'(?m)^## Environment\s*\n(.*?)(?=^## |\Z)', state, re.DOTALL)
     if env_m:
         for m in re.finditer(r'^\|\s*\*\*([^*]+)\*\*\s*\|\s*([^|]+)\|\s*([^|]*)\|',
@@ -614,7 +713,7 @@ def parse_forecast(talismans: list) -> dict:
     if strat_m:
         nothing_strategy = strat_m.group(1).strip()
 
-    pressure_points = []
+    pressure_points =[]
     pp_m = re.search(r'## Identified Pressure Points\s*\n(.*?)(?=\n##|\Z)', nothing, re.DOTALL)
     if pp_m:
         for m in re.finditer(r'^-\s+(.+)', pp_m.group(1), re.MULTILINE):
@@ -622,7 +721,7 @@ def parse_forecast(talismans: list) -> dict:
 
     # ── Arc spine ──
     belief_state = field(spine, r'Belief:\s*\d+\s*[—-]\s*(.+)')
-    ready_for    = []
+    ready_for    =[]
     rf_m = re.search(r'## What the Story Is Ready For\s*\n(.*?)(?=\n##|\Z)', spine, re.DOTALL)
     if rf_m:
         for m in re.finditer(r'^-\s+(.+)', rf_m.group(1), re.MULTILINE):
@@ -752,14 +851,13 @@ def _ms_to_local(ms: int) -> str:
 
 
 def parse_cron_jobs() -> list[dict]:
-    jobs = []
+    jobs =[]
     try:
-        result = subprocess.run(
-            [_OPENCLAW, "cron", "list", "--json"],
+        result = subprocess.run([_OPENCLAW, "cron", "list", "--json"],
             capture_output=True, text=True, timeout=10
         )
         data = json.loads(result.stdout)
-        items = data if isinstance(data, list) else data.get("jobs", data.get("data", []))
+        items = data if isinstance(data, list) else data.get("jobs", data.get("data",[]))
         for j in items:
             agent = j.get("agentId", j.get("agent_id", ""))
             if agent and "enchantify" not in str(agent).lower():
@@ -821,7 +919,7 @@ def parse_cron_jobs() -> list[dict]:
                     break
             if not matched_label:
                 continue
-            if matched_label in openclaw_names:
+            if any(matched_label in name for name in openclaw_names):
                 continue  # already in openclaw list
             # parse cron expression (first 5 fields)
             parts = line.split()
@@ -836,6 +934,7 @@ def parse_cron_jobs() -> list[dict]:
                 "dream.py":        "dream.log",
                 "schedule.py":     "schedule.log",
                 "arc-tick.py":     "pulse.log",
+                "pulse.py":        "pulse.log",
                 "labyrinth-intelligence.py": "intelligence.log",
                 "mission-control.py": "",
             }
@@ -845,7 +944,7 @@ def parse_cron_jobs() -> list[dict]:
                     if lp.exists():
                         mtime = lp.stat().st_mtime
                         from datetime import timezone
-                        log_hint = datetime.fromtimestamp(mtime).strftime("%-I:%M %p")
+                        log_hint = datetime.fromtimestamp(mtime).strftime("%m-%d %H:%M")
                     break
             jobs.append({
                 "name":     matched_label,
@@ -875,7 +974,7 @@ def phase_bar(phase: str, belief: int) -> str:
     color = PHASE_COLOR.get(phase, "#555")
     label = phase.upper()
 
-    bands = [
+    bands =[
         ("#3f3f46", 8,  "D"),
         ("#4e6b8a", 20, "S"),
         ("#92681a", 25, "R"),
@@ -924,7 +1023,7 @@ def modal_attr(title: str, fields: list[tuple[str, str]]) -> str:
     _skip = {"", "—", "-", "?", "*(none yet)*", "never", "0"}
     data = {
         "title": title,
-        "fields": [
+        "fields":[
             {"k": k, "v": str(v)}
             for k, v in fields
             if str(v).strip() not in _skip
@@ -942,14 +1041,14 @@ def render_arc_banner(arc: dict) -> str:
     belief_pct = min(100, max(0, belief * 1.5))
 
     res_html = ""
-    for r in arc.get("resolution", []):
+    for r in arc.get("resolution",[]):
         res_html += f'<div class="arc-res-row"><span class="arc-res-label">{h(r["label"])}</span> {h(r["text"])}</div>'
 
     compass = arc.get("compass", "")
     compass_html = f'<span class="arc-compass">⊕ {h(compass)}</span>' if compass and compass != "?" else ""
 
-    res_full = "\n".join(f'{r["label"]}: {r["text"]}' for r in arc.get("resolution", []))
-    md = modal_attr(arc.get("name", "Arc"), [
+    res_full = "\n".join(f'{r["label"]}: {r["text"]}' for r in arc.get("resolution",[]))
+    md = modal_attr(arc.get("name", "Arc"),[
         ("Phase",       f'{phase} · Day {arc.get("day","?")} · started {arc.get("started","")}'),
         ("Belief",      str(arc.get("belief", 0))),
         ("Compass",     arc.get("compass", "")),
@@ -1001,23 +1100,91 @@ def render_thread_card(t: dict) -> str:
     color  = PHASE_COLOR.get(t["phase"], "#555")
     badge  = f'<span class="badge-new">new</span>' if t["age_note"] == "new" else ""
     anchor = f'<div class="card-anchor">{h(t["npc_anchor"])}</div>' if t["npc_anchor"] else ""
-    # Status (live, from world-register notes) takes priority over next_beat for card display
-    primary = t["status"] or t["next_beat"]
-    beat    = h(primary[:160]) if primary else "—"
-    last    = h(t["last_advanced"]) if t["last_advanced"] else "never"
+    live   = t.get("live", {}) or {}
+    latest_event = live.get("latest_event") or {}
+
+    live_text = live.get("latest_narrative", "")
+    status_text = t["status"] or ""
+    next_text = t["next_beat"] or ""
+    has_live = bool(live_text)
+
+    live_stamp = _short_local_ts(live.get("last_ts", ""))
+    last = live_stamp or h(t["last_advanced"]) if t["last_advanced"] else (live_stamp or "never")
+    if not last:
+        last = "never"
+
     nothing_low = "low" in t["nothing"].lower() if t["nothing"] else True
     nothing_dot = f'<span class="nothing-dot" style="color:{("var(--nothing)" if not nothing_low else "var(--muted)")}" title="Nothing pressure: {h(t["nothing"])}">◆</span>'
 
-    md = modal_attr(t["name"], [
+    live_summary = ""
+    if live.get("last_actor"):
+        action = live.get("last_action", "")
+        intensity = live.get("last_intensity", "")
+        target = live.get("latest_target", "")
+        bits = [live.get("last_actor", "")]
+        if action:
+            bits.append(action)
+        if intensity:
+            bits.append(f'({intensity})')
+        if target:
+            bits.append(f'→ {target}')
+        live_summary = " ".join(bits)
+
+    consequence_summary = "\n".join(live.get("consequence_summary", [])[:3])
+    influence_summary = ", ".join(live.get("influence_snapshot", [])[:5])
+
+    md = modal_attr(t["name"],[
         ("Phase",            f'{t["phase"].title()} · Belief {t["belief"]}'),
+        ("Live now",         live.get("latest_narrative", "")),
+        ("Latest movement",  live_summary),
+        ("Live reason",      live.get("latest_reason", "")),
         ("Current status",   t["status"]),
         ("Next beat",        t["next_beat"]),
         ("Pressure",         t["pressure"]),
         ("Nothing pressure", t["nothing"]),
+        ("Recent influences", influence_summary),
+        ("Recent consequences", consequence_summary),
         ("NPC anchor",       t["npc_anchor"]),
         ("Born",             t["born"]),
         ("Last advanced",    t["last_advanced"]),
+        ("Last live event",  live_stamp),
+        ("Latest raw event", latest_event.get("raw", "")),
     ])
+
+    meta_bits = []
+    if live_stamp:
+        meta_bits.append(f'live {live_stamp}')
+    if t["last_advanced"]:
+        meta_bits.append(f'last advanced: {h(t["last_advanced"])}')
+    meta = ' · '.join(meta_bits) if meta_bits else 'never advanced'
+
+    beat_parts = []
+    if has_live:
+        live_detail_parts = []
+        if live.get("last_actor"):
+            live_detail_parts.append(live.get("last_actor", ""))
+        if live.get("last_action"):
+            live_detail_parts.append(live.get("last_action", ""))
+        if live.get("last_intensity"):
+            live_detail_parts.append(f'({live.get("last_intensity", "")})')
+        if live.get("latest_target"):
+            live_detail_parts.append(f'→ {live.get("latest_target", "")}')
+        live_detail = " ".join(live_detail_parts)
+        live_line = f'<div style="margin-bottom:.22rem"><span style="color:var(--seed);font-weight:700;font-size:.72rem;letter-spacing:.04em">LIVE</span> <span style="font-size:.78rem">{h(live_detail)}</span>'
+        if live_stamp:
+            live_line += f' <span class="muted" style="font-size:.72rem">{h(live_stamp)}</span>'
+        live_line += '</div>'
+        beat_parts.append(live_line)
+        if live_text:
+            beat_parts.append(f'<div style="margin-bottom:.22rem">{h(live_text[:180])}</div>')
+
+    planned_text = status_text or next_text
+    if planned_text:
+        planned_label = 'Planned' if has_live else 'Current'
+        planned_style = 'color:var(--muted);font-size:.82rem' if has_live else ''
+        beat_parts.append(f'<div style="{planned_style}"><span class="muted">{planned_label}:</span> {h(planned_text[:180])}</div>')
+
+    beat_html = ''.join(beat_parts) if beat_parts else '—'
 
     return f'''<div class="card clickable" style="border-color:{color}22;--phase-color:{color}" onclick="openModal(this)" data-modal={md}>
       <div class="card-header">
@@ -1026,8 +1193,8 @@ def render_thread_card(t: dict) -> str:
       </div>
       {anchor}
       {phase_bar(t["phase"], t["belief"])}
-      <div class="card-beat">{beat}</div>
-      <div class="card-meta">last advanced: {last}</div>
+      <div class="card-beat">{beat_html}</div>
+      <div class="card-meta">{meta}</div>
     </div>'''
 
 
@@ -1058,7 +1225,7 @@ def render_entity_row(e: dict) -> str:
     ) if e["threads"] else ""
 
     threads_str = ", ".join(e["threads"]) if e["threads"] else ""
-    md = modal_attr(e["name"], [
+    md = modal_attr(e["name"],[
         ("Type",    e["type"]),
         ("Belief",  str(b)),
         ("Threads", threads_str),
@@ -1084,6 +1251,46 @@ def render_queue_entry(entry: dict) -> str:
     return f'<div class="entry {css}">{text}</div>'
 
 
+def render_simulation_entry(entry: dict) -> str:
+    kind = entry.get("kind", "action")
+    priority = (entry.get("priority") or "NORMAL").upper()
+    css = "entry-priority" if priority == "HIGH" else "entry-pulse"
+
+    ts = entry.get("timestamp", "")
+    when = ""
+    if ts:
+        when = ts.replace("T", " ")[:16]
+    trigger = entry.get("trigger") or "scheduled"
+    time_tag = entry.get("time_tag") or ""
+    header_bits = [b for b in [when, trigger, time_tag] if b]
+    header = " · ".join(header_bits)
+
+    if kind == "action":
+        title = f"{entry.get('actor', 'Someone')} [{entry.get('action', '?')}/{entry.get('intensity', '?')}]"
+        if entry.get("target"):
+            title += f" → {entry.get('target')}"
+        if entry.get("thread_name"):
+            title += f" on {entry.get('thread_name')}"
+        narrative = entry.get("narrative", "")
+        reason = entry.get("reason", "")
+        pressure = ", ".join(entry.get("influence_snapshot") or [])
+        extra = []
+        if reason:
+            extra.append(f"<div class=\"sim-reason\"><span class=\"muted\">why</span> {h(reason)}</div>")
+        if pressure:
+            extra.append(f"<div class=\"sim-meta muted\">pressure: {h(pressure)}</div>")
+        body = f"<div class=\"sim-title\">{h(title)}</div><div class=\"sim-narrative\">{h(narrative)}</div>{''.join(extra)}"
+    elif kind == "consequence":
+        title = f"{entry.get('name', 'Something')} shifted {entry.get('before', '?')} → {entry.get('after', '?')}"
+        body = f"<div class=\"sim-title\">{h(title)}</div><div class=\"sim-narrative\">{h(entry.get('reason', ''))}</div>"
+    else:
+        title = entry.get("raw", kind)
+        body = f"<div class=\"sim-title\">{h(title)}</div><div class=\"sim-narrative\">{h(entry.get('narrative', ''))}</div>"
+
+    header_html = f'<div class="sim-header muted">{h(header)}</div>' if header else ""
+    return f'<div class="entry {css} sim-entry">{header_html}{body}</div>'
+
+
 def render_anchor_card(a: dict) -> str:
     meta      = ANCHOR_TYPE_META.get(a["type"], {"dir": "?", "color": "#555"})
     color     = meta["color"]
@@ -1092,7 +1299,7 @@ def render_anchor_card(a: dict) -> str:
     last      = "" if "none yet" in a["last_vis"] else f" · last {h(a['last_vis'])}"
     echo      = h(a["echo"][:140]) if a["echo"] else "—"
 
-    md = modal_attr(a["name"], [
+    md = modal_attr(a["name"],[
         ("Type",               f'{a["type"]} · {direction}'),
         ("Belief invested",    str(a["belief"])),
         ("Created",            a["created"]),
@@ -1168,7 +1375,7 @@ def render_forecast_tab(f: dict) -> str:
     if f["anchors_belief_total"] > 0:
         inv_badge = f'<span class="fc-badge" style="background:var(--seed)22;color:var(--seed)">{f["anchors_belief_total"]} Belief anchored · {f["anchors_count"]} anchors</span>'
 
-    nothing_md = modal_attr("The Nothing", [
+    nothing_md = modal_attr("The Nothing",[
         ("Pressure level",     f["nothing_pressure"]),
         ("Diary mentions",     f["nothing_diary"]),
         ("Last confrontation", f["last_confrontation_date"] if f["confrontation_confirmed"] else "never"),
@@ -1201,7 +1408,7 @@ def render_forecast_tab(f: dict) -> str:
         f'<span class="fc-tal-b">{t["belief"]}</span></div>'
         for t in tal_list
     )
-    tal_md = modal_attr("Talisman War", [
+    tal_md = modal_attr("Talisman War",[
         ("Frontrunner",  f'{front_name} ({front_ch.title()}) — Belief {front_b}'),
         ("Philosophy",   front_philo),
     ] + [(t["name"], f'{t["chapter"].title()} · Belief {t["belief"]} — {t["philosophy"]}') for t in tal_list])
@@ -1216,7 +1423,7 @@ def render_forecast_tab(f: dict) -> str:
 
     # ── Dramatic spine ──
     rf_items = "".join(f'<li>{h(r[:140])}</li>' for r in f["ready_for"])
-    spine_md = modal_attr("Dramatic Spine", [
+    spine_md = modal_attr("Dramatic Spine",[
         ("Belief state",  f["belief_state"]),
         ("Ready for",     "\n".join(f["ready_for"])),
         ("Last session",  f["last_session"]),
@@ -1232,7 +1439,7 @@ def render_forecast_tab(f: dict) -> str:
     # ── Whispers ──
     whisper_items = ""
     for w in f["whispers"][:12]:
-        wmd = modal_attr(w["title"], [("Whisper", w["text"])])
+        wmd = modal_attr(w["title"],[("Whisper", w["text"])])
         whisper_items += f'<div class="fc-whisper clickable" onclick="openModal(this)" data-modal={wmd}><span class="fc-whisper-title">{h(w["title"])}</span><span class="fc-whisper-text muted">{h(w["text"][:90])}…</span></div>'
     whispers_html = f'''<div class="fc-block">
       <div class="fc-block-header"><span class="fc-block-title">Unwritten Whispers</span><span class="fc-badge fc-badge-neutral">{len(f["whispers"])} active</span></div>
@@ -1247,7 +1454,7 @@ def render_forecast_tab(f: dict) -> str:
 
     sparky_html = f'<div class="fc-sparky">{h(f["sparky"][:160])}…</div>' if f["sparky"] else ""
 
-    founder_md = modal_attr("Founder Status", [
+    founder_md = modal_attr("Founder Status",[
         ("Presence",  f["presence"]),
         ("Focus",     f["focus"]),
         ("Pacing",    f["pacing"]),
@@ -1323,7 +1530,7 @@ def render_schedule_tab(sched: dict) -> str:
             info  = CLASS_INFO.get(name, {})
             color = info.get("color", "#555")
             prof_str = f"Prof. {prof}" if prof else ""
-            md = modal_attr(name, [
+            md = modal_attr(name,[
                 ("Compass",    info.get("compass", "")),
                 ("Professor",  prof_str),
                 ("About",      info.get("desc", "")),
@@ -1368,7 +1575,7 @@ def render_schedule_tab(sched: dict) -> str:
                 return f'<span class="sched-mini-class" style="color:{c}" title="{nm}">{h(nm[:18])}</span>'
             return f'<span class="sched-mini-class muted">{h(e)}</span>'
 
-        tone_md = modal_attr(f'{dname} · Day {day_data.get("num","?")}', [
+        tone_md = modal_attr(f'{dname} · Day {day_data.get("num","?")}',[
             ("Tone",        day_data.get("tone", "")),
             ("Character",   day_data.get("desc", "")),
             ("Morning",     (slots.get("morning") or ("—",))[0] if slots.get("morning") else "—"),
@@ -1429,8 +1636,8 @@ def render_cron_row(job: dict) -> str:
     errors = job["errors"]
     if errors > 0:
         dot_color, dot_title = "var(--climax)",  f"{errors} consecutive error(s)"
-    elif status in ("ok", "success"):
-        dot_color, dot_title = "var(--seed)",    "last run ok"
+    elif status in ("ok", "success", "system"):
+        dot_color, dot_title = "var(--seed)",    "last run ok" if status != "system" else "system ok"
     else:
         dot_color, dot_title = "var(--muted)",   status or "unknown"
 
@@ -1463,9 +1670,154 @@ def render_cron_row(job: dict) -> str:
     </tr>'''
 
 
+def _gallery_title(raw_title: str, scene_id: str, stem_fallback: str) -> str:
+    """Return a clean display title. Falls back to a formatted timestamp when the
+    stored title looks like a log/diary entry rather than a real scene name."""
+    _GARBAGE_PATTERNS = ('fixed', 'bug', 'session closed', 'scripts/', 'test scene', 'ledger test')
+    if raw_title and not any(p in raw_title.lower() for p in _GARBAGE_PATTERNS) and len(raw_title) <= 80:
+        return raw_title
+    m = re.match(r'scene-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})$', scene_id or '')
+    if m:
+        yr, mo, dy, hh, mm = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)
+        months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+        return f"{months[int(mo)-1]} {int(dy)} · {hh}:{mm}"
+    return scene_id or stem_fallback
+
+
+def parse_scene_gallery(limit: int = 18) -> list[dict]:
+    entries = []
+    seen_scene_ids: set[str] = set()
+
+    def _append_entry(obj: dict, image_result: dict) -> None:
+        gallery_path = image_result.get('gallery_path')
+        if gallery_path:
+            try:
+                image_path = Path(str(gallery_path)).expanduser()
+            except Exception:
+                return
+        else:
+            src = image_result.get('artifact_path')
+            if not src:
+                detail = str(image_result.get('detail') or '')
+                m = re.search(r'(?:from|at)\s+([^\s]+\.(?:png|jpg|jpeg|webp|gif))', detail, re.IGNORECASE)
+                if m:
+                    src = m.group(1)
+            if not src:
+                return
+            try:
+                image_path = Path(str(src)).expanduser()
+            except Exception:
+                return
+        if not image_path.exists():
+            return
+
+        scene_id = str(obj.get('scene_id') or '')
+        if scene_id and scene_id in seen_scene_ids:
+            return
+        if scene_id:
+            seen_scene_ids.add(scene_id)
+
+        text = str(obj.get('text') or '')
+        recorded_at = str(obj.get('recorded_at') or obj.get('ran_at') or '')
+        try:
+            mime = mimetypes.guess_type(str(image_path))[0] or 'image/png'
+            b64 = base64.b64encode(image_path.read_bytes()).decode('ascii')
+            data_uri = f"data:{mime};base64,{b64}"
+        except Exception:
+            data_uri = str(image_result.get('gallery_uri') or image_path.resolve().as_uri())
+        raw_title = str(obj.get('title') or '')
+        display_title = _gallery_title(raw_title, scene_id, image_path.stem)
+        entries.append({
+            'title': display_title,
+            'scene_id': scene_id,
+            'recorded_at': recorded_at,
+            'when': _short_local_ts(recorded_at),
+            'mood': obj.get('mood', ''),
+            'intensity': obj.get('intensity', ''),
+            'path': data_uri,
+            'text': text,
+        })
+
+    if SCENE_LEDGER_DIR.exists():
+        for path in sorted(SCENE_LEDGER_DIR.glob('*.jsonl'), reverse=True):
+            try:
+                lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
+            except Exception:
+                continue
+            for line in reversed(lines):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                results = obj.get('results') or {}
+                image_result = results.get('image') if isinstance(results, dict) else None
+                if not isinstance(image_result, dict) or not image_result.get('ok'):
+                    continue
+                _append_entry(obj, image_result)
+                if len(entries) >= limit:
+                    return entries
+
+    if SCENE_OUTBOX_DIR.exists():
+        for path in sorted(SCENE_OUTBOX_DIR.glob('*-run.json'), reverse=True):
+            try:
+                obj = json.loads(path.read_text(encoding='utf-8', errors='replace'))
+            except Exception:
+                continue
+            results = obj.get('results') or {}
+            image_result = results.get('image') if isinstance(results, dict) else None
+            if not isinstance(image_result, dict) or not image_result.get('ok'):
+                continue
+            _append_entry(obj, image_result)
+            if len(entries) >= limit:
+                return entries
+
+    return entries
+
+
+def render_scene_gallery(entries: list[dict]) -> str:
+    if not entries:
+        return '<div class="muted" style="padding:.5rem 0">No generated scene images yet.</div>'
+
+    def _gallery_modal(item: dict) -> str:
+        return modal_attr(item['title'], [
+            ('Captured', item.get('when', '')),
+            ('Mood', item.get('mood', '')),
+            ('Intensity', item.get('intensity', '')),
+            ('Scene', item.get('scene_id', '')),
+            ('Text', item.get('text', '')),
+            ('Image', item.get('path', '')),
+        ])
+
+    cards = []
+    for idx, item in enumerate(entries):
+        active = ' active' if idx == 0 else ''
+        meta = ' · '.join([x for x in [item.get('when', ''), item.get('mood', ''), item.get('intensity', '')] if x])
+        cards.append(
+            f'''<button class="gallery-thumb{active}" type="button" onclick="selectGalleryImage(this)" data-fullsrc="{h(item['path'])}" data-title="{h(item['title'])}" data-meta="{h(meta)}" data-caption="{h((item.get('text') or '')[:240])}" data-modal={_gallery_modal(item)}><img src="{h(item['path'])}" alt="{h(item['title'])}"><span class="gallery-thumb-label">{h(item['title'])}</span></button>'''
+        )
+
+    first = entries[0]
+    first_meta = ' · '.join([x for x in [first.get('when', ''), first.get('mood', ''), first.get('intensity', '')] if x])
+    return f'''<div class="gallery-shell" id="gallery-shell">
+      <div id="gallery-stage-wrap" class="gallery-stage-wrap clickable" onclick="openModal(this)" data-modal={_gallery_modal(first)}>
+        <img id="gallery-stage-image" class="gallery-stage-image" src="{h(first['path'])}" alt="{h(first['title'])}">
+      </div>
+      <div class="gallery-stage-meta">
+        <div id="gallery-stage-title" class="gallery-stage-title">{h(first['title'])}</div>
+        <div id="gallery-stage-sub" class="gallery-stage-sub muted">{h(first_meta)}</div>
+        <div id="gallery-stage-caption" class="gallery-stage-caption muted">{h((first.get('text') or '')[:240])}</div>
+      </div>
+      <div class="gallery-filmstrip">{''.join(cards)}</div>
+    </div>'''
+
+
 # ── Full page ─────────────────────────────────────────────────────────────────
 
-def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, anchors=None, sched=None, forecast=None) -> str:
+def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, anchors=None, sched=None, forecast=None, sim_feed=None, gallery_entries=None) -> str:
     generated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # Arc banner
@@ -1483,13 +1835,15 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
 
     # Queue entries
     queue_html = "".join(render_queue_entry(e) for e in queue) or '<div class="muted">Queue is clear.</div>'
+    sim_feed = sim_feed or []
+    sim_html = "".join(render_simulation_entry(e) for e in sim_feed) or '<div class="muted">No simulation ledger yet.</div>'
 
     # Anchor places
-    anchors = anchors or []
+    anchors = anchors or[]
     anchors_html = "".join(render_anchor_card(a) for a in anchors) or '<div class="muted" style="padding:.5rem 0">No anchors yet. The Ley Line map is blank.</div>'
 
     # Inventory
-    inventory_html = "".join(render_inventory_row(i) for i in player.get("inventory", [])) or '<div class="muted">Inventory is empty.</div>'
+    inventory_html = "".join(render_inventory_row(i) for i in player.get("inventory",[])) or '<div class="muted">Inventory is empty.</div>'
 
     # Schedule
     sched = sched or {}
@@ -1497,6 +1851,10 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
 
     # Forecast
     forecast_html = render_forecast_tab(forecast) if forecast else '<div class="muted">No forecast data.</div>'
+
+    # Gallery
+    gallery_entries = gallery_entries or []
+    gallery_html = render_scene_gallery(gallery_entries)
 
     # Player quests
     quest_html = ""
@@ -1710,6 +2068,12 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .entry-invest      {{ background: #0d1b35; border-color: var(--invest); color: #93c5fd; }}
   .entry-pulse       {{ background: #111; border-color: var(--border); color: var(--muted); }}
   .entry-normal      {{ background: #161618; border-color: var(--border); color: var(--text); }}
+  .sim-entry         {{ display: flex; flex-direction: column; gap: .2rem; }}
+  .sim-header        {{ font-family: monospace; font-size: .62rem; text-transform: uppercase; letter-spacing: .04em; }}
+  .sim-title         {{ font-size: .72rem; color: var(--text); }}
+  .sim-narrative     {{ font-size: .72rem; color: var(--text); font-style: italic; }}
+  .sim-reason        {{ font-size: .68rem; color: var(--text); }}
+  .sim-meta          {{ font-family: monospace; font-size: .62rem; }}
 
   /* ── Player panel ── */
   .belief-bar-wrap {{ margin: .5rem 0; }}
@@ -1752,6 +2116,20 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .cron-expr {{ color: #6b7280; }}
   .cron-deliv.ok {{ color: var(--seed); }}
   .cron-time {{ font-family: monospace; font-size: .65rem; white-space: nowrap; padding-top: .35rem; }}
+
+  /* ── Image gallery ── */
+  .gallery-shell {{ display:flex; flex-direction:column; gap:.75rem; }}
+  .gallery-stage-wrap {{ background: var(--bg); border:1px solid var(--border); border-radius:4px; overflow:hidden; min-height: 280px; display:flex; align-items:center; justify-content:center; }}
+  .gallery-stage-image {{ width:100%; max-height:460px; object-fit:contain; display:block; background:#0b0b0d; }}
+  .gallery-stage-meta {{ display:flex; flex-direction:column; gap:.2rem; }}
+  .gallery-stage-title {{ font-size:.9rem; font-weight:bold; }}
+  .gallery-stage-sub {{ font-family: monospace; font-size:.65rem; }}
+  .gallery-stage-caption {{ font-size:.74rem; line-height:1.45; }}
+  .gallery-filmstrip {{ display:flex; gap:.5rem; overflow-x:auto; padding-bottom:.2rem; }}
+  .gallery-thumb {{ background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--text); min-width:140px; max-width:140px; padding:.35rem; cursor:pointer; display:flex; flex-direction:column; gap:.35rem; text-align:left; }}
+  .gallery-thumb.active {{ border-color:#7c3aed; box-shadow: inset 0 0 0 1px #7c3aed44; }}
+  .gallery-thumb img {{ width:100%; height:88px; object-fit:cover; border-radius:2px; background:#0b0b0d; }}
+  .gallery-thumb-label {{ font-size:.68rem; line-height:1.3; white-space:normal; }}
 
   .muted {{ color: var(--muted); }}
   .clickable {{ cursor: pointer; }}
@@ -2000,15 +2378,20 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
     <!-- World Register + Tick Feed (tabbed) -->
     <div class="panel">
       <div class="tab-bar">
-        <button class="tab active" onclick="switchTab(this,'tick')">Tick Feed</button>
+        <button class="tab active" onclick="switchTab(this,'tick')">Simulation Feed</button>
+        <button class="tab" onclick="switchTab(this,'queue')">Session Queue</button>
         <button class="tab" onclick="switchTab(this,'forecast')">Forecast</button>
         <button class="tab" onclick="switchTab(this,'entities')">Entities</button>
         <button class="tab" onclick="switchTab(this,'talismans')">Talisman War</button>
         <button class="tab" onclick="switchTab(this,'anchors')">Anchors <span style="color:var(--muted);font-size:.6rem">({len(anchors)})</span></button>
+        <button class="tab" onclick="switchTab(this,'images')">Images <span style="color:var(--muted);font-size:.6rem">({len(gallery_entries)})</span></button>
         <button class="tab" onclick="switchTab(this,'inventory')">Inventory</button>
         <button class="tab" onclick="switchTab(this,'schedule')">Schedule</button>
       </div>
       <div id="tick" class="tab-content active">
+        <div class="tick-feed">{sim_html}</div>
+      </div>
+      <div id="queue" class="tab-content">
         <div class="tick-feed">{queue_html}</div>
       </div>
       <div id="entities" class="tab-content">
@@ -2021,6 +2404,9 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
       </div>
       <div id="anchors" class="tab-content">
         <div class="anchor-grid">{anchors_html}</div>
+      </div>
+      <div id="images" class="tab-content">
+        {gallery_html}
       </div>
       <div id="inventory" class="tab-content">
         {inventory_html}
@@ -2112,6 +2498,26 @@ function openModal(el) {{
   document.getElementById('modal-overlay').classList.add('open');
 }}
 
+function selectGalleryImage(btn) {{
+  const panel = btn.closest('.gallery-shell');
+  if (!panel) return;
+  panel.querySelectorAll('.gallery-thumb').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  const img = panel.querySelector('#gallery-stage-image');
+  const title = panel.querySelector('#gallery-stage-title');
+  const sub = panel.querySelector('#gallery-stage-sub');
+  const caption = panel.querySelector('#gallery-stage-caption');
+  const wrap = panel.querySelector('#gallery-stage-wrap');
+  if (img) {{
+    img.src = btn.dataset.fullsrc || '';
+    img.alt = btn.dataset.title || '';
+  }}
+  if (title) title.textContent = btn.dataset.title || '';
+  if (sub) sub.textContent = btn.dataset.meta || '';
+  if (caption) caption.textContent = btn.dataset.caption || '';
+  if (wrap && btn.dataset.modal) wrap.dataset.modal = btn.dataset.modal;
+}}
+
 function closeModal() {{
   document.getElementById('modal-overlay').classList.remove('open');
 }}
@@ -2120,9 +2526,9 @@ document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(
 
 // ── Soft refresh ──────────────────────────────────────────────────────────────
 const REFRESH_MS = 3 * 60 * 1000;  // 3 minutes
-const DATA_REGIONS = [
+const DATA_REGIONS =[
   'data-topbar', 'data-thread-count', 'data-arc-threads',
-  'tick', 'entities', 'talismans', 'anchors', 'inventory', 'schedule', 'forecast',
+  'tick', 'entities', 'talismans', 'anchors', 'images', 'inventory', 'schedule', 'forecast',
   'data-player', 'data-automation',
 ];
 
@@ -2199,14 +2605,16 @@ def generate() -> str:
     npcs, talismans = parse_entities()
     player    = parse_player()
     queue     = parse_tick_queue()
+    sim_feed  = parse_simulation_feed()
     bleed     = parse_bleed_status()
     crons     = parse_cron_jobs()
     arc       = parse_arc()
     anchors   = parse_anchors(player.get("name", "bj"))
     sched    = parse_schedule()
     forecast = parse_forecast(talismans)
+    gallery_entries = parse_scene_gallery()
     return build_html(threads, npcs, talismans, player, queue, bleed, crons,
-                      arc=arc, anchors=anchors, sched=sched, forecast=forecast)
+                      arc=arc, anchors=anchors, sched=sched, forecast=forecast, sim_feed=sim_feed, gallery_entries=gallery_entries)
 
 
 def main():

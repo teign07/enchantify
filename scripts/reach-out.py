@@ -301,7 +301,7 @@ Output ONLY the spoken message. Nothing else. No labels, no quotes around it."""
 
     try:
         result = subprocess.run(
-            ["openclaw", "agent", "--local", "--prompt", prompt],
+            ["openclaw", "agent", "--local", "--model", "openai-codex/gpt-5.4-mini", "--prompt", prompt],
             capture_output=True, text=True, timeout=35
         )
         if result.returncode == 0 and result.stdout.strip():

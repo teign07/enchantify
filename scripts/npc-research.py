@@ -30,6 +30,7 @@ import sys
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
+from tick_queue_utils import ensure_header, prune_tick_queue
 from typing import Optional
 import urllib.request
 
@@ -38,6 +39,7 @@ BASE_DIR     = Path(os.environ.get("ENCHANTIFY_BASE_DIR", SCRIPT_DIR.parent))
 CACHE_PATH   = BASE_DIR / "config" / "npc-research-cache.json"
 RESEARCH_DIR = BASE_DIR / "memory" / "npc-research"
 TICK_QUEUE   = BASE_DIR / "memory" / "tick-queue.md"
+QUEUE_HEADER = "# Tick Queue\n\n*Read at session open, then cleared.*\n"
 
 sys.path.insert(0, str(SCRIPT_DIR))
 try:
@@ -73,8 +75,8 @@ def load_config() -> dict:
                 cfg[key.strip()] = val.strip().strip('"')
     return cfg
 
-def call_gemini(prompt: str) -> str:
-    """Run a prompt through the enchantify agent (Gemini via openclaw)."""
+def call_llm(prompt: str) -> str:
+    """Run a prompt through the enchantify agent via openclaw."""
     result = subprocess.run(["openclaw", "agent", "--local", "--agent", "enchantify", "-m", prompt],
         capture_output=True, text=True
     )
@@ -333,7 +335,7 @@ def generate_research(npc: dict, heartbeat: str, city: str) -> str:
         "TASK: Conduct real-world research on your Unwritten Interest. Use your web search capabilities or your deep factual knowledge base to find true, specific facts (e.g., actual stores in the player's location, real websites, true historical events, or scientific facts).\n\n"
         "Write your 300-500 word research dispatch, weaving these absolute real-world facts into your character's magical perspective."
     )
-    return call_gemini(f"{system}\n\n{user_prompt}")
+    return call_llm(f"{system}\n\n{user_prompt}")
 
 
 # ─── Delivery ─────────────────────────────────────────────────────────────────
@@ -441,9 +443,7 @@ def queue_tick(npc: dict) -> None:
     seed  = random.choice(_SEEDS).format(name=name, Name=Name, their=their, They=They)
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    TICK_QUEUE.parent.mkdir(parents=True, exist_ok=True)
-    if not TICK_QUEUE.exists():
-        TICK_QUEUE.write_text("# Tick Queue\n\n*Read at session open, then cleared.*\n")
+    ensure_header(TICK_QUEUE, QUEUE_HEADER)
 
     with TICK_QUEUE.open("a") as f:
         f.write(
@@ -452,6 +452,7 @@ def queue_tick(npc: dict) -> None:
             f"Narrative seed: {seed}\n"
             f"Delivery: iCloud Notes + Telegram + local file → `memory/npc-research/`\n"
         )
+    prune_tick_queue(TICK_QUEUE, QUEUE_HEADER)
     print(f"  ✓ Tick-queue entry written.")
 
 

@@ -27,6 +27,7 @@ BASE_DIR   = Path(__file__).parent.parent
 _SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 import world_context
+from tick_queue_utils import ensure_header, prune_tick_queue
 import importlib.util as _ilu
 try:
     import npc_log as _npc_log
@@ -40,6 +41,10 @@ _pe_spec.loader.exec_module(pact_engine)
 REGISTER = BASE_DIR / "lore" / "world-register.md"
 THREADS  = BASE_DIR / "lore" / "threads.md"
 QUEUE    = BASE_DIR / "memory" / "tick-queue.md"
+QUEUE_HEADER = (
+    "# Tick Queue\n\n"
+    "*Entities stirred by simulation between sessions. Read at session open, then cleared.*\n"
+)
 
 DECAY_THRESHOLD_DAYS   = 30
 DECAY_AMOUNT           = 1
@@ -62,11 +67,167 @@ PHASE_BANDS = [
 ]
 PHASE_ORDER = ["dormant", "setup", "rising", "climax", "resolution"]
 
+THREAD_PRESSURE_WEIGHTS = {
+    "low": 1,
+    "background": 1,
+    "medium": 2,
+    "medium-high": 3,
+    "high": 4,
+    "urgent": 5,
+}
+
 def belief_to_phase_band(belief: int) -> str:
     for lo, hi, label in PHASE_BANDS:
         if lo <= belief <= hi:
             return label
     return "dormant"
+
+
+def normalize_phase_label(label: str) -> str:
+    label = (label or "").strip().lower().rstrip(",")
+    if label in ("escalating", "escalation"):
+        return "rising"
+    return label
+
+
+def parse_thread_registry() -> dict[str, dict]:
+    """Read lore/threads.md and return thread metadata keyed by display name."""
+    if not THREADS.exists():
+        return {}
+    text = THREADS.read_text()
+    registry = {}
+    sections = re.split(r'^## Thread: ', text, flags=re.MULTILINE)
+    for section in sections[1:]:
+        lines = section.strip().splitlines()
+        if not lines:
+            continue
+        name = lines[0].strip()
+        thread_id_m = re.search(r'\*\*id:\*\*\s*`([^`]+)`', section)
+        phase_m = re.search(r'\*\*phase:\*\*\s*([^\n]+)', section, re.IGNORECASE)
+        pressure_m = re.search(r'\*\*pressure:\*\*\s*([^\n]+)', section, re.IGNORECASE)
+        last_adv_m = re.search(r'\*\*Last advanced:\*\*\s*([^\n]+)', section, re.IGNORECASE)
+        next_beat_m = re.search(r'\*\*Next beat:\*\*\s*([^\n]+)', section, re.IGNORECASE)
+        npc_anchor_m = re.search(r'\*\*npc_anchor:\*\*\s*([^\n(]+)', section, re.IGNORECASE)
+        entities_m = re.search(r'\*\*entities:\*\*\s*([^\n]+)', section, re.IGNORECASE)
+        entities = []
+        if entities_m:
+            entities = [part.strip() for part in re.split(r',|;', entities_m.group(1)) if part.strip()]
+        registry[name] = {
+            "id": thread_id_m.group(1).strip() if thread_id_m else "",
+            "phase": normalize_phase_label(phase_m.group(1).split()[0]) if phase_m else "dormant",
+            "pressure": (pressure_m.group(1).strip().lower() if pressure_m else ""),
+            "last_advanced": (last_adv_m.group(1).strip() if last_adv_m else ""),
+            "next_beat": (next_beat_m.group(1).strip() if next_beat_m else ""),
+            "npc_anchor": npc_anchor_m.group(1).strip() if npc_anchor_m else "",
+            "entities": entities,
+            "section": section,
+        }
+    return registry
+
+
+def canonical_thread_owners() -> set[str]:
+    """Return lowercase entity names canonically claimed by a dedicated thread."""
+    owners: set[str] = set()
+    for meta in parse_thread_registry().values():
+        thread_id = (meta.get("id") or "").strip().lower()
+        if not thread_id or thread_id in ("main-arc", "academy-daily"):
+            continue
+        npc_anchor = (meta.get("npc_anchor") or "").strip().lower()
+        if npc_anchor:
+            owners.add(npc_anchor)
+        for entity in meta.get("entities", []):
+            ent = entity.strip().lower()
+            if ent:
+                owners.add(ent)
+    return owners
+
+
+def parse_isoish_date(text: str):
+    m = re.search(r'(\d{4}-\d{2}-\d{2})', text or "")
+    if not m:
+        return None
+    try:
+        return date.fromisoformat(m.group(1))
+    except ValueError:
+        return None
+
+
+def build_thread_readiness_map(entities) -> dict[str, dict]:
+    """Compute readiness from thread belief plus NPC pressure behind the thread."""
+    registry = parse_thread_registry()
+    by_id = {meta.get("id"): (name, meta) for name, meta in registry.items() if meta.get("id")}
+    readiness = {}
+
+    for e in entities:
+        if e['type'].lower() != 'thread':
+            continue
+        id_m = re.search(r'\[id:([^\]]+)\]', e.get('notes', ''))
+        thread_id = id_m.group(1).strip() if id_m else ""
+        display_name, meta = by_id.get(thread_id, (e['name'], {}))
+        current_phase_m = re.search(r'Phase:\s*(\w+)', e.get('notes', ''), re.IGNORECASE)
+        current_phase = normalize_phase_label(current_phase_m.group(1) if current_phase_m else meta.get("phase", "dormant"))
+        if current_phase == "permanent":
+            continue
+
+        supporting = []
+        invested_belief = 0
+        for cand in entities:
+            if cand['name'] == e['name']:
+                continue
+            cand_threads = set(cand.get('threads', []))
+            if thread_id and thread_id in cand_threads:
+                supporting.append(cand['name'])
+                invested_belief += cand['belief']
+
+        supporting_count = len(supporting)
+        pressure_key = (meta.get("pressure") or "").split()[0]
+        pressure_score = THREAD_PRESSURE_WEIGHTS.get(pressure_key, 1)
+        last_advanced = parse_isoish_date(meta.get("last_advanced", ""))
+        stale_days = (date.today() - last_advanced).days if last_advanced else 2
+        stale_bonus = min(3, max(0, stale_days // 3))
+        npc_pressure = min(4, supporting_count)
+        investment_pressure = min(5, invested_belief // 25)
+        belief_pressure = min(6, max(0, (e['belief'] - 5) // 8))
+        readiness_score = belief_pressure + pressure_score + stale_bonus + npc_pressure + investment_pressure
+        target_phase = belief_to_phase_band(e['belief'])
+
+        if current_phase in PHASE_ORDER:
+            current_idx = PHASE_ORDER.index(current_phase)
+            target_idx = PHASE_ORDER.index(target_phase)
+        else:
+            current_idx = 0
+            target_idx = 0
+
+        should_escalate = target_idx > current_idx and readiness_score >= (4 + target_idx * 2)
+        should_cool = target_idx < current_idx and readiness_score <= max(1, current_idx)
+
+        reasons = []
+        if supporting_count:
+            reasons.append(f"{supporting_count} supporting NPCs/entities are feeding it")
+        if stale_bonus:
+            reasons.append(f"it has been waiting {stale_days} day(s) for a beat")
+        if pressure_score >= 3:
+            reasons.append(f"its declared pressure is {meta.get('pressure', 'high')}")
+        if invested_belief >= 25:
+            reasons.append(f"supporting cast carries {invested_belief} combined Belief")
+        if not reasons:
+            reasons.append("Belief alone has changed its narrative mass")
+
+        readiness[display_name] = {
+            "id": thread_id,
+            "entity": e,
+            "current_phase": current_phase,
+            "target_phase": target_phase,
+            "score": readiness_score,
+            "stale_days": stale_days,
+            "supporting_count": supporting_count,
+            "supporting_belief": invested_belief,
+            "reasons": reasons,
+            "should_escalate": should_escalate,
+            "should_cool": should_cool,
+        }
+
+    return readiness
 
 INVESTMENT_CHANCE      = 0.25   # probability a stirred NPC invests per tick (talisman)
 FREE_INVESTMENT_CHANCE = 0.12   # probability a stirred NPC makes a secondary investment
@@ -712,51 +873,31 @@ def run_npc_free_investments(selected, all_entities, register_text, dry_run=Fals
 
 def check_thread_escalations(entities, dry_run=False) -> list[str]:
     """
-    Compare each thread entity's current Belief against its registered phase.
-    If Belief has crossed a phase threshold, write an escalation or cooling note to queue.
-    Permanent threads (academy-daily) are skipped — they don't escalate.
+    Advance or cool thread phases from simulated dramatic pressure, not raw Belief alone.
     """
     queue_lines = []
-    for e in entities:
-        if e['type'].lower() != 'thread':
-            continue
-        if 'permanent' in e.get('notes', '').lower():
-            continue
+    readiness_map = build_thread_readiness_map(entities)
 
-        belief_band = belief_to_phase_band(e['belief'])
+    for thread_name, info in readiness_map.items():
+        current_phase = info['current_phase']
+        target_phase = info['target_phase']
+        reasons = "; ".join(info['reasons'])
 
-        # Parse registered phase from world-register notes: "Phase: setup — ..."
-        phase_m = re.search(r'Phase:\s*(\w+)', e.get('notes', ''), re.IGNORECASE)
-        if not phase_m:
-            continue
-        current_phase = phase_m.group(1).lower()
-        # Normalise alternate labels
-        if current_phase in ('escalating', 'escalation'):
-            current_phase = 'rising'
-        if current_phase not in PHASE_ORDER:
-            continue
-
-        band_idx  = PHASE_ORDER.index(belief_band)
-        phase_idx = PHASE_ORDER.index(current_phase)
-
-        if band_idx > phase_idx:
+        if info['should_escalate']:
             queue_lines.append(
-                f"- **[THREAD ESCALATION: {e['name']}]** Belief {e['belief']} places this thread "
-                f"in `{belief_band}` phase (currently registered as `{current_phase}`). "
-                f"Labyrinth: deliver this phase shift naturally over the next session — "
-                f"not announced, just felt. Update the phase in `lore/world-register.md` notes at session close."
+                f"- **[THREAD ESCALATION: {thread_name}]** Readiness {info['score']} pushes this thread "
+                f"from `{current_phase}` toward `{target_phase}`. Why now: {reasons}. "
+                f"Simulation note: NPC action has moved the story forward offscreen."
             )
             if dry_run:
-                print(f"  [dry-run] Thread escalation: {e['name']} {current_phase} → {belief_band}")
-        elif band_idx < phase_idx and current_phase not in ('dormant',):
+                print(f"  [dry-run] Thread escalation: {thread_name} {current_phase} → {target_phase} (score {info['score']})")
+        elif info['should_cool'] and current_phase not in ('dormant',):
             queue_lines.append(
-                f"- **[THREAD COOLING: {e['name']}]** Belief {e['belief']} has dropped below "
-                f"the `{current_phase}` threshold. Something has deflated. "
-                f"Labyrinth: let this thread's quieting register in NPC behavior and ambient texture. "
-                f"Update phase in `lore/world-register.md` at session close if the shift feels right."
+                f"- **[THREAD COOLING: {thread_name}]** Readiness {info['score']} no longer sustains "
+                f"the `{current_phase}` phase. The pressure has eased, mostly because {reasons}."
             )
             if dry_run:
-                print(f"  [dry-run] Thread cooling: {e['name']} {current_phase} → {belief_band}")
+                print(f"  [dry-run] Thread cooling: {thread_name} {current_phase} → {target_phase} (score {info['score']})")
 
     return queue_lines
 
@@ -766,6 +907,10 @@ def check_thread_seeds(entities, dry_run=False) -> list[str]:
     Flag high-Belief NPCs with no dedicated thread tag as potential thread seeds.
     A seed isn't a thread — it's a signal to the Labyrinth that narrative mass is accumulating.
     Avoids re-flagging the same NPC if they already appear in a THREAD SEED entry this week.
+
+    Deterministic safeguard: do not flag an NPC if an existing dedicated thread already
+    canonically claims them via npc_anchor or entities in lore/threads.md, even if the
+    world-register row is missing a matching [thread:id] tag.
     """
     # Check tick-queue for recently flagged seeds (last ~14 ticks worth of content)
     recent_seeds: set[str] = set()
@@ -778,14 +923,19 @@ def check_thread_seeds(entities, dry_run=False) -> list[str]:
             if m:
                 recent_seeds.add(m.group(1).strip().lower())
 
+    claimed_by_thread = canonical_thread_owners()
+
     queue_lines = []
     for e in entities:
         if e['type'].lower() != 'npc':
             continue
         if e['belief'] < THREAD_SEED_BELIEF:
             continue
-        if e['name'].lower() in recent_seeds:
+        name_l = e['name'].lower()
+        if name_l in recent_seeds:
             continue  # Already flagged recently — don't spam
+        if name_l in claimed_by_thread:
+            continue  # A dedicated thread already owns this NPC canonically
 
         # Only flag if their only thread tag is academy-daily (or none)
         non_daily = [t for t in e.get('threads', []) if t != 'academy-daily']
@@ -1203,9 +1353,10 @@ def main():
         print(output)
         return
 
-    QUEUE.parent.mkdir(parents=True, exist_ok=True)
+    ensure_header(QUEUE, QUEUE_HEADER)
     with QUEUE.open('a') as f:
         f.write(output)
+    prune_tick_queue(QUEUE, QUEUE_HEADER)
     print(f"✓ Tick queue updated.")
 
 

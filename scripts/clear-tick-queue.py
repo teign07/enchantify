@@ -8,6 +8,7 @@ Usage:
   python3 scripts/clear-tick-queue.py
 """
 from pathlib import Path
+from tick_queue_utils import ensure_header
 
 QUEUE = Path(__file__).parent.parent / "memory" / "tick-queue.md"
 
@@ -17,6 +18,6 @@ HEADER = (
     "Read at session open, then cleared.*\n"
 )
 
-QUEUE.parent.mkdir(parents=True, exist_ok=True)
+ensure_header(QUEUE, HEADER)
 QUEUE.write_text(HEADER)
 print(f"✓ Tick queue cleared.")
