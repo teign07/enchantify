@@ -22,11 +22,13 @@ import os
 import re
 import sys
 import json
+import time
 import html
 from html import unescape as html_unescape
 import shutil
 import subprocess
 import urllib.request
+import urllib.error
 from datetime import datetime, date
 from pathlib import Path
 from typing import Optional
@@ -741,31 +743,80 @@ def get_previous_coverage(n: int = 3) -> str:
 
 # ── Agent call ────────────────────────────────────────────────────────────────
 
-_OPENCLAW_BIN = (
-    shutil.which("openclaw")
-    or "/opt/homebrew/bin/openclaw"
-    or "/usr/local/bin/openclaw"
-)
+def _oc_gateway_cfg() -> tuple[int, str, str]:
+    """Return (port, token, model) from openclaw.json, with sensible defaults."""
+    cfg_path = Path.home() / ".openclaw" / "openclaw.json"
+    cfg: dict = {}
+    if cfg_path.exists():
+        try:
+            cfg = json.loads(cfg_path.read_text())
+        except Exception:
+            pass
+    port  = cfg.get("gateway", {}).get("port", 18789)
+    token = cfg.get("gateway", {}).get("auth", {}).get("token", "")
+    # Use the agent defaults primary model, NOT the enchantify agent's model
+    # (enchantify agent may be on a rate-limited provider; the defaults primary
+    # is typically claude-sonnet which has its own independent quota)
+    model = (cfg.get("agents", {})
+               .get("defaults", {})
+               .get("model", {})
+               .get("primary", "claude-cli/claude-sonnet-4-6"))
+    return port, token, model
+
 
 def call_agent(prompt: str) -> str:
-    # claude-cli/claude-sonnet-4-6 via agents.defaults.model.primary in openclaw.json
-    result = subprocess.run(
-        [_OPENCLAW_BIN, "agent", "--local", "--agent", "enchantify", "-m", prompt],
-        capture_output=True, text=True, timeout=600
+    """Generate newspaper content via the openclaw HTTP gateway.
+
+    Uses a direct /v1/chat/completions call with a fresh session key so the
+    gateway does NOT load enchantify agent context (AGENTS.md, world files,
+    tool history). This avoids per-agent model overrides and cuts cold-start
+    overhead from several minutes to seconds.
+    """
+    port, token, model = _oc_gateway_cfg()
+    url = f"http://127.0.0.1:{port}/v1/chat/completions"
+    session_key = f"bleed-gen-{int(time.time())}"
+
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are writing for The Bleed, the daily student newspaper of an in-world "
+                    "literary magical academy. Respond ONLY with the newspaper content in the "
+                    "exact format requested. Begin immediately with ===HEADLINE=== — no preamble, "
+                    "no commentary, no closing remarks."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.85,
+        "max_tokens": 8000,
+        "stream": False,
+    }
+
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+            "x-openclaw-session-key": session_key,
+        },
+        data=json.dumps(payload).encode("utf-8"),
     )
-    output = result.stdout.strip()
 
-    # Strip ANSI codes
-    ansi = re.compile(r'\x1b\[[0-9;]*m')
-    output = ansi.sub('', output)
-
-    # Strip plugin/agent noise lines
-    noise = ("[plugins]", "[agents/", "[agent/", "adopted ", "google tool")
-    clean = [
-        line for line in output.splitlines()
-        if not any(line.strip().lower().startswith(p) for p in noise)
-    ]
-    return "\n".join(clean).strip()
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+        content = (result.get("choices", [{}])[0]
+                         .get("message", {})
+                         .get("content") or "")
+        return content.strip()
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")[:400]
+        raise RuntimeError(f"Gateway returned HTTP {e.code}: {body}") from e
+    except Exception as e:
+        raise RuntimeError(f"Gateway call failed: {e}") from e
 
 
 # ── Content generation ────────────────────────────────────────────────────────
