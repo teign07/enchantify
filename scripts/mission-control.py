@@ -2119,8 +2119,8 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
 
   /* ── Image gallery ── */
   .gallery-shell {{ display:flex; flex-direction:column; gap:.75rem; }}
-  .gallery-stage-wrap {{ background: var(--bg); border:1px solid var(--border); border-radius:4px; overflow:hidden; min-height: 280px; display:flex; align-items:center; justify-content:center; }}
-  .gallery-stage-image {{ width:100%; max-height:460px; object-fit:contain; display:block; background:#0b0b0d; }}
+  .gallery-stage-wrap {{ background: var(--bg); border:1px solid var(--border); border-radius:4px; overflow:hidden; min-height: 280px; display:flex; align-items:center; justify-content:flex-start; }}
+  .gallery-stage-image {{ width:100%; min-width:0; max-height:460px; object-fit:contain; object-position:left center; display:block; background:#0b0b0d; }}
   .gallery-stage-meta {{ display:flex; flex-direction:column; gap:.2rem; }}
   .gallery-stage-title {{ font-size:.9rem; font-weight:bold; }}
   .gallery-stage-sub {{ font-family: monospace; font-size:.65rem; }}
