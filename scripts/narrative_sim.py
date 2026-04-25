@@ -429,6 +429,16 @@ def pick_action(profile: ActorProfile, thread: ThreadPolicy, entity_belief: int,
     if not allowed:
         allowed = ["prepare"]
 
+    # An actor who IS the anchor of a thread should protect and invest, not attack it
+    actor_is_anchor = (
+        profile.name.lower() in thread.name.lower()
+        or bool(thread.npc_anchor and profile.name.lower() in thread.npc_anchor.lower())
+    )
+    if actor_is_anchor:
+        allowed = [a for a in allowed if a not in {"attack_belief", "sabotage"}]
+        if not allowed:
+            allowed = ["protect", "invest_belief", "reposition"]
+
     talisman = chapter_talisman_name(profile.chapter) if profile.chapter else None
     talisman_belief = talismans.get(talisman, 0) if talisman else 0
 
@@ -554,12 +564,16 @@ def choose_target(action: str, profile: ActorProfile, thread: ThreadPolicy, enti
     if action != "attack_belief":
         return None
     excluded = {profile.name, thread.name}
+    attacker_chapter = profile.chapter
     candidates = []
     thread_text = f"{thread.name} {thread.next_beat} {thread.npc_anchor} {thread.nothing_pressure}".lower()
     for name, ent in entities.items():
         if name in excluded:
             continue
         if thread.thread_id in ent.get("threads", []):
+            # Never attack same-chapter allies
+            if attacker_chapter and infer_entity_chapter(ent) == attacker_chapter:
+                continue
             if ent.get("type") in {"Emberheart", "Mossbloom", "Riddlewind", "Tidecrest", "Duskthorn"} and name.lower() not in thread_text:
                 continue
             candidates.append(name)
@@ -602,9 +616,10 @@ def simulate_world_pulse(register_text: str, threads_text: str, state: Optional[
             thread_bound = thread.thread_id in profile.thread_ids or actor_name == thread.npc_anchor.split("(")[0].strip()
             talisman_bound = profile.actor_kind == "talisman" and profile.chapter and (
                 thread.thread_id in ent.get("threads", []) or
-                profile.chapter.lower() in thread.name.lower() or
                 profile.chapter.lower() in thread.next_beat.lower() or
                 profile.chapter.lower() in thread.nothing_pressure.lower()
+                # Note: thread.name intentionally excluded — "Duskthorn Investigation" would
+                # otherwise bind the Dusk Thorn talisman to an investigation *of* Duskthorn
             )
             if thread_bound or talisman_bound:
                 score = entity_belief + 5 * phase_weight(thread.phase) + 3 * pressure_weight(thread.pressure)
