@@ -754,8 +754,8 @@ def _oc_gateway_cfg() -> tuple[int, str, str]:
             pass
     port  = cfg.get("gateway", {}).get("port", 18789)
     token = cfg.get("gateway", {}).get("auth", {}).get("token", "")
-    # Bleed always uses Sonnet — kept explicit so quota changes to defaults don't affect it
-    model = "claude-cli/claude-sonnet-4-6"
+    # Bleed always uses the enchantify agent's model (Sonnet), not the defaults (Haiku)
+    model = "openclaw/enchantify"
     return port, token, model
 
 
