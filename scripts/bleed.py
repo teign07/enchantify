@@ -2235,7 +2235,7 @@ def send_telegram(text: str, cfg: dict):
     if len(text) > 4000:
         text = text[:3990] + "\n…"
 
-    result = subprocess.run([_OPENCLAW_BIN, "message", "send",
+    result = subprocess.run(["openclaw", "message", "send",
          "--target",  _TELEGRAM_TARGET,
          "--channel", _TELEGRAM_CHANNEL,
          "--account", _TELEGRAM_ACCOUNT,
