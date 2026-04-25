@@ -18,6 +18,8 @@ Usage:
 Cron: 0 18 * * * cd /path/to/enchantify && /usr/bin/python3 scripts/bleed.py >> logs/bleed.log 2>&1
 """
 
+import base64
+import mimetypes
 import os
 import re
 import sys
@@ -1386,7 +1388,9 @@ def _sections_from_saved_html(html: str) -> dict:
         return m.group(1) if m else ""
 
     def extract_feature(text: str) -> str:
-        block = between(text, '<div class="col-head">Feature</div>', '<div class="col-head">Classifieds</div>')
+        # New layout: feature is in a front-feature-block section
+        m = re.search(r'class="front-feature-block[^"]*"[^>]*>(.*?)</section>', text, re.DOTALL)
+        block = m.group(1) if m else between(text, '<div class="col-head">Feature</div>', '<div class="col-head">Classifieds</div>')
         if not block:
             return ""
         title_m = re.search(r'<div class="feature-title">(.*?)</div>', block, re.DOTALL)
@@ -1441,7 +1445,7 @@ def _sections_from_saved_html(html: str) -> dict:
         ('WARREPORT', 'Chapter War Report', 'Academy Meteorological Society'),
         ('WEATHER', 'Academy Meteorological Society', 'Story Forecast'),
         ('FORECAST', 'Story Forecast', 'Thread Futures Market'),
-        ('MARKET', 'Thread Futures Market', 'Feature'),
+        ('MARKET', 'Thread Futures Market', 'Classifieds'),
         ('CLASSIFIEDS', 'Classifieds', 'Sparky\'s Corner'),
         ('CORRECTION', 'The Correction', 'The Missing'),
         ('MISSING', 'The Missing', None),
@@ -1671,10 +1675,15 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     feature_byline = feature_parts["byline"]
     feature_body = feature_parts["body"]
     feature_image = meta.get("feature_image") or ""
-    feature_image_html = (
-        '<div class="feature-image-wrap"><img class="feature-image" src="' + html.escape(feature_image) + '" alt="Feature story illustration"></div>'
-        if feature_image else ""
-    )
+    feature_image_html = ""
+    if feature_image:
+        abs_img = (ISSUES_DIR / feature_image).resolve()
+        if abs_img.exists():
+            mime = mimetypes.guess_type(str(abs_img))[0] or "image/png"
+            img_src = f"data:{mime};base64,{base64.b64encode(abs_img.read_bytes()).decode('ascii')}"
+        else:
+            img_src = html.escape(feature_image)
+        feature_image_html = f'<div class="feature-image-wrap"><img class="feature-image" src="{img_src}" alt="Feature story illustration"></div>'
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -1801,8 +1810,16 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     grid-template-columns: 3fr 1.1fr;
   }}
 
+  .front-feature-row {{
+    grid-template-columns: 1.8fr 1fr;
+  }}
+
+  .front-feature-row-full {{
+    grid-template-columns: 1fr;
+  }}
+
   .row-bottom {{
-    grid-template-columns: 1.5fr 1fr 1.5fr;
+    grid-template-columns: 1fr 1.2fr;
     border-bottom: none;
   }}
 
@@ -2011,6 +2028,9 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     <div class="headline-body">{paragraphs(hl['body'])}</div>
   </div>
 
+  <!-- FRONT PAGE FEATURE -->
+  {'<section class="front-feature-block content-row ' + ('front-feature-row' if feature_image_html else 'front-feature-row-full') + '"><div class="col"><div class="col-head">Feature</div>' + ('<div class="feature-title">' + feature_title + '</div>' if feature_title else '') + ('<div class="byline">' + feature_byline + '</div>' if feature_byline else '') + paragraphs(feature_body) + '</div>' + ('<div class="col" style="padding-right:0;">' + feature_image_html + '</div>' if feature_image_html else '') + '</section>' if (feature_title or feature_body) else ''}
+
   <!-- ROW 1: Gossip (wide left) + right rail -->
   <div class="content-row row-gossip-feature">
 
@@ -2078,16 +2098,8 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
 
   </div>
 
-  <!-- ROW 2 (now Row 4): Feature + Classifieds + right stack -->
+  <!-- ROW 4: Classifieds + right stack -->
   <div class="content-row row-bottom">
-
-    <div class="col">
-      <div class="col-head">Feature</div>
-      {'<div class="feature-title">' + feature_title + '</div>' if feature_title else ''}
-      {'<div class="byline">' + feature_byline + '</div>' if feature_byline else ''}
-      {feature_image_html}
-      {paragraphs(feature_body)}
-    </div>
 
     <div class="col">
       <div class="col-head">Classifieds</div>
