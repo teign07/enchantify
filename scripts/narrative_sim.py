@@ -560,23 +560,26 @@ def build_trace(profile: ActorProfile, thread: ThreadPolicy, action: str, target
     )
 
 
-def choose_target(action: str, profile: ActorProfile, thread: ThreadPolicy, entities: dict[str, dict]) -> Optional[str]:
+def choose_target(action: str, profile: ActorProfile, entities: dict[str, dict]) -> Optional[str]:
+    """Pick a target for attack_belief from the full world register.
+
+    The register is a belief economy — all entities compete for narrative
+    weight. Any entity is a valid target: NPCs, locations, objects, fae,
+    threads. Same-chapter allies are excluded. High-belief entities are
+    more likely targets (they hold more territory worth contesting).
+    """
     if action != "attack_belief":
         return None
-    excluded = {profile.name, thread.name}
     attacker_chapter = profile.chapter
     candidates = []
-    thread_text = f"{thread.name} {thread.next_beat} {thread.npc_anchor} {thread.nothing_pressure}".lower()
     for name, ent in entities.items():
-        if name in excluded:
+        if name == profile.name:
             continue
-        if thread.thread_id in ent.get("threads", []):
-            # Never attack same-chapter allies
-            if attacker_chapter and infer_entity_chapter(ent) == attacker_chapter:
-                continue
-            if ent.get("type") in {"Emberheart", "Mossbloom", "Riddlewind", "Tidecrest", "Duskthorn"} and name.lower() not in thread_text:
-                continue
-            candidates.append(name)
+        if ent.get("belief", 0) < 5:
+            continue
+        if attacker_chapter and infer_entity_chapter(ent) == attacker_chapter:
+            continue
+        candidates.append(name)
     if not candidates:
         return None
     weights = [max(1, entities[name].get("belief", 0)) for name in candidates]
@@ -650,7 +653,7 @@ def simulate_world_pulse(register_text: str, threads_text: str, state: Optional[
             intensity = "medium"
             action_name = "prepare"
             reason = f"major movement is not yet allowed; pressure is still gathering in {thread.name}"
-        target = choose_target(action_name, profile, thread, entities)
+        target = choose_target(action_name, profile, entities)
         visible_trace, hidden_effect = build_trace(profile, thread, action_name, target, influences)
         priority = "HIGH" if intensity == "major" else "NORMAL"
         delta_hint = 0
