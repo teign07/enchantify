@@ -94,9 +94,9 @@ The Labyrinth interprets the photograph as an impressionist work by Monet.
 The Labyrinth turns the subject into a Renaissance painting and writes a sonnet about it.
 - **In-game effect:** Imbues a scene with high drama and historical weight.
 
-### Everything’s Anime
-The Labyrinth turns the photo into a film still in the style of Studio Ghibli.
-- **In-game effect:** Heightens the "pops of color" and whimsical nature of the world.
+### Everything’s Archive
+The Labyrinth turns the photo into a literary magical-archive illustration: sparse pen-and-ink line art, watercolor washes, textured parchment, muted sepia and gray, and selective jewel-like magical color.
+- **In-game effect:** Heightens the archival ink-and-watercolor treatment of the world, with restrained jewel-color magic where wonder gathers.
 
 ### Everything’s Nice
 The Labyrinth responds with compliments and "nice surprises" like haikus or illustrations based on a selfie or object.

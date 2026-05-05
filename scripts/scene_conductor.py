@@ -47,6 +47,10 @@ BASE = Path(__file__).resolve().parent.parent
 TMP = BASE / "tmp"
 TEXT_OUTBOX = TMP / "scene-outbox"
 ARTIFACT_OUTBOX = TEXT_OUTBOX / "artifacts"
+ARCHIVE_ART_STYLE = (
+    "sparse pen-and-ink line art with watercolor washes on textured parchment, "
+    "muted sepia and gray palette, selective jewel-like pops of teal, gold, and red in magical details"
+)
 
 INTENSITY_SEQUENCES = {
     "quiet": ["text", "voice"],
@@ -112,7 +116,7 @@ class ImageCue:
     prompt: str
     filename_hint: Optional[str] = None
     size: str = "1216x832"
-    style: str = "whimsical, dark, modern anime with pops of color"
+    style: str = ARCHIVE_ART_STYLE
     deliver: bool = True
     backend: str = "drawthings"
     policy: CuePolicy = field(default_factory=lambda: CuePolicy(importance=ENRICHING, fallback="skip_or_wallpaper", cost_tier="medium", async_ok=True))
@@ -409,7 +413,10 @@ class Conductor:
         ]
         ok, detail = self._run(args, timeout=300)
         if not ok:
-            return True, f"drawthings unavailable, image brief written to {out} | fallback: {detail}"
+            message = f"drawthings unavailable, image brief written to {out} | fallback: {detail}"
+            if self.packet.image.deliver:
+                return False, message
+            return True, message
 
         if self.buffered_delivery and self.packet.image.deliver and self.packet.target:
             self.pending_deliveries["image"] = {"media_path": str(image_path)}
@@ -625,7 +632,7 @@ def example_packet() -> dict[str, Any]:
             "scene": "tension"
         },
         "image": {
-            "prompt": "Wicker Eddies in a haunted library corridor, warm lampglow against deep shadow, whimsical dark modern anime with pops of color",
+            "prompt": f"Wicker Eddies in a haunted library corridor, warm lampglow against deep shadow, {ARCHIVE_ART_STYLE}",
             "filename_hint": "wicker-corridor.png",
             "backend": "drawthings"
         },

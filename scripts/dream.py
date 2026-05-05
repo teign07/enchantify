@@ -18,6 +18,8 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
 WORKSPACE_DIR = SCRIPT_DIR.parent
+sys.path.insert(0, str(SCRIPT_DIR))
+import cron_steward
 
 
 def load_config() -> dict:
@@ -126,7 +128,7 @@ def build_context(cfg: dict) -> str:
 def call_agent(prompt: str) -> str:
     result = subprocess.run(
         ["openclaw", "agent", "--local", "--agent", "enchantify", "-m", prompt],
-        capture_output=True, text=True
+        capture_output=True, text=True, timeout=180
     )
     # Strip ANSI escape codes and plugin/auth noise lines from stdout
     import re
@@ -174,27 +176,30 @@ Output only the dream text. No title, no label, no preamble."""
 
 
 def main():
-    cfg = load_config()
+    with cron_steward.run("dream"):
+        cfg = load_config()
 
-    if cfg.get("ENCHANTIFY_ENABLE_DREAMS", "yes") == "no":
-        print("Dreams disabled in config. Exiting.")
-        return
+        if cfg.get("ENCHANTIFY_ENABLE_DREAMS", "yes") == "no":
+            print("Dreams disabled in config. Exiting.")
+            cron_steward.mark_skipped("dream", "disabled in config")
+            return
 
-    today = datetime.now()
-    date_str = today.strftime("%Y-%m-%d")
-    dream_path = WORKSPACE_DIR / "memory" / "dreams" / f"{date_str}.md"
+        today = datetime.now()
+        date_str = today.strftime("%Y-%m-%d")
+        dream_path = WORKSPACE_DIR / "memory" / "dreams" / f"{date_str}.md"
 
-    if dream_path.exists():
-        print(f"✓ Dream already written for {date_str}. Skipping.")
-        return
+        if dream_path.exists():
+            print(f"✓ Dream already written for {date_str}. Skipping.")
+            cron_steward.mark_skipped("dream", "already written", scope=date_str)
+            return
 
-    print(f"The Labyrinth is dreaming ({date_str})...")
+        print(f"The Labyrinth is dreaming ({date_str})...")
 
-    context = build_context(cfg)
-    dream_text = generate_dream(context)
+        context = build_context(cfg)
+        dream_text = generate_dream(context)
 
-    time_str = today.strftime("%I:%M %p").lstrip("0")
-    content = f"""# The Labyrinth Dreams — {today.strftime('%B %-d, %Y')}
+        time_str = today.strftime("%I:%M %p").lstrip("0")
+        content = f"""# The Labyrinth Dreams — {today.strftime('%B %-d, %Y')}
 
 *Written at {time_str}, while the book was closed.*
 
@@ -207,12 +212,13 @@ def main():
 *The Labyrinth sleeps. The pages are still.*
 """
 
-    dream_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(dream_path, "w") as f:
-        f.write(content)
+        dream_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(dream_path, "w") as f:
+            f.write(content)
 
-    print(f"✓ Dream written: {dream_path}")
-    print(f"  Preview: {dream_text[:120]}...")
+        print(f"✓ Dream written: {dream_path}")
+        print(f"  Preview: {dream_text[:120]}...")
+        cron_steward.mark_delivered("dream", dream_text, scope=date_str, path=str(dream_path))
 
 
 if __name__ == "__main__":

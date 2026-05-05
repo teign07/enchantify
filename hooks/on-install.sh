@@ -1151,7 +1151,7 @@ echo "  Installing cron jobs..."
     echo "*/15 * * * * cd $CRON_BASE && $PYTHON scripts/pulse.py >> $LOG/pulse.log 2>&1"
 
     # Entity tick + world pulse: every 3 hours at :30 — world simulation
-    echo "30 */3 * * * cd $CRON_BASE && $PYTHON scripts/arc-tick.py && $PYTHON scripts/tick.py && $PYTHON scripts/world-pulse.py >> $LOG/pulse.log 2>&1"
+    echo "30 */3 * * * cd $CRON_BASE && $PYTHON scripts/arc-tick.py && $PYTHON scripts/tick.py && $PYTHON scripts/world-pulse.py && $PYTHON scripts/send_academy_dispatch.py >> $LOG/pulse.log 2>&1"
 
     # Schedule sync: every 3 hours at :00
     echo "0 */3 * * * cd $CRON_BASE && $PYTHON scripts/schedule.py --update-state >> $LOG/schedule.log 2>&1"

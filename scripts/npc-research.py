@@ -28,11 +28,16 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from tick_queue_utils import ensure_header, prune_tick_queue
 from typing import Optional
+import urllib.error
 import urllib.request
+
+sys.path.insert(0, str(Path(__file__).parent))
+import cron_steward
 
 SCRIPT_DIR   = Path(__file__).parent
 BASE_DIR     = Path(os.environ.get("ENCHANTIFY_BASE_DIR", SCRIPT_DIR.parent))
@@ -64,7 +69,7 @@ CORE_NPCS = {"Zara Finch", "Professor Stonebrook", "Headmistress Thorne", "Boggl
 
 def load_config() -> dict:
     cfg = {}
-    config_path = SCRIPT_DIR / "enchantify-config.sh"
+    config_path = BASE_DIR / "config" / "secrets.env"
     if config_path.exists():
         with open(config_path) as f:
             for line in f:
@@ -72,15 +77,109 @@ def load_config() -> dict:
                 if line.startswith("#") or "=" not in line:
                     continue
                 key, _, val = line.partition("=")
-                cfg[key.strip()] = val.strip().strip('"')
+                cfg[key.strip()] = val.strip().strip('"').strip("'")
     return cfg
 
-def call_llm(prompt: str) -> str:
-    """Run a prompt through the enchantify agent via openclaw."""
-    result = subprocess.run(["openclaw", "agent", "--local", "--agent", "enchantify", "-m", prompt],
-        capture_output=True, text=True
+def _normalize_gateway_model(model: str) -> str:
+    model = (model or "").strip()
+    if model == "openclaw" or model.startswith("openclaw/"):
+        return model
+    return "openclaw"
+
+def _oc_gateway_cfg() -> tuple[int, str, str, int]:
+    """Return (port, token, model, timeout) for bounded gateway research."""
+    cfg_path = Path.home() / ".openclaw" / "openclaw.json"
+    oc_cfg: dict = {}
+    if cfg_path.exists():
+        try:
+            oc_cfg = json.loads(cfg_path.read_text())
+        except Exception:
+            pass
+
+    secrets = load_config()
+    port = oc_cfg.get("gateway", {}).get("port", 18789)
+    token = oc_cfg.get("gateway", {}).get("auth", {}).get("token", "")
+    raw_model = (
+        os.environ.get("NPC_RESEARCH_MODEL")
+        or secrets.get("NPC_RESEARCH_MODEL")
+        or os.environ.get("BLEED_MODEL")
+        or secrets.get("BLEED_MODEL")
+        or "openclaw"
     )
-    return result.stdout.strip()
+    model = _normalize_gateway_model(raw_model)
+    timeout_raw = (
+        os.environ.get("NPC_RESEARCH_TIMEOUT")
+        or secrets.get("NPC_RESEARCH_TIMEOUT")
+        or os.environ.get("BLEED_GATEWAY_TIMEOUT")
+        or secrets.get("BLEED_GATEWAY_TIMEOUT")
+        or "90"
+    )
+    try:
+        timeout = max(15, int(timeout_raw))
+    except ValueError:
+        timeout = 90
+    return port, token, model, timeout
+
+def call_llm(prompt: str) -> str:
+    """Run research through the OpenClaw gateway without spawning an agent process."""
+    port, token, model, timeout = _oc_gateway_cfg()
+    url = f"http://127.0.0.1:{port}/v1/chat/completions"
+    session_key = f"npc-research-{int(time.time())}"
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You write private in-world NPC research dispatches for a magical academy. "
+                    "Use true, grounded real-world facts when possible. Reply only with the "
+                    "dispatch text, already in character, with no preamble or commentary."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.75,
+        "max_tokens": 1800,
+        "stream": False,
+    }
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+            "x-openclaw-session-key": session_key,
+        },
+        data=json.dumps(payload).encode("utf-8"),
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")[:300]
+        raise RuntimeError(f"Gateway returned HTTP {e.code}: {body}") from e
+    except Exception as e:
+        raise RuntimeError(f"Gateway call failed: {e}") from e
+
+    return (
+        data.get("choices", [{}])[0]
+        .get("message", {})
+        .get("content", "")
+        .strip()
+    )
+
+def model_smoke_test() -> int:
+    port, _token, model, timeout = _oc_gateway_cfg()
+    print(f"NPC_RESEARCH_MODEL={model}")
+    print(f"NPC_RESEARCH_GATEWAY=127.0.0.1:{port}")
+    print(f"NPC_RESEARCH_TIMEOUT={timeout}")
+    try:
+        reply = call_llm("Reply with exactly: NPC_RESEARCH_OK")
+    except Exception as e:
+        print(f"FAIL: {e}")
+        return 1
+    print(reply[:200] or "(empty)")
+    return 0 if "NPC_RESEARCH_OK" in reply else 1
     
 def get_local_city() -> str:
     """Fetch the computer's current city/region based on IP address."""
@@ -335,7 +434,84 @@ def generate_research(npc: dict, heartbeat: str, city: str) -> str:
         "TASK: Conduct real-world research on your Unwritten Interest. Use your web search capabilities or your deep factual knowledge base to find true, specific facts (e.g., actual stores in the player's location, real websites, true historical events, or scientific facts).\n\n"
         "Write your 300-500 word research dispatch, weaving these absolute real-world facts into your character's magical perspective."
     )
-    return call_llm(f"{system}\n\n{user_prompt}")
+    try:
+        research = call_llm(f"{system}\n\n{user_prompt}")
+    except Exception as e:
+        print(f"  [npc-research] Warning: model research failed ({e}). Using bounded field-note fallback.")
+        return build_fallback_research(npc, heartbeat, city)
+    if len(research.split()) < 120:
+        print("  [npc-research] Warning: model research was too short. Using bounded field-note fallback.")
+        return build_fallback_research(npc, heartbeat, city)
+    return research
+
+def build_fallback_research(npc: dict, heartbeat: str, city: str) -> str:
+    """Deterministic dispatch when the gateway is unavailable.
+
+    This keeps the simulation from hanging while avoiding invented local claims.
+    """
+    name = npc["name"]
+    interest = npc["interest"]
+    voice = npc["voice"]
+    lower_interest = interest.lower()
+    if any(term in lower_interest for term in ("music", "song", "sound", "audio")):
+        fact_block = (
+            "Sound, in the Unwritten Chapter, is pressure made into pattern: air pushed and "
+            "released in waves, measured in hertz for frequency and decibels for intensity. "
+            "Human ears are most often described as hearing roughly 20 Hz to 20 kHz, though age, "
+            "environment, and attention narrow the gate. I find this reassuringly magical: a room "
+            "may be full of motion that no one present is shaped to notice."
+        )
+    elif any(term in lower_interest for term in ("plant", "garden", "forest", "botany")):
+        fact_block = (
+            "Plants trade in light with an austerity that would humble most spellwrights. Through "
+            "photosynthesis, chlorophyll helps convert light energy, water, and carbon dioxide into "
+            "sugars, with oxygen released as a consequence. Their time is not slow because they are "
+            "simple; it is slow because they negotiate with weather, soil, season, and damage all at once."
+        )
+    elif any(term in lower_interest for term in ("library", "book", "archive", "history")):
+        fact_block = (
+            "Archives survive by refusing to trust memory alone. Real libraries use catalog records, "
+            "classification systems, preservation rules, and climate control to keep fragile material "
+            "findable after the original keeper is gone. A shelf is therefore not storage. It is a treaty "
+            "between the present and a reader who has not arrived yet."
+        )
+    elif any(term in lower_interest for term in ("food", "tea", "kitchen", "bake", "coffee")):
+        fact_block = (
+            "Cooking is chemistry under a domestic alias. Heat changes proteins, evaporates water, "
+            "releases aroma compounds, and browns sugars and amino acids through Maillard reactions. "
+            "No wonder kitchens become family temples: they alter matter while pretending merely to "
+            "make supper."
+        )
+    else:
+        fact_block = (
+            "The Unwritten Chapter is full of civic enchantments that pretend to be ordinary systems: "
+            "maps, schedules, public archives, weather records, libraries, transit routes, and small "
+            "business directories. Their power is not secrecy, but reliability. A thing written down, "
+            "updated, and made findable becomes a kind of lantern."
+        )
+
+    heartbeat_line = ""
+    if heartbeat.strip():
+        heartbeat_line = (
+            " The Margin-Glass carried a few weathered signals with it today, and I have treated "
+            "them as atmosphere rather than omen."
+        )
+
+    return (
+        f"I could not make the Glass hold still long enough for a full expedition, so I am sending "
+        f"a narrower field note from {city}. My assigned curiosity remains this: {interest}. "
+        f"I am recording it in the manner that best fits my hand: {voice}.{heartbeat_line}\n\n"
+        f"{fact_block}\n\n"
+        "What interests me most is not the fact by itself, but the discipline around it. Humans keep "
+        "building little agreements with reality: a measurement, a label, a route, a recipe, a shelf "
+        "mark, a maintenance schedule. None of these look like spells from the outside. Yet each one "
+        "allows a stranger to arrive later and still be helped by someone who is absent. That may be "
+        "the most civilized form of magic I have found so far.\n\n"
+        "I will return to the Margin-Glass when it clears and test this thread against something more "
+        "particular. For now, I leave bj this much: the real world is not less enchanted for being "
+        "documented. Its records are where many of its spells are hiding.\n\n"
+        f"{name}"
+    )
 
 
 # ─── Delivery ─────────────────────────────────────────────────────────────────
@@ -375,10 +551,14 @@ tell application "Notes"
     end tell
 end tell
 '''
-    result = subprocess.run(
-        ["osascript", "-e", script],
-        capture_output=True, text=True
-    )
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True, text=True, timeout=30
+        )
+    except subprocess.TimeoutExpired:
+        print("  ⚠ iCloud Notes timed out after 30s.")
+        return False
     if result.returncode == 0:
         print(f"  ✓ iCloud Notes: \"{title}\"")
         return True
@@ -390,12 +570,18 @@ end tell
 def deliver_telegram(npc: dict, research: str) -> bool:
     header  = f"📜 *From {npc['name']}:*\n\n"
     message = header + research
-    result  = subprocess.run(["openclaw", "message", "send",
-         "--target", TELEGRAM_TARGET,
-         "--channel", TELEGRAM_CHANNEL,
-         message],
-        capture_output=True, text=True
-    )
+    try:
+        result = subprocess.run(
+            ["openclaw", "message", "send",
+             "--target", TELEGRAM_TARGET,
+             "--channel", TELEGRAM_CHANNEL,
+             "--message",
+             message],
+            capture_output=True, text=True, timeout=45
+        )
+    except subprocess.TimeoutExpired:
+        print("  ⚠ Telegram timed out after 45s.")
+        return False
     if result.returncode == 0:
         print(f"  ✓ Telegram sent.")
         return True
@@ -411,10 +597,15 @@ def deduct_belief(npc: dict, dry_run: bool) -> None:
     if dry_run:
         print(f"  [dry-run] Would deduct {BELIEF_COST} Belief from {npc['name']}: {npc['belief']} → {new_belief}")
         return
-    result = subprocess.run([sys.executable, str(SCRIPT_DIR / "write-entity.py"),
-         npc["name"], "NPC", str(new_belief), npc["notes"]],
-        capture_output=True, text=True, cwd=BASE_DIR
-    )
+    try:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / "write-entity.py"),
+             npc["name"], "NPC", str(new_belief), npc["notes"]],
+            capture_output=True, text=True, cwd=BASE_DIR, timeout=20
+        )
+    except subprocess.TimeoutExpired:
+        print("  ⚠ Belief deduction timed out after 20s.")
+        return
     if result.returncode == 0:
         print(f"  ✓ Belief: {npc['belief']} → {new_belief} for {npc['name']}")
     else:
@@ -507,10 +698,15 @@ def print_npc_letter(npc: dict, research: str, date_str: str) -> bool:
         f.write(letter_text)
         tmp_path = f.name
 
-    result = subprocess.run(
-        ["lpr", "-o", "media=Letter", "-o", "cpi=12", "-o", "lpi=6", tmp_path],
-        capture_output=True, text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["lpr", "-o", "media=Letter", "-o", "cpi=12", "-o", "lpi=6", tmp_path],
+            capture_output=True, text=True, timeout=20,
+        )
+    except subprocess.TimeoutExpired:
+        Path(tmp_path).unlink(missing_ok=True)
+        print("  ⚠ Print timed out after 20s.")
+        return False
     Path(tmp_path).unlink(missing_ok=True)
 
     if result.returncode == 0:
@@ -530,64 +726,92 @@ def main():
     parser.add_argument("--dry-run",   action="store_true")
     parser.add_argument("--no-icloud", action="store_true", help="Skip iCloud Notes delivery")
     parser.add_argument("--no-print",  action="store_true", help="Skip physical letter printing")
+    parser.add_argument("--model-smoke", action="store_true", help="Check the configured gateway model and exit")
     args = parser.parse_args()
 
-    characters    = parse_characters()
-    register      = parse_register_npcs()
-    relationships = parse_relationships(args.player)
-    cache         = load_cache()
+    if args.model_smoke:
+        sys.exit(model_smoke_test())
 
-    npc = select_npc(characters, register, relationships, cache, forced_name=args.npc)
+    with cron_steward.run("npc-research", dry_run=args.dry_run, forced=bool(args.npc)):
+        characters    = parse_characters()
+        register      = parse_register_npcs()
+        relationships = parse_relationships(args.player)
+        cache         = load_cache()
 
-    if not npc:
-        print("[npc-research] No eligible NPC found. All on cooldown or below Belief threshold.")
-        return
+        npc = select_npc(characters, register, relationships, cache, forced_name=args.npc)
 
-    print(f"[npc-research] {npc['name']} (Belief {npc['belief']}) is researching: {npc['interest'][:60]}…")
+        if not npc:
+            reason = "no eligible NPC found; all on cooldown or below Belief threshold"
+            print(f"[npc-research] {reason}.")
+            cron_steward.mark_skipped("npc-research", reason)
+            return
 
-    heartbeat = load_heartbeat_snippet()
-    city = get_local_city()
+        print(f"[npc-research] {npc['name']} (Belief {npc['belief']}) is researching: {npc['interest'][:60]}…")
 
-    if args.dry_run:
-        will_print = npc["name"] in CORE_NPCS and not args.no_print
-        print(f"  [dry-run] Would generate research note for {npc['name']} focusing on {city}.")
-        print(f"  [dry-run] Delivery: local"
-              f"{'  + iCloud' if not args.no_icloud else ''}"
-              f"  + Telegram"
-              f"{'  + letter (CUPS)' if will_print else ''}")
-        deduct_belief(npc, dry_run=True)
-        return
+        heartbeat = load_heartbeat_snippet()
+        city = get_local_city()
 
-    research  = generate_research(npc, heartbeat, city)
-    date_str  = datetime.now().strftime("%Y-%m-%d")
+        if args.dry_run:
+            will_print = npc["name"] in CORE_NPCS and not args.no_print
+            print(f"  [dry-run] Would generate research note for {npc['name']} focusing on {city}.")
+            print(f"  [dry-run] Delivery: local"
+                  f"{'  + iCloud' if not args.no_icloud else ''}"
+                  f"  + Telegram"
+                  f"{'  + letter (CUPS)' if will_print else ''}")
+            deduct_belief(npc, dry_run=True)
+            return
 
-    print(f"\n--- Research note ({len(research)} chars) ---")
-    print(research[:200] + "…" if len(research) > 200 else research)
-    print("---\n")
+        research  = generate_research(npc, heartbeat, city)
+        date_str  = datetime.now().strftime("%Y-%m-%d")
+        delivery_payload = {"name": npc["name"], "date": date_str, "research": research}
+        skip, digest, reason = cron_steward.should_skip_duplicate(
+            "npc-research",
+            delivery_payload,
+            cooldown_hours=72,
+            force=bool(args.npc),
+            scope=npc["name"],
+        )
+        if skip:
+            print(f"  ↺ Skipping duplicate research delivery: {reason}")
+            cron_steward.mark_skipped("npc-research", reason, scope=npc["name"], fingerprint=digest)
+            cache[npc["name"]] = datetime.now().isoformat()
+            save_cache(cache)
+            return
 
-    deliver_local(npc, research, date_str)
+        print(f"\n--- Research note ({len(research)} chars) ---")
+        print(research[:200] + "…" if len(research) > 200 else research)
+        print("---\n")
 
-    # Print physical letter for core NPCs (unless suppressed)
-    if not args.no_print:
-        print_npc_letter(npc, research, date_str)
+        deliver_local(npc, research, date_str)
 
-    # Send to Telegram (ALWAYS ON)
-    deliver_telegram(npc, research)
+        printed = False
+        if not args.no_print:
+            printed = print_npc_letter(npc, research, date_str)
 
-    # Send to Notes (ALWAYS ON unless flag is used)
-    if not args.no_icloud:
-        deliver_icloud(npc, research, date_str)
+        telegram_ok = deliver_telegram(npc, research)
 
-    deduct_belief(npc, dry_run=False)
-    queue_tick(npc)
+        icloud_ok = False
+        if not args.no_icloud:
+            icloud_ok = deliver_icloud(npc, research, date_str)
 
-    if _HAS_NPC_LOG:
-        _npc_log.append(npc["name"], "research", npc["interest"][:100])
+        deduct_belief(npc, dry_run=False)
+        queue_tick(npc)
 
-    cache[npc["name"]] = datetime.now().isoformat()
-    save_cache(cache)
+        if _HAS_NPC_LOG:
+            _npc_log.append(npc["name"], "research", npc["interest"][:100])
 
-    print(f"\n[npc-research] Done. {npc['name']} is back at work. Next eligible in {COOLDOWN_HOURS}h.")
+        cache[npc["name"]] = datetime.now().isoformat()
+        save_cache(cache)
+        cron_steward.mark_delivered(
+            "npc-research",
+            delivery_payload,
+            scope=npc["name"],
+            telegram_ok=telegram_ok,
+            icloud_ok=icloud_ok,
+            printed=printed,
+        )
+
+        print(f"\n[npc-research] Done. {npc['name']} is back at work. Next eligible in {COOLDOWN_HOURS}h.")
 
 
 if __name__ == "__main__":

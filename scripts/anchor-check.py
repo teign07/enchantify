@@ -21,6 +21,7 @@ import math
 import shutil
 import argparse
 import importlib.util
+import json
 from pathlib import Path
 from datetime import date, datetime
 
@@ -36,6 +37,7 @@ def _load_pocket_anchor():
 PROXIMITY_METERS = 200
 CHECKIN_BELIEF   = 5
 BASE_DIR = Path(__file__).parent.parent
+ANCHOR_VISIT_LOG = BASE_DIR / "logs" / "anchor-visits.jsonl"
 
 
 def haversine(lat1, lon1, lat2, lon2):
@@ -54,11 +56,12 @@ def parse_anchors(text):
         name = sections[i].strip()
         body = sections[i + 1] if i + 1 < len(sections) else ""
 
-        coords       = re.search(r"\*\*Coordinates:\*\*\s*([-\d.]+),\s*([-\d.]+)", body)
-        anchor_type  = re.search(r"\*\*Type:\*\*\s*(\w+)", body)
+        coords       = re.search(r"\*\*Coordinates:\*\*\s*([+-]?\d+(?:\.\d+)?),\s*([+-]?\d+(?:\.\d+)?)", body)
+        anchor_type  = re.search(r"\*\*Type:\*\*\s*([A-Za-z_-]+)", body)
+        radius       = re.search(r"\*\*Radius meters:\*\*\s*(\d+)", body)
         belief       = re.search(r"\*\*Belief invested:\*\*\s*(\d+)", body)
         echo         = re.search(r"\*\*Academy echo:\*\*\s*(.+)", body)
-        words        = re.search(r"\*\*Player's words:\*\*\s*\"(.+)\"", body)
+        words        = re.search(r"\*\*Player[’']s words:\*\*\s*\"?(.+?)\"?\s*$", body, re.MULTILINE)
         last_visit   = re.search(r"\*\*Last visited:\*\*\s*(\d{4}-\d{2}-\d{2})", body)
         visit_count  = re.search(r"\*\*Visit count:\*\*\s*(\d+)", body)
         season       = re.search(r"\*\*Season:\*\*\s*([^\n]+)", body)
@@ -82,6 +85,7 @@ def parse_anchors(text):
             "lat":          float(coords.group(1)),
             "lon":          float(coords.group(2)),
             "type":         anchor_type.group(1) if anchor_type else "UNKNOWN",
+            "radius":       int(radius.group(1)) if radius else PROXIMITY_METERS,
             "belief":       int(belief.group(1)) if belief else 0,
             "echo":         echo.group(1).strip() if echo else "",
             "words":        words.group(1).strip() if words else "",
@@ -107,7 +111,7 @@ def get_current_season():
         return "Deep Winter"
 
 
-def checkin_anchor(anchor_file_path, anchor_name, dry_run=False):
+def checkin_anchor(anchor_file_path, anchor_name, dry_run=False, quiet=False):
     """
     Record a check-in: update last-visited, increment visit count, grow Belief.
     Returns dict with old/new Belief and new visit count.
@@ -149,6 +153,7 @@ def checkin_anchor(anchor_file_path, anchor_name, dry_run=False):
             vc_match.group(1) + str(new_count)
         )
     else:
+        old_count = 0
         new_count = 1
         new_section = re.sub(
             r"(\*\*Belief invested:\*\*\s*\d+)",
@@ -170,8 +175,9 @@ def checkin_anchor(anchor_file_path, anchor_name, dry_run=False):
     new_text = text[:m.start(2)] + new_section + text[m.end(2):]
 
     if dry_run:
-        print(f"  [dry-run] '{anchor_name}': Belief {old_belief}→{new_belief}, visit #{new_count}, last-visited→{today}")
-        return {"old_belief": old_belief, "new_belief": new_belief, "visit_count": new_count}
+        if not quiet:
+            print(f"  [dry-run] '{anchor_name}': Belief {old_belief}→{new_belief}, visit #{new_count}, last-visited→{today}")
+        return {"old_belief": old_belief, "new_belief": new_belief, "old_visit_count": old_count, "visit_count": new_count}
 
     backup = anchor_file_path.with_suffix(".md.bak")
     shutil.copy2(anchor_file_path, backup)
@@ -179,10 +185,43 @@ def checkin_anchor(anchor_file_path, anchor_name, dry_run=False):
     tmp.write_text(new_text if new_text.endswith("\n") else new_text + "\n")
     tmp.rename(anchor_file_path)
 
-    return {"old_belief": old_belief, "new_belief": new_belief, "visit_count": new_count}
+    return {"old_belief": old_belief, "new_belief": new_belief, "old_visit_count": old_count, "visit_count": new_count}
 
 
-def print_outer_stacks_directive(anchor, visit_count, current_season):
+def _outer_stacks_mode(anchor, old_visit_count: int, visit_count: int) -> str:
+    if old_visit_count <= 0:
+        return "FIRST_VISIT"
+    return "RETURN_VISIT"
+
+
+def log_anchor_visit(player: str, anchor: dict, distance_m: float, result: dict, mode: str, dry_run: bool = False):
+    payload = {
+        "timestamp": datetime.now().isoformat(),
+        "player": player,
+        "anchor": anchor["name"],
+        "type": anchor["type"],
+        "lat": anchor["lat"],
+        "lon": anchor["lon"],
+        "radius_m": anchor["radius"],
+        "distance_m": round(distance_m, 2),
+        "mode": mode,
+        "old_belief": result.get("old_belief"),
+        "new_belief": result.get("new_belief"),
+        "old_visit_count": result.get("old_visit_count"),
+        "visit_count": result.get("visit_count"),
+        "outer_room": anchor.get("outer_room", ""),
+        "local_rule": anchor.get("local_rule", ""),
+        "dry_run": dry_run,
+    }
+    if dry_run:
+        return payload
+    ANCHOR_VISIT_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with ANCHOR_VISIT_LOG.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    return payload
+
+
+def print_outer_stacks_directive(anchor, old_visit_count, visit_count, current_season):
     """
     Print the OUTER_STACKS_MODE directive for the Labyrinth.
     first visit = no room yet → GENERATE
@@ -195,21 +234,18 @@ def print_outer_stacks_directive(anchor, visit_count, current_season):
     print(f"CREATION_SEASON: {anchor['season']}")
     print(f"CURRENT_SEASON: {current_season}")
 
-    if not anchor["outer_room"]:
-        # First real-world visit — room not yet generated
+    mode = _outer_stacks_mode(anchor, old_visit_count, visit_count)
+    if mode == "FIRST_VISIT":
         print(f"OUTER_STACKS_MODE: FIRST_VISIT")
         print()
-        print("GENERATE: This is the player's first real arrival. Generate the Outer Stacks")
-        print("  room now. Read lore/outer-stacks.md → Room Archetypes. Choose based on:")
-        print(f"  anchor type ({anchor['type']}), player's words, creation season vs. current")
-        print(f"  season, current Belief. Add a local rule if the room calls for one.")
-        print("  Narrate the door opening and the room in full. Do not rush.")
-        print("  After narrating, write the room to players/[name]-anchors.md:")
-        print("    **Outer Stacks room:** [one-paragraph description]")
-        print("    **Local rule:** [rule or 'none']")
-        print("  Then update update-player.py for Belief growth from the visit.")
+        if anchor["outer_room"]:
+            print(f"ROOM: {anchor['outer_room']}")
+            if anchor["local_rule"] and anchor["local_rule"].lower() != "none":
+                print(f"LOCAL_RULE: {anchor['local_rule']}  ← takes effect immediately on entry")
+            print("REVEAL: This room was created when the anchor was made. Reveal it now; do not regenerate it.")
+        else:
+            print("ROOM_MISSING: This anchor has no generated room yet. Generate it now, then write it to the anchor record.")
     else:
-        # Return visit
         print(f"OUTER_STACKS_MODE: RETURN_VISIT  (visit #{visit_count})")
         print()
         print(f"ROOM: {anchor['outer_room']}")
@@ -287,6 +323,8 @@ def main():
                         help="Record visit + output Outer Stacks entry directive")
     parser.add_argument("--pocket", metavar="ANCHOR",
                         help="Enter via pocket anchor session (no GPS needed)")
+    parser.add_argument("--json", action="store_true",
+                        help="Emit structured JSON for deterministic callers")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -327,7 +365,7 @@ def main():
     nearby = []
     for anchor in anchors:
         dist = haversine(args.lat, args.lon, anchor["lat"], anchor["lon"])
-        if dist <= PROXIMITY_METERS:
+        if dist <= anchor["radius"]:
             nearby.append((anchor, dist))
 
     if not nearby:
@@ -351,31 +389,79 @@ def main():
 
         nearest = min(anchors, key=lambda a: haversine(args.lat, args.lon, a["lat"], a["lon"]))
         nearest_dist = haversine(args.lat, args.lon, nearest["lat"], nearest["lon"])
-        print(f"No anchors nearby. Nearest: {nearest['name']} [{nearest['type']}] — {nearest_dist:.0f}m away.")
+        if args.json:
+            print(json.dumps({
+                "status": "no_anchor_nearby",
+                "player": args.player,
+                "lat": args.lat,
+                "lon": args.lon,
+                "nearest": {
+                    "name": nearest["name"],
+                    "type": nearest["type"],
+                    "distance_m": round(nearest_dist, 2),
+                    "radius_m": nearest["radius"],
+                },
+            }, ensure_ascii=False, indent=2))
+            return
+        print(f"No anchors nearby. Nearest: {nearest['name']} [{nearest['type']}] — {nearest_dist:.0f}m away (radius {nearest['radius']}m).")
         print("The door is sealed. It is visible in the corridor. Light comes from under it.")
         return
 
-    print(f"ANCHOR PROXIMITY — {len(nearby)} nearby:")
+    json_events = []
+    if not args.json:
+        print(f"ANCHOR PROXIMITY — {len(nearby)} nearby:")
     for anchor, dist in sorted(nearby, key=lambda x: x[1]):
         visit_count = anchor["visit_count"]
 
-        print(f"\n  {anchor['name']} [{anchor['type']}] — {dist:.0f}m")
+        if not args.json:
+            print(f"\n  {anchor['name']} [{anchor['type']}] — {dist:.0f}m / {anchor['radius']}m")
         if anchor["words"]:
-            print(f"  \"{anchor['words']}\"")
+            if not args.json:
+                print(f"  \"{anchor['words']}\"")
         if anchor["echo"]:
-            print(f"  Academy echo: {anchor['echo']}")
+            if not args.json:
+                print(f"  Academy echo: {anchor['echo']}")
         room_status = "generated" if anchor["outer_room"] else "not yet visited"
-        print(f"  Outer Stacks room: {room_status}  ·  Visits: {visit_count}")
+        if not args.json:
+            print(f"  Outer Stacks room: {room_status}  ·  Visits: {visit_count}")
         if anchor["last_visited"]:
-            print(f"  Last visited: {anchor['last_visited']}")
+            if not args.json:
+                print(f"  Last visited: {anchor['last_visited']}")
 
         if args.checkin:
-            result = checkin_anchor(anchor_file, anchor["name"], dry_run=args.dry_run)
+            result = checkin_anchor(anchor_file, anchor["name"], dry_run=args.dry_run, quiet=args.json)
             if result:
                 new_count = result["visit_count"]
-                print(f"  ✓ Belief: {result['old_belief']} → {result['new_belief']}  ·  Visit #{new_count}")
+                old_count = result.get("old_visit_count", max(0, new_count - 1))
+                mode = _outer_stacks_mode(anchor, old_count, new_count)
+                event = log_anchor_visit(args.player, anchor, dist, result, mode, dry_run=args.dry_run)
+                json_events.append(event)
+                if not args.json:
+                    print(f"  ✓ Belief: {result['old_belief']} → {result['new_belief']}  ·  Visit #{new_count}")
                 anchor["visit_count"] = new_count
-                print_outer_stacks_directive(anchor, new_count, current_season)
+                if not args.json:
+                    print_outer_stacks_directive(anchor, old_count, new_count, current_season)
+        elif args.json:
+            json_events.append({
+                "status": "near_anchor",
+                "player": args.player,
+                "anchor": anchor["name"],
+                "type": anchor["type"],
+                "distance_m": round(dist, 2),
+                "radius_m": anchor["radius"],
+                "visit_count": visit_count,
+                "last_visited": anchor["last_visited"],
+                "outer_room": anchor.get("outer_room", ""),
+            })
+
+    if args.json:
+        print(json.dumps({
+            "status": "checked_in" if args.checkin else "near_anchor",
+            "player": args.player,
+            "lat": args.lat,
+            "lon": args.lon,
+            "events": json_events,
+        }, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

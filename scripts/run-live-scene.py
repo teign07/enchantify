@@ -44,14 +44,28 @@ def main() -> int:
     parser.add_argument("--voice-file", type=Path)
     parser.add_argument("--title")
     parser.add_argument("--mood")
+    parser.add_argument("--scene-mode", choices=["slice", "school-life", "arc", "mystery", "aftermath", "compass", "enchantment"])
+    parser.add_argument("--drama-budget", choices=["low", "medium", "high"])
     parser.add_argument("--intensity", default="cinematic")
     parser.add_argument("--target", default="8729557865")
     parser.add_argument("--channel", default="telegram")
     parser.add_argument("--account", default="enchantify")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--bypass-mechanics-preflight",
+        action="store_true",
+        help="Allow dry-run diagnostics to exercise the delivery path without recording player state.",
+    )
     args = parser.parse_args()
 
-    preflight_status = mechanics_state.get_preflight_status(BASE, args.player, max_age_minutes=PREFLIGHT_MAX_AGE_MINUTES)
+    if args.bypass_mechanics_preflight and not args.dry_run:
+        sys.stderr.write("--bypass-mechanics-preflight is only allowed with --dry-run.\n")
+        return 2
+
+    preflight_status = {"ok": True, "message": "Mechanics preflight bypassed for dry-run diagnostics."}
+    if not args.bypass_mechanics_preflight:
+        preflight_status = mechanics_state.get_preflight_status(BASE, args.player, max_age_minutes=PREFLIGHT_MAX_AGE_MINUTES)
+
     if not preflight_status.get("ok"):
         sys.stderr.write(
             "run-live-scene requires a fresh mechanics preflight first.\n"
@@ -83,8 +97,14 @@ def main() -> int:
         cmd += ["--title", args.title]
     if args.mood:
         cmd += ["--mood", args.mood]
+    if args.scene_mode:
+        cmd += ["--scene-mode", args.scene_mode]
+    if args.drama_budget:
+        cmd += ["--drama-budget", args.drama_budget]
     if args.dry_run:
         cmd.append("--dry-run")
+    if args.bypass_mechanics_preflight:
+        cmd.append("--bypass-mechanics-preflight")
 
     proc = subprocess.run(cmd, capture_output=True, text=True)
     # Print a compact summary instead of raw conductor JSON, which can contain

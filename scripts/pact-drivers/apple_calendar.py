@@ -1,9 +1,9 @@
 """
 apple_calendar.py — Apple Calendar driver for Chapter Pact actions.
 
-Uses AppleScript to create calendar events and blocks.
+Uses AppleScript to create calendar events and blocks in the Enchantify calendar.
 Announced: a new event appearing on the calendar should be visible.
-No consent required: Calendar is a private planning space.
+No consent required: Calendar is a pre-approved private planning space.
 
 Talisman doctrines on Apple Calendar:
   Riddlewind  — Schedule something collaborative. Time for others, not just self.
@@ -211,7 +211,7 @@ class AppleCalendarDriver(AppDriver):
     app_name    = "Apple Calendar"
     app_system  = "productivity"
     silent_tiers  = set()          # Calendar events are visible — not silent
-    consent_tiers = set()          # Private planning space
+    consent_tiers = set()          # Pre-approved private planning space
 
     def can_act(self, tier: str, chapter: str) -> bool:
         return chapter in _EVENT_BUILDERS

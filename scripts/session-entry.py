@@ -33,6 +33,7 @@ import os
 import re
 import sys
 import json
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -219,6 +220,36 @@ def get_recent_scene_traces(limit: int = 2) -> list[str]:
     return traces
 
 
+def has_active_class_lesson(player_name: str) -> bool:
+    path = WORKSPACE / "players" / f"{player_name}-classes.json"
+    if not path.exists():
+        return False
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    return any(c.get("active") for c in state.get("classes", {}).values())
+
+
+def print_classroom_directive(player_name: str, schedule_data: dict) -> None:
+    """Append the current classroom directive without recording attendance."""
+    if not schedule_data.get("class_now") and not has_active_class_lesson(player_name):
+        return
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT_DIR / "class-lecture.py"), player_name, "--status"],
+        cwd=WORKSPACE,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    if proc.returncode != 0:
+        print("[class-lecture] class-lecture.py failed — skipping classroom directive")
+        return
+    print("\n--- CLASSROOM CONTEXT ---")
+    print(proc.stdout.strip())
+    print("-------------------------\n")
+
+
 def get_dynamic_objects(player_name: str) -> list[str]:
     """
     Translate tick-queue entries + thread pressures into physical things
@@ -397,7 +428,9 @@ def main():
 
     # Append schedule context — always, regardless of entry mode
     if _SCHEDULE_AVAILABLE:
-        _print_schedule(get_schedule_data())
+        schedule_data = get_schedule_data()
+        _print_schedule(schedule_data)
+        print_classroom_directive(player_name, schedule_data)
     else:
         print("[schedule] schedule.py not found — skipping schedule context\n")
 

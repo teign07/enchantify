@@ -33,6 +33,8 @@ def _archive_image_for_gallery(payload: dict[str, Any]) -> dict[str, Any]:
         return payload
 
     source = Path(str(source_path)).expanduser()
+    if source.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+        return payload
     if not source.exists():
         return payload
 

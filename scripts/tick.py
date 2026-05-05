@@ -102,18 +102,21 @@ def parse_thread_registry() -> dict[str, dict]:
         if not lines:
             continue
         name = lines[0].strip()
-        thread_id_m = re.search(r'\*\*id:\*\*\s*`([^`]+)`', section)
-        phase_m = re.search(r'\*\*phase:\*\*\s*([^\n]+)', section, re.IGNORECASE)
-        pressure_m = re.search(r'\*\*pressure:\*\*\s*([^\n]+)', section, re.IGNORECASE)
-        last_adv_m = re.search(r'\*\*Last advanced:\*\*\s*([^\n]+)', section, re.IGNORECASE)
-        next_beat_m = re.search(r'\*\*Next beat:\*\*\s*([^\n]+)', section, re.IGNORECASE)
-        npc_anchor_m = re.search(r'\*\*npc_anchor:\*\*\s*([^\n(]+)', section, re.IGNORECASE)
-        entities_m = re.search(r'\*\*entities:\*\*\s*([^\n]+)', section, re.IGNORECASE)
+        def field(label: str):
+            return re.search(rf'\*\*{re.escape(label)}:(?:\*\*)?\s*([^\n]+)', section, re.IGNORECASE)
+
+        thread_id_m = field("id")
+        phase_m = field("phase")
+        pressure_m = field("pressure")
+        last_adv_m = field("Last advanced")
+        next_beat_m = field("Next beat")
+        npc_anchor_m = field("npc_anchor")
+        entities_m = field("entities")
         entities = []
         if entities_m:
             entities = [part.strip() for part in re.split(r',|;', entities_m.group(1)) if part.strip()]
         registry[name] = {
-            "id": thread_id_m.group(1).strip() if thread_id_m else "",
+            "id": thread_id_m.group(1).strip().strip("`") if thread_id_m else "",
             "phase": normalize_phase_label(phase_m.group(1).split()[0]) if phase_m else "dormant",
             "pressure": (pressure_m.group(1).strip().lower() if pressure_m else ""),
             "last_advanced": (last_adv_m.group(1).strip() if last_adv_m else ""),

@@ -56,10 +56,14 @@ def build_image_prompt(title: str, mood: str, feel: str, cast: str, scene_text: 
     scene_hint = scene_hint[:260]
     cast_hint = cast[:120] if cast else "current scene cast"
     feel_hint = feel[:120] if feel else mood
+    style = (
+        "illustrated in sparse pen-and-ink line art with watercolor washes on textured parchment, "
+        "mostly muted sepia and gray, with selective pops of teal, gold, and red in magical details"
+    )
     return (
         f"{title}, {mood}, {feel_hint}, featuring {cast_hint}. "
         f"Scene frame: {scene_hint}. "
-        "Whimsical, dark, modern anime with pops of color."
+        f"{style}. Literary magical-archive look. No text, no UI elements, no labels."
     )
 
 
@@ -68,6 +72,37 @@ def build_music_prompt(title: str, mood: str, feel: str, story: str, schedule: s
     text = ", ".join(p for p in parts if p)
     text = re.sub(r"\s+", " ", text).strip()
     return f"Short instrumental scene cue, {text}, magical library atmosphere, cinematic but intimate, no vocals."
+
+
+def title_from_scene_text(scene_text: str) -> str:
+    for line in scene_text.splitlines():
+        line = line.strip().strip("*")
+        if not line or line.startswith("["):
+            continue
+        line = re.sub(r"\s+", " ", line)
+        sentence = re.split(r"(?<=[.!?])\s+", line)[0]
+        words = sentence.split()
+        if len(words) > 12:
+            sentence = " ".join(words[:12])
+        return sentence[:90].rstrip(".,;:")
+    return "Enchantify scene"
+
+
+def clean_title(candidate: str, scene_text: str) -> str:
+    title = (candidate or "").strip()
+    if not title:
+        return title_from_scene_text(scene_text)
+    operational = (
+        "session closed cleanly",
+        "fixing",
+        "scripts/",
+        ".py",
+        "bug",
+        "hard rule now lives",
+    )
+    if any(item in title.lower() for item in operational):
+        return title_from_scene_text(scene_text)
+    return title[:110].rstrip(".,;:")
 
 
 def infer_spotify_chapter(mood: str, story: str, feel: str) -> str:
@@ -91,6 +126,8 @@ def main() -> int:
     parser.add_argument("--out", type=Path)
     parser.add_argument("--title")
     parser.add_argument("--mood")
+    parser.add_argument("--scene-mode", choices=["slice", "school-life", "arc", "mystery", "aftermath", "compass", "enchantment"])
+    parser.add_argument("--drama-budget", choices=["low", "medium", "high"])
     parser.add_argument("--intensity", default="cinematic")
     parser.add_argument("--target", default=DEFAULT_TARGET)
     parser.add_argument("--channel", default="telegram")
@@ -111,11 +148,21 @@ def main() -> int:
     story = parse_slate_value(slate, "STORY")
     schedule = parse_slate_value(slate, "SCHEDULE")
 
-    title = args.title or parse_slate_value(slate, "SCENE_ANCHOR") or "Enchantify scene"
-    title = title.split("|")[0].strip() if title else "Enchantify scene"
+    title = args.title or parse_slate_value(slate, "SCENE_ANCHOR") or ""
+    title = clean_title(title.split("|")[0].strip() if title else "", scene_text)
     mood = args.mood or parse_slate_value(slate, "FEEL") or "living library atmosphere"
 
     preflight_status = mechanics_state.get_preflight_status(BASE, args.player)
+    contract_cmd = [sys.executable, str(SCRIPTS / "scene-contract.py"), args.player, "--json"]
+    if args.scene_mode:
+        contract_cmd += ["--mode", args.scene_mode]
+    if args.drama_budget:
+        contract_cmd += ["--drama-budget", args.drama_budget]
+    contract_text = run_script(contract_cmd)
+    try:
+        scene_contract = json.loads(contract_text) if contract_text else {}
+    except json.JSONDecodeError:
+        scene_contract = {}
 
     scene_id = f"scene-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     packet = {
@@ -161,6 +208,7 @@ def main() -> int:
             "preserve_scene_construction": True,
             "source_systems": ["session-entry", "scene-director", "narrative-scene"],
             "mechanics_preflight": preflight_status,
+            "scene_contract": scene_contract,
         },
     }
 

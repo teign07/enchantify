@@ -62,6 +62,22 @@ the Labyrinth generates the events JSON itself and passes it in:
       "status": "crew has gone quiet; something is being planned involving the exhibition",
       "next_beat": "His crew has been quieter than usual..."  // optional; omit if unchanged
     }
+  ],
+  "new_threads": [                     // newly confirmed subplots from play or THREAD SEED
+    {
+      "name": "Orion's Missing Office",
+      "id": "orion-missing-office",
+      "type": "npc-subplot",
+      "phase": "setup",
+      "pressure": "low",
+      "npc_anchor": "Headmaster Orion Blackthorn",
+      "locations": "Headmaster's Office, Great Hall",
+      "entities": "Headmaster Orion Blackthorn",
+      "nothing_pressure": "medium - absence would love to make authority feel hollow",
+      "status": "Orion has begun leaving contradictory office hours in the margins",
+      "next_beat": "A student finds two official notices from Orion that cannot both be true.",
+      "starting_belief": 7
+    }
   ]
 }
 
@@ -91,6 +107,7 @@ BASE        = Path(__file__).parent.parent
 SESSIONS_F  = Path.home() / ".openclaw" / "agents" / "enchantify" / "sessions" / "sessions.json"
 SESSIONS_D  = SESSIONS_F.parent
 OPENCLAW_BIN = shutil.which("openclaw") or "/opt/homebrew/bin/openclaw" or "/usr/local/bin/openclaw"
+NARRATIVE_STEWARD_STATE = BASE / "config" / "narrative-steward-state.json"
 
 # Local timezone — used for grouping messages by "day"
 LOCAL_TZ = ZoneInfo("America/New_York")
@@ -371,6 +388,77 @@ def extract_events(transcript_text: str, date: str, player: str):
     except json.JSONDecodeError as e:
         print(f"  ✗ JSON parse error: {e}\nRaw: {raw[:500]}")
         return None
+
+
+EVENT_LIST_FIELDS = [
+    "belief_changes",
+    "belief_investments",
+    "nothing_events",
+    "enchantments_cast",
+    "npc_interactions",
+    "inventory_changes",
+    "fae_bargains",
+    "quests_completed",
+    "quests_added",
+    "thread_updates",
+    "new_threads",
+]
+
+
+def validate_events(events: dict) -> list[str]:
+    """Return closeout event schema/quality problems."""
+    problems = []
+    if not isinstance(events, dict):
+        return ["events root must be a JSON object"]
+
+    summary = str(events.get("session_summary") or "").strip()
+    if len(summary) < 40:
+        problems.append("session_summary is missing or too short")
+
+    if "belief_final" in events and events.get("belief_final") is not None and not isinstance(events.get("belief_final"), int):
+        problems.append("belief_final must be an integer or null")
+
+    for field in EVENT_LIST_FIELDS:
+        if field in events and events.get(field) is not None and not isinstance(events.get(field), list):
+            problems.append(f"{field} must be a list")
+
+    for idx, item in enumerate(events.get("belief_changes") or []):
+        if not isinstance(item, dict) or not isinstance(item.get("amount"), int) or not item.get("reason"):
+            problems.append(f"belief_changes[{idx}] needs integer amount and reason")
+
+    for idx, item in enumerate(events.get("belief_investments") or []):
+        if not isinstance(item, dict) or not item.get("target") or not item.get("type"):
+            problems.append(f"belief_investments[{idx}] needs target and type")
+        amount = item.get("amount")
+        if amount is not None and amount != "TBC" and not isinstance(amount, int):
+            problems.append(f"belief_investments[{idx}].amount must be integer, TBC, or null")
+
+    for idx, item in enumerate(events.get("nothing_events") or []):
+        if not isinstance(item, dict) or not item.get("type") or not item.get("details"):
+            problems.append(f"nothing_events[{idx}] needs type and details")
+
+    completed_count = events.get("compass_runs_completed", 0)
+    if completed_count is None:
+        completed_count = 0
+    if not isinstance(completed_count, int):
+        problems.append("compass_runs_completed must be an integer")
+    elif completed_count > 0 and not events.get("compass_run_details"):
+        problems.append("compass_runs_completed > 0 requires compass_run_details")
+
+    for idx, item in enumerate(events.get("thread_updates") or []):
+        if not isinstance(item, dict) or not item.get("name") or not item.get("phase") or not item.get("status"):
+            problems.append(f"thread_updates[{idx}] needs name, phase, and status")
+
+    for idx, item in enumerate(events.get("new_threads") or []):
+        required = ("name", "id", "phase", "status", "next_beat", "npc_anchor")
+        if not isinstance(item, dict) or any(not item.get(key) for key in required):
+            problems.append(f"new_threads[{idx}] needs " + ", ".join(required))
+            continue
+        belief = item.get("starting_belief", 7)
+        if not isinstance(belief, int) or belief < 1 or belief > 20:
+            problems.append(f"new_threads[{idx}].starting_belief must be an integer from 1 to 20")
+
+    return problems
 
 
 # ── State file updaters ──────��─────────────────────────────────────────────────
@@ -675,7 +763,90 @@ def print_thread_checklist():
             print(f"  │    status: {status[:80]}")
     print("  │")
     print('  │  Add "thread_updates": [...] to events JSON to apply changes automatically.')
+    print_narrative_obligations_for_closeout()
+    seeds = []
+    queue_path = BASE / "memory" / "tick-queue.md"
+    if queue_path.exists():
+        for line in queue_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            m = re.search(r"\[THREAD SEED:\s*([^\]]+)\]", line)
+            if m and m.group(1).strip() not in seeds:
+                seeds.append(m.group(1).strip())
+    if seeds:
+        print("  │")
+        print("  │  Emerging seeds waiting for confirmation:")
+        for seed in seeds[-6:]:
+            print(f"  │    · {seed}")
+        print('  │  If one became real in play, add "new_threads": [...] to events JSON.')
     print("  └────────────────────────────────────────────────────────────────────────────")
+
+
+def _load_narrative_steward_state() -> dict:
+    if not NARRATIVE_STEWARD_STATE.exists():
+        return {}
+    try:
+        return json.loads(NARRATIVE_STEWARD_STATE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_narrative_steward_state(state: dict):
+    if not state:
+        return
+    if not NARRATIVE_STEWARD_STATE.parent.exists():
+        NARRATIVE_STEWARD_STATE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = NARRATIVE_STEWARD_STATE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    tmp.replace(NARRATIVE_STEWARD_STATE)
+
+
+def print_narrative_obligations_for_closeout():
+    state = _load_narrative_steward_state()
+    obligations = [item for item in state.get("obligations", []) if item.get("status", "open") == "open"]
+    if not obligations:
+        return
+    print("  │")
+    print("  │  Narrative stewardship obligations:")
+    for item in obligations[:5]:
+        print(f"  │    · {item.get('severity', 'WATCH')} {item.get('title', '')}")
+    print('  │  Satisfy with "thread_updates" / "new_threads", or explicitly defer in the scene.')
+
+
+def resolve_narrative_obligations(events: dict, dry_run: bool):
+    state = _load_narrative_steward_state()
+    obligations = state.get("obligations", [])
+    if not obligations:
+        return
+    thread_updates = events.get("thread_updates") or []
+    new_threads = events.get("new_threads") or []
+    touched_threads = {item.get("name", "").strip().lower() for item in thread_updates if item.get("name")}
+    now = datetime.now(LOCAL_TZ).isoformat(timespec="seconds")
+    changed = False
+
+    for item in obligations:
+        if item.get("status", "open") != "open":
+            continue
+        resolved_reason = ""
+        kind = item.get("kind")
+        if kind == "thread_beat_due" and item.get("thread", "").strip().lower() in touched_threads:
+            resolved_reason = "closeout thread_updates supplied"
+        elif kind == "seed_triage_due" and new_threads:
+            resolved_reason = "closeout new_threads supplied"
+        elif kind == "memory_refresh_due" and events.get("most_alive_moment"):
+            resolved_reason = "closeout most_alive_moment supplied"
+        elif kind == "drama_budget_guard":
+            # The guard is satisfied by completing a normal closeout while the
+            # scene contract remains in force; it will reopen if health still sees skew.
+            resolved_reason = "session closeout completed under current scene contract"
+
+        if resolved_reason:
+            item["status"] = "resolved"
+            item["resolved_at"] = now
+            item["resolved_reason"] = resolved_reason
+            changed = True
+            print(f"  · Narrative obligation resolved: {item.get('title', item.get('id'))}")
+
+    if changed and not dry_run:
+        _save_narrative_steward_state(state)
 
 
 def apply_thread_updates(thread_updates: list, dry_run: bool):
@@ -695,6 +866,88 @@ def apply_thread_updates(thread_updates: list, dry_run: bool):
         update_thread_in_threads_md(name, phase, next_beat, dry_run)
 
 
+def _slug(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+
+
+def apply_new_threads(new_threads: list, dry_run: bool):
+    """Create newly confirmed thread sections and Active Threads rows."""
+    if not new_threads:
+        return
+
+    threads_text = read_file(THREADS_MD)
+    register_text = read_file(REGISTER_MD)
+    today = datetime.now(LOCAL_TZ).strftime("%Y-%m-%d")
+    thread_sections = []
+    register_rows = []
+
+    for item in new_threads:
+        name = item.get("name", "").strip()
+        thread_id = item.get("id", "").strip() or _slug(name)
+        if not name:
+            continue
+        if f"## Thread: {name}" in threads_text or f"[id:{thread_id}]" in register_text:
+            print(f"  · New thread already exists, skipping: {name}")
+            continue
+
+        phase = item.get("phase", "setup").strip().lower()
+        pressure = item.get("pressure", "low").strip()
+        thread_type = item.get("type", "npc-subplot").strip()
+        npc_anchor = item.get("npc_anchor", "").strip()
+        locations = item.get("locations", "unknown").strip()
+        entities = item.get("entities", npc_anchor or name).strip()
+        nothing_pressure = item.get("nothing_pressure", "medium - the Nothing can flatten this into absence.").strip()
+        status = item.get("status", "").strip()
+        next_beat = item.get("next_beat", "").strip()
+        belief = int(item.get("starting_belief", 7))
+
+        thread_sections.append(
+            "\n"
+            f"## Thread: {name}\n\n"
+            f"**id:** `{thread_id}`\n"
+            f"**type:** {thread_type}\n"
+            f"**phase:** {phase}\n"
+            f"**pressure:** {pressure}\n"
+            f"**npc_anchor:** {npc_anchor}\n"
+            f"**locations:** {locations}\n"
+            f"**entities:** {entities}\n"
+            f"**Nothing pressure:** {nothing_pressure}\n\n"
+            f"**Next beat:** {next_beat}\n\n"
+            f"**Last advanced:** {today}\n"
+            f"**born:** {today}\n"
+            "**closed:** —\n"
+        )
+        register_rows.append(f"| {name} | Thread | {belief} | [id:{thread_id}] Phase: {phase} — {status} |")
+        print(f"  · New thread: {name} ({phase}, Belief {belief})")
+
+    if not thread_sections and not register_rows:
+        return
+
+    if dry_run:
+        print(f"  [dry-run] Would create {len(thread_sections)} new thread(s)")
+        return
+
+    if thread_sections:
+        archive_marker = "\n## Archive"
+        if archive_marker in threads_text:
+            threads_text = threads_text.replace(archive_marker, "\n".join(thread_sections) + "\n" + archive_marker, 1)
+        else:
+            threads_text = threads_text.rstrip() + "\n" + "\n".join(thread_sections) + "\n"
+        THREADS_MD.write_text(threads_text, encoding="utf-8")
+
+    if register_rows:
+        active_m = re.search(
+            r"(^## Active Threads\s*\n\| Entity \| Type \| Belief \| Notes \|\n\|[-| ]+\|\n)",
+            register_text,
+            re.MULTILINE,
+        )
+        if active_m:
+            register_text = register_text[: active_m.end()] + "\n".join(register_rows) + "\n" + register_text[active_m.end():]
+            REGISTER_MD.write_text(register_text, encoding="utf-8")
+        else:
+            print("  · Could not find world-register Active Threads table; thread sections were written only.")
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -705,11 +958,32 @@ def main():
     parser.add_argument("--events-file",    default=None,  help="Path to pre-generated events JSON (from the Labyrinth itself)")
     parser.add_argument("--dry-run",        action="store_true", help="Build transcript and extract, but don't write files")
     parser.add_argument("--transcript-only",action="store_true", help="Build and save transcript only — skip event extraction")
+    parser.add_argument("--validate-only",  action="store_true", help="Validate --events-file and exit before writing state")
     args = parser.parse_args()
 
     date = args.date or datetime.now(LOCAL_TZ).strftime("%Y-%m-%d")
     ledger = scene_ledger_digest(date)
     print(f"\n📖 Closing session for {args.player} on {date}")
+
+    if args.validate_only and args.events_file:
+        ef = Path(args.events_file)
+        if not ef.exists():
+            print(f"  ✗ Events file not found: {ef}")
+            sys.exit(1)
+        try:
+            events = json.loads(ef.read_text())
+        except json.JSONDecodeError as e:
+            print(f"  ✗ Could not parse events file: {e}")
+            sys.exit(1)
+        event_problems = validate_events(events)
+        if event_problems:
+            print("  ✗ Events JSON failed validation:")
+            for problem in event_problems:
+                print(f"    - {problem}")
+            sys.exit(1)
+        print("  ✓ Events JSON validated")
+        print("\nDone (events validation only).")
+        return
 
     # ── Step 1: Build transcript ──
     print("\n1. Collecting session messages…")
@@ -784,6 +1058,18 @@ def main():
         print("  ✗ Event extraction failed. Transcript saved; state files unchanged.")
         sys.exit(1)
 
+    event_problems = validate_events(events)
+    if event_problems:
+        print("  ✗ Events JSON failed validation:")
+        for problem in event_problems:
+            print(f"    - {problem}")
+        sys.exit(1)
+    print("  ✓ Events JSON validated")
+
+    if args.validate_only:
+        print("\nDone (events validation only).")
+        return
+
     # Print a summary of what was found
     def show(label, val):
         if val and val != "null":
@@ -824,12 +1110,18 @@ def main():
     update_labyrinth_state_from_events(events, args.dry_run)
 
     # ── Step 4: Thread updates ──
+    new_threads = events.get("new_threads", [])
+    if new_threads:
+        print("\n4. Creating new story threads…")
+        apply_new_threads(new_threads, args.dry_run)
+
     thread_updates = events.get("thread_updates", [])
     if thread_updates:
         print("\n4. Updating thread state…")
         apply_thread_updates(thread_updates, args.dry_run)
-    else:
+    elif not new_threads:
         print_thread_checklist()
+    resolve_narrative_obligations(events, args.dry_run)
 
     # ── Step 5: Earning ──
     compass_runs  = events.get("compass_runs_completed", 0) or 0

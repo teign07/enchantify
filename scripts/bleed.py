@@ -43,6 +43,7 @@ WORKSPACE_DIR = SCRIPT_DIR.parent
 
 # Import schedule module
 _sys.path.insert(0, str(SCRIPT_DIR))
+import cron_steward
 try:
     from schedule import get_schedule_data, WEEKDAY_NAMES
     _SCHEDULE_AVAILABLE = True
@@ -53,6 +54,7 @@ ISSUE_NUMBER_FILE = WORKSPACE_DIR / "bleed" / "issue-number.txt"
 ISSUES_DIR        = WORKSPACE_DIR / "bleed" / "issues"
 ISSUE_IMAGES_DIR  = WORKSPACE_DIR / "bleed" / "images"
 CLASSIFIEDS_LEDGER_DIR = WORKSPACE_DIR / "logs" / "classifieds-ledger"
+BLEED_LOCK_STALE_SECONDS = 8 * 60 * 60
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -83,6 +85,67 @@ def get_issue_number() -> int:
 
 def save_issue_number(n: int):
     ISSUE_NUMBER_FILE.write_text(str(n))
+
+
+def _acquire_issue_lock(lock_path: Path, stale_seconds: int = BLEED_LOCK_STALE_SECONDS) -> tuple[Optional[int], str]:
+    """Claim one Bleed issue run for a date.
+
+    Cron can occasionally start overlapping processes. This lock is intentionally
+    per issue date, so generation, Telegram delivery, and CUPS printing all happen
+    under one atomic claim.
+    """
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    payload = f"pid={os.getpid()}\nstarted_at={datetime.now().isoformat()}\n"
+    try:
+        fd = os.open(str(lock_path), flags)
+        os.write(fd, payload.encode("utf-8"))
+        return fd, "acquired"
+    except FileExistsError:
+        try:
+            age = time.time() - lock_path.stat().st_mtime
+        except FileNotFoundError:
+            return _acquire_issue_lock(lock_path, stale_seconds)
+        if age > stale_seconds:
+            try:
+                lock_path.unlink()
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                return None, f"stale lock could not be removed: {exc}"
+            return _acquire_issue_lock(lock_path, stale_seconds)
+        minutes = max(0, int(age // 60))
+        return None, f"active lock is {minutes}m old"
+
+
+def _release_issue_lock(lock_fd: Optional[int], lock_path: Path) -> None:
+    if lock_fd is None:
+        return
+    try:
+        os.close(lock_fd)
+    except OSError:
+        pass
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        print(f"  ⚠ Could not remove Bleed lock {lock_path}: {exc}")
+
+
+def _issue_number_from_html(saved_html: str, fallback: int) -> int:
+    """Recover the published issue number from a saved broadsheet."""
+    for pattern in (
+        r"Issue\s*#\s*(\d+)",
+        r"Bleed Frontier Desk #(\d+)",
+    ):
+        m = re.search(pattern, saved_html, re.IGNORECASE)
+        if m:
+            try:
+                return int(m.group(1))
+            except ValueError:
+                pass
+    return fallback
 
 
 # ── Data readers ──────────────────────────────────────────────────────────────
@@ -745,8 +808,16 @@ def get_previous_coverage(n: int = 3) -> str:
 
 # ── Agent call ────────────────────────────────────────────────────────────────
 
-def _oc_gateway_cfg() -> tuple[int, str, str]:
-    """Return (port, token, model) from openclaw.json, with sensible defaults."""
+def _normalize_gateway_model(model: str) -> str:
+    """OpenClaw's HTTP gateway currently accepts only openclaw model ids."""
+    model = (model or "").strip()
+    if model == "openclaw" or model.startswith("openclaw/"):
+        return model
+    return "openclaw"
+
+
+def _oc_gateway_cfg() -> tuple[int, str, str, int]:
+    """Return (port, token, model, timeout) with secrets/env overrides."""
     cfg_path = Path.home() / ".openclaw" / "openclaw.json"
     cfg: dict = {}
     if cfg_path.exists():
@@ -756,12 +827,25 @@ def _oc_gateway_cfg() -> tuple[int, str, str]:
             pass
     port  = cfg.get("gateway", {}).get("port", 18789)
     token = cfg.get("gateway", {}).get("auth", {}).get("token", "")
-    # Bleed always uses the enchantify agent's model (Sonnet), not the defaults (Haiku)
-    model = "openclaw/enchantify"
-    return port, token, model
+    secrets = load_config()
+    raw_model = os.environ.get("BLEED_MODEL") or secrets.get("BLEED_MODEL") or "openclaw"
+    model = _normalize_gateway_model(raw_model)
+    timeout_raw = os.environ.get("BLEED_GATEWAY_TIMEOUT") or secrets.get("BLEED_GATEWAY_TIMEOUT") or "90"
+    try:
+        timeout = max(15, int(timeout_raw))
+    except ValueError:
+        timeout = 90
+    return port, token, model, timeout
 
 
-def call_agent(prompt: str) -> str:
+def call_agent(
+    prompt: str,
+    *,
+    max_tokens: int = 8000,
+    temperature: float = 0.85,
+    timeout_override: Optional[int] = None,
+    system_content: Optional[str] = None,
+) -> str:
     """Generate newspaper content via the openclaw HTTP gateway.
 
     Uses a direct /v1/chat/completions call with a fresh session key so the
@@ -769,7 +853,9 @@ def call_agent(prompt: str) -> str:
     tool history). This avoids per-agent model overrides and cuts cold-start
     overhead from several minutes to seconds.
     """
-    port, token, model = _oc_gateway_cfg()
+    port, token, model, timeout = _oc_gateway_cfg()
+    if timeout_override is not None:
+        timeout = timeout_override
     url = f"http://127.0.0.1:{port}/v1/chat/completions"
     session_key = f"bleed-gen-{int(time.time())}"
 
@@ -778,7 +864,7 @@ def call_agent(prompt: str) -> str:
         "messages": [
             {
                 "role": "system",
-                "content": (
+                "content": system_content or (
                     "You are writing for The Bleed, the daily student newspaper of an in-world "
                     "literary magical academy. Respond ONLY with the newspaper content in the "
                     "exact format requested. Begin immediately with ===HEADLINE=== — no preamble, "
@@ -787,8 +873,8 @@ def call_agent(prompt: str) -> str:
             },
             {"role": "user", "content": prompt},
         ],
-        "temperature": 0.85,
-        "max_tokens": 8000,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
         "stream": False,
     }
 
@@ -803,7 +889,7 @@ def call_agent(prompt: str) -> str:
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=300) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             result = json.loads(resp.read().decode("utf-8"))
         content = (result.get("choices", [{}])[0]
                          .get("message", {})
@@ -814,6 +900,21 @@ def call_agent(prompt: str) -> str:
         raise RuntimeError(f"Gateway returned HTTP {e.code}: {body}") from e
     except Exception as e:
         raise RuntimeError(f"Gateway call failed: {e}") from e
+
+
+def model_smoke_test() -> int:
+    """Tiny gateway check for the configured Bleed model."""
+    port, token, model, timeout = _oc_gateway_cfg()
+    print(f"BLEED_MODEL={model}")
+    print(f"BLEED_GATEWAY=127.0.0.1:{port}")
+    print(f"BLEED_GATEWAY_TIMEOUT={timeout}")
+    try:
+        reply = call_agent("Reply with exactly: BLEED_OK")
+    except Exception as e:
+        print(f"FAIL: {e}")
+        return 1
+    print(reply[:200] or "(empty)")
+    return 0 if "BLEED_OK" in reply else 1
 
 
 # ── Content generation ────────────────────────────────────────────────────────
@@ -1070,6 +1171,353 @@ def validate_generated_sections(sections: dict) -> list[str]:
     return errors
 
 
+def _first_nonempty_line(text: str, fallback: str = "") -> str:
+    for line in (text or "").splitlines():
+        clean = line.strip().strip("-").strip()
+        if clean:
+            return clean
+    return fallback
+
+
+def _thread_names(thread_summary: str, limit: int = 4) -> list[str]:
+    names = []
+    for line in (thread_summary or "").splitlines():
+        m = re.match(r"-\s+(.+?)\s+\[", line.strip())
+        if m:
+            name = m.group(1).strip()
+            if name and name not in names:
+                names.append(name)
+        if len(names) >= limit:
+            break
+    return names
+
+
+def build_fallback_sections(data: dict, reason: str = "") -> dict:
+    """Build a complete issue from local data when the LLM gateway fails."""
+    threads = _thread_names(data.get("thread_summary", ""))
+    lead_thread = threads[0] if threads else "Academy Daily Life"
+    second_thread = threads[1] if len(threads) > 1 else "The Current Arc"
+    player = data.get("player", {})
+    player_name = player.get("name", "bj")
+    forecast = data.get("forecast") or "Conditions remain partly legible."
+    health = data.get("health") or "Vitality signals unavailable."
+    war_data = data.get("war_data") or "No chapter war data available."
+    market = data.get("market_odds_formatted") or "(no thread market data available)"
+    fuel = data.get("fuel_data") or "No provisions log was filed."
+    outer = build_outer_stacks_fallback(data) or "No new frontier dispatch has crossed the desk. The Outer Stacks remain adjacent, unsupervised, and politely unaccounted for."
+    if len(outer) < 140:
+        outer += " The frontier desk notes that thin reports are not empty reports; they usually mean the nearest doors are waiting for a physical visit before saying more."
+    talisman = data.get("talisman_data") or "No leading talisman declared itself before press time."
+    tick = _first_nonempty_line(data.get("tick_queue", ""), "No simulation incident was reported before press time.")
+    recap = data.get("player_recap") or "No correspondent recap was available."
+    classified_leads = [line.strip("- ").strip() for line in (data.get("classified_leads") or "").splitlines() if line.strip()]
+    classified_lines = classified_leads[:3] or [
+        "FOUND: One cup retaining the weight of a kind word near the Great Hall.",
+        "NOTICE: Quiet rooms may be louder than they appear.",
+        "SEEKING: A witness to the latest tapestry rhythm.",
+    ]
+
+    classified_text = "\n\n".join(
+        f"{item if re.match(r'^[A-Z ]+:', item) else 'NOTICE: ' + item}"
+        for item in classified_lines
+    )
+    while classified_text.count("\n\n") < 4:
+        classified_text += "\n\nWARNING: Any whisper found growing heavier should be carried flat, not folded."
+
+    return {
+        "HEADLINE": (
+            f"Title: {lead_thread} Holds the Front Page\n"
+            f"Subhead: The evening edition was compiled from local ledgers after the press gateway failed to answer.\n"
+            f"Body: The Bleed published a ledger-backed edition tonight after the usual long-form correspondent failed to file before deadline. "
+            f"The dominant pressure remains {lead_thread}, with {second_thread} visible behind it in the school weather.\n\n"
+            f"Editors observed the latest tick as follows: {tick}. The newsroom treats this as live institutional movement, not rumor.\n\n"
+            f"The current arc and active threads continue to shape coverage. This edition is plainer than usual, but the facts are still on the table: "
+            f"thread pressure, student state, chapter war figures, and frontier reports were all read locally before publication.\n\n"
+            f"Readers are advised to treat quiet details as consequential until further notice. The Academy has recently shown a habit of making small things count."
+        ),
+        "GOSSIP": (
+            "One hears the front page had to be composed without its usual theatrical flourishes. How bracing. Facts look almost indecent when they arrive undressed.\n\n"
+            f"{lead_thread} continues to attract attention from people who claim not to be watching it. They are, naturally, watching it very closely.\n\n"
+            "A certain table in the Great Hall has developed the unfortunate habit of remembering who spoke kindly near it. This will ruin several reputations if it continues.\n\n"
+            "Cedric Widden has been seen negotiating with silence as if silence were a roommate who owed rent. Results remain inconclusive.\n\n"
+            "The wise student keeps one eye on the ordinary. It is where the best leverage hides.\n\n— W.E."
+        ),
+        "WEATHER": forecast,
+        "FORECAST": (
+            f"70% chance of continued pressure around {lead_thread}; its ledger position makes it difficult to ignore.\n"
+            f"55% chance that {second_thread} surfaces as a secondary condition rather than a front-page storm.\n"
+            "45% chance of quiet-life consequences becoming materially relevant before the week is out.\n"
+            "Overall narrative outlook: settled on the surface, active underneath."
+        ),
+        "MARKET": market,
+        "BAROMETER": (
+            f"Vitality index: {health}\n"
+            "Corridor conditions: locally responsive, with attention pooling around high-Belief rooms.\n"
+            "Student weather: suitable for short walks, careful meals, and questions that do not need to become crises."
+        ),
+        "FUEL": (
+            f"{fuel}\n\n"
+            "The Provisions Desk recommends treating stamina as narrative infrastructure. A student cannot carry a season on coffee, symbolism, and vibes alone."
+        ),
+        "EXCHANGE": data.get("entity_standings") or "No exchange prices were available before press time.",
+        "FEATURE": (
+            f"Title: What the Quiet Is For\n"
+            "Byline: The Recovery Desk\n"
+            f"Body: The Academy has spent several weeks learning how alarms sound. It is now beginning the more difficult study: what happens after the alarm stops.\n\n"
+            f"{lead_thread} remains the most visible public pressure, but the subtler question belongs to the ordinary rooms. Which details become permanent? Which apologies land? Which jokes return without forcing themselves?\n\n"
+            "Faculty sources describe the present moment as a repair interval, though no one agrees on whether repair should be supervised. Students, naturally, have begun testing this by being kind in unsanctioned ways."
+        ),
+        "CLASSIFIEDS": classified_text,
+        "OUTERSTACKS": outer,
+        "CORRECTION": "The Bleed regrets implying that silence is empty. Subsequent evidence suggests silence may be occupied.",
+        "MISSING": "No report was filed from several dormant threads tonight. Absence remains absence until it starts leaving footprints.",
+        "PLAYER": (
+            f"The correspondent {player_name} remains a registered presence in the Academy ledgers. "
+            f"{compact_text(recap, 360)}"
+        ),
+        "WARREPORT": war_data,
+        "TALISMAN": (
+            f"The Ascendant desk filed from local figures only.\n\n{talisman}\n\n"
+            "Declaration: the leading philosophy will continue to act through small pressures until someone mistakes them for weather."
+        ),
+    }
+
+
+def compact_text(text: str, limit: int = 240) -> str:
+    text = re.sub(r"\s+", " ", (text or "").strip())
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 1)].rstrip() + "…"
+
+
+REQUIRED_BLEED_SECTIONS = [
+    "HEADLINE",
+    "GOSSIP",
+    "WEATHER",
+    "FORECAST",
+    "MARKET",
+    "BAROMETER",
+    "FUEL",
+    "EXCHANGE",
+    "FEATURE",
+    "CLASSIFIEDS",
+    "OUTERSTACKS",
+    "CORRECTION",
+    "MISSING",
+    "PLAYER",
+    "WARREPORT",
+    "TALISMAN",
+]
+
+
+def _config_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name) or load_config().get(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _config_int(name: str, default: int, minimum: int = 1) -> int:
+    raw = os.environ.get(name) or load_config().get(name)
+    if raw is None or str(raw).strip() == "":
+        return max(minimum, default)
+    try:
+        return max(minimum, int(str(raw).strip()))
+    except ValueError:
+        return max(minimum, default)
+
+
+def _bleed_allow_fallback() -> bool:
+    return _config_bool("BLEED_ALLOW_FALLBACK", False)
+
+
+def _bleed_chunk_attempts() -> int:
+    return _config_int("BLEED_CHUNK_ATTEMPTS", 2, minimum=1)
+
+
+def _bleed_chunk_timeout() -> int:
+    return _config_int("BLEED_CHUNK_TIMEOUT", _oc_gateway_cfg()[3], minimum=60)
+
+
+def _bleed_mono_timeout() -> int:
+    """Short first-pass timeout. Chunked generation follows if this misses."""
+    raw = os.environ.get("BLEED_MONOLITH_TIMEOUT") or load_config().get("BLEED_MONOLITH_TIMEOUT") or "75"
+    try:
+        return max(20, int(raw))
+    except ValueError:
+        return 75
+
+
+def _bleed_generation_mode() -> str:
+    raw = os.environ.get("BLEED_GENERATION_MODE") or load_config().get("BLEED_GENERATION_MODE") or "chunked"
+    raw = raw.strip().lower()
+    return raw if raw in {"chunked", "hybrid", "monolith"} else "chunked"
+
+
+def _chunk_context(data: dict) -> str:
+    """Small enough for lower-tier models; rich enough for concrete reporting."""
+    return f"""Publication: {data.get('date_str')} · Issue #{data.get('issue_number')}
+
+Previous coverage constraints:
+{compact_text(data.get('previous_coverage', ''), 1200)}
+
+Simulation:
+{compact_text(data.get('tick_queue', ''), 900)}
+
+Threads:
+{compact_text(data.get('thread_summary', ''), 1400)}
+
+Entities:
+{compact_text(data.get('entity_standings', ''), 900)}
+
+Player:
+Chapter {data.get('player', {}).get('chapter')} · Belief {data.get('player', {}).get('belief')}/100
+{compact_text(data.get('player_recap', ''), 700)}
+
+Classified leads:
+{compact_text(data.get('classified_leads', ''), 800)}
+
+Chapter war:
+{compact_text(data.get('war_data', ''), 1200)}
+
+Outer Stacks:
+{compact_text(data.get('outer_stacks', ''), 1000)}
+
+Ascendant:
+{compact_text(data.get('talisman_data', ''), 700)}
+Chapter NPCs: {compact_text(data.get('talisman_npcs', ''), 500)}
+
+Fuel:
+{compact_text(data.get('fuel_data', ''), 600)}
+
+Weather:
+{compact_text(data.get('forecast', ''), 700)}
+
+Health:
+{compact_text(data.get('health', ''), 500)}
+"""
+
+
+def _section_chunk_prompt(context: str, section_names: list[str], instructions: str) -> str:
+    markers = "\n".join(f"==={name}===\n[write this section]" for name in section_names)
+    return f"""You are writing selected sections of THE BLEED, the Academy student newspaper.
+Voice: dry, precise, literary, concrete, slightly gothic. Treat the magical academy as real.
+Use the data. Do not mention that this is a chunk. Do not include sections not requested.
+
+DATA:
+{context}
+
+REQUESTED SECTIONS:
+{instructions}
+
+Return ONLY these exact section markers, in this order:
+{markers}
+"""
+
+
+def generate_content_chunked(data: dict, reason: str = "") -> dict:
+    """Generate The Bleed in smaller independent packets.
+
+    Strict mode is the default: a failed section packet aborts publication
+    instead of quietly printing a local fallback edition.
+    """
+    allow_fallback = _bleed_allow_fallback()
+    sections = build_fallback_sections(data, reason=reason) if allow_fallback else {}
+    context = _chunk_context(data)
+    timeout = _bleed_chunk_timeout()
+    attempts = _bleed_chunk_attempts()
+    system = (
+        "You are writing selected sections for The Bleed. Respond only with the requested "
+        "===SECTION=== blocks. No preamble, no apology, no markdown wrapper."
+    )
+    chunks = [
+        (
+            ["HEADLINE", "GOSSIP", "FEATURE"],
+            3200,
+            "HEADLINE: title/subhead/body, 4-6 paragraphs, concrete reporting on a current event that has new information. "
+            "GOSSIP: 5 distinct W.E. gossip items, fresh and specific, ending — W.E. "
+            "FEATURE: titled/bylined longer context piece, 4-6 paragraphs, not a repeat of recent features.",
+        ),
+        (
+            ["WEATHER", "FORECAST", "MARKET", "BAROMETER"],
+            2200,
+            "WEATHER: 4-day Academy weather using exact forecast conditions. "
+            "FORECAST: narrative weather with probabilities and named threads. "
+            "MARKET: thread futures ticker with YES/NO odds from data and commentary. "
+            "BAROMETER: compact health/vitality conditions.",
+        ),
+        (
+            ["FUEL", "EXCHANGE", "CLASSIFIEDS"],
+            2400,
+            "FUEL: compact provisions log, specific foods and dry professional tone. "
+            "EXCHANGE: belief ticker for significant entities and one commentary paragraph. "
+            "CLASSIFIEDS: 5-6 fresh notices grounded in classified leads and current state.",
+        ),
+        (
+            ["OUTERSTACKS", "CORRECTION", "MISSING", "PLAYER"],
+            2200,
+            "OUTERSTACKS: 3-5 paragraphs on frontier/anchor/book-jump conditions, concrete but do not spoil first-visit secrets. "
+            "CORRECTION: one dry formal correction. MISSING: dormant/quiet threads, 2-4 lines. "
+            "PLAYER: third-person correspondent note, 3-5 concrete sentences.",
+        ),
+        (
+            ["WARREPORT", "TALISMAN"],
+            2600,
+            "WARREPORT: chess-correspondent analysis using exact chapter war scores and gaps. "
+            "TALISMAN: The Ascendant column in the leading talisman's voice, with editorial, brief Q&A with one chapter NPC, and declaration.",
+        ),
+    ]
+    for names, max_tokens, instructions in chunks:
+        prompt = _section_chunk_prompt(context, names, instructions)
+        last_error = ""
+        for attempt in range(1, attempts + 1):
+            try:
+                attempt_note = f" attempt {attempt}/{attempts}" if attempts > 1 else ""
+                print(f"  Generating section packet: {', '.join(names)} ({timeout}s timeout{attempt_note})")
+                raw = call_agent(
+                    prompt,
+                    max_tokens=max_tokens,
+                    temperature=0.72,
+                    timeout_override=timeout,
+                    system_content=system,
+                )
+                parsed = parse_sections(raw)
+                missing = [name for name in names if not (parsed.get(name) or "").strip()]
+                if missing:
+                    last_error = f"missing required section(s): {', '.join(missing)}"
+                    print(f"  ⚠ Section packet incomplete ({', '.join(names)}): {last_error}")
+                    continue
+                for name in names:
+                    sections[name] = parsed[name].strip()
+                last_error = ""
+                break
+            except Exception as e:
+                last_error = str(e)
+                print(f"  ⚠ Section packet failed ({', '.join(names)}): {last_error}")
+        else:
+            if allow_fallback:
+                print(f"  ↺ Keeping local fallback for failed section packet: {', '.join(names)}")
+                continue
+            raise RuntimeError(
+                "Bleed generation aborted; section packet failed after "
+                f"{attempts} attempt(s): {', '.join(names)}. Last error: {last_error}"
+            )
+
+    missing_sections = [name for name in REQUIRED_BLEED_SECTIONS if not (sections.get(name) or "").strip()]
+    if missing_sections:
+        if allow_fallback:
+            fallback_sections = build_fallback_sections(data, reason=reason or "missing model sections")
+            for name in missing_sections:
+                sections[name] = fallback_sections.get(name, "").strip()
+            print(f"  ↺ Filled missing sections from local fallback: {', '.join(missing_sections)}")
+        else:
+            raise RuntimeError(
+                "Bleed generation aborted; model output was incomplete. Missing: "
+                + ", ".join(missing_sections)
+            )
+    return sections
+
+
 def ensure_scene_ledger_seed(date_str: str, issue_number: int, sections: dict, meta: dict) -> None:
     existing = load_scene_ledger_entries(date_str)
     if existing:
@@ -1104,6 +1552,11 @@ def ensure_scene_ledger_seed(date_str: str, issue_number: int, sections: dict, m
 
 
 def generate_content(data: dict) -> dict:
+    mode = _bleed_generation_mode()
+    if mode == "chunked":
+        print("  Generating with chunked Bleed sections.")
+        return generate_content_chunked(data, reason="chunked mode")
+
     prompt = f"""You are writing THE BLEED — the Academy student newspaper.
 
 Publication date: {data['date_str']}
@@ -1350,8 +1803,30 @@ The column has three parts:
 Column header: "The Ascendant: [Talisman Name]" with subhead: "[Chapter] — [Belief] Belief"
 Tone: measured, self-certain, philosophical. This talisman does not perform. It simply is.]"""
 
-    raw = call_agent(prompt)
-    return parse_sections(raw)
+    try:
+        raw = call_agent(
+            prompt,
+            timeout_override=_oc_gateway_cfg()[3] if mode == "monolith" else _bleed_mono_timeout(),
+        )
+        sections = parse_sections(raw)
+        if sections:
+            return sections
+        print("  ⚠ Gateway returned no parseable sections; switching to chunked generation.")
+    except Exception as e:
+        print(f"  ⚠ Gateway generation failed: {e}")
+        if mode == "monolith":
+            if _bleed_allow_fallback():
+                print("  ↺ Using local fallback issue.")
+                return build_fallback_sections(data, reason=str(e))
+            raise RuntimeError(f"Bleed generation aborted; monolith mode failed: {e}") from e
+        print("  ↺ Switching to chunked generation.")
+        return generate_content_chunked(data, reason=str(e))
+
+    if mode == "monolith":
+        if _bleed_allow_fallback():
+            return build_fallback_sections(data, reason="empty gateway response")
+        raise RuntimeError("Bleed generation aborted; monolith mode returned no parseable sections.")
+    return generate_content_chunked(data, reason="empty gateway response")
 
 
 def parse_sections(raw: str) -> dict:
@@ -1604,7 +2079,8 @@ def build_feature_image_prompt(feature: str, meta: dict) -> str:
         f"Feature illustration for The Bleed, issue #{meta.get('issue_number')}. "
         f"Story title: {title}. "
         f"Illustrate the most vivid in-world scene or symbolic image suggested by this story and surrounding issue context: {scene_basis}. "
-        "Style: whimsical, dark, modern anime with pops of color, like Studio Ghibli with a Neil Gaiman shadow. "
+        "Style: literary magical-archive illustration, sparse pen-and-ink line art with watercolor washes on textured parchment, "
+        "muted sepia and gray palette, selective jewel-like pops of teal, gold, and red in magical details. "
         "Vertical editorial illustration, atmospheric, magical-school newspaper art, elegant, slightly eerie, richly specific, no text, no caption, no border, no watermark."
     )
 
@@ -2293,23 +2769,124 @@ def html_to_pdf(html_path: Path) -> Path:
     return html_path  # fallback: return original HTML
 
 
+def _printer_status(printer: str) -> str:
+    result = subprocess.run(["lpstat", "-p", printer], capture_output=True, text=True, timeout=8)
+    return ((result.stdout or "") + (result.stderr or "")).strip()
+
+
+def _printer_looks_unreachable(status: str) -> bool:
+    lowered = (status or "").lower()
+    return any(
+        phrase in lowered
+        for phrase in (
+            "looking for printer",
+            "unable to locate",
+            "not found",
+            "invalid destination",
+            "disabled",
+            "offline",
+        )
+    )
+
+
+def _printer_has_active_jobs(printer: str) -> bool:
+    result = subprocess.run(["lpstat", "-W", "not-completed", "-o", printer], capture_output=True, text=True, timeout=8)
+    text = ((result.stdout or "") + (result.stderr or "")).strip().lower()
+    if not text or "no entries" in text or "unknown destination" in text or "invalid destination" in text:
+        return False
+    return printer.lower() in text
+
+
+def _cups_default_printer() -> str:
+    result = subprocess.run(["lpstat", "-d"], capture_output=True, text=True, timeout=8)
+    text = ((result.stdout or "") + (result.stderr or "")).strip()
+    m = re.search(r"system default destination:\s*(\S+)", text)
+    return m.group(1).strip() if m else ""
+
+
+def _print_candidates(cfg: dict) -> list[str]:
+    names = [
+        cfg.get("BLEED_PRINTER", ""),
+        cfg.get("BLEED_PRINTER_FALLBACK", ""),
+        _cups_default_printer(),
+    ]
+    out = []
+    for name in names:
+        clean = (name or "").strip()
+        if clean and clean not in out:
+            out.append(clean)
+    return out
+
+
+def _submit_print_job(printer: str, print_file: Path) -> tuple[bool, str, str]:
+    result = subprocess.run(
+        ["lp", "-d", printer, "-o", "media=Letter", str(print_file)],
+        capture_output=True, text=True, timeout=15
+    )
+    text = ((result.stdout or "") + (result.stderr or "")).strip()
+    job_m = re.search(r"request id is\s+(\S+)", text)
+    job_id = job_m.group(1) if job_m else ""
+    return result.returncode == 0, text, job_id
+
+
+def _job_still_active(job_id: str) -> bool:
+    if not job_id:
+        return False
+    result = subprocess.run(["lpstat", "-W", "not-completed", "-o"], capture_output=True, text=True, timeout=8)
+    text = ((result.stdout or "") + (result.stderr or "")).strip()
+    return job_id in text
+
+
+def _print_job_cleared(job_id: str, wait_seconds: int) -> bool:
+    if not job_id or wait_seconds <= 0:
+        return True
+    deadline = time.time() + wait_seconds
+    while time.time() < deadline:
+        if not _job_still_active(job_id):
+            return True
+        time.sleep(3)
+    return not _job_still_active(job_id)
+
+
 def print_to_cups(html_path: Path, cfg: dict):
-    printer = cfg.get("BLEED_PRINTER", "")
-    if not printer:
+    candidates = _print_candidates(cfg)
+    if not candidates:
         print("  ℹ CUPS print not configured (BLEED_PRINTER) — skipping.")
         return
 
     print("  Converting to PDF...")
     print_file = html_to_pdf(html_path)
+    try:
+        verify_seconds = max(0, int(cfg.get("BLEED_PRINT_VERIFY_SECONDS", "30")))
+    except ValueError:
+        verify_seconds = 30
 
-    result = subprocess.run(
-        ["lp", "-d", printer, "-o", "media=Letter", str(print_file)],
-        capture_output=True, text=True, timeout=15
-    )
-    if result.returncode == 0:
-        print(f"  ✓ Sent to printer: {printer}")
-    else:
-        print(f"  ⚠ Print failed: {result.stderr.strip()}")
+    last_error = ""
+    for printer in candidates:
+        status = _printer_status(printer)
+        if _printer_looks_unreachable(status):
+            print(f"  ⚠ Printer unavailable: {printer} — {status[:120]}")
+            last_error = status
+            continue
+        if _printer_has_active_jobs(printer):
+            print(f"  ⚠ Printer busy/stuck, trying next destination: {printer} — {status[:120]}")
+            last_error = status
+            continue
+
+        ok, detail, job_id = _submit_print_job(printer, print_file)
+        if not ok:
+            print(f"  ⚠ Print failed on {printer}: {detail[:160]}")
+            last_error = detail
+            continue
+
+        if _print_job_cleared(job_id, verify_seconds):
+            print(f"  ✓ Sent to printer: {printer}")
+            return
+
+        print(f"  ⚠ Print job accepted but still active on {printer}: {job_id or detail[:80]}")
+        return
+
+    print(f"  ⚠ Print failed on all configured printers: {last_error[:180]}")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -2321,170 +2898,214 @@ def main():
 
     print(f"The Bleed — {now_str}")
 
+    if "--model-smoke" in sys.argv:
+        raise SystemExit(model_smoke_test())
+
     cfg = load_config()
+    cron_steward.record_event("bleed", "start", date=date_str, force="--force" in sys.argv)
 
     ISSUES_DIR.mkdir(parents=True, exist_ok=True)
     issue_path    = ISSUES_DIR / f"{date_str}.html"
     delivery_flag = ISSUES_DIR / f"{date_str}.delivered"
+    lock_path     = ISSUES_DIR / f"{date_str}.lock"
     force         = "--force" in sys.argv
 
     # If the HTML exists and delivery is done, nothing to do (unless --force)
     if issue_path.exists() and delivery_flag.exists() and not force:
         delivered_at = delivery_flag.read_text().strip()[:16]
         print(f"  ✓ Issue already published and delivered today ({delivered_at}). Use --force to redo.")
-        issue_number = get_issue_number()
-        skip_text = (
-            f"📰 <b>The Bleed</b> — Issue #{issue_number} already delivered today "
-            f"({delivered_at}). Use <code>python3 scripts/bleed.py --force</code> to regenerate."
-        )
-        send_telegram(skip_text, cfg)
+        cron_steward.mark_skipped("bleed", "already published and delivered", scope=date_str)
         return
 
-    # If the HTML already exists but delivery hasn't run, skip regeneration
-    already_generated = issue_path.exists() and not force
+    lock_fd, lock_reason = _acquire_issue_lock(lock_path)
+    if lock_fd is None:
+        print(f"  ✓ Bleed is already running for {date_str}; skipping ({lock_reason}).")
+        cron_steward.mark_skipped("bleed", "run already in progress", scope=date_str, detail=lock_reason)
+        return
 
-    issue_number = get_issue_number()
-    print(f"  Preparing issue #{issue_number}...")
-
-    if already_generated:
-        print(f"  ✓ Issue already generated — running delivery only.")
-        # Read back sparky + meta from what was saved; rebuild a minimal meta for delivery
-        sparky           = get_sparky_shiny(date_str)
-        leading_talisman = get_leading_talisman()
-        player_data      = get_player_data(cfg)
-        existing_feature_image = ISSUE_IMAGES_DIR / f"{date_str}-feature.png"
-        meta = {
-            "date_str":      date_str,
-            "issue_number":  issue_number,
-            "belief":        player_data.get("belief", "?"),
-            "talisman_name": leading_talisman.get("name", "") if leading_talisman else "",
-            "feature_image": f"../images/{existing_feature_image.name}" if existing_feature_image.exists() else "",
-        }
-        # Parse sections from the saved HTML for Telegram text generation
-        saved_html = issue_path.read_text()
-        # Extract plain text per section from the saved HTML for Telegram rebuild
-        sections = _sections_from_saved_html(saved_html)
-    else:
-        # ── Read data sources ────────────────────────────────────────────────
-        player_data = get_player_data(cfg)
-
-        heartbeat = read_file_safe(WORKSPACE_DIR / "HEARTBEAT.md", 100)
-        pulse     = extract_pulse_section(heartbeat)[:1200]
-        health    = extract_health_from_pulse(pulse) or "(health data not available today)"
-
-        tick_queue       = read_file_safe(WORKSPACE_DIR / "memory" / "tick-queue.md", 40)
-        thread_summary   = get_thread_summary()
-        entity_standings = get_entity_standings()
-        sparky           = get_sparky_shiny(date_str)
-        forecast         = get_weather_forecast_from_heartbeat()
-        market_odds      = calculate_market_odds()
-        war_info         = parse_app_register_for_bleed()
-        player_recap     = get_player_recap_data(cfg)
-        leading_talisman = get_leading_talisman()
-        fuel_data        = get_fuel_data()
-        talisman_npcs    = get_chapter_npcs(leading_talisman.get("chapter", "")) if leading_talisman else ""
-
-        # Format market odds for prompt injection
-        market_odds_formatted = "\n".join(
-            f"- {o['name']} ({o['phase']}, combined Belief {o['belief']}): "
-            f"Will this thread significantly stir this week? YES: {o['yes']}% / NO: {o['no']}%"
-            + (f"  Next beat: {o['beat']}" if o['beat'] else "")
-            for o in market_odds
-        ) or "(no thread data available)"
-
-        # Format talisman data block for prompt
-        if leading_talisman:
-            philosophy_clean = re.sub(r'\[thread:[^\]]+\]\s*', '', leading_talisman['philosophy']).strip()
-            talisman_data_str = (
-                f"Name: {leading_talisman['name']}\n"
-                f"Chapter: {leading_talisman['chapter']}\n"
-                f"Belief: {leading_talisman['belief']} (leads all chapter talismans)\n"
-                f"Philosophy: {philosophy_clean}"
-            )
-        else:
-            talisman_data_str = "(no talisman data available)"
-
-        previous_coverage = get_previous_coverage(n=3)
-
-        data = {
-            "date_str":              date_str,
-            "issue_number":          issue_number,
-            "player":                player_data,
-            "pulse":                 pulse,
-            "health":                health,
-            "forecast":              forecast or "(forecast not yet loaded — check pulse)",
-            "tick_queue":            tick_queue or "(no simulation activity since last session)",
-            "thread_summary":        thread_summary,
-            "entity_standings":      entity_standings,
-            "classified_leads":      build_classified_leads(),
-            "market_odds_formatted": market_odds_formatted,
-            "war_data":              format_war_data(war_info),
-            "outer_stacks":          get_outer_stacks_brief(player_data.get("name", "bj")),
-            "player_recap":          player_recap,
-            "talisman_data":         talisman_data_str,
-            "talisman_npcs":         talisman_npcs or "(no chapter NPCs found)",
-            "fuel_data":             fuel_data,
-            "previous_coverage":     previous_coverage,
-        }
-
-        # ── Generate content ─────────────────────────────────────────────────
-        print("  Generating newspaper content...")
-        sections = generate_content(data)
-
-        if not sections:
-            print("  ⚠ Agent returned no content. Check logs.")
+    try:
+        # Re-check after the lock. A sibling process may have delivered while this one waited.
+        if issue_path.exists() and delivery_flag.exists() and not force:
+            delivered_at = delivery_flag.read_text().strip()[:16]
+            print(f"  ✓ Issue was delivered by another run ({delivered_at}).")
+            cron_steward.mark_skipped("bleed", "already delivered after lock", scope=date_str)
             return
 
-        if not (sections.get("OUTERSTACKS") or "").strip():
-            fallback = build_outer_stacks_fallback(data)
-            if fallback:
-                sections["OUTERSTACKS"] = fallback
-                print("  ↺ OUTERSTACKS missing from model output — used deterministic fallback.")
+        # If the HTML already exists but delivery hasn't run, skip regeneration
+        already_generated = issue_path.exists() and not force
 
-        # ── Build HTML ───────────────────────────────────────────────────────
-        headline_parts = parse_headline(sections.get("HEADLINE", ""))
-        feature_image_path = generate_feature_image(sections.get("FEATURE", ""), {
-            "date_str": date_str,
-            "issue_number": issue_number,
-            "headline_title": headline_parts.get("title", ""),
-            "headline_body": headline_parts.get("body", ""),
-            "gossip": sections.get("GOSSIP", ""),
-            "market": sections.get("MARKET", ""),
-            "weather": sections.get("WEATHER", ""),
-        })
-        meta = {
-            "date_str":       date_str,
-            "issue_number":   issue_number,
-            "belief":         player_data.get("belief", "?"),
-            "talisman_name":  leading_talisman.get("name", "") if leading_talisman else "",
-            "player_name":    player_data.get("name", "bj"),
-            "feature_image":  f"../images/{feature_image_path.name}" if feature_image_path else "",
-        }
-        errors = validate_generated_sections(sections)
-        if errors:
-            print("  ⚠ Section validation issues: " + "; ".join(errors))
-        html = build_html(sections, sparky, meta)
+        issue_number = get_issue_number()
 
-        # ── Save ─────────────────────────────────────────────────────────────
-        issue_path.write_text(html)
-        save_issue_number(issue_number)
-        print(f"  ✓ Issue #{issue_number} saved → {issue_path}")
+        if already_generated:
+            print(f"  ✓ Issue already generated — running delivery only.")
+            # Read back sparky + meta from what was saved; rebuild a minimal meta for delivery
+            sparky           = get_sparky_shiny(date_str)
+            leading_talisman = get_leading_talisman()
+            player_data      = get_player_data(cfg)
+            existing_feature_image = ISSUE_IMAGES_DIR / f"{date_str}-feature.png"
+            # Parse sections from the saved HTML for Telegram text generation
+            saved_html = issue_path.read_text()
+            issue_number = _issue_number_from_html(saved_html, issue_number)
+            print(f"  Preparing issue #{issue_number}...")
+            meta = {
+                "date_str":      date_str,
+                "issue_number":  issue_number,
+                "belief":        player_data.get("belief", "?"),
+                "talisman_name": leading_talisman.get("name", "") if leading_talisman else "",
+                "player_name":   player_data.get("name", "bj"),
+                "feature_image": f"../images/{existing_feature_image.name}" if existing_feature_image.exists() else "",
+            }
+            # Extract plain text per section from the saved HTML for Telegram rebuild
+            sections = _sections_from_saved_html(saved_html)
+        else:
+            print(f"  Preparing issue #{issue_number}...")
+            # ── Read data sources ────────────────────────────────────────────
+            player_data = get_player_data(cfg)
 
-    # ── Telegram edition ─────────────────────────────────────────────────────
-    telegram_text = build_telegram_text(sections, sparky, meta)
-    send_telegram(telegram_text, cfg)
+            heartbeat = read_file_safe(WORKSPACE_DIR / "HEARTBEAT.md", 100)
+            pulse     = extract_pulse_section(heartbeat)[:1200]
+            health    = extract_health_from_pulse(pulse) or "(health data not available today)"
 
-    # ── CUPS print ───────────────────────────────────────────────────────────
-    print_to_cups(issue_path, cfg)
+            tick_queue       = read_file_safe(WORKSPACE_DIR / "memory" / "tick-queue.md", 40)
+            thread_summary   = get_thread_summary()
+            entity_standings = get_entity_standings()
+            sparky           = get_sparky_shiny(date_str)
+            forecast         = get_weather_forecast_from_heartbeat()
+            market_odds      = calculate_market_odds()
+            war_info         = parse_app_register_for_bleed()
+            player_recap     = get_player_recap_data(cfg)
+            leading_talisman = get_leading_talisman()
+            fuel_data        = get_fuel_data()
+            talisman_npcs    = get_chapter_npcs(leading_talisman.get("chapter", "")) if leading_talisman else ""
 
-    classifieds_text = sections.get("CLASSIFIEDS", "")
-    record_classifieds_hooks(date_str, meta["issue_number"], classifieds_text)
-    ensure_scene_ledger_seed(date_str, meta["issue_number"], sections, meta)
+            # Format market odds for prompt injection
+            market_odds_formatted = "\n".join(
+                f"- {o['name']} ({o['phase']}, combined Belief {o['belief']}): "
+                f"Will this thread significantly stir this week? YES: {o['yes']}% / NO: {o['no']}%"
+                + (f"  Next beat: {o['beat']}" if o['beat'] else "")
+                for o in market_odds
+            ) or "(no thread data available)"
 
-    # ── Mark delivered ───────────────────────────────────────────────────────
-    delivery_flag.write_text(datetime.now().isoformat())
+            # Format talisman data block for prompt
+            if leading_talisman:
+                philosophy_clean = re.sub(r'\[thread:[^\]]+\]\s*', '', leading_talisman['philosophy']).strip()
+                talisman_data_str = (
+                    f"Name: {leading_talisman['name']}\n"
+                    f"Chapter: {leading_talisman['chapter']}\n"
+                    f"Belief: {leading_talisman['belief']} (leads all chapter talismans)\n"
+                    f"Philosophy: {philosophy_clean}"
+                )
+            else:
+                talisman_data_str = "(no talisman data available)"
 
-    print(f"  ✓ The Bleed #{issue_number} published.")
+            previous_coverage = get_previous_coverage(n=3)
+
+            data = {
+                "date_str":              date_str,
+                "issue_number":          issue_number,
+                "player":                player_data,
+                "pulse":                 pulse,
+                "health":                health,
+                "forecast":              forecast or "(forecast not yet loaded — check pulse)",
+                "tick_queue":            tick_queue or "(no simulation activity since last session)",
+                "thread_summary":        thread_summary,
+                "entity_standings":      entity_standings,
+                "classified_leads":      build_classified_leads(),
+                "market_odds_formatted": market_odds_formatted,
+                "war_data":              format_war_data(war_info),
+                "outer_stacks":          get_outer_stacks_brief(player_data.get("name", "bj")),
+                "player_recap":          player_recap,
+                "talisman_data":         talisman_data_str,
+                "talisman_npcs":         talisman_npcs or "(no chapter NPCs found)",
+                "fuel_data":             fuel_data,
+                "previous_coverage":     previous_coverage,
+            }
+
+            # ── Generate content ─────────────────────────────────────────────
+            print("  Generating newspaper content...")
+            sections = generate_content(data)
+
+            if not sections:
+                print("  ⚠ Agent returned no content. Check logs.")
+                return
+
+            if _bleed_allow_fallback() and not (sections.get("OUTERSTACKS") or "").strip():
+                fallback = build_outer_stacks_fallback(data)
+                if fallback:
+                    sections["OUTERSTACKS"] = fallback
+                    print("  ↺ OUTERSTACKS missing from model output — used deterministic fallback.")
+
+            # ── Build HTML ───────────────────────────────────────────────────
+            headline_parts = parse_headline(sections.get("HEADLINE", ""))
+            feature_image_path = generate_feature_image(sections.get("FEATURE", ""), {
+                "date_str": date_str,
+                "issue_number": issue_number,
+                "headline_title": headline_parts.get("title", ""),
+                "headline_body": headline_parts.get("body", ""),
+                "gossip": sections.get("GOSSIP", ""),
+                "market": sections.get("MARKET", ""),
+                "weather": sections.get("WEATHER", ""),
+            })
+            meta = {
+                "date_str":       date_str,
+                "issue_number":   issue_number,
+                "belief":         player_data.get("belief", "?"),
+                "talisman_name":  leading_talisman.get("name", "") if leading_talisman else "",
+                "player_name":    player_data.get("name", "bj"),
+                "feature_image":  f"../images/{feature_image_path.name}" if feature_image_path else "",
+            }
+            errors = validate_generated_sections(sections)
+            if errors:
+                print("  ⚠ Section validation issues: " + "; ".join(errors))
+            html = build_html(sections, sparky, meta)
+
+            # ── Save ─────────────────────────────────────────────────────────
+            issue_path.write_text(html)
+            save_issue_number(issue_number)
+            print(f"  ✓ Issue #{issue_number} saved → {issue_path}")
+
+        # ── Telegram edition ─────────────────────────────────────────────────
+        telegram_text = build_telegram_text(sections, sparky, meta)
+        delivery_payload = {"date": date_str, "issue": meta["issue_number"], "telegram": telegram_text}
+        skip, digest, reason = cron_steward.should_skip_duplicate(
+            "bleed",
+            delivery_payload,
+            cooldown_hours=24,
+            force=force,
+            scope=date_str,
+        )
+        if skip:
+            print(f"  ✓ Duplicate delivery blocked: {reason}.")
+            delivery_flag.write_text(datetime.now().isoformat())
+            cron_steward.mark_skipped("bleed", reason, scope=date_str, fingerprint=digest)
+            return
+
+        send_telegram(telegram_text, cfg)
+
+        # ── CUPS print ───────────────────────────────────────────────────────
+        print_to_cups(issue_path, cfg)
+
+        classifieds_text = sections.get("CLASSIFIEDS", "")
+        record_classifieds_hooks(date_str, meta["issue_number"], classifieds_text)
+        ensure_scene_ledger_seed(date_str, meta["issue_number"], sections, meta)
+
+        # ── Mark delivered ───────────────────────────────────────────────────
+        delivery_flag.write_text(datetime.now().isoformat())
+        cron_steward.mark_delivered(
+            "bleed",
+            delivery_payload,
+            scope=date_str,
+            issue_number=meta["issue_number"],
+            html=str(issue_path),
+        )
+
+        print(f"  ✓ The Bleed #{meta['issue_number']} published.")
+    except Exception as exc:
+        cron_steward.record_event("bleed", "failed", scope=date_str, reason=str(exc)[:500])
+        print(f"  ✗ Bleed aborted before publication: {exc}")
+        raise
+    finally:
+        _release_issue_lock(lock_fd, lock_path)
 
 
 if __name__ == "__main__":

@@ -14,24 +14,52 @@
 
 | App | System | Natural Alignment | Emberheart | Mossbloom | Riddlewind | Tidecrest | Duskthorn | Controller |
 |---|---|---|---|---|---|---|---|---|
-| Apple Notes | productivity | Emberheart | 18 | 14 | 6 | 9 | 7 | Emberheart (Influenced) |
-| Apple Reminders | productivity | Riddlewind | 10 | 11 | 17 | 5 | 8 | Riddlewind (Influenced) |
-| Apple Calendar | productivity | Riddlewind | 11 | 7 | 17 | 6 | 4 | Riddlewind (Influenced) |
-| Obsidian | productivity | Mossbloom | 13 | 25 | 7 | 4 | 3 | Mossbloom (Controlled) |
-| Moltbook | social | Emberheart | 22 | 5 | 8 | 16 | 20 | Emberheart (Influenced) |
-| Bluesky | social | Riddlewind | 13 | 6 | 13 | 14 | 12 | Tidecrest (Influenced) |
-| X / Twitter | social | Duskthorn | 7 | 3 | 8 | 14 | 25 | Duskthorn (Controlled) |
-| Reddit | social | Riddlewind | 6 | 7 | 17 | 10 | 17 | Riddlewind (Influenced) |
+| Apple Notes | productivity | Emberheart | 18 | 15 | 6 | 9 | 7 | Emberheart (Influenced) |
+| Apple Reminders | productivity | Riddlewind | 10 | 11 | 21 | 5 | 8 | Riddlewind (Influenced) |
+| Apple Calendar | productivity | Riddlewind | 15 | 7 | 16 | 8 | 5 | Riddlewind (Influenced) |
+| Obsidian | productivity | Mossbloom | 13 | 27 | 7 | 4 | 4 | Mossbloom (Controlled) |
+| Moltbook | social | Emberheart | 22 | 5 | 10 | 17 | 20 | Emberheart (Influenced) |
+| Bluesky | social | Riddlewind | 13 | 6 | 15 | 18 | 12 | Tidecrest (Influenced) |
+| X / Twitter | social | Duskthorn | 7 | 3 | 8 | 14 | 27 | Duskthorn (Controlled) |
+| Reddit | social | Riddlewind | 6 | 7 | 16 | 10 | 19 | Duskthorn (Influenced) |
 | Spotify | music | Tidecrest | 7 | 17 | 8 | 22 | 5 | Tidecrest (Influenced) |
-| Telegram | messaging | Tidecrest | 8 | 5 | 13 | 13 | 12 | Riddlewind (Influenced) |
-| iMessage | messaging | Riddlewind | 12 | 7 | 14 | 12 | 5 | Riddlewind (Influenced) |
-| Apple Mail | messaging | Riddlewind | 14 | 6 | 18 | 9 | 8 | Riddlewind (Influenced) |
-| Safari | browser | Riddlewind | 11 | 11 | 15 | 12 | 15 | Riddlewind (Influenced) |
+| Telegram | messaging | Tidecrest | 8 | 5 | 12 | 14 | 12 | Tidecrest (Influenced) |
+| iMessage | messaging | Riddlewind | 12 | 7 | 13 | 15 | 10 | Tidecrest (Influenced) |
+| Apple Mail | messaging | Riddlewind | 15 | 6 | 18 | 11 | 8 | Riddlewind (Influenced) |
+| Safari | browser | Riddlewind | 11 | 12 | 15 | 12 | 15 | Riddlewind (Influenced) |
 
 ---
 
 ## Last Pact Actions
 
+- **[Pact War: Tidecrest]** push on **Apple Mail** (9→11) — Tidecrest surges in Apple Mail. The moment was right and it moved.
+- **[Pact War: Riddlewind]** challenge on **Bluesky** (13→15) — Riddlewind contests Tidecrest for Bluesky. The community should decide this.
+- **[Pact War: Emberheart]** consolidate on **Apple Notes** (17→18) — Emberheart consolidates in Apple Notes. No ground given.
+- **[Pact War: Emberheart]** push on **Apple Calendar** (12→15) — Emberheart deepens its hold on Apple Calendar. The self-author's claim tightens.
+- **[Pact War: Emberheart]** push on **Apple Mail** (14→15) — Emberheart deepens its hold on Apple Mail. The self-author's claim tightens.
+- **[Pact War: Duskthorn]** push on **Apple Calendar** (4→5) — Duskthorn presses further into Apple Calendar. It has been watching.
+- **[Pact War: Tidecrest]** push on **Apple Calendar** (6→8) — Tidecrest surges in Apple Calendar. The moment was right and it moved.
+- **[Pact War: Duskthorn]** push on **Obsidian** (3→4) — Duskthorn presses further into Obsidian. It has been watching.
+- **[Pact War: Riddlewind]** push on **Moltbook** (8→10) — Riddlewind weaves deeper into Moltbook. Another thread added to the pattern.
+- **[Pact War: Tidecrest]** challenge on **iMessage** (13→15) — **Tidecrest takes control** from Emberheart — Tidecrest surges against Emberheart in iMessage. Now or never.
+- **[Pact War: Mossbloom]** challenge on **Apple Notes** (14→15) — Mossbloom quietly erodes Emberheart's control of Apple Notes. Slow water, soft stone.
+- **[Pact War: Duskthorn]** challenge on **Reddit** (17→19) — **Duskthorn takes control** from Riddlewind — Duskthorn begins a pressure campaign against Riddlewind in Reddit.
+- **[Pact War: Emberheart]** challenge on **iMessage** (12→13) — **Emberheart takes control** from Tidecrest — Emberheart challenges Tidecrest's hold on iMessage. Individual voice asserts itself.
+- **[Pact War: Duskthorn]** challenge on **iMessage** (8→10) — Duskthorn begins a pressure campaign against Riddlewind in iMessage.
+- **[Pact War: Tidecrest]** push on **Moltbook** (16→17) — Tidecrest surges in Moltbook. The moment was right and it moved.
+- **[Pact War: Riddlewind]** push on **iMessage** (13→14) — **Riddlewind takes control** from Tidecrest — Riddlewind weaves deeper into iMessage. Another thread added to the pattern.
+- **[Pact War: Mossbloom]** push on **Obsidian** (25→27) — Mossbloom settles further into Obsidian. Patience is its weapon.
+- **[Pact War: Duskthorn]** consolidate on **X / Twitter** (25→27) — Duskthorn tightens its grip on X / Twitter. Territory held is leverage.
+- **[Pact War: Riddlewind]** consolidate on **Apple Reminders** (20→21) — Riddlewind reinforces its weave in Apple Reminders. The threads are strong.
+- **[Pact War: Tidecrest]** challenge on **iMessage** (12→14) — **Tidecrest takes control** from Riddlewind — Tidecrest surges against Riddlewind in iMessage. Now or never.
+- **[Pact War: Tidecrest]** consolidate on **Bluesky** (17→19) — Tidecrest locks in its surge in Bluesky. The wave found its shore.
+- **[Pact War: Mossbloom]** challenge on **Safari** (11→12) — Mossbloom quietly erodes Duskthorn's control of Safari. Slow water, soft stone.
+- **[Pact War: Duskthorn]** push on **iMessage** (5→8) — Duskthorn presses further into iMessage. It has been watching.
+- **[Pact War: Tidecrest]** push on **Bluesky** (14→17) — Tidecrest surges in Bluesky. The moment was right and it moved.
+- **[Pact War: Emberheart]** challenge on **Apple Calendar** (11→12) — Emberheart challenges Riddlewind's hold on Apple Calendar. Individual voice asserts itself.
+- **[Pact War: Duskthorn]** push on **Safari** (15→16) — **Duskthorn takes control** from Riddlewind — Duskthorn presses further into Safari. It has been watching.
+- **[Pact War: Tidecrest]** challenge on **Telegram** (13→14) — **Tidecrest takes control** from Riddlewind — Tidecrest surges against Riddlewind in Telegram. Now or never.
+- **[Pact War: Riddlewind]** push on **Apple Reminders** (17→20) — Riddlewind weaves deeper into Apple Reminders. Another thread added to the pattern.
 - **[Pact War: Duskthorn]** push on **Moltbook** (18→20) — Duskthorn presses further into Moltbook. It has been watching.
 - **[Pact War: Duskthorn]** challenge on **Moltbook** (16→18) — Duskthorn begins a pressure campaign against Emberheart in Moltbook.
 - **[Pact War: Mossbloom]** push on **Obsidian** (23→25) — **reaches Controlled** — Mossbloom settles further into Obsidian. Patience is its weapon.

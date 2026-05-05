@@ -50,6 +50,8 @@ import base64
 
 SCRIPT_DIR = Path(__file__).parent
 WORKSPACE  = SCRIPT_DIR.parent
+sys.path.insert(0, str(SCRIPT_DIR))
+import cron_steward
 
 WALLPAPER_DIR   = WORKSPACE / "wallpapers"
 STATE_FILE      = WALLPAPER_DIR / "state.json"
@@ -361,8 +363,9 @@ def build_prompt(detail: dict) -> str:
     arc_el    = _ARC_ELEMENTS.get(detail["arc_phase"], _ARC_ELEMENTS["SETUP"])
 
     parts = [
-        "Atmospheric dark anime illustration, Studio Ghibli meets Neil Gaiman aesthetic. "
-        "Rich detailed linework. Deep atmospheric shadows. Painterly ink-washed backgrounds. "
+        "Literary magical-archive illustration in sparse pen-and-ink line art with watercolor washes "
+        "on textured parchment. Muted sepia and gray palette with selective jewel-like pops of teal, "
+        "gold, and red in magical details. "
         "No text, no UI elements, no labels.",
         "",
         f"SCENE: {_SCENE}",
@@ -545,28 +548,38 @@ def cmd_set(image_path: str, player_name: str) -> None:
     detail = get_game_detail(player_name)
     sig    = state_signature(detail)
     save_state(sig, archived, detail)
+    cron_steward.mark_delivered(
+        "wallpaper",
+        {"signature": sig, "path": archived},
+        scope=player_name,
+        path=archived,
+        signature=sig,
+    )
     print(f"[wallpaper] Done. Archived to {archived}")
 
 
 def cmd_generate(player_name: str, force: bool = False) -> None:
     """Background generation — calls openclaw agent."""
-    detail = get_game_detail(player_name)
-    sig    = state_signature(detail)
-    state  = load_state()
-    regen, reason = should_regenerate(sig, state, force)
+    with cron_steward.run("wallpaper", player=player_name, forced=force):
+        detail = get_game_detail(player_name)
+        sig    = state_signature(detail)
+        state  = load_state()
+        regen, reason = should_regenerate(sig, state, force)
 
-    if not regen:
-        print(f"[wallpaper] No regeneration needed: {reason}")
-        return
+        if not regen:
+            print(f"[wallpaper] No regeneration needed: {reason}")
+            cron_steward.mark_skipped("wallpaper", reason, scope=player_name, signature=sig)
+            return
 
-    print(f"[wallpaper] Generating ({reason})…")
-    prompt = build_prompt(detail)
-    path   = generate_via_agent(prompt)
+        print(f"[wallpaper] Generating ({reason})…")
+        prompt = build_prompt(detail)
+        path   = generate_via_agent(prompt)
 
-    if path:
-        cmd_set(path, player_name)
-    else:
-        print("[wallpaper] Generation failed — no path returned.")
+        if path:
+            cmd_set(path, player_name)
+        else:
+            print("[wallpaper] Generation failed — no path returned.")
+            cron_steward.record_event("wallpaper", "failed", reason="generation returned no path", signature=sig)
 
 
 def cmd_prompt(player_name: str) -> None:

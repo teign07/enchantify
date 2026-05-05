@@ -27,7 +27,7 @@ The Academy runs on a loose seven-day cycle. Days do not have names here — the
 | **Day 3** | Deepening | Mid-week — the week has found its shape. This is when breakthroughs and arguments both happen. |
 | **Day 4** | Hinge | Something always turns on Day 4. A discovery, a conflict, a revelation. Not dramatic necessarily — just turning. |
 | **Day 5** | Releasing | Energy loosens toward weekend. Evening clubs. The Cafeteria has good soup on Day 5. |
-| **Day 6** | Wandering | No mandatory classes. Students explore, practice, argue, make things. The Library opens additional wings. |
+| **Day 6** | Wandering | Looser exploratory classes. Students explore, practice, argue, make things. The Library opens additional wings. |
 | **Day 7** | Still | The quietest day. Professors walk the grounds. The Academy breathes. Perfect for solo study, long Compass Runs, or doing nothing with great intention. |
 
 *The day cycle is not tracked rigidly in game. The Labyrinth uses it to flavor dispatches and ambient texture — "It's a Hinge day" is enough.*
@@ -144,12 +144,59 @@ Three classes run on fixed weekly slots — not Foundation theory but active pra
 | **Compass Running** | Prof. Cedric Stonebrook | Saturday 9–11 AM | The Observatory | Practicum in running the full Compass cycle. Not theory — actual runs. Students depart from the Observatory and return with a report. Stonebrook calibrated the Wonder Compass; he teaches the run the way the compass was designed. |
 | **Book Jumping** | Prof. Archibald Permancer | Sunday 9–11 AM | Room of Chrono-Tomes | Controlled text entry — falling into a book and coming back. Permancer tracks entries and exits obsessively. He counts students before and after. He has good reason to. Zara Finch is the student guide; she's better at the physical act of jumping than Permancer and he knows it. |
 
+### Practice Example Pools
+
+These are examples for the Labyrinth, not fixed scripts. Use them as valid shapes for classwork, vary the wording to fit the scene, and never claim completion unless BJ actually does the real-world act.
+
+**Art of the Glint — Prof. Boggle**
+- *Glint Detection* — Find three things today that surprised you. One sentence each.
+- *Ordinary Object Autopsy* — Choose one boring object nearby. List five specific details, then name the one that makes it feel secretly alive.
+- *Wrong-Name Exercise* — Give a familiar place the wrong name on purpose. Notice what changes when the label no longer fits.
+- *Anti-Blur Sketch* — Describe one thing you usually ignore so precisely that someone else could find it.
+
+**Wayfinding & Kineticism — Prof. Momort**
+- *Perimeter Survey* — Walk a route you have not taken. Bring back what the Nothing has not touched.
+- *Three-Ingredient Outing* — Pick a destination, a small pleasure to bring, and a clear end time. Go before the plan gets clever.
+- *Wrong Turn Practicum* — Take one safe wrong turn during an ordinary errand. Record what efficiency would have erased.
+- *Threshold Step* — Cross into a place you almost never enter for two minutes. Bring back one detail.
+
+**Synesthetic Resonance — Prof. Euphony**
+- *Resonance Field Report* — Sit somewhere for five minutes. Eyes closed. Record what you hear, smell, and feel.
+- *Color Temperature* — Choose one color in the room. Describe its temperature, weight, and emotional weather.
+- *Gift Inventory* — Gather three small sensory gifts from the day: one sound, one texture, one scent or taste.
+- *Echo Map* — Listen for the farthest sound you can hear, then the nearest. Write what space exists between them.
+
+**Ink-Binding — Prof. Villanelle**
+- *Binding Exercise* — One sentence about today. Not what happened; what it felt like.
+- *Last Line First* — Write the final sentence of a scene you have not lived yet today. Let the day decide whether it catches up.
+- *Sensory Bottle* — Choose one moment from the last hour. Bottle it in one sentence using a concrete sensory detail.
+- *Margin Vow* — Write one sentence you would be willing to find in the margin of your own story tomorrow.
+
+**Quiet Hours / Compass Running — Prof. Stonebrook**
+- *Stillness Practicum* — Do nothing for ten minutes. Not meditation. Nothing. Report what happened.
+- *Permission to Stop* — Choose one unnecessary demand and put it down for one hour. Name what you protected by stopping.
+- *Center Check* — Place one hand on a stable surface. Take five slow breaths. Write the first honest sentence that arrives.
+- *Compass Cooling* — Before acting, wait ninety seconds. Notice whether the action becomes clearer, smaller, or unnecessary.
+
+**Basic Enchantments — Prof. Wispwood**
+- *Object Address* — Speak one true sentence aloud to an object you have owned for more than a year.
+- *Useful Name* — Rename an object by what it has helped you survive. Use the name once today and notice if it answers differently.
+- *Photo Lock* — Photograph an object that matters. Write the sentence that locks its magic in place.
+- *Object Apology* — Clean, repair, move, or thank a neglected object. Let the action be the spell.
+
+**Book Jumping — Prof. Permancer**
+- *Threshold Log* — Name a book that changed something in you. Document who you were before and after the jump.
+- *Anchor Sentence* — Before reading, write what you are bringing with you. After reading, write what came back changed.
+- *Textual Souvenir* — Find one line or image from a text that follows you out of the page. Describe where it lands in the real room.
+- *Return Count* — After reading, count three things that prove you returned: one object, one sound, one bodily sensation.
+
 ### Specialized Tracks (The Depth)
 
 Once the Foundation is laid, students pursue specialized studies:
 
 - **Mythopoeic Thought** — Prof. Ignatius Imatook (Creating and sustaining imaginary worlds)
 - **Allegorical Arts** — Prof. Maxwell Thorne (Everything has a second meaning)
+- **Common Magic & Correspondences** — Prof. Maxwell Thorne (ordinary acts, folklore, materials, timing, and symbolic practice)
 - **Historical Fiction** — Prof. Archibald Permancer (The dark history of the Labyrinth)
 
 ### Elective (Choose at T-milestone)
@@ -166,22 +213,34 @@ BJ has not yet chosen an elective. Options available to Tidecrest first-years:
 ## How Classes Work in Play
 
 ### Showing Up
-Classes are not tracked as attendance. They are tracked as *relationship texture*. A player who never mentions class will notice:
-- Professors begin to reference his absence in passing
-- Other students mention things he missed
-- Small knowledge gaps emerge — he doesn't know a term Zara uses, he has to be caught up
+Classes are now tracked as real attendance in `players/[name]-classes.json`. The Academy only advances a lesson when BJ actually attends or continues that class. Do not move a syllabus forward because time passed, because the class was scheduled, or because the Labyrinth summarized what happened offscreen.
 
-A player who does engage with class will notice:
-- Professors warm to them
+A player who misses class will notice:
+- Professors reference his absence in passing
+- Other students mention things he missed
+- Small knowledge gaps emerge — he doesn't know a term Zara uses, and someone has to catch him up
+
+A player who attends class will notice:
+- Professors warm to him through repeated presence
 - Knowledge unlocks — understanding a mechanic BJ learned in class changes how a Compass Run resolves
-- Homework Enchantments become available (see below)
+- Homework Enchantments become available
+- The next lecture segment opens only after the current one is played
 
 ### Running a Class Scene
-When BJ attends a class, the Labyrinth plays it as a scene. Short, specific, alive. A class is not a lecture to summarize — it is:
+Class scenes are audio-first, multi-turn classroom scenes. They are not summaries and not one-shot lectures. Use `python3 scripts/class-lecture.py [player] --attend` when BJ enters a class, then use `--advance` only when the player chooses to continue the lesson.
 
-- One moment that surprises him
-- One moment that connects to something in his real life (the bleed, as always)
-- One moment that reveals something about the professor, the world, or the Nothing
+Each lecture turn should include:
+- A professor teaching one real idea clearly enough that the player can learn it
+- A physical classroom detail
+- At least one classmate presence, interruption, question, or reaction
+- A grounded invitation to continue, ask, practice, or turn sideways
+
+The lecture may unfold over many replies: professor dialogue, student questions, classroom interruptions, object demonstrations, exercises, and side conversations. Keep each reply listenable. If the player wants to keep going, continue the class. If the player leaves, the lesson waits.
+
+### Curriculum Sources
+`config/class-curriculum.json` is the machine-readable curriculum spine. It cross-references Wonder Compass chapters by concept, so one chapter can feed several classes. For example, Chapter 8B: Characters belongs to Synesthetic Resonance as sensory empathy, Basic Enchantments as Everything Speaks doctrine, and Art of the Glint as object-character noticing.
+
+The source shelf is `lore/wonder-compass-book/`. Uploaded chapters should use clean `.md` filenames matching the curriculum ids when possible: `chapter8b.md`, `chapter13.md`, and so on. Missing chapters may still appear in the curriculum as mapped-but-not-yet-uploaded sources.
 
 *Example (Poetic Patterns with Villanelle):*
 > The assignment is to find the meter in something that doesn't have one — a conversation, a sound, a meal. Villanelle writes on the board in flourished cursive: **"All experience has rhythm. Most people just aren't listening."** She turns around. The ink rearranges itself into a villanelle about dinner.

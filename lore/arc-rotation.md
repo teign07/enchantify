@@ -41,7 +41,8 @@ Each genre brings a different kind of story. New genres can be proposed via Midn
 
 | Arc # | Title | Genre | Compass | Started | Completed |
 |---|---|---|---|---|---|
-| Arc 03 | The Silent Student | Mystery | SOUTH | 2026-04-05 | — |
+| Arc 04 | The Weight of a Whisper | Recovery/Rest | CENTER | 2026-04-28 | — |
+| Arc 03 | The Silent Student | Mystery | SOUTH | 2026-04-05 | 2026-04-28 |
 | Arc 02 | The Room Beneath the Tide | Discovery | — | 2026-03-30 | 2026-04-05 |
 | Arc 01 | The Rising Tide | Nothing Confrontation | NORTH | 2026-03-22 | 2026-03-30 |
 | Arc 00 | Glowing Pains | — | — | — | 2026-03-22 |

@@ -20,6 +20,9 @@ config/secrets.env.local
 # ─── Runtime state ────────────────────────────────────────────────────────────
 config/session-active.lock
 config/world-pulse-cache.json
+config/health-cache.json
+config/cron-steward-state.json
+config/narrative-steward-state.json
 config/setup-state.md
 
 # ─── Personal config (replace with examples) ──────────────────────────────────
@@ -53,6 +56,7 @@ logs/academy-hourly.md
 logs/marginalia-whispers.md
 logs/unsent-messages.md
 logs/arc-generation.md
+logs/steward/
 
 # ─── Souvenirs (personal) ─────────────────────────────────────────────────────
 souvenirs/*.md
@@ -95,6 +99,9 @@ lore/**/*.md.bak
 config/narrative-sim-state.json
 memory/.dreams/
 tmp/
+ios/InsideCover/build/
+hooks/widget-state.json
+hooks/widget-image.png
 
 # ─── Editor / OS backup files ─────────────────────────────────────────────────
 *.bak

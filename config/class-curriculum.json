@@ -1,0 +1,332 @@
+{
+  "version": 1,
+  "policy": {
+    "delivery": "audio-first",
+    "turn_shape": "multi-turn classroom scene",
+    "advance_rule": "A class lesson advances only when the player attends and the class-lecture state is advanced.",
+    "source_rule": "Wonder Compass chapters are cross-referenced by concept. A chapter can teach more than one class.",
+    "completion_rule": "Never mark a practice, Enchantment, Compass Run, or real-world task complete unless the player actually completes it.",
+    "lecture_length": "One segment should fit a listenable reply, roughly 2-4 minutes of audio.",
+    "classroom_rule": "Every lecture should include a professor voice, classmates, room texture, and a choice to continue, ask, practice, or turn sideways."
+  },
+  "concept_index": {
+    "rut": ["read-this-first", "introduction", "chapter1a", "chapter1b"],
+    "notice": ["chapter5", "chapter6a", "chapter1a"],
+    "embark": ["chapter5", "chapter7", "chapter2", "chapter4b"],
+    "sense": ["chapter5", "chapter8a", "chapter8b", "chapter3"],
+    "write": ["chapter5", "chapter9", "chapter25"],
+    "rest": ["chapter5", "chapter10", "chapter4b", "chapter15", "chapter16"],
+    "anthropomorphism": ["chapter8b", "chapter3", "chapter17"],
+    "digital-wonder": ["chapter6b", "chapter14"],
+    "craft": ["chapter13", "chapter17"],
+    "accessibility": ["chapter11a", "chapter11b", "chapter11c", "chapter11d", "chapter15", "chapter16"],
+    "fieldwork": ["chapter18", "chapter19", "chapter20", "chapter21", "chapter22", "chapter23", "chapter24"],
+    "integration": ["chapter10", "chapter15", "chapter25", "chapter26"],
+    "common-magic": ["lore/magical-traditions.md", "lore/restricted-section/common-magic.md", "chapter13", "chapter17", "chapter19"]
+  },
+  "classes": {
+    "art-of-the-glint": {
+      "name": "The Art of the Glint",
+      "professor": "Professor Lydia Boggle",
+      "voice": "bf_alice",
+      "room": "Wing 4 - The Glint Hall",
+      "primary_concepts": ["notice", "rut"],
+      "secondary_concepts": ["anthropomorphism", "fieldwork"],
+      "source_chapters": ["chapter5", "chapter6a", "chapter1a", "chapter8b", "chapter18", "chapter20"],
+      "classmates": ["Zara Finch", "Aria Silverthorn", "Wilbur \"Wordplay\" Lexi"],
+      "lesson_style": "playful, specific, concrete, with puns that conceal serious doctrine",
+      "syllabus": [
+        {
+          "id": "glint-01",
+          "title": "The World Is Not Wallpaper",
+          "teaches": "The Rut makes familiar things invisible; noticing restores reality.",
+          "source_concepts": ["rut", "notice"],
+          "practice_shapes": ["Glint Detection", "Anti-Blur Sketch"],
+          "segments": ["professor demonstration", "classroom noticing game", "player-facing practice offer"]
+        },
+        {
+          "id": "glint-02",
+          "title": "The Specific Detail",
+          "teaches": "A real detail has more magic than a grand abstraction.",
+          "source_concepts": ["notice"],
+          "practice_shapes": ["Ordinary Object Autopsy", "Anti-Blur Sketch"],
+          "segments": ["professor lecture", "student misreads the assignment", "correction through one exact detail"]
+        },
+        {
+          "id": "glint-03",
+          "title": "When Objects Start Having Opinions",
+          "teaches": "Character begins when attention becomes precise enough.",
+          "source_concepts": ["anthropomorphism", "notice"],
+          "practice_shapes": ["Wrong-Name Exercise", "Ordinary Object Autopsy"],
+          "segments": ["classroom debate", "object demonstration", "choice to ask or practice"]
+        }
+      ]
+    },
+    "wayfinding-kineticism": {
+      "name": "Wayfinding & Kineticism",
+      "professor": "Professor Kyle Momort",
+      "voice": "am_fenrir",
+      "room": "The Perimeter Courtyard",
+      "primary_concepts": ["embark"],
+      "secondary_concepts": ["fieldwork", "accessibility"],
+      "source_chapters": ["chapter5", "chapter7", "chapter2", "chapter4b", "chapter11c", "chapter22"],
+      "classmates": ["Finn Bridges", "Orion Watson", "Caspian Shan"],
+      "lesson_style": "structured and impressive, but slightly hollow; the true East can be seen under the distortion",
+      "syllabus": [
+        {
+          "id": "east-01",
+          "title": "The Threshold Is Smaller Than You Think",
+          "teaches": "Embark begins with a tiny crossing, not a heroic journey.",
+          "source_concepts": ["embark"],
+          "practice_shapes": ["Three-Ingredient Outing", "Threshold Step"],
+          "segments": ["professor framework", "student challenge", "small threshold choice"]
+        },
+        {
+          "id": "east-02",
+          "title": "Destination, Delight, Definition",
+          "teaches": "A plan can be so small the Caveman cannot stop it.",
+          "source_concepts": ["embark", "accessibility"],
+          "practice_shapes": ["Perimeter Survey", "Three-Ingredient Outing"],
+          "segments": ["board demonstration", "classmate example", "player-facing field prompt"]
+        },
+        {
+          "id": "east-03",
+          "title": "Escape Routes and Arrivals",
+          "teaches": "A route used to avoid life is not the same as a route used to enter it.",
+          "source_concepts": ["embark", "fieldwork"],
+          "practice_shapes": ["Wrong Turn Practicum", "Threshold Step"],
+          "segments": ["Momort lecture", "subtle wrongness", "choice to question the doctrine"]
+        }
+      ]
+    },
+    "synesthetic-resonance": {
+      "name": "Synesthetic Resonance",
+      "professor": "Professor Eleanor Euphony",
+      "voice": "af_river",
+      "room": "The Sound Hall",
+      "primary_concepts": ["sense"],
+      "secondary_concepts": ["anthropomorphism", "accessibility"],
+      "source_chapters": ["chapter5", "chapter8a", "chapter8b", "chapter3", "chapter12a", "chapter19"],
+      "classmates": ["Aurora Whispers", "Ellie Moons", "Marina Clockhouse"],
+      "lesson_style": "musical, embodied, emotionally precise",
+      "syllabus": [
+        {
+          "id": "south-01",
+          "title": "The Body Is the Door",
+          "teaches": "Sense brings the student out of rumination and into lived experience.",
+          "source_concepts": ["sense"],
+          "practice_shapes": ["Resonance Field Report", "Echo Map"],
+          "segments": ["room listening", "professor instruction", "choice to report what the body hears"]
+        },
+        {
+          "id": "south-02",
+          "title": "Gathering Gifts",
+          "teaches": "Connection improves when you arrive with sensory gifts from the world.",
+          "source_concepts": ["sense", "anthropomorphism"],
+          "practice_shapes": ["Gift Inventory", "Color Temperature"],
+          "segments": ["professor lecture", "classmate offering", "player-facing gift prompt"]
+        },
+        {
+          "id": "south-03",
+          "title": "Characters in the Room",
+          "teaches": "Anthropomorphism can be sensory empathy: the room, object, and moment have moods.",
+          "source_concepts": ["anthropomorphism", "sense"],
+          "practice_shapes": ["Color Temperature", "Echo Map"],
+          "segments": ["classroom exercise", "object mood reading", "question from a skeptical student"]
+        }
+      ]
+    },
+    "ink-binding": {
+      "name": "Ink-Binding",
+      "professor": "Professor Vivian Villanelle",
+      "voice": "af_bella",
+      "room": "West Wing - The Writing Loft",
+      "primary_concepts": ["write"],
+      "secondary_concepts": ["integration", "common-magic"],
+      "source_chapters": ["chapter5", "chapter9", "chapter25", "chapter3"],
+      "classmates": ["Octavius \"Ode\" Quillenchant", "Clarissa \"Clio\" Quibblesnatch", "Zara Finch"],
+      "lesson_style": "warm, exact, sentence-focused, with a quiet sense that language is a vessel",
+      "syllabus": [
+        {
+          "id": "west-01",
+          "title": "The Sentence as Bottle",
+          "teaches": "A one-sentence souvenir catches a moment before memory deletes it.",
+          "source_concepts": ["write"],
+          "practice_shapes": ["Binding Exercise", "Sensory Bottle"],
+          "segments": ["professor reading", "student sentence workshop", "player-facing sentence prompt"]
+        },
+        {
+          "id": "west-02",
+          "title": "What You Write Down Can Keep You",
+          "teaches": "Writing is not just record keeping; it creates a durable relationship with experience.",
+          "source_concepts": ["write", "common-magic"],
+          "practice_shapes": ["Margin Vow", "Sensory Bottle"],
+          "segments": ["quiet lecture", "class question", "choice to write or ask"]
+        },
+        {
+          "id": "west-03",
+          "title": "Landing the Plane",
+          "teaches": "A good return ritual keeps wonder from evaporating after the adventure ends.",
+          "source_concepts": ["integration", "write"],
+          "practice_shapes": ["Last Line First", "Binding Exercise"],
+          "segments": ["re-entry lecture", "student example", "return sentence offer"]
+        }
+      ]
+    },
+    "quiet-hours": {
+      "name": "Quiet Hours / Compass Running",
+      "professor": "Professor Cedric Stonebrook",
+      "voice": "bm_fable",
+      "room": "The Stillness Lab / The Observatory",
+      "primary_concepts": ["rest"],
+      "secondary_concepts": ["accessibility", "integration"],
+      "source_chapters": ["chapter5", "chapter10", "chapter4b", "chapter15", "chapter16", "chapter24", "chapter25"],
+      "classmates": ["Lysander Mosswood", "Anton Smith", "Ivy Liversedge"],
+      "lesson_style": "slow, grounded, sparse, with silences that teach",
+      "syllabus": [
+        {
+          "id": "center-01",
+          "title": "Rest Is Not Absence",
+          "teaches": "Center is the ground of the Compass, not a failure to move.",
+          "source_concepts": ["rest"],
+          "practice_shapes": ["Stillness Practicum", "Center Check"],
+          "segments": ["silence", "brief professor teaching", "choice to stay with the quiet"]
+        },
+        {
+          "id": "center-02",
+          "title": "Permission to Stop",
+          "teaches": "Stopping can protect the conditions that make wonder possible.",
+          "source_concepts": ["rest", "accessibility"],
+          "practice_shapes": ["Permission to Stop", "Compass Cooling"],
+          "segments": ["professor demonstration", "student discomfort", "practice offer"]
+        },
+        {
+          "id": "center-03",
+          "title": "The Compass in Difficult Weather",
+          "teaches": "When life is dark, the Compass witnesses rather than fixes.",
+          "source_concepts": ["rest", "accessibility", "integration"],
+          "practice_shapes": ["Center Check", "Compass Cooling"],
+          "segments": ["careful lecture", "classroom hush", "low-pressure choice"]
+        }
+      ]
+    },
+    "basic-enchantments": {
+      "name": "Basic Enchantments",
+      "professor": "Professor Luna Wispwood",
+      "voice": "af_heart",
+      "room": "The Quillquarium",
+      "primary_concepts": ["anthropomorphism", "common-magic"],
+      "secondary_concepts": ["notice", "sense", "write", "craft"],
+      "source_chapters": ["chapter8b", "chapter13", "chapter17", "chapter19", "lore/enchantments.md", "lore/magical-traditions.md"],
+      "classmates": ["Serenity Brown", "Aurora Whispers", "Ignatius \"Inkwell\" Scribblesnap"],
+      "lesson_style": "bright, impulsive, object-centered, with demonstrations that nearly become accidents",
+      "enchantments": ["Everything Speaks", "Everything's Poetry", "Everything's Magic", "Everything's Wonderful", "Everything's Stories", "Everything's a Haiku", "Everything's Connected"],
+      "syllabus": [
+        {
+          "id": "enchant-01",
+          "title": "Object Address",
+          "teaches": "An enchantment begins by treating the object as a participant, not a prop.",
+          "source_concepts": ["anthropomorphism", "common-magic"],
+          "enchantments": ["Everything Speaks"],
+          "practice_shapes": ["Object Address", "Useful Name"],
+          "segments": ["professor demonstration", "object interruption", "choice to address or ask"]
+        },
+        {
+          "id": "enchant-02",
+          "title": "The Photo and the Sentence",
+          "teaches": "Attention captures the image; language locks the magic into a form.",
+          "source_concepts": ["write", "craft"],
+          "enchantments": ["Everything's Magic", "Everything's Wonderful"],
+          "practice_shapes": ["Photo Lock", "Object Apology"],
+          "segments": ["lecture", "classroom casting example", "formal enchantment reminder"]
+        },
+        {
+          "id": "enchant-03",
+          "title": "Everything Speaks",
+          "teaches": "A speaking object is not a gimmick. It is relationship made audible.",
+          "source_concepts": ["anthropomorphism", "sense"],
+          "enchantments": ["Everything Speaks", "Everything's Stories"],
+          "practice_shapes": ["Object Address", "Useful Name"],
+          "segments": ["professor dialog", "classmate question", "player-facing enchantment offer"]
+        }
+      ]
+    },
+    "book-jumping": {
+      "name": "Book Jumping",
+      "professor": "Professor Archibald Permancer",
+      "voice": "bm_daniel",
+      "room": "Room of Chrono-Tomes",
+      "primary_concepts": ["write", "integration"],
+      "secondary_concepts": ["digital-wonder", "fieldwork"],
+      "source_chapters": ["lore/books.md", "chapter5", "chapter9", "chapter14", "chapter25"],
+      "classmates": ["Zara Finch", "Gwendolyn Mythwright", "Soren Ng"],
+      "lesson_style": "meticulous, scholarly, dramatic only because the risks are real",
+      "enchantments": ["Everything's Stories", "Everything's Connected", "Everything's Astral"],
+      "syllabus": [
+        {
+          "id": "jump-01",
+          "title": "Every Text Is a Door",
+          "teaches": "A book jump requires an anchor, an intention, and a return count.",
+          "source_concepts": ["write", "integration"],
+          "practice_shapes": ["Threshold Log", "Return Count"],
+          "segments": ["safety lecture", "student demonstration", "choice to shallow-dive or ask"]
+        },
+        {
+          "id": "jump-02",
+          "title": "What Comes Back With You",
+          "teaches": "The souvenir from a text can be sensory, emotional, or narrative, but it must be named.",
+          "source_concepts": ["write"],
+          "practice_shapes": ["Textual Souvenir", "Anchor Sentence"],
+          "segments": ["professor lecture", "Zara interruption", "souvenir prompt"]
+        },
+        {
+          "id": "jump-03",
+          "title": "Astral Margins",
+          "teaches": "Advanced text-entry can become astral travel, but only after the student understands return.",
+          "source_concepts": ["integration", "fieldwork"],
+          "enchantments": ["Everything's Astral"],
+          "practice_shapes": ["Anchor Sentence", "Return Count"],
+          "segments": ["warning", "classroom debate", "choice to defer or proceed"]
+        }
+      ]
+    },
+    "common-magic": {
+      "name": "Common Magic & Correspondences",
+      "professor": "Professor Maxwell Thorne",
+      "voice": "bm_v0lewis",
+      "room": "The Correspondence Alcove",
+      "schedule": "elective / make-up / seasonal",
+      "primary_concepts": ["common-magic"],
+      "secondary_concepts": ["craft", "notice", "write", "rest"],
+      "source_chapters": ["lore/magical-traditions.md", "lore/restricted-section/common-magic.md", "chapter13", "chapter17", "chapter19", "chapter21"],
+      "classmates": ["Melisande Blackwood", "Quentin Pagester", "Lara Rourck"],
+      "lesson_style": "measured, symbolic, practical, careful about claims, always grounded in ordinary acts",
+      "syllabus": [
+        {
+          "id": "common-01",
+          "title": "Attention Is the First Correspondence",
+          "teaches": "Ordinary acts become magical when intention, timing, material, and attention align.",
+          "source_concepts": ["common-magic", "notice"],
+          "practice_shapes": ["Object Apology", "Binding Exercise"],
+          "segments": ["professor framing", "salt/threshold example", "ethical caution"]
+        },
+        {
+          "id": "common-02",
+          "title": "Thresholds, Salt, Iron, Moon",
+          "teaches": "Folklore gives students a language for boundary, density, timing, and return.",
+          "source_concepts": ["common-magic", "rest"],
+          "practice_shapes": ["Center Check", "Photo Lock"],
+          "segments": ["material demonstration", "student question", "practice offer"]
+        },
+        {
+          "id": "common-03",
+          "title": "Craft as Spell",
+          "teaches": "Making something with the hands can become restorative magic without needing spectacle.",
+          "source_concepts": ["craft", "common-magic"],
+          "practice_shapes": ["Margin Vow", "Object Apology"],
+          "segments": ["craft demonstration", "classroom interruption", "choice to make or observe"]
+        }
+      ]
+    }
+  }
+}

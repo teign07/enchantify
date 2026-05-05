@@ -31,7 +31,9 @@ from typing import Optional
 BASE_DIR    = Path(os.environ.get("ENCHANTIFY_BASE_DIR", Path(__file__).parent.parent))
 _SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(_SCRIPT_DIR))
+import cron_steward
 import world_context
+import action_lifecycle
 from tick_queue_utils import ensure_header, prune_tick_queue
 from thread_sync import sync_thread_files
 try:
@@ -673,6 +675,7 @@ def run_living_world_simulation(events: list, ctx: Optional[dict] = None) -> Non
                 "belief_delta_hint": action.belief_delta_hint,
                 "influence_snapshot": action.influence_snapshot,
             })
+            action_lifecycle.record_open_action(ledger_entries[-1])
             if _HAS_NPC_LOG:
                 _npc_log.append(action.npc, action.action, f"{action.thread_name}: {action.hidden_effect}")
 
@@ -822,40 +825,60 @@ def maybe_trigger_npc_research(pulse_count: int) -> None:
     research_script = BASE_DIR / "scripts" / "npc-research.py"
     if not research_script.exists(): return
     print(f"[{SKILL_ID}] Triggering NPC research…")
-    result = subprocess.run([sys.executable, str(research_script)], capture_output=True, text=True)
+    try:
+        result = subprocess.run(
+            [sys.executable, str(research_script)],
+            capture_output=True,
+            text=True,
+            timeout=240,
+        )
+    except subprocess.TimeoutExpired:
+        print(f"[{SKILL_ID}] NPC research timed out after 240s; pulse continues.")
+        return
     if result.stdout:
         for line in result.stdout.strip().splitlines(): print(f"  {line}")
+    if result.stderr:
+        for line in result.stderr.strip().splitlines(): print(f"  [npc-research stderr] {line}")
 
 
 if __name__ == "__main__":
     try:
-        register = load_text(BASE_DIR / "lore" / "world-register.md")
-        cache    = load_cache()
-        ctx      = world_context.get_time_context()
+        with cron_steward.run("world-pulse"):
+            register = load_text(BASE_DIR / "lore" / "world-register.md")
+            cache    = load_cache()
+            ctx      = world_context.get_time_context()
 
-        entities = parse_entities(register)
-        events   = generate_events(entities, cache, ctx)
-        classifieds = generate_classifieds_events(cache)
-        if events:
-            events.extend(classifieds[:1])
-        else:
-            events.extend(classifieds[:2])
-        events = sorted(events, key=lambda e: {"HIGH": 0, "NORMAL": 1, "AMBIENT": 2}.get(e.get("priority", "NORMAL"), 1))[:5]
-        
-        # ACTIVE SIMULATION INTERVENTION
-        run_living_world_simulation(events, ctx)
-        process_simulation_beats(events)
-        maybe_auto_advance_arc(events)
+            entities = parse_entities(register)
+            events   = generate_events(entities, cache, ctx)
+            classifieds = generate_classifieds_events(cache)
+            if events:
+                events.extend(classifieds[:1])
+            else:
+                events.extend(classifieds[:2])
+            events = sorted(events, key=lambda e: {"HIGH": 0, "NORMAL": 1, "AMBIENT": 2}.get(e.get("priority", "NORMAL"), 1))[:5]
+            
+            # ACTIVE SIMULATION INTERVENTION
+            run_living_world_simulation(events, ctx)
+            process_simulation_beats(events)
+            maybe_auto_advance_arc(events)
 
-        write_to_queue(events, ctx)
-        write_quest_slots()
+            write_to_queue(events, ctx)
+            write_quest_slots()
 
-        cache["last_pulse"]  = datetime.now().isoformat()
-        cache["pulse_count"] = cache.get("pulse_count", 0) + 1
-        save_cache(cache)
+            cache["last_pulse"]  = datetime.now().isoformat()
+            cache["pulse_count"] = cache.get("pulse_count", 0) + 1
+            save_cache(cache)
 
-        print(f"[{SKILL_ID}] Pulse #{cache['pulse_count']} complete. {len(entities)} entities tracked.")
-        maybe_trigger_npc_research(cache["pulse_count"])
+            print(f"[{SKILL_ID}] Pulse #{cache['pulse_count']} complete. {len(entities)} entities tracked.")
+            cron_steward.record_event(
+                "world-pulse",
+                "simulated",
+                pulse_count=cache["pulse_count"],
+                entity_count=len(entities),
+                event_count=len(events),
+                high_count=sum(1 for e in events if e.get("priority") == "HIGH"),
+            )
+            maybe_trigger_npc_research(cache["pulse_count"])
 
     except Exception as e:
         print(f"[{SKILL_ID}] Error: {e}", file=sys.stderr)

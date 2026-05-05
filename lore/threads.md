@@ -78,9 +78,9 @@ Two endings:
 **entities:** Boggle, Great Hall, fae species (all tagged academy-daily in register)
 **Nothing pressure:** low — the Nothing makes the ordinary feel hollow, not absent. Meals taste of nothing. Boggle's puns land wrong. The corridor light flattens.
 
-**Next beat:A few students start exaggerating their steps and clapping in deliberate rhythm to shake off the silver-ink drag, turning the corridor shuffle into a half-joking march toward lunch. Professor Boggle, realizing the room needs stronger nonsense, climbs onto a bench and begins calling out increasingly awful puns until the first real groans crack the damp spell and the spicy ice finally starts to melt.
+**Next beat:** A few students start exaggerating their steps and clapping in deliberate rhythm to shake off the silver-ink drag, turning the corridor shuffle into a half-joking march toward lunch. Professor Boggle, realizing the room needs stronger nonsense, climbs onto a bench and begins calling out increasingly awful puns until the first real groans crack the damp spell and the spicy ice finally starts to melt.
 
-**Last advanced:2026-04-21
+**Last advanced:** 2026-04-21
 **born:** 2026-04-01
 **closed:** —
 
@@ -112,16 +112,16 @@ Two endings:
 
 **id:** `zara-inkwright`
 **type:** npc-subplot
-**phase:rising
+**phase:** rising
 **pressure:** low *(will rise — portfolio deadline is approaching, Wicker knows)*
 **npc_anchor:** Zara Finch (Belief 23)
 **locations:** The Library, Inkwright Society Hall, Zara's usual corner of the Great Hall
 **entities:** Zara Finch
 **Nothing pressure:** medium — the Nothing would love to make her doubt the portfolio is good enough. Self-erasure before the deadline.
 
-**Next beat:The glowing 'Believe' rune expands, fracturing Zara's portfolio pages into shifting inkwells. She must now choose: extract the runes to protect her work or let them dissolve into the paper, risking their permanent loss.
+**Next beat:** The glowing 'Believe' rune expands, fracturing Zara's portfolio pages into shifting inkwells. She must now choose: extract the runes to protect her work or let them dissolve into the paper, risking their permanent loss.
 
-**Last advanced:2026-04-21
+**Last advanced:** 2026-04-21
 **born:** 2026-04-12
 **closed:** —
 
@@ -138,9 +138,9 @@ Two endings:
 **entities:** Wicker Eddies
 **Nothing pressure:** high — Wicker is adjacent to the Nothing. His schemes drain Belief from others as a feature, not a side effect. The Nothing doesn't control him; they simply have similar tastes.
 
-**Next beat:The ink-black rot pulses with a rhythmic, sickening heat, seeking to undo the 'overwriting' bj performed during the last confrontation. As Zara's Belief continues to drain into the slogans, bj must find the three 'Dissent Anchors' and re-anchor them with a physical detail from his current surroundings to stop the bleed.
+**Next beat:** The ink-black rot pulses with a rhythmic, sickening heat, seeking to undo the 'overwriting' bj performed during the last confrontation. As Zara's Belief continues to drain into the slogans, bj must find the three 'Dissent Anchors' and re-anchor them with a physical detail from his current surroundings to stop the bleed.
 
-**Last advanced:2026-04-19
+**Last advanced:** 2026-04-19
 **born:** 2026-04-01
 **closed:** —
 
@@ -152,16 +152,16 @@ Two endings:
 
 **id:** `duskthorn-investigation`
 **type:** mystery
-**phase:rising
+**phase:** rising
 **pressure:** high *(the player has engaged, and Thorne is active)*
 **npc_anchor:** Headmistress Thorne (Belief 83)
 **locations:** Duskthorn Common Areas, The West Corridor, The Restricted Section, Headmistress's Office
 **entities:** Headmistress Thorne, Dusk Thorn Talisman, Victor Ebonheart
 **Nothing pressure:** high — something in Duskthorn is already adjacent to absence. The sealed corridor smells of it.
 
-**Next beat:The rogue shadow successfully unlocks the Restricted Section, but as the player follows it across the threshold, the 'curated' pass begins to pulse with a cold light that drains warmth directly from their hand. Inside the silent archive, the shadow detaches from the floor entirely, and the player must decide whether to chase it into the light-swallowing depths or retreat before the freezing pass becomes impossible to hold.
+**Next beat:** bj and Serenity compare their halves and find the staircase entry matching what Serenity saw during Run 1. The final page in a different hand points toward a second person who found the notes. The note-keeper now knows the bundle is gone and will move.
 
-**Last advanced:2026-04-19
+**Last advanced:** 2026-05-02
 **born:** 2026-04-01
 **closed:** —
 

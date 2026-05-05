@@ -45,7 +45,10 @@ ENCHANTIFY_WORKSPACE = os.path.join(WORKSPACE, "enchantify")
 
 HEARTBEAT_FILE = os.path.join(ENCHANTIFY_WORKSPACE, "HEARTBEAT.md")
 PREVIOUS_PULSE_FILE = os.path.join(ENCHANTIFY_WORKSPACE, "PREVIOUS_PULSE.md")
+SILVIE_HEARTBEAT_FILE = os.path.join(WORKSPACE, "HEARTBEAT.md")
 STATS_CACHE = os.path.join(WORKSPACE, "stats_cache.json")
+HEALTH_CACHE = os.path.join(ENCHANTIFY_WORKSPACE, "config", "health-cache.json")
+HEALTH_LOG = os.path.join(ENCHANTIFY_WORKSPACE, "logs", "health.log")
 
 # Markers in HEARTBEAT.md — pulse.py only touches content between these
 
@@ -597,7 +600,117 @@ def get_finances():
         return info
     except: return "Bank sync pending..."
 
+def _health_log(message):
+    try:
+        os.makedirs(os.path.dirname(HEALTH_LOG), exist_ok=True)
+        with open(HEALTH_LOG, "a", encoding="utf-8") as lf:
+            lf.write(f"{datetime.now().isoformat()} {message}\n")
+    except Exception:
+        pass
+
+def _load_health_cache():
+    try:
+        if os.path.exists(HEALTH_CACHE):
+            with open(HEALTH_CACHE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+    return {}
+
+def _save_health_cache(result, source_path=None):
+    try:
+        os.makedirs(os.path.dirname(HEALTH_CACHE), exist_ok=True)
+        payload = {
+            "result": result,
+            "source_path": source_path,
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
+        }
+        tmp = HEALTH_CACHE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+        os.replace(tmp, HEALTH_CACHE)
+    except Exception as e:
+        _health_log(f"WARN could not save health cache: {e}")
+
+def _format_cached_health(reason="iCloud sync lock"):
+    cache = _load_health_cache()
+    result = cache.get("result")
+    updated_at = cache.get("updated_at")
+    if not result:
+        return "Watch data syncing..."
+    suffix = "cached"
+    if updated_at:
+        try:
+            age = datetime.now() - datetime.fromisoformat(updated_at)
+            minutes = int(age.total_seconds() // 60)
+            if minutes < 90:
+                suffix = f"cached {minutes}m ago"
+            else:
+                suffix = f"cached {minutes // 60}h ago"
+        except Exception:
+            pass
+    return f"{result} ({suffix}; {reason})"
+
+def _safe_listdir(path, attempts=5, delay=0.35):
+    import time as _time
+    last = None
+    for attempt in range(attempts):
+        try:
+            return os.listdir(path)
+        except OSError as e:
+            last = e
+            if e.errno == 11 and attempt < attempts - 1:
+                _time.sleep(delay * (attempt + 1))
+                continue
+            raise
+    if last:
+        raise last
+    return []
+
+def _load_json_snapshot(path, attempts=5, delay=0.35):
+    """Read an iCloud JSON file through a temp snapshot with retry/cached fallback."""
+    import time as _time
+    last = None
+    for attempt in range(attempts):
+        try:
+            with open(path, "rb") as src:
+                data = src.read()
+            if not data:
+                raise ValueError("empty health export")
+            return json.loads(data.decode("utf-8"))
+        except OSError as e:
+            last = e
+            if e.errno == 11 and attempt < attempts - 1:
+                _time.sleep(delay * (attempt + 1))
+                continue
+            raise
+        except json.JSONDecodeError as e:
+            last = e
+            if attempt < attempts - 1:
+                _time.sleep(delay * (attempt + 1))
+                continue
+            raise
+    if last:
+        raise last
+    raise OSError("could not read health export")
+
+def _health_candidate_dirs(base_dir):
+    dirs = []
+    if os.path.isdir(base_dir):
+        dirs.append(base_dir)
+        try:
+            for name in sorted(_safe_listdir(base_dir)):
+                path = os.path.join(base_dir, name)
+                if not name.startswith(".") and os.path.isdir(path):
+                    dirs.append(path)
+        except OSError:
+            raise
+    return dirs
+
 def get_health():
+    if _cfg_get("HEALTH_BACKEND", "health_auto_export").lower() in ("none", "off", "false"):
+        return "Health data disabled."
     health_dir_cfg = _cfg_get("HEALTH_DIR", "")
     if health_dir_cfg:
         HEALTH_DIR = os.path.expanduser(health_dir_cfg)
@@ -617,62 +730,31 @@ def get_health():
                 pass  # iCloud lock during subdir detection — proceed with base dir
 
     import time as _time
-    for _attempt in range(3):
+    for _attempt in range(5):
         try:
             return _get_health_inner(HEALTH_DIR)
         except OSError as e:
-            if e.errno == 11 and _attempt < 2:  # EDEADLK — iCloud sync lock, retry
-                _time.sleep(0.5)
+            if e.errno == 11 and _attempt < 4:  # EDEADLK — iCloud sync lock, retry
+                _time.sleep(0.5 * (_attempt + 1))
                 continue
-            try:
-                log_path = os.path.join(ENCHANTIFY_WORKSPACE, "logs", "health.log")
-                os.makedirs(os.path.dirname(log_path), exist_ok=True)
-                with open(log_path, "a") as lf:
-                    lf.write(f"{datetime.now().isoformat()} ERROR in get_health(): {e}\n")
-            except Exception:
-                pass
-            return "Watch data syncing..."
-    return "Watch data syncing..."
+            _health_log(f"ERROR in get_health(): {e}")
+            return _format_cached_health("iCloud sync lock" if e.errno == 11 else "read error")
+    return _format_cached_health("iCloud sync lock")
 
 
 def _get_health_inner(HEALTH_DIR):
     try:
-        # ── Find the right subdir ────────────────────────────────────────────
-        # Health Auto Export may create multiple subdirs (e.g. "BJ", "AutoSync").
-        # Only one of them contains the dated JSON files. Pick whichever subdir
-        # has the most recent HealthAutoExport-*.json file — never rely on
-        # os.listdir() order, which is arbitrary and the root cause of the
-        # persistent "Watch data offline" bug.
-        if os.path.isdir(HEALTH_DIR):
-            subdirs = sorted(
-                [d for d in os.listdir(HEALTH_DIR)
-                 if os.path.isdir(os.path.join(HEALTH_DIR, d)) and not d.startswith('.')],
-            )
-            best_subdir = None
-            best_filename = ""
-            for sd in subdirs:
-                sd_path = os.path.join(HEALTH_DIR, sd)
-                json_files = sorted(
-                    [f for f in os.listdir(sd_path) if f.endswith('.json')],
-                    reverse=True,
-                )
-                if json_files and json_files[0] > best_filename:
-                    best_subdir = sd_path
-                    best_filename = json_files[0]
-            if best_subdir:
-                HEALTH_DIR = best_subdir
-
-        files = sorted(
-            [os.path.join(HEALTH_DIR, f) for f in os.listdir(HEALTH_DIR) if f.endswith('.json')],
-            key=lambda p: os.path.basename(p),
-            reverse=True,
-        )
+        files = []
+        for candidate_dir in _health_candidate_dirs(HEALTH_DIR):
+            for filename in _safe_listdir(candidate_dir):
+                if filename.endswith(".json") and not filename.startswith("."):
+                    files.append(os.path.join(candidate_dir, filename))
+        files = sorted(files, key=lambda p: os.path.basename(p), reverse=True)
         if not files:
             return f"Watch data offline. (no JSON files in {HEALTH_DIR})"
 
         def load_metrics(path):
-            with open(path, 'r') as f:
-                d = json.load(f)
+            d = _load_json_snapshot(path)
             data_node = d.get('data', {})
             if isinstance(data_node, list):
                 return data_node[0].get('metrics', []) if data_node else []
@@ -687,12 +769,32 @@ def _get_health_inner(HEALTH_DIR):
                           and m.get('data')]
             return len(meaningful) < 2
 
-        # Try today's file; fall back to yesterday's if today is sparse
-        metrics = load_metrics(files[0])
+        # Try newest files; fall back if today's export is sparse or locked.
+        metrics = []
+        used_path = None
         is_yesterday = False
-        if is_sparse(metrics) and len(files) > 1:
-            metrics = load_metrics(files[1])
-            is_yesterday = True
+        lock_errors = 0
+        for idx, path in enumerate(files[:7]):
+            try:
+                candidate = load_metrics(path)
+            except OSError as e:
+                if e.errno == 11:
+                    lock_errors += 1
+                    continue
+                raise
+            if not candidate:
+                continue
+            metrics = candidate
+            used_path = path
+            is_yesterday = idx > 0
+            if not is_sparse(metrics):
+                break
+
+        if not metrics:
+            if lock_errors:
+                _health_log(f"WARN all recent health exports locked under {HEALTH_DIR}")
+                return _format_cached_health("iCloud sync lock")
+            return _format_cached_health("no usable recent export")
 
         def metric_total(name):
             """Sum all qty values for a metric across the day's hourly entries."""
@@ -732,24 +834,19 @@ def _get_health_inner(HEALTH_DIR):
             parts.append(f"RHR: {int(rhr)}bpm")
 
         if not parts:
-            return "Watch data syncing..."
+            return _format_cached_health("sparse export")
 
         result = " | ".join(parts)
         if is_yesterday:
-            result += " (yesterday)"
+            result += " (recent fallback)"
+        _save_health_cache(result, used_path)
         return result
 
     except OSError:
         raise  # let the retry loop in get_health() handle it
     except Exception as e:
-        try:
-            log_path = os.path.join(ENCHANTIFY_WORKSPACE, "logs", "health.log")
-            os.makedirs(os.path.dirname(log_path), exist_ok=True)
-            with open(log_path, "a") as lf:
-                lf.write(f"{datetime.now().isoformat()} ERROR in get_health(): {e}\n")
-        except Exception:
-            pass
-        return f"Watch data offline. (error logged to logs/health.log)"
+        _health_log(f"ERROR in get_health(): {e}")
+        return _format_cached_health("parse error")
 
 # — HEARTBEAT WRITER —
 
@@ -874,6 +971,12 @@ def pulse():
 
     # Write pulse to enchantify HEARTBEAT.md and save previous pulse for change detection
     write_pulse_to_heartbeat(pulse_content, HEARTBEAT_FILE, save_previous=True)
+
+    # Mirror pulse to Silvie's main workspace HEARTBEAT.md only when that
+    # sibling agent has already created the file. New Enchantify installs
+    # should not create cross-agent state by default.
+    if os.path.exists(SILVIE_HEARTBEAT_FILE):
+        write_pulse_to_heartbeat(pulse_content, SILVIE_HEARTBEAT_FILE, save_previous=False)
 
     # Regenerate mission control dashboard after every pulse
     mc = os.path.join(ENCHANTIFY_WORKSPACE, "scripts", "mission-control.py")

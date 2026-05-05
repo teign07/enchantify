@@ -24,6 +24,9 @@ import random
 import shutil
 import argparse
 import importlib.util
+import hashlib
+import subprocess
+from datetime import datetime
 from pathlib import Path
 
 BASE_DIR       = Path(__file__).parent.parent
@@ -33,6 +36,11 @@ ARC_FILE       = BASE_DIR / "lore" / "current-arc.md"
 WORLD_REGISTER = BASE_DIR / "lore" / "world-register.md"
 CONSENT_FILE   = BASE_DIR / "config" / "consent.json"
 NOTHING_FILE   = BASE_DIR / "lore" / "nothing-intelligence.md"
+PACT_ACTION_LOG = BASE_DIR / "logs" / "pact-actions.jsonl"
+PENDING_CONSENT_LOG = BASE_DIR / "logs" / "pending-consents.jsonl"
+TELEGRAM_TARGET  = "8729557865"
+TELEGRAM_CHANNEL = "telegram"
+TELEGRAM_ACCOUNT = "enchantify"
 
 # Import world_context for CHAPTER_MAP (NPC → chapter alignment)
 import sys as _sys
@@ -70,6 +78,7 @@ APP_DRIVER_MAP = {
     "X / Twitter":      "x_twitter",
     "Reddit":           "reddit",
     "iMessage":         "imessage",
+    "Safari":           "safari",
 }
 
 CONTROL_TIERS = [
@@ -404,14 +413,151 @@ _CHAPTER_PRIORITIES = {
 # (3 = raids when within 3 points). Mossbloom is almost never the aggressor.
 
 
+def _log_pact_action(event: str, **fields) -> None:
+    """Append a machine-readable Pact action event. Logging must never block play."""
+    try:
+        PACT_ACTION_LOG.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "timestamp": datetime.now().isoformat(timespec="seconds"),
+            "event": event,
+            **fields,
+        }
+        with PACT_ACTION_LOG.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False, default=str) + "\n")
+    except Exception:
+        pass
+
+
+def _send_telegram_notice(text: str) -> bool:
+    try:
+        result = subprocess.run(
+            [
+                "openclaw", "message", "send",
+                "--target", TELEGRAM_TARGET,
+                "--channel", TELEGRAM_CHANNEL,
+                "--account", TELEGRAM_ACCOUNT,
+                "--message", text[:3900],
+            ],
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def _record_pending_consent(
+    *,
+    chapter: str,
+    app_name: str,
+    tier: str,
+    driver_name: str,
+    proposal: str,
+    result: str,
+    spec: dict,
+    dry_run: bool,
+) -> tuple[str, bool]:
+    basis = json.dumps(
+        {
+            "chapter": chapter,
+            "app": app_name,
+            "tier": tier,
+            "proposal": proposal,
+            "spec_action": spec.get("action") if spec else None,
+        },
+        sort_keys=True,
+        default=str,
+    )
+    consent_id = hashlib.sha1(basis.encode("utf-8")).hexdigest()[:10]
+    payload = {
+        "id": consent_id,
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "status": "pending",
+        "chapter": chapter,
+        "app": app_name,
+        "tier": tier,
+        "driver": driver_name,
+        "proposal": proposal,
+        "result": result,
+        "spec": {k: v for k, v in (spec or {}).items() if k != "context"},
+        "dry_run": dry_run,
+        "telegram_sent": False,
+    }
+    if dry_run:
+        return consent_id, False
+    try:
+        PENDING_CONSENT_LOG.parent.mkdir(parents=True, exist_ok=True)
+        existing = []
+        if PENDING_CONSENT_LOG.exists():
+            existing = PENDING_CONSENT_LOG.read_text(encoding="utf-8", errors="replace").splitlines()
+        for line in reversed(existing[-80:]):
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if obj.get("id") == consent_id and obj.get("status") == "pending" and obj.get("telegram_sent"):
+                return consent_id, False
+
+        text = (
+            "🜂 App consent needed\n\n"
+            f"ID: {consent_id}\n"
+            f"Faction: {chapter}\n"
+            f"App: {app_name} ({tier})\n\n"
+            f"{proposal}\n\n"
+            "Nothing has been posted or executed. Reply in play with the ID, approve it manually, "
+            "or copy/paste the proposal yourself."
+        )
+        sent = _send_telegram_notice(text)
+        payload["telegram_sent"] = sent
+        with PENDING_CONSENT_LOG.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False, default=str) + "\n")
+        return consent_id, sent
+    except Exception:
+        return consent_id, False
+
+
+def _controlled_app_options(chapter: str, apps: list) -> list[tuple]:
+    options = []
+    tier_order = {"Sovereign": 3, "Dominated": 2, "Controlled": 1}
+    for app in apps:
+        tier = get_tier(app[chapter])
+        if tier not in ("Controlled", "Dominated", "Sovereign"):
+            continue
+        driver = _load_driver_direct(app["app"])
+        if not driver:
+            _log_pact_action(
+                "skipped",
+                chapter=chapter,
+                app=app["app"],
+                tier=tier,
+                action_type="reality_bleed",
+                reason="no_driver",
+            )
+            continue
+        if not driver.can_act(tier, chapter):
+            _log_pact_action(
+                "skipped",
+                chapter=chapter,
+                app=app["app"],
+                tier=tier,
+                action_type="reality_bleed",
+                driver=driver.__class__.__name__,
+                reason="driver_cannot_act",
+            )
+            continue
+        options.append((app, app[chapter], tier, tier_order.get(tier, 0)))
+    return sorted(options, key=lambda item: (item[3], item[1]), reverse=True)
+
+
 def _choose_action(chapter: str, context: dict, apps: list) -> str:
     """
     Evaluate the talisman's strategic position and return the most purposeful
     action type. Priority order:
 
       1. THREAT RESPONSE   — rival closing in on territory I control → war (defend)
-      2. FLIP OPPORTUNITY  — I'm close to taking something → war (push/raid)
-      3. REALITY BLEED     — I have Dominated/Sovereign app + right time of day → bleed
+      2. REALITY BLEED     — I control an app and no immediate defense is needed → use it
+      3. FLIP OPPORTUNITY  — I'm close to taking something → war (push/raid)
       4. ARC / THREAD      — resonant thread stirred or arc at pressure point → narrative
       5. AMBIENT           — nothing urgent → suggestion or narrative (chapter-weighted)
 
@@ -433,13 +579,24 @@ def _choose_action(chapter: str, context: dict, apps: list) -> str:
             my_b = app[chapter]
             ctrl, ctrl_b, _ = get_controller(app)
             if ctrl == chapter:
-                # I control this — is a rival within threat_margin?
+                # Defend true holdings, or knife-edge low-tier contests. Do not let
+                # every influenced foothold starve actual app use.
                 rivals = [c for c in TALISMANS if c != chapter]
                 closest_rival = max(rivals, key=lambda c: app[c])
-                if (my_b - app[closest_rival]) <= threat_margin:
+                gap = my_b - app[closest_rival]
+                if get_tier(my_b) in ("Controlled", "Dominated", "Sovereign") and gap <= threat_margin:
+                    return "pact_war"
+                if get_tier(my_b) in ("Contesting", "Influenced") and gap <= 1:
                     return "pact_war"
 
-    # ── 2. Flip opportunity ───────────────────────────────────────────────────
+    # ── 2. Reality bleed ─────────────────────────────────────────────────────
+    # Controlled territory should not be merely symbolic. Once a chapter holds
+    # an app, it uses that app to advance its doctrine unless it is defending
+    # territory under immediate pressure.
+    if _controlled_app_options(chapter, apps):
+        return "reality_bleed"
+
+    # ── 3. Flip opportunity ───────────────────────────────────────────────────
     if headroom >= WAR_COSTS["push"]:
         for app in apps:
             ctrl, ctrl_b, _ = get_controller(app)
@@ -449,17 +606,6 @@ def _choose_action(chapter: str, context: dict, apps: list) -> str:
                 can_raid = overall >= RAID_THRESHOLD and raid_eager
                 if gap <= flip_margin or (can_raid and gap <= flip_margin * 2):
                     return "pact_war"
-
-    # ── 3. Reality bleed ─────────────────────────────────────────────────────
-    if not is_night:
-        has_dominated = any(
-            get_tier(a[chapter]) in ("Dominated", "Sovereign") for a in apps
-        )
-        has_controlled = any(
-            get_tier(a[chapter]) == "Controlled" for a in apps
-        )
-        if has_dominated or (bleed_eager and has_controlled):
-            return "reality_bleed"
 
     # ── 4. Arc / thread pressure ──────────────────────────────────────────────
     resonant = _CHAPTER_RESONANT_THREADS.get(chapter, [])
@@ -778,6 +924,18 @@ def _pact_war_action(chapter: str, overall_belief: int, apps: list, dry_run: boo
 
     if dry_run:
         print(f"  [dry-run] WAR {action_type.upper()} {chapter} → {app_data['app']}: {my_old}→{my_new}")
+        _log_pact_action(
+            "planned",
+            chapter=chapter,
+            app=app_data["app"],
+            tier=get_tier(my_new),
+            action_type="pact_war",
+            war_subtype=action_type,
+            before=my_old,
+            after=my_new,
+            dry_run=True,
+            result=line,
+        )
         return line, None, action_type
 
     # Write changes to register
@@ -785,6 +943,18 @@ def _pact_war_action(chapter: str, overall_belief: int, apps: list, dry_run: boo
     text = update_app_in_text(text, app_data["app"], updated)
     text = update_last_action(text, line)
     _write_app_register(text)
+    _log_pact_action(
+        "executed",
+        chapter=chapter,
+        app=app_data["app"],
+        tier=get_tier(my_new),
+        action_type="pact_war",
+        war_subtype=action_type,
+        before=my_old,
+        after=my_new,
+        dry_run=False,
+        result=line,
+    )
     return line, True, action_type
 
 
@@ -897,11 +1067,17 @@ def _reality_bleed_action(chapter: str, context: dict, apps: list, dry_run: bool
     """Use a Controlled+ app to act in the real world via its driver.
     Returns (narrative, tier_used) — tier_used drives the tiered Belief cost."""
     my_apps = [
-        (a, a[chapter], get_tier(a[chapter]))
-        for a in apps
-        if get_tier(a[chapter]) in ("Controlled", "Dominated", "Sovereign")
+        (a, belief, tier)
+        for a, belief, tier, _rank in _controlled_app_options(chapter, apps)
     ]
     if not my_apps:
+        _log_pact_action(
+            "skipped",
+            chapter=chapter,
+            action_type="reality_bleed",
+            reason="no_controlled_app",
+            dry_run=dry_run,
+        )
         return _narrative_action(chapter, context), "Controlled"   # fallback
 
     tier_order = {"Sovereign": 3, "Dominated": 2, "Controlled": 1}
@@ -912,6 +1088,16 @@ def _reality_bleed_action(chapter: str, context: dict, apps: list, dry_run: bool
 
     driver = _load_driver_direct(app_name)
     if not driver or not driver.can_act(tier, chapter):
+        _log_pact_action(
+            "skipped",
+            chapter=chapter,
+            app=app_name,
+            tier=tier,
+            action_type="reality_bleed",
+            reason="no_driver" if not driver else "driver_cannot_act",
+            driver=driver.__class__.__name__ if driver else None,
+            dry_run=dry_run,
+        )
         return (
             f"- **[{chapter} → {app_name}, {tier}]** The talisman reaches toward {app_name}. *No driver yet — this is what it wants.*",
             tier
@@ -923,6 +1109,27 @@ def _reality_bleed_action(chapter: str, context: dict, apps: list, dry_run: bool
         spec = _llm_generate_spec(chapter, driver, tier, context)
         if spec:
             spec.update({"tier": tier, "chapter": chapter, "context": context})
+            _log_pact_action(
+                "spec_generated",
+                chapter=chapter,
+                app=app_name,
+                tier=tier,
+                action_type="reality_bleed",
+                driver=driver.__class__.__name__,
+                spec_action=spec.get("action"),
+                dry_run=dry_run,
+            )
+        else:
+            _log_pact_action(
+                "spec_fallback",
+                chapter=chapter,
+                app=app_name,
+                tier=tier,
+                action_type="reality_bleed",
+                driver=driver.__class__.__name__,
+                reason="llm_spec_empty",
+                dry_run=dry_run,
+            )
 
     if driver.requires_consent(tier, chapter):
         # Show the LLM-generated preview if available; fall back to describe()
@@ -936,17 +1143,71 @@ def _reality_bleed_action(chapter: str, context: dict, apps: list, dry_run: bool
             proposal = f"{chapter} wants to {action_name} on {app_name}: \"{preview}\""
         else:
             proposal = driver.describe(tier, chapter, context)
-        return (
+        result = (
             f"- **[{chapter} → {app_name}, CONSENT REQUIRED]** "
-            f"{proposal} — *The talisman is waiting for your word.*",
-            tier
+            f"{proposal} — *The talisman is waiting for your word.*"
+        )
+        consent_id, telegram_sent = _record_pending_consent(
+            chapter=chapter,
+            app_name=app_name,
+            tier=tier,
+            driver_name=driver.__class__.__name__,
+            proposal=proposal,
+            result=result,
+            spec=spec,
+            dry_run=dry_run,
+        )
+        _log_pact_action(
+            "consent_required",
+            chapter=chapter,
+            app=app_name,
+            tier=tier,
+            action_type="reality_bleed",
+            driver=driver.__class__.__name__,
+            consent_id=consent_id,
+            proposal=proposal,
+            telegram_sent=telegram_sent,
+            dry_run=dry_run,
+            result=result,
+        )
+        return (
+            result,
+            None
         )
 
     # Execute — prefer execute_spec when we have a spec, otherwise execute()
-    if spec and hasattr(driver, 'execute_spec'):
-        result = driver.execute_spec(spec, dry_run=dry_run)
-    else:
-        result = driver.execute(tier, chapter, context, dry_run=dry_run)
+    try:
+        if spec and hasattr(driver, 'execute_spec'):
+            result = driver.execute_spec(spec, dry_run=dry_run)
+            spec_action = spec.get("action")
+        else:
+            result = driver.execute(tier, chapter, context, dry_run=dry_run)
+            spec_action = None
+        _log_pact_action(
+            "executed" if not dry_run else "planned",
+            chapter=chapter,
+            app=app_name,
+            tier=tier,
+            action_type="reality_bleed",
+            driver=driver.__class__.__name__,
+            spec_action=spec_action,
+            dry_run=dry_run,
+            silent=driver.is_silent(tier, chapter),
+            result=result,
+        )
+    except Exception as e:
+        result = f"- **[{chapter} → {app_name}, ERROR]** {type(e).__name__}: {e}"
+        _log_pact_action(
+            "failed",
+            chapter=chapter,
+            app=app_name,
+            tier=tier,
+            action_type="reality_bleed",
+            driver=driver.__class__.__name__,
+            dry_run=dry_run,
+            error=f"{type(e).__name__}: {e}",
+            result=result,
+        )
 
     return result, tier
 
@@ -1000,7 +1261,7 @@ def run_talisman_action(
 
     elif action_type == "reality_bleed":
         narrative, tier_used = _reality_bleed_action(chapter, context, apps, dry_run)
-        bleed_cost = REALITY_BLEED_COSTS.get(tier_used, REALITY_BLEED_COST)
+        bleed_cost = REALITY_BLEED_COSTS.get(tier_used, 0)
         cost = min(bleed_cost, headroom)
         return narrative, "reality_bleed", cost, None
 

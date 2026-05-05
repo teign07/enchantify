@@ -60,6 +60,344 @@ DEEP_WEIGHT_LIMIT = 20
 MAX_CANDIDATE_ACTIONS = 4
 MAX_LIVE_ACTIONS = 2
 
+DAILY_LIFE_ACTION_BANK = {
+    "reposition": [
+        (
+            "Great Hall west table",
+            "moved the noisy first-years beside the window and left the quiet table intact",
+            "lunch split into two calmer currents instead of one crowded knot",
+        ),
+        (
+            "north corridor stair",
+            "redirected the between-class traffic through the side landing with a chalk arrow and a look",
+            "three students who usually rush arrived late but laughing",
+        ),
+        (
+            "Library return desk",
+            "changed the order of the return crates so ordinary books were handled before urgent ones",
+            "the queue stopped feeling like a tribunal and started feeling like a queue",
+        ),
+        (
+            "courtyard path",
+            "held the gate open long enough for the wet-footed students to cross without slipping",
+            "the afternoon route bent around care instead of impatience",
+        ),
+    ],
+    "prepare": [
+        (
+            "classroom threshold",
+            "set out spare pencils, dry socks, and two cups of tea before anyone asked",
+            "the next class began with fewer tiny emergencies",
+        ),
+        (
+            "Great Hall notice rail",
+            "pinned tomorrow's practical reminders under the menu instead of beside the warnings",
+            "students read the mundane instructions before the alarming ones",
+        ),
+        (
+            "dorm stairwell",
+            "left a folded timetable where late students actually look for it",
+            "the evening's confusion lost one of its easiest hiding places",
+        ),
+    ],
+    "research": [
+        (
+            "attendance ledger",
+            "checked which students keep missing meals after difficult classes",
+            "a short list now exists for faculty to watch without making a spectacle",
+        ),
+        (
+            "cloakroom hooks",
+            "counted whose coats were still damp after lunch",
+            "the Academy knows which corridors are leaking ordinary weather again",
+        ),
+        (
+            "Library side table",
+            "asked three students what actually helped them settle after the last bell",
+            "the answer was less advice and more chairs near warm light",
+        ),
+    ],
+    "reveal": [
+        (
+            "Great Hall serving line",
+            "noticed the soup spoons all pointing toward the same empty chair",
+            "a small absence became visible without becoming a crisis",
+        ),
+        (
+            "east corridor tiles",
+            "caught the floor repeating one footprint too many",
+            "students began stepping around the wrong tile on instinct",
+        ),
+        (
+            "Library lamps",
+            "found one lamp brightening whenever someone told the truth softly",
+            "honesty acquired a small practical light source",
+        ),
+    ],
+    "protect": [
+        (
+            "Great Hall bread tray",
+            "kept the last warm rolls back until the anxious students arrived",
+            "nobody had to ask for comfort in public",
+        ),
+        (
+            "common-room hearth",
+            "mended the fire's tendency to gutter whenever conversation went quiet",
+            "silence stayed companionable instead of hollow",
+        ),
+        (
+            "stairwell landing",
+            "stood in the draft until the younger students had passed",
+            "the cold lost its chance to make the climb feel abandoned",
+        ),
+    ],
+    "invest_belief": [
+        (
+            "chapter table",
+            "turned a routine check-in into a small chapter custom",
+            "one ordinary habit began carrying talisman weather",
+        ),
+        (
+            "practice corridor",
+            "asked students to repeat the simplest exercise until it felt chosen",
+            "routine gained a little more weight than routine usually gets",
+        ),
+        (
+            "tea urn",
+            "made everyone name one thing that had gone right before taking a cup",
+            "gratitude became procedural for exactly seven minutes",
+        ),
+    ],
+    "recruit": [
+        (
+            "Great Hall cleanup line",
+            "pulled two reluctant students into carrying trays together",
+            "they left arguing about dishwater and smiling despite themselves",
+        ),
+        (
+            "courtyard bench",
+            "asked a lonely first-year to help sort lost gloves",
+            "the bench stopped being a place to disappear",
+        ),
+    ],
+    "sabotage": [
+        (
+            "notice board",
+            "moved one practical notice behind a more dramatic warning",
+            "the useful instruction became harder to find than it deserved",
+        ),
+        (
+            "Great Hall queue",
+            "let a small misunderstanding about seats remain unresolved",
+            "lunch acquired one unnecessary pocket of awkwardness",
+        ),
+    ],
+}
+
+THREAD_ACTION_BANK = {
+    "prepare": [
+        ("copied the relevant names onto a separate index card", "the next scene now has a named list instead of a vague pressure"),
+        ("reserved a side room and moved the necessary chairs into a closed circle", "the confrontation has a place to land if the player follows it"),
+        ("set aside the one document that does not match the rest of the file", "the anomaly is now recoverable instead of buried"),
+    ],
+    "research": [
+        ("checked the attendance ledger against the door-memory records", "one contradiction now has a timestamp"),
+        ("questioned the portrait nearest the last known threshold", "a witness has given a usable but partial answer"),
+        ("compared three marginal notes written in different hands", "the thread now has a concrete textual lead"),
+    ],
+    "reveal": [
+        ("left the marked page open where the right person would see it", "a hidden fact is now physically visible"),
+        ("allowed the wrong reflection to remain in the glass for one extra breath", "the next observer can notice what does not belong"),
+        ("moved the sealed object from storage to a public shelf", "the secret has become an object in the room"),
+    ],
+    "protect": [
+        ("locked the vulnerable record in a drawer with two names on the key-tag", "the Nothing cannot erase that detail casually"),
+        ("kept the frightened witness away from the crowded corridor", "one useful voice remains intact"),
+        ("copied the fragile memory into a second notebook before dusk", "the thread now has a backup if pressure rises"),
+    ],
+    "reposition": [
+        ("shifted the meeting point from the obvious doorway to the service stair", "the next approach will come from a different angle"),
+        ("moved the relevant object into someone else's line of sight", "the clue is no longer waiting in isolation"),
+        ("changed who reaches the room first", "the social order of the next beat has altered"),
+    ],
+    "attack_belief": [
+        ("spread one plausible doubt through the corridor before anyone could answer it", "the target's certainty has lost public footing"),
+        ("removed the small proof people had been relying on", "confidence now has to survive without its easiest support"),
+        ("turned a helpful rumor into an accusation", "the thread gained pressure by making trust more expensive"),
+    ],
+    "recruit": [
+        ("asked one undecided student to carry a message with no explanation", "soft support has moved into the thread"),
+        ("gave a minor witness a reason to stay nearby", "the next scene has another pair of eyes"),
+        ("made a practical favor feel like allegiance", "the social map has acquired a new leaning"),
+    ],
+    "sabotage": [
+        ("misfiled the one record that would have made the answer simple", "the next investigation has to work around an absence"),
+        ("changed the meeting time on one copy of the notice", "the room will not gather cleanly"),
+        ("left a useful door unlocked for the wrong person", "access has become a liability"),
+    ],
+}
+
+CHAPTER_ACTION_TACTICS = {
+    "Tidecrest": {
+        "attack_belief": [
+            (
+                "printed quick Tidecrest flyers and pasted them over the target's notices before second bell",
+                "the school saw motion, invitation, and living current where the target had been trying to look inevitable",
+            ),
+            (
+                "turned a hallway rumor into a public dare: anyone who believed the target was fixed had to prove it by sunset",
+                "certainty became something students could laugh at, which made it weaker",
+            ),
+            (
+                "staged an unscheduled courtyard demonstration that made the target's philosophy look stiff and late",
+                "attention flowed around the target instead of toward it",
+            ),
+        ],
+        "protect": [
+            (
+                "kept the vulnerable detail moving from hand to hand instead of letting it sit in one place",
+                "the Nothing had no single still point to erase",
+            ),
+            (
+                "asked three students to retell the same memory in their own words",
+                "the memory survived by becoming plural",
+            ),
+        ],
+        "recruit": [
+            (
+                "invited an undecided student into a practical errand that felt too alive to refuse",
+                "soft support entered the thread through momentum rather than persuasion",
+            ),
+        ],
+        "invest_belief": [
+            (
+                "turned a passing impulse into a shared Tidecrest custom before anyone could overthink it",
+                "Belief moved because the moment stayed alive",
+            ),
+        ],
+    },
+    "Riddlewind": {
+        "attack_belief": [
+            (
+                "left a set of questions on the target's public claim, each one answered by a different witness",
+                "the target lost force because the school could see its gaps",
+            ),
+            (
+                "built a small puzzle trail that made the target contradict itself by the final clue",
+                "students began treating the target as solvable instead of powerful",
+            ),
+        ],
+        "research": [
+            (
+                "cross-checked the same fact through a witness, a marginal note, and a door that remembers footsteps",
+                "the thread gained a three-point anchor instead of a hunch",
+            ),
+        ],
+        "reveal": [
+            (
+                "arranged the evidence so the answer appeared only when three students compared notes",
+                "the clue became public without becoming blunt",
+            ),
+        ],
+        "invest_belief": [
+            (
+                "made a cooperative solution feel elegant enough that students repeated it",
+                "Belief gathered around the pattern",
+            ),
+        ],
+    },
+    "Mossbloom": {
+        "attack_belief": [
+            (
+                "preserved the quiet evidence the target depended on everyone overlooking",
+                "the target weakened because patience made its hidden cost visible",
+            ),
+            (
+                "placed a calm witness in the room and let their refusal to panic become contagious",
+                "the target's pressure could not feed on urgency",
+            ),
+        ],
+        "protect": [
+            (
+                "wrapped the fragile record in a slow preservation charm and kept it out of argument",
+                "the detail remained whole because no one was allowed to rush it",
+            ),
+        ],
+        "research": [
+            (
+                "sat with the oldest version of the story until the part that had been skipped became audible",
+                "the thread gained depth rather than noise",
+            ),
+        ],
+        "invest_belief": [
+            (
+                "turned one act of patience into a visible ritual others could copy",
+                "Belief rooted itself in repetition",
+            ),
+        ],
+    },
+    "Emberheart": {
+        "attack_belief": [
+            (
+                "challenged the target's claim in public and made the room choose a side",
+                "the target lost passive authority because neutrality stopped being comfortable",
+            ),
+            (
+                "wrote a counter-declaration in red chalk where everyone had to step over it",
+                "the target's certainty met authored opposition",
+            ),
+        ],
+        "reveal": [
+            (
+                "dragged the hidden fact into the open before caution could bury it again",
+                "the thread gained heat and direction",
+            ),
+        ],
+        "prepare": [
+            (
+                "claimed the room, named the stakes, and left no chair facing away from the door",
+                "the next beat has a place built for decision",
+            ),
+        ],
+        "invest_belief": [
+            (
+                "made a choice loudly enough that other students could rally around it",
+                "Belief rose through declared agency",
+            ),
+        ],
+    },
+    "Duskthorn": {
+        "attack_belief": [
+            (
+                "placed one elegant doubt where the target's supporters would repeat it for them",
+                "the target weakened by carrying the doubt in its own mouth",
+            ),
+            (
+                "turned the target's strongest proof into a complication nobody wanted to discuss",
+                "the story grew teeth around the target's confidence",
+            ),
+        ],
+        "sabotage": [
+            (
+                "made the helpful route look easier than it was and watched people choose it",
+                "the thread acquired friction disguised as convenience",
+            ),
+        ],
+        "recruit": [
+            (
+                "offered one student a role that felt like recognition and behaved like leverage",
+                "support arrived with a hook in it",
+            ),
+        ],
+        "invest_belief": [
+            (
+                "made a complication feel necessary instead of unfortunate",
+                "Belief gathered around friction",
+            ),
+        ],
+    },
+}
+
 
 @dataclass
 class ActorProfile:
@@ -490,74 +828,29 @@ def allowed_to_land(intensity: str, thread: ThreadPolicy, entity_belief: int) ->
 
 
 def build_trace(profile: ActorProfile, thread: ThreadPolicy, action: str, target: Optional[str], influences: list[str]) -> tuple[str, str]:
-    target_text = f" against {target}" if target else ""
     influence_text = f" Nearby pressures: {', '.join(influences)}." if influences else ""
+    if thread.thread_id == "academy-daily":
+        return build_daily_life_trace(profile, action, influences)
     if profile.actor_kind == "talisman":
-        if action == "reveal":
-            return (
-                f"The {profile.name} has leaned on the Academy again. Its chapter's logic is suddenly easier to notice in {thread.name}.{influence_text}",
-                f"{profile.name} revealed its pressure inside {thread.name}."
-            )
-        if action == "protect":
-            return (
-                f"The {profile.name} held a line somewhere offscreen. Something threaded to {thread.name} refused to thin.{influence_text}",
-                f"{profile.name} protected a seam in {thread.name}."
-            )
-        if action == "attack_belief":
-            return (
-                f"The {profile.name} has made the story harsher to ignore{target_text}. Its philosophy bites before anyone names it.{influence_text}",
-                f"{profile.name} attacked belief pressure{target_text}."
-            )
-        if action == "reposition":
-            return (
-                f"The shape of {thread.name} has shifted under the influence of the {profile.name}. The story now favors a different angle.{influence_text}",
-                f"{profile.name} repositioned the logic of {thread.name}."
-            )
+        return build_concrete_thread_trace(profile, thread, action, target, influences)
     if action == "invest_belief":
-        talisman = chapter_talisman_name(profile.chapter) if profile.chapter else "their chapter talisman"
-        return (
-            f"Something in {profile.name}'s chapter grows more insistent. The {talisman} has been fed again.{influence_text}",
-            f"{profile.name} invested Belief into {talisman}."
-        )
+        talisman = chapter_talisman_name(profile.chapter) if profile.chapter else None
+        return build_concrete_thread_trace(profile, thread, action, talisman or target, influences)
     if action == "attack_belief":
-        return (
-            f"A little confidence has gone missing{target_text}. The harm is social before it is visible.{influence_text}",
-            f"{profile.name} pressed narrative force{target_text}."
-        )
+        return build_concrete_thread_trace(profile, thread, action, target, influences)
     if action == "research":
-        return (
-            f"{profile.name} has been quietly gathering facts. A sharper answer now exists somewhere in the Academy.{influence_text}",
-            f"{profile.name} completed an offscreen research pass for {thread.name}."
-        )
+        return build_concrete_thread_trace(profile, thread, action, target, influences)
     if action == "protect":
-        return (
-            f"Something that might have thinned held together instead. {profile.name} has been guarding a seam.{influence_text}",
-            f"{profile.name} reinforced a vulnerable edge in {thread.name}."
-        )
+        return build_concrete_thread_trace(profile, thread, action, target, influences)
     if action == "reveal":
-        return (
-            f"A hidden detail is closer to the surface now. The world is preparing to let it be noticed.{influence_text}",
-            f"{profile.name} brought a concealed fact nearer to discovery."
-        )
+        return build_concrete_thread_trace(profile, thread, action, target, influences)
     if action == "reposition":
-        return (
-            f"Pieces have shifted offscreen. When you next arrive, the shape of things will not be exactly where you left it.{influence_text}",
-            f"{profile.name} repositioned the live geometry of {thread.name}."
-        )
+        return build_concrete_thread_trace(profile, thread, action, target, influences)
     if action == "recruit":
-        return (
-            f"Someone new is leaning the wrong way now, or the right way, depending on who is telling it.{influence_text}",
-            f"{profile.name} recruited soft support inside {thread.name}."
-        )
+        return build_concrete_thread_trace(profile, thread, action, target, influences)
     if action == "sabotage":
-        return (
-            f"Something useful has become more fragile offscreen.{influence_text}",
-            f"{profile.name} sabotaged part of {thread.name}."
-        )
-    return (
-        f"{profile.name} acted offscreen to advance {thread.name}.{influence_text}",
-        f"{profile.name} advanced {thread.name} through {action}."
-    )
+        return build_concrete_thread_trace(profile, thread, action, target, influences)
+    return build_concrete_thread_trace(profile, thread, action, target, influences)
 
 
 def choose_target(action: str, profile: ActorProfile, entities: dict[str, dict]) -> Optional[str]:
@@ -584,6 +877,58 @@ def choose_target(action: str, profile: ActorProfile, entities: dict[str, dict])
         return None
     weights = [max(1, entities[name].get("belief", 0)) for name in candidates]
     return random.choices(candidates, weights=weights, k=1)[0]
+
+
+def _stable_pick(items: list[tuple[str, str, str]], key: str) -> tuple[str, str, str]:
+    if not items:
+        return ("the ordinary corridors", "did one specific ordinary thing", "the day became more legible")
+    return items[sum(ord(ch) for ch in key) % len(items)]
+
+
+def _stable_pick_pair(items: list[tuple[str, str]], key: str) -> tuple[str, str]:
+    if not items:
+        return ("did one specific thing", "the thread changed in a visible way")
+    return items[sum(ord(ch) for ch in key) % len(items)]
+
+
+def build_daily_life_trace(profile: ActorProfile, action: str, influences: list[str]) -> tuple[str, str]:
+    """Turn Academy Daily Life movement into a concrete offscreen happening."""
+    recipes = DAILY_LIFE_ACTION_BANK.get(action) or DAILY_LIFE_ACTION_BANK.get("reposition", [])
+    location, deed, result = _stable_pick(recipes, f"{profile.name}|{action}|{profile.chapter or ''}")
+    influence_subject = ", ".join(influences[:3]) if influences else "the ordinary campus pressures"
+    chapter_note = f" {profile.chapter} weather showed in the choice." if profile.chapter else ""
+    visible = (
+        f"{profile.name} acted in {location}: {deed}. "
+        f"As a result, {result}. Pressure source: {influence_subject}.{chapter_note}"
+    )
+    hidden = (
+        f"Concrete daily-life action: {location} / {deed} / result: {result}."
+    )
+    return visible, hidden
+
+
+def build_concrete_thread_trace(
+    profile: ActorProfile,
+    thread: ThreadPolicy,
+    action: str,
+    target: Optional[str],
+    influences: list[str],
+) -> tuple[str, str]:
+    chapter_recipes = CHAPTER_ACTION_TACTICS.get(profile.chapter or "", {}).get(action, [])
+    if chapter_recipes:
+        deed, result = _stable_pick_pair(chapter_recipes, f"{profile.name}|{thread.thread_id}|{action}|{target or ''}")
+    else:
+        recipes = THREAD_ACTION_BANK.get(action) or THREAD_ACTION_BANK.get("prepare", [])
+        deed, result = _stable_pick(recipes, f"{profile.name}|{thread.thread_id}|{action}|{target or ''}")
+    influence_text = f" Pressure source: {', '.join(influences[:3])}." if influences else ""
+    target_name = target or thread.name
+    action_label = action.replace("_", " ")
+    visible = (
+        f"{profile.name} used {action_label} on {target_name} through {thread.name}: "
+        f"{deed}. As a result, {result}.{influence_text}"
+    )
+    hidden = f"Concrete {action.replace('_', ' ')} action for {thread.name}: {deed}; result: {result}."
+    return visible, hidden
 
 
 def sample_without_replacement_weighted(items: list[tuple[int, ActorProfile, ThreadPolicy, int]], k: int) -> list[tuple[int, ActorProfile, ThreadPolicy, int]]:

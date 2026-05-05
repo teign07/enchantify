@@ -19,6 +19,7 @@ Talisman doctrines on Obsidian:
 
 import subprocess
 import random
+import re
 from datetime import datetime
 from pathlib import Path
 from .base import AppDriver
@@ -105,6 +106,19 @@ def _write_vault_observation(chapter: str, files: list[dict]) -> "Path":
         lines.append(f"- {f['path']}")
     path.write_text("\n".join(lines) + "\n")
     return path
+
+
+def _substantive_line(body: str, fallback: str) -> str:
+    for line in body.splitlines():
+        line = line.strip()
+        if not line or line == "---" or line.startswith("#"):
+            continue
+        bare = line.strip("*_ ")
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?", bare):
+            continue
+        if bare:
+            return bare
+    return fallback
 
 
 # ── Chapter-specific note builders ────────────────────────────────────────────
@@ -218,8 +232,7 @@ class ObsidianDriver(AppDriver):
             builder = _NOTE_BUILDERS.get(chapter)
             if builder:
                 _, body = builder(context)
-                line = body.split("\n")[2] if len(body.split("\n")) > 2 else body[:80]
-                line = line.strip().lstrip("#").strip()
+                line = _substantive_line(body, _CONTROLLED_VOICE.get(chapter, narrative))
                 if not dry_run:
                     _append_to_daily_note(chapter, line)
                 return f"*[Obsidian, {chapter}, silent]* Appended to daily note: \"{line[:60]}\""

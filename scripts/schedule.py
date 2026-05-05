@@ -121,41 +121,160 @@ CLASSES = {
 # ── Practice prompts ──────────────────────────────────────────────────────────
 
 PRACTICES = {
-    "Prof. Boggle": {
-        "name":   "Glint Detection",
-        "prompt": "Find three things today that surprised you. One sentence each. Bring them to class.",
-        "belief": "+1 per glint, +2 bonus for all three",
-    },
-    "Prof. Momort": {
-        "name":   "Perimeter Survey",
-        "prompt": "Survey a route you haven't taken. 15–30 minutes. Report what the Nothing hasn't touched yet.",
-        "belief": "+3",
-    },
-    "Prof. Euphony": {
-        "name":   "Resonance Field Report",
-        "prompt": "Sit somewhere for 5 minutes. Eyes closed. Record what you hear, smell, feel.",
-        "belief": "+2",
-    },
-    "Prof. Villanelle": {
-        "name":   "Binding Exercise",
-        "prompt": "One sentence about today. Not what happened — what it felt like.",
-        "belief": "+1",
-    },
-    "Prof. Stonebrook": {
-        "name":   "Stillness Practicum",
-        "prompt": "Do nothing for 10 minutes. Not meditation. Nothing. Report what happened.",
-        "belief": "+2",
-    },
-    "Prof. Wispwood": {
-        "name":   "Object Address",
-        "prompt": "Find one object you've owned for more than a year. Speak one sentence to it, out loud. Report what you said — and whether anything shifted.",
-        "belief": "+2",
-    },
-    "Prof. Permancer": {
-        "name":   "Threshold Log",
-        "prompt": "Name a book that changed something in you. One paragraph: who you were before the jump, who you were after. The crossing happened. Document it.",
-        "belief": "+2",
-    },
+    "Prof. Boggle": [
+        {
+            "name":   "Glint Detection",
+            "prompt": "Find three things today that surprised you. One sentence each. Bring them to class.",
+            "belief": "+1 per glint, +2 bonus for all three",
+        },
+        {
+            "name":   "Ordinary Object Autopsy",
+            "prompt": "Choose one boring object nearby. List five specific details, then write the one detail that makes it feel secretly alive.",
+            "belief": "+2",
+        },
+        {
+            "name":   "Wrong-Name Exercise",
+            "prompt": "Give a familiar place the wrong name on purpose. Notice what changes when the label no longer fits.",
+            "belief": "+2",
+        },
+        {
+            "name":   "Anti-Blur Sketch",
+            "prompt": "Describe one thing you usually ignore so precisely that someone else could find it.",
+            "belief": "+2",
+        },
+    ],
+    "Prof. Momort": [
+        {
+            "name":   "Perimeter Survey",
+            "prompt": "Survey a route you haven't taken. 15–30 minutes. Report what the Nothing hasn't touched yet.",
+            "belief": "+3",
+        },
+        {
+            "name":   "Three-Ingredient Outing",
+            "prompt": "Pick a destination, a small pleasure to bring, and a clear end time. Go before the plan gets clever.",
+            "belief": "+3",
+        },
+        {
+            "name":   "Wrong Turn Practicum",
+            "prompt": "Take one safe wrong turn during an ordinary errand. Record what the route gave you that efficiency would have erased.",
+            "belief": "+2",
+        },
+        {
+            "name":   "Threshold Step",
+            "prompt": "Stand at the edge of a place you almost never enter. Cross it for two minutes. Bring back one detail.",
+            "belief": "+2",
+        },
+    ],
+    "Prof. Euphony": [
+        {
+            "name":   "Resonance Field Report",
+            "prompt": "Sit somewhere for 5 minutes. Eyes closed. Record what you hear, smell, feel.",
+            "belief": "+2",
+        },
+        {
+            "name":   "Color Temperature",
+            "prompt": "Choose one color in the room. Describe its temperature, weight, and emotional weather.",
+            "belief": "+2",
+        },
+        {
+            "name":   "Gift Inventory",
+            "prompt": "Gather three small sensory gifts from the day: one sound, one texture, one scent or taste.",
+            "belief": "+2",
+        },
+        {
+            "name":   "Echo Map",
+            "prompt": "Listen for the farthest sound you can hear, then the nearest. Write what space exists between them.",
+            "belief": "+2",
+        },
+    ],
+    "Prof. Villanelle": [
+        {
+            "name":   "Binding Exercise",
+            "prompt": "One sentence about today. Not what happened — what it felt like.",
+            "belief": "+1",
+        },
+        {
+            "name":   "Last Line First",
+            "prompt": "Write the final sentence of a scene you have not lived yet today. Let the day decide whether it catches up.",
+            "belief": "+2",
+        },
+        {
+            "name":   "Sensory Bottle",
+            "prompt": "Choose one moment from the last hour. Bottle it in one sentence using a concrete sensory detail.",
+            "belief": "+1",
+        },
+        {
+            "name":   "Margin Vow",
+            "prompt": "Write one sentence you would be willing to find in the margin of your own story tomorrow.",
+            "belief": "+2",
+        },
+    ],
+    "Prof. Stonebrook": [
+        {
+            "name":   "Stillness Practicum",
+            "prompt": "Do nothing for 10 minutes. Not meditation. Nothing. Report what happened.",
+            "belief": "+2",
+        },
+        {
+            "name":   "Permission to Stop",
+            "prompt": "Choose one unnecessary demand and put it down for one hour. Name what you protected by stopping.",
+            "belief": "+2",
+        },
+        {
+            "name":   "Center Check",
+            "prompt": "Place one hand on a stable surface. Take five slow breaths. Write the first honest sentence that arrives.",
+            "belief": "+1",
+        },
+        {
+            "name":   "Compass Cooling",
+            "prompt": "Before acting, wait ninety seconds. Notice whether the action becomes clearer, smaller, or unnecessary.",
+            "belief": "+1",
+        },
+    ],
+    "Prof. Wispwood": [
+        {
+            "name":   "Object Address",
+            "prompt": "Find one object you've owned for more than a year. Speak one sentence to it, out loud. Report what you said — and whether anything shifted.",
+            "belief": "+2",
+        },
+        {
+            "name":   "Useful Name",
+            "prompt": "Rename an object by what it has helped you survive. Use the name once today and notice if it answers differently.",
+            "belief": "+2",
+        },
+        {
+            "name":   "Photo Lock",
+            "prompt": "Photograph an object that matters. Write the sentence that locks its magic in place.",
+            "belief": "+2",
+        },
+        {
+            "name":   "Object Apology",
+            "prompt": "Choose a neglected object. Clean, repair, move, or thank it. Let the action be the spell.",
+            "belief": "+2",
+        },
+    ],
+    "Prof. Permancer": [
+        {
+            "name":   "Threshold Log",
+            "prompt": "Name a book that changed something in you. One paragraph: who you were before the jump, who you were after. The crossing happened. Document it.",
+            "belief": "+2",
+        },
+        {
+            "name":   "Anchor Sentence",
+            "prompt": "Before reading, write one sentence naming what you are bringing with you. After reading, write what came back changed.",
+            "belief": "+2",
+        },
+        {
+            "name":   "Textual Souvenir",
+            "prompt": "Find one line or image from a text that follows you out of the page. Describe where it lands in the real room.",
+            "belief": "+2",
+        },
+        {
+            "name":   "Return Count",
+            "prompt": "After reading, count three things that prove you returned: one object, one sound, one bodily sensation.",
+            "belief": "+1",
+        },
+    ],
 }
 
 
@@ -207,7 +326,7 @@ PROFESSOR_CUES = {
 SPECIAL_DAY_CUES = {
     7: "It's a Still day. The Academy breathes. Stonebrook is walking the grounds. The Library has opened a wing that isn't usually open.",
     1: "It's an Opening day. The Library rearranged overnight — students are finding their usual seats occupied by unfamiliar books. Light classes. The week is gathering itself.",
-    6: "It's a Wandering day. No mandatory classes. The Academy's additional wings are open. The only assignment is to be somewhere you haven't been.",
+    6: "It's a Wandering day. The classes are looser and more exploratory; the Academy's additional wings are open, and the day keeps inviting students to be somewhere they haven't been.",
 }
 
 CLUB_CUES = {
@@ -225,6 +344,16 @@ def _day_hash(extra: str = "") -> int:
     """Stable daily seed for selecting among cue variants."""
     key = datetime.now().strftime("%Y-%m-%d") + extra
     return int(hashlib.md5(key.encode()).hexdigest(), 16)
+
+
+def get_practice(professor: str, block: str = ""):
+    """Return today's active practice plus examples for the current professor."""
+    options = PRACTICES.get(professor, [])
+    if not options:
+        return None
+    active = dict(options[_day_hash(f"{professor}:{block}:practice") % len(options)])
+    active["examples"] = [dict(p) for p in options]
+    return active
 
 
 def _next_morning(weekday: int):
@@ -307,8 +436,8 @@ def get_schedule_data(override_day: str = None, override_time: str = None) -> di
     class_now = get_class_for_block(weekday, block)
     next_cls, next_day_name, next_time = get_next_class(weekday, block)
     club      = CLASSES.get(weekday, {}).get("club")
-    practice  = (PRACTICES.get(class_now[1]) if class_now
-                 else PRACTICES.get(next_cls[1]) if next_cls else None)
+    practice  = (get_practice(class_now[1], block) if class_now
+                 else get_practice(next_cls[1], block) if next_cls else None)
     cue       = get_narrative_cue(weekday, block, class_now)
     club_cue  = CLUB_CUES.get(club[0] if club else "", "") if club else ""
 
@@ -358,6 +487,11 @@ def print_directive(data: dict) -> None:
     print(f"CLUB_TONIGHT:   {club_str}")
     if practice:
         print(f"PRACTICE:       {practice['name']} — \"{practice['prompt']}\"  [{practice['belief']}]")
+        examples = practice.get("examples", [])
+        if examples:
+            print("PRACTICE_EXAMPLES:")
+            for ex in examples:
+                print(f"  - {ex['name']}: {ex['prompt']} [{ex['belief']}]")
     if data["narrative_cue"]:
         print(f"NARRATIVE_CUE:  {data['narrative_cue']}")
     if data["club_cue"]:
@@ -404,6 +538,11 @@ def build_academics_section(data: dict) -> str:
             f"> {practice['prompt']}",
             f"> Belief reward: {practice['belief']}",
         ])
+        examples = practice.get("examples", [])
+        if examples:
+            lines.extend(["", "**Practice Examples:**"])
+            for ex in examples:
+                lines.append(f"- *{ex['name']}* — {ex['prompt']} ({ex['belief']})")
 
     cue = data["narrative_cue"]
     if cue:

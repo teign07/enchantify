@@ -40,7 +40,45 @@ def _thread_row_pattern(name: str):
     )
 
 
+def normalize_thread_fields(content: str) -> str:
+    """Repair common thread field markdown scars without changing story text."""
+    field_names = (
+        "id",
+        "type",
+        "phase",
+        "pressure",
+        "npc_anchor",
+        "locations",
+        "entities",
+        "Nothing pressure",
+        "Next beat",
+        "Last advanced",
+        "Last visited",
+        "born",
+        "closed",
+        "GPS",
+    )
+    label_pattern = "|".join(re.escape(name) for name in sorted(field_names, key=len, reverse=True))
+    return re.sub(
+        rf"^\*\*({label_pattern}):(?!(?:\*\*))\s*(.*)$",
+        lambda m: f"**{m.group(1)}:** {m.group(2).strip()}",
+        content,
+        flags=re.MULTILINE | re.IGNORECASE,
+    )
+
+
+def _replace_thread_field(section: str, label: str, value: str) -> tuple[str, bool]:
+    """Set a thread field, accepting both canonical and half-formed bold labels."""
+    pat = re.compile(
+        rf"^\*\*({re.escape(label)}):(?:\*\*)?\s*.*$",
+        re.MULTILINE | re.IGNORECASE,
+    )
+    updated, count = pat.subn(f"**{label}:** {value}", section, count=1)
+    return updated, count > 0
+
+
 def update_thread_in_threads_text(content: str, name: str, phase: Optional[str] = None, next_beat: Optional[str] = None, last_advanced: Optional[str] = None) -> tuple[str, bool]:
+    content = normalize_thread_fields(content)
     pat = _thread_section_pattern(name)
     m = pat.search(content)
     if not m:
@@ -50,18 +88,18 @@ def update_thread_in_threads_text(content: str, name: str, phase: Optional[str] 
     changed = False
 
     if phase:
-        new_section = re.sub(r'(\*\*phase:\*\*\s*).*', rf'\g<1>{phase}', section)
-        changed = changed or new_section != section
+        new_section, field_changed = _replace_thread_field(section, "phase", phase)
+        changed = changed or field_changed
         section = new_section
 
     if next_beat:
-        new_section = re.sub(r'(\*\*Next beat:\*\*\s*).*', rf'\g<1>{next_beat}', section)
-        changed = changed or new_section != section
+        new_section, field_changed = _replace_thread_field(section, "Next beat", next_beat)
+        changed = changed or field_changed
         section = new_section
 
     if last_advanced:
-        new_section = re.sub(r'(\*\*Last advanced:\*\*\s*).*', rf'\g<1>{last_advanced}', section)
-        changed = changed or new_section != section
+        new_section, field_changed = _replace_thread_field(section, "Last advanced", last_advanced)
+        changed = changed or field_changed
         section = new_section
 
     if not changed:

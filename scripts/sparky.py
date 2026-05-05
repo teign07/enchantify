@@ -21,6 +21,9 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
 WORKSPACE_DIR = SCRIPT_DIR.parent
+import sys
+sys.path.insert(0, str(SCRIPT_DIR))
+import cron_steward
 
 
 _OPENCLAW_BIN = (
@@ -117,15 +120,26 @@ def get_player_belief(cfg: dict) -> str:
 
 
 def call_agent(prompt: str) -> str:
-    """Run a prompt through the enchantify agent via openclaw."""
+    """Generate text through the fastest available local model path."""
+    claude_bin = shutil.which("claude")
+    if claude_bin:
+        result = subprocess.run(
+            [claude_bin, "--print", "--permission-mode", "bypassPermissions", prompt],
+            capture_output=True, text=True, timeout=60,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+        print(f"⚠ claude call failed (exit {result.returncode}): {result.stderr.strip()[:200]}")
+
+    if not _OPENCLAW_BIN:
+        return ""
+
     result = subprocess.run(
         [_OPENCLAW_BIN, "agent", "--local", "--agent", "enchantify", "-m", prompt],
         capture_output=True, text=True, timeout=120
     )
     output = result.stdout.strip()
-    # Strip ANSI escape codes
     output = re.sub(r'\x1b\[[0-9;]*m', '', output)
-    # Strip openclaw noise lines
     noise = ("[plugins]", "[agents/", "[agent/", "adopted ", "google tool", "[lcm]")
     clean = [
         line for line in output.splitlines()
@@ -133,7 +147,7 @@ def call_agent(prompt: str) -> str:
     ]
     result_text = "\n".join(clean).strip()
     if not result_text and result.returncode != 0:
-        print(f"⚠ call_agent failed (exit {result.returncode}): {result.stderr.strip()[:200]}")
+        print(f"⚠ openclaw call failed (exit {result.returncode}): {result.stderr.strip()[:200]}")
     return result_text
 
 
@@ -207,55 +221,61 @@ Output only the margin note. No preamble, no explanation."""
 
 
 def main():
-    cfg = load_config()
+    with cron_steward.run("sparky"):
+        cfg = load_config()
 
-    if cfg.get("ENCHANTIFY_ENABLE_SPARKY", "yes") == "no":
-        print("Sparky disabled in config. Exiting.")
-        return
+        if cfg.get("ENCHANTIFY_ENABLE_SPARKY", "yes") == "no":
+            print("Sparky disabled in config. Exiting.")
+            cron_steward.mark_skipped("sparky", "disabled in config")
+            return
 
-    if cfg.get("ENCHANTIFY_SPARKY_MODE", "standalone") == "silvie":
-        print("Sparky runs via Silvie on this install. Exiting.")
-        return
+        if cfg.get("ENCHANTIFY_SPARKY_MODE", "standalone") == "silvie":
+            print("Sparky runs via Silvie on this install. Exiting.")
+            cron_steward.mark_skipped("sparky", "runs via Silvie")
+            return
 
-    today = datetime.now()
-    date_str = today.strftime("%Y-%m-%d")
-    time_str = today.strftime("%H%M")
-    shiny_path = WORKSPACE_DIR / "sparky" / "shinies" / f"{date_str}-{time_str}.md"
+        today = datetime.now()
+        date_str = today.strftime("%Y-%m-%d")
+        time_str = today.strftime("%H%M")
+        shiny_path = WORKSPACE_DIR / "sparky" / "shinies" / f"{date_str}-{time_str}.md"
 
-    # We allow multiple shinies per day now, since Sparky runs twice a day.
-    existing = list((WORKSPACE_DIR / "sparky" / "shinies").glob(f"{date_str}*.md"))
-    if len(existing) >= 5:
-        print(f"✓ Sparky is tired. Already {len(existing)} shinies for {date_str}.")
-        return
+        # We allow multiple shinies per day now, since Sparky runs twice a day.
+        existing = list((WORKSPACE_DIR / "sparky" / "shinies").glob(f"{date_str}*.md"))
+        if len(existing) >= 5:
+            print(f"✓ Sparky is tired. Already {len(existing)} shinies for {date_str}.")
+            cron_steward.mark_skipped("sparky", "daily shiny cap reached", count=len(existing))
+            return
 
-    print(f"Sparky is looking for patterns ({date_str})...")
+        print(f"Sparky is looking for patterns ({date_str})...")
 
-    heartbeat_path = WORKSPACE_DIR / "HEARTBEAT.md"
-    heartbeat = read_file_safe(heartbeat_path, 60)
-    signals = extract_heartbeat_signals(heartbeat) if heartbeat else {}
-    belief = get_player_belief(cfg)
-    if belief:
-        signals["belief"] = belief
+        heartbeat_path = WORKSPACE_DIR / "HEARTBEAT.md"
+        heartbeat = read_file_safe(heartbeat_path, 60)
+        signals = extract_heartbeat_signals(heartbeat) if heartbeat else {}
+        belief = get_player_belief(cfg)
+        if belief:
+            signals["belief"] = belief
 
-    events = fetch_on_this_day()
+        events = fetch_on_this_day()
 
-    shiny_text = generate_shiny(signals, events, belief)
+        shiny_text = generate_shiny(signals, events, belief)
 
-    if not shiny_text or not shiny_text.strip():
-        print(f"⚠ Sparky got empty response from agent — skipping write, will retry next run.")
-        return
+        if not shiny_text or not shiny_text.strip():
+            print(f"⚠ Sparky got empty response from agent — skipping write, will retry next run.")
+            cron_steward.mark_skipped("sparky", "empty model response")
+            return
 
-    content = f"# Sparky Shiny — {date_str}\n\n{shiny_text}\n"
+        content = f"# Sparky Shiny — {date_str}\n\n{shiny_text}\n"
 
-    shiny_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(shiny_path, "w") as f:
-        f.write(content)
+        shiny_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(shiny_path, "w") as f:
+            f.write(content)
 
-    print(f"✓ Shiny written: {shiny_path}")
-    print(f"  {shiny_text[:100]}...")
+        print(f"✓ Shiny written: {shiny_path}")
+        print(f"  {shiny_text[:100]}...")
 
-    # Inject into HEARTBEAT.md so the Labyrinth sees it without reading a separate file
-    inject_sparky_into_heartbeat(heartbeat_path, date_str, shiny_text)
+        # Inject into HEARTBEAT.md so the Labyrinth sees it without reading a separate file
+        inject_sparky_into_heartbeat(heartbeat_path, date_str, shiny_text)
+        cron_steward.mark_delivered("sparky", shiny_text, scope=date_str, path=str(shiny_path))
 
 
 def inject_sparky_into_heartbeat(heartbeat_path: Path, date_str: str, shiny_text: str) -> None:

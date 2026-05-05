@@ -98,6 +98,8 @@ def main() -> int:
     parser.add_argument("--packet-out", type=Path)
     parser.add_argument("--title")
     parser.add_argument("--mood")
+    parser.add_argument("--scene-mode", choices=["slice", "school-life", "arc", "mystery", "aftermath", "compass", "enchantment"])
+    parser.add_argument("--drama-budget", choices=["low", "medium", "high"])
     parser.add_argument("--intensity", default="cinematic")
     parser.add_argument("--target", default="8729557865")
     parser.add_argument("--channel", default="telegram")
@@ -147,6 +149,10 @@ def main() -> int:
         build_cmd += ["--title", args.title]
     if args.mood:
         build_cmd += ["--mood", args.mood]
+    if args.scene_mode:
+        build_cmd += ["--scene-mode", args.scene_mode]
+    if args.drama_budget:
+        build_cmd += ["--drama-budget", args.drama_budget]
 
     built = run(build_cmd)
     if built.returncode != 0:

@@ -132,11 +132,17 @@ def main() -> int:
     parser.add_argument("--workspace", default=str(BASE))
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument(
+        "--check-only",
+        action="store_true",
+        help="Print the current mechanics obligations without recording a preflight timestamp.",
+    )
     args = parser.parse_args()
 
     workspace = Path(args.workspace)
     preflight = build_preflight(workspace, args.player)
-    mechanics_state.record_event(workspace, args.player, "mechanics-preflight")
+    if not args.check_only:
+        mechanics_state.record_event(workspace, args.player, "mechanics-preflight")
 
     if args.json:
         print(json.dumps(preflight, indent=2, ensure_ascii=False))

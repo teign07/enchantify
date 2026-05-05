@@ -19,6 +19,7 @@ import html as _html
 import shutil
 import subprocess
 import argparse
+import importlib.util
 from pathlib import Path
 from datetime import datetime, date, timedelta
 
@@ -31,6 +32,9 @@ SIM_LOG_DIR = BASE / "logs" / "simulations"
 PATTERNS_F  = BASE / "memory" / "patterns.md"
 ISSUES_DIR  = BASE / "bleed" / "issues"
 LOGS_DIR    = BASE / "logs"
+STEWARD_LOG = LOGS_DIR / "steward" / "cron-runs.jsonl"
+STEWARD_STATE = BASE / "config" / "cron-steward-state.json"
+PACT_ACTION_LOG = LOGS_DIR / "pact-actions.jsonl"
 PLAYERS_DIR = BASE / "players"
 HEARTBEAT_F = BASE / "HEARTBEAT.md"
 NOTHING_F   = BASE / "lore" / "nothing-intelligence.md"
@@ -70,18 +74,18 @@ ACADEMY_DAYS = {
     1: {"name": "Tuesday",   "num": 3, "tone": "Deepening", "desc": "Mid-week — the week has found its shape. Breakthroughs and arguments both happen here."},
     2: {"name": "Wednesday", "num": 4, "tone": "Hinge",     "desc": "Something always turns on Day 4. A discovery, a conflict, a revelation. Not dramatic necessarily — just turning."},
     3: {"name": "Thursday",  "num": 5, "tone": "Releasing", "desc": "Energy loosens toward the weekend. Evening clubs. The Cafeteria has good soup on Day 5."},
-    4: {"name": "Friday",    "num": 6, "tone": "Wandering", "desc": "No mandatory classes. Students explore, practice, argue, make things. The Library opens additional wings."},
+    4: {"name": "Friday",    "num": 6, "tone": "Wandering", "desc": "A looser class day. Students explore, practice, argue, make things. The Library opens additional wings."},
     5: {"name": "Saturday",  "num": 7, "tone": "Still",     "desc": "The quietest day. Professors walk the grounds. Perfect for solo study, long Compass Runs, or doing nothing with great intention."},
 }
 
 ACADEMY_WEEKLY = {
-    "Sunday":    {"morning": None,                                   "afternoon": None,                            "club": "Compass Society"},
+    "Sunday":    {"morning": ("Book Jumping",            "Permancer"), "afternoon": None,                            "club": "Compass Society"},
     "Monday":    {"morning": ("Art of the Glint",        "Boggle"),  "afternoon": ("Ink-Binding",       "Villanelle"), "club": "Inkwright Society"},
     "Tuesday":   {"morning": ("Wayfinding & Kineticism", "Momort"),  "afternoon": ("Synesthetic Resonance", "Euphony"), "club": "Marginalia Guild"},
     "Wednesday": {"morning": ("Art of the Glint",        "Boggle"),  "afternoon": ("Quiet Hours",       "Stonebrook"), "club": None},
     "Thursday":  {"morning": ("Wayfinding & Kineticism", "Momort"),  "afternoon": ("Ink-Binding",       "Villanelle"), "club": "Marginalia Guild"},
-    "Friday":    {"morning": ("Synesthetic Resonance",   "Euphony"), "afternoon": ("Independent Study", None),        "club": "Book Jumpers"},
-    "Saturday":  {"morning": None,                                   "afternoon": None,                            "club": None},
+    "Friday":    {"morning": ("Synesthetic Resonance",   "Euphony"), "afternoon": ("Basic Enchantments", "Wispwood"), "club": "Book Jumpers"},
+    "Saturday":  {"morning": ("Compass Running",         "Stonebrook"), "afternoon": None,                            "club": None},
 }
 
 CLASS_INFO = {
@@ -120,6 +124,27 @@ CLASS_INFO = {
         "reward":     "+2 Belief",
         "quote":      '"Rest lives at the center of the Compass because sometimes the most radical thing you can do is stop." — Prof. Stonebrook',
     },
+    "Basic Enchantments": {
+        "compass": "ENCHANT · Object", "color": "#0284c7",
+        "desc":       "Object Address, ordinary magic, and the first useful conversations with things that have been waiting to be noticed.",
+        "assignment": "Find one object you have owned for more than a year. Speak one sentence to it out loud. Report what you said, and whether anything shifted.",
+        "reward":     "+2 Belief",
+        "quote":      '"An enchantment is not a trick you perform on an object. It is a conversation you start." — Prof. Wispwood',
+    },
+    "Compass Running": {
+        "compass": "COMPASS · Full Cycle", "color": "#2563eb",
+        "desc":       "A full Compass-cycle practicum: leave the Observatory, follow a real-world route, return with an honest report.",
+        "assignment": "Run the cycle for real when you attend. Bring back one concrete noticing, one threshold crossed, one sensory gift, one sentence, and one quiet center.",
+        "reward":     "+3 Belief",
+        "quote":      '"The Compass does not point away from you. It points through you." — Prof. Stonebrook',
+    },
+    "Book Jumping": {
+        "compass": "JUMP · Textual Crossing", "color": "#9333ea",
+        "desc":       "Crossing into a book with a tether, an anchor sentence, and a clear return protocol.",
+        "assignment": "Name what you bring into the text, read until the threshold appears, then return with one souvenir that landed in the room.",
+        "reward":     "+2 Belief",
+        "quote":      '"A book is not elsewhere. It is a door that learned to lie flat." — Prof. Permancer',
+    },
     "Independent Study": {
         "compass": "Free", "color": "#374151",
         "desc":       "Student-directed. The Library opens additional wings on Wandering Day.",
@@ -128,6 +153,7 @@ CLASS_INFO = {
         "quote":      "",
     },
 }
+CLASS_INFO["The Art of the Glint"] = CLASS_INFO["Art of the Glint"]
 
 TIME_BLOCKS =[
     ("early_morning",   "Early Morning",   "5–8:59 AM",    "Academy breathes. Stonebrook territory. Few students up."),
@@ -159,42 +185,323 @@ def read(path: Path) -> str:
     return path.read_text(errors="replace") if path.exists() else ""
 
 
+PHASE_ALIASES = {
+    "escalating": "rising",
+    "quiet":      "permanent",
+    "rising,":    "rising",
+    "setup,":     "setup",
+    "climax,":    "climax",
+    "dormant,":   "dormant",
+}
+
+
+def clean_context(text: str) -> str:
+    """Remove register tags and markdown wrapper noise while keeping story context."""
+    text = re.sub(r'\[(?:thread|id):[^\]]+\]', '', text or '')
+    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+    text = text.replace('*', '')
+    text = text.replace('—', '—').strip().strip('|').strip()
+    return re.sub(r'\s+', ' ', text).strip(' ;')
+
+
+def is_low_info_live_text(text: str) -> bool:
+    lower = (text or "").lower()
+    generic_bits = (
+        "pieces have shifted offscreen",
+        "acted offscreen to advance",
+        "something that might have thinned held together instead",
+        "a hidden detail is closer to the surface",
+        "the world is preparing to let it be noticed",
+        "changed the shape of the ordinary day",
+        "made academy daily life more specific",
+        "a sharper answer now exists somewhere",
+        "routine background watch continues",
+        "students slog",
+        "boggle forces laughter",
+        "the halls hold their weather quietly",
+    )
+    return any(bit in lower for bit in generic_bits)
+
+
+def is_low_info_effect(text: str) -> bool:
+    lower = (text or "").lower()
+    generic_bits = (
+        "repositioned the live geometry",
+        "advanced the current arc through prepare",
+        "advanced the current arc through",
+        "nudges the board without forcing",
+        "major movement is not yet allowed",
+        "fed thread momentum",
+        "protect intensified",
+        "research intensified",
+        "invested offscreen via",
+        "made academy daily life more specific",
+    )
+    return any(bit in lower for bit in generic_bits)
+
+
+def canonical_phase(raw: str, fallback: str = "dormant") -> str:
+    raw = (raw or "").strip().lower()
+    if not raw:
+        return fallback
+    first = raw.split()[0].rstrip(",")
+    phase = PHASE_ALIASES.get(first, first)
+    if "permanent" in raw:
+        phase = "permanent"
+    return phase if phase in PHASE_ORDER or phase == "permanent" else fallback
+
+
+def parse_active_thread_rows(register: str) -> dict[str, dict]:
+    rows: dict[str, dict] = {}
+    active_m = re.search(r'(?m)^## Active Threads\s*\n(.*?)(?=^## |\Z)', register, re.DOTALL)
+    if not active_m:
+        return rows
+    for m in re.finditer(
+        r'^\|\s*([^|]+?)\s*\|\s*Thread\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|',
+        active_m.group(1), re.MULTILINE | re.IGNORECASE
+    ):
+        name = m.group(1).strip()
+        if name.lower() in ("entity", "---", ""):
+            continue
+        notes = clean_context(m.group(3))
+        phase = ""
+        status = notes
+        pm = re.search(r'[Pp]hase:\s*([A-Za-z_-]+)(?:\s*[\-–—]\s*(.+))?', notes)
+        if pm:
+            phase = canonical_phase(pm.group(1))
+            status = clean_context(pm.group(2) or "")
+        rows[_thread_key(name)] = {
+            "name": name,
+            "belief": int(m.group(2)),
+            "phase": phase,
+            "status": status,
+            "notes": notes,
+        }
+    return rows
+
+
+def simulation_context_lookup() -> dict[str, dict]:
+    """Current story context for rendering terse simulation events clearly."""
+    cache = getattr(simulation_context_lookup, "_cache", None)
+    if cache is not None:
+        return cache
+
+    register = read(REGISTER_F)
+    lookup = parse_active_thread_rows(register)
+
+    arc = parse_arc()
+    if arc:
+        lookup[_thread_key("The Current Arc")] = {
+            "name": arc.get("name", "The Current Arc"),
+            "belief": arc.get("belief", 0),
+            "phase": (arc.get("phase") or "").lower(),
+            "status": arc.get("register_status") or arc.get("premise") or arc.get("pressure", ""),
+            "notes": arc.get("register_status") or arc.get("premise") or "",
+        }
+        lookup[_thread_key(arc.get("name", ""))] = lookup[_thread_key("The Current Arc")]
+
+    setattr(simulation_context_lookup, "_cache", lookup)
+    return lookup
+
+
+def action_verb(action: str) -> str:
+    return {
+        "protect": "protected",
+        "prepare": "prepared",
+        "reposition": "nudged",
+        "reveal": "surfaced a clue",
+        "invest_belief": "fed belief",
+        "research": "researched",
+        "pressure": "pressured",
+        "world_investment": "invested in",
+    }.get((action or "").lower(), (action or "moved").replace("_", " "))
+
+
+def action_story_phrase(action: str, thread_name: str) -> str:
+    action = (action or "").replace("_", " ").strip()
+    if thread_name == "Academy Daily Life":
+        return {
+            "reposition": "changed the shape of the ordinary school day",
+            "prepare": "set up a concrete daily-life beat",
+            "research": "checked a practical campus question",
+            "reveal": "made a small campus detail easier to notice",
+            "protect": "kept one ordinary support from thinning",
+            "invest belief": "fed chapter pressure through daily routines",
+            "recruit": "pulled another student into the ordinary current",
+            "sabotage": "made one ordinary support less reliable",
+        }.get(action, f"moved through {action or 'the ordinary day'}")
+    return {
+        "reposition": "shifted the live situation",
+        "prepare": "prepared the next beat",
+        "research": "found a sharper answer",
+        "reveal": "surfaced a clue",
+        "protect": "held a vulnerable edge",
+        "invest belief": "fed belief into the pressure",
+        "attack belief": "eroded an opposing position",
+        "recruit": "recruited soft support",
+        "sabotage": "made a support less reliable",
+    }.get(action, action or "acted")
+
+
+def registry_note_for_entity(name: str) -> str:
+    bare = re.sub(r'\s*\([^)]*\)\s*$', '', name or '').strip()
+    if not bare:
+        return ""
+    register = read(REGISTER_F)
+    for line in register.splitlines():
+        if not line.startswith("|"):
+            continue
+        parts = [p.strip() for p in line.strip("|").split("|")]
+        if len(parts) >= 4 and parts[0] == bare:
+            return clean_context(parts[3])
+    return ""
+
+
+def concrete_pressure_details(entry: dict, limit: int = 2) -> str:
+    details = []
+    for item in entry.get("influence_snapshot") or []:
+        name = re.sub(r'\s*\([^)]*\)\s*$', '', item or '').strip()
+        note = registry_note_for_entity(name)
+        if note and not is_low_info_live_text(note) and not is_low_info_effect(note):
+            details.append(f"{name}: {note}")
+        if len(details) >= limit:
+            break
+    return "; ".join(details)
+
+
+def concrete_event_body(entry: dict, thread_name: str, status: str = "") -> str:
+    actor = clean_context(entry.get("actor") or "Someone")
+    action = action_story_phrase(entry.get("action", ""), thread_name)
+    pressure = compact_pressures(entry.get("influence_snapshot") or [], limit=4)
+    target = clean_context(entry.get("target") or "")
+    bits = []
+    if pressure:
+        bits.append(f"pressure: {pressure}")
+    details = concrete_pressure_details(entry, limit=3 if thread_name == "Academy Daily Life" else 2)
+    if details:
+        bits.append(f"details: {details}")
+    if target:
+        bits.append(f"target: {target}")
+    if status and not is_low_info_live_text(status):
+        bits.append(f"register: {status}")
+    tail = f" ({'; '.join(bits)})" if bits else ""
+    return clean_context(f"{actor} {action} around {thread_name}{tail}")
+
+
+def compact_pressures(items: list[str], limit: int = 3) -> str:
+    cleaned = []
+    for item in items or []:
+        item = clean_context(item)
+        if item:
+            cleaned.append(item)
+    shown = cleaned[:limit]
+    if len(cleaned) > limit:
+        shown.append(f"+{len(cleaned) - limit} more")
+    return ", ".join(shown)
+
+
+def consequence_fallback(reason: str, narrative: str, status: str, name: str, delta) -> str:
+    if reason and not is_low_info_effect(reason):
+        return reason
+    if status and not is_low_info_live_text(status):
+        return status
+
+    source_m = re.search(r'(.+?)\s+invested offscreen via\s+(.+)', reason or narrative, re.IGNORECASE)
+    if source_m:
+        actor = clean_context(source_m.group(1))
+        thread = clean_context(source_m.group(2))
+        return f"{actor} fed this through {thread}."
+
+    if reason and "fed thread momentum" in reason.lower():
+        actor = clean_context(reason.split("fed thread momentum", 1)[0])
+        return f"{actor} increased the thread's pressure." if actor else f"{name} gained pressure."
+
+    if reason and "intensified" in reason.lower():
+        return f"{name} intensified."
+
+    if narrative and not is_low_info_effect(narrative):
+        return clean_context(narrative)
+
+    sign = "+" if isinstance(delta, int) and delta > 0 else ""
+    return f"{name} changed by {sign}{delta}." if delta not in ("", None) else f"{name} changed."
+
+
+def simulation_story(entry: dict) -> dict:
+    kind = entry.get("kind", "action")
+    contexts = simulation_context_lookup()
+    raw_thread = entry.get("thread_name") or entry.get("name") or ""
+    raw = entry.get("raw") or ""
+    raw_intent = re.search(r'Talisman intent:\s*([^\[]+)\[([^\]]+)\]\s+on\s+(.+)', raw)
+    if raw_intent and not raw_thread:
+        raw_thread = clean_context(raw_intent.group(3))
+    ctx = contexts.get(_thread_key(raw_thread), {})
+    thread_name = ctx.get("name") or raw_thread or "The world"
+    status = ctx.get("status", "")
+    phase = ctx.get("phase", "")
+    belief = ctx.get("belief", "")
+    pressure = compact_pressures(entry.get("influence_snapshot") or [])
+
+    if kind == "consequence":
+        delta = entry.get("delta")
+        before = entry.get("before", "?")
+        after = entry.get("after", "?")
+        direction = "rose" if isinstance(delta, int) and delta > 0 else "shifted"
+        title = f"{thread_name} {direction} {before} → {after}"
+        reason = clean_context(entry.get("reason") or entry.get("narrative") or "")
+        narrative = clean_context(entry.get("narrative") or "")
+        body = consequence_fallback(reason, narrative, status, thread_name, delta)
+        detail = f"Belief {before} → {after}"
+        return {"title": title, "body": body, "detail": detail, "status": status, "pressure": pressure}
+
+    actor = entry.get("actor") or (clean_context(raw_intent.group(1)) if raw_intent else "Someone")
+    action = entry.get("action") or (clean_context(raw_intent.group(2)) if raw_intent else "moved")
+    intensity = entry.get("intensity") or ""
+    title = f"{thread_name}: {actor} {action_verb(action)}"
+    if entry.get("target"):
+        title += f" toward {entry.get('target')}"
+
+    narrative = clean_context(entry.get("narrative") or "")
+    reason = clean_context(entry.get("reason") or "")
+    hidden = clean_context(entry.get("hidden_effect") or "")
+
+    if narrative and not is_low_info_live_text(narrative):
+        body = narrative
+    elif hidden and not is_low_info_effect(hidden):
+        body = hidden
+    elif entry.get("actor") or entry.get("influence_snapshot"):
+        body = concrete_event_body(entry, thread_name, status)
+    elif status:
+        body = status
+    elif reason and not is_low_info_effect(reason):
+        body = reason
+    else:
+        body = narrative or reason or clean_context(entry.get("raw") or "")
+
+    detail_bits = []
+    if phase:
+        detail_bits.append(str(phase).upper())
+    if belief not in ("", None):
+        detail_bits.append(f"Belief {belief}")
+    if intensity:
+        detail_bits.append(intensity)
+    return {
+        "title": title,
+        "body": body,
+        "detail": " · ".join(detail_bits),
+        "status": status,
+        "pressure": pressure,
+        "reason": reason,
+    }
+
+
 def parse_threads() -> list[dict]:
     text = read(THREADS_F)
     register = read(REGISTER_F)
     live_overlay = build_thread_live_overlay()
+    phase_signals = parse_thread_phase_signals()
+    active_rows = parse_active_thread_rows(register)
 
-    # Build belief + live-status lookup from world-register Active Threads
-    # Notes column format: [id:slug] Phase: word — description
-    belief:    dict[str, int] = {}
-    reg_phase: dict[str, str] = {}
-    reg_status: dict[str, str] = {}
-    active_m = re.search(r'(?m)^## Active Threads\s*\n(.*?)(?=^## |\Z)', register, re.DOTALL)
-    if active_m:
-        for m in re.finditer(
-            r'^\|\s*([^|]+?)\s*\|\s*Thread\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|',
-            active_m.group(1), re.MULTILINE | re.IGNORECASE
-        ):
-            key = m.group(1).strip().lower()
-            belief[key] = int(m.group(2))
-            notes = m.group(3).strip()
-            pm = re.search(r'[Pp]hase:\s*(\w+)(?:.*?[\-–—]\s*(.+))?', notes)
-            if pm:
-                reg_phase[key] = pm.group(1).lower()
-                if pm.group(2):
-                    reg_status[key] = pm.group(2).strip().rstrip(';').strip()
-
-    # Non-standard phase labels → canonical
-    PHASE_ALIASES = {
-        "escalating": "rising",
-        "quiet":      "permanent",  # academy-daily
-        "rising,":    "rising",
-        "setup,":     "setup",
-        "climax,":    "climax",
-        "dormant,":   "dormant",
-    }
-
-    threads =[]
+    thread_sections: dict[str, dict] = {}
     for section in re.split(r'^## Thread: ', text, flags=re.MULTILINE)[1:]:
         lines = section.strip().splitlines()
         name = lines[0].strip() if lines else "?"
@@ -213,29 +520,35 @@ def parse_threads() -> list[dict]:
             # Matches the key name, any mix of colons/asterisks, optional spaces, and captures the text
             pat = rf'\*\*{key_name}[:*]*\s*(.+)'
             m = re.search(pat, section, re.IGNORECASE)
-            return m.group(1).strip() if m else ""
+            return clean_context(m.group(1)) if m else ""
 
-        phase_raw  = field("phase")
-        first_word = phase_raw.split()[0].lower().rstrip(",") if phase_raw else "dormant"
-        phase_word = PHASE_ALIASES.get(first_word, first_word)
-        
-        # If the raw string contains "permanent", force it
-        if "permanent" in phase_raw.lower():
-            phase_word = "permanent"
-        if phase_word not in PHASE_ORDER and phase_word != "permanent":
-            phase_word = "dormant"
-
-        born_raw   = field("born")
-        closed_raw = field("closed")
         key = name.lower()
-        b = belief.get(key, 0)
+        thread_sections[key] = {
+            "name":          name,
+            "phase_raw":     field("phase"),
+            "pressure":      field("pressure"),
+            "nothing":       field("Nothing pressure"),
+            "next_beat":     clean_context(next_beat_val),
+            "last_advanced": field("Last advanced"),
+            "born":          field("born"),
+            "closed":        field("closed"),
+            "npc_anchor":    field("npc_anchor"),
+        }
 
-        # Override phase with world-register value (updated by Flash during play)
-        if key in reg_phase:
-            rp = reg_phase[key]
-            rp = PHASE_ALIASES.get(rp, rp)
-            if rp in PHASE_ORDER or rp == "permanent":
-                phase_word = rp
+    threads = []
+    all_keys = list(active_rows.keys())
+    for key in thread_sections:
+        if key not in active_rows:
+            all_keys.append(key)
+
+    for key in all_keys:
+        reg = active_rows.get(key, {})
+        src = thread_sections.get(key, {})
+        name = reg.get("name") or src.get("name") or key.title()
+        phase_word = reg.get("phase") or canonical_phase(src.get("phase_raw", ""))
+        b = int(reg.get("belief", 0))
+        born_raw = src.get("born", "")
+        closed_raw = src.get("closed", "")
 
         # Age badge
         age_note = ""
@@ -251,21 +564,32 @@ def parse_threads() -> list[dict]:
                 pass
 
         overlay = live_overlay.get(key, {})
+        phase_signal = phase_signals.get(key, {})
+        status = reg.get("status") or ""
+        latest_narrative = overlay.get("latest_narrative") or ""
+        if not status and latest_narrative:
+            status = latest_narrative
+        next_beat = src.get("next_beat", "")
+        if not next_beat and overlay.get("latest_reason"):
+            next_beat = overlay.get("latest_reason", "")
+
         threads.append({
             "name":         name,
             "phase":        phase_word,
-            "phase_raw":    phase_raw,
+            "phase_raw":    src.get("phase_raw", reg.get("phase", "")),
             "belief":       b,
-            "pressure":     field("pressure"),
-            "nothing":      field("Nothing pressure"),
-            "next_beat":    next_beat_val,
-            "status":       reg_status.get(key, ""),
-            "last_advanced":field("Last advanced"),
+            "pressure":     src.get("pressure", ""),
+            "nothing":      src.get("nothing", ""),
+            "next_beat":    next_beat,
+            "status":       status,
+            "register_notes": reg.get("notes", ""),
+            "last_advanced":src.get("last_advanced", ""),
             "born":         born_raw,
             "closed":       closed_raw,
             "age_note":     age_note,
-            "npc_anchor":   field("npc_anchor"),
+            "npc_anchor":   src.get("npc_anchor", ""),
             "live":         overlay,
+            "phase_signal": phase_signal,
         })
 
     # Sort: climax first, then by belief desc
@@ -291,38 +615,59 @@ def parse_arc() -> dict:
                       re.MULTILINE | re.DOTALL)
         return m.group(1).strip() if m else ""
 
-    # Arc name from H1
-    name_m = re.search(r'^# Current Arc — (.+)', text, re.MULTILINE)
-    name = name_m.group(1).strip() if name_m else "Current Arc"
+    # Arc name from H1. Older writers used an em dash; current ones use a colon.
+    name_m = re.search(r'^#\s*(?:Current Arc\s*[:—-]\s*)?(.+)', text, re.MULTILINE)
+    name = clean_context(name_m.group(1)) if name_m else "Current Arc"
 
-    # Phase from world-register Live Arc
     register = read(REGISTER_F)
     arc_belief = 0
+    arc_register_status = ""
+    arc_register_phase = ""
     arc_m = re.search(r'(?m)^## Live Arc\s*\n(.*?)(?=^## |\Z)', register, re.DOTALL)
     if arc_m:
-        bm = re.search(r'\|\s*[^|]+\|\s*Arc\s*\|\s*(\d+)\s*\|', arc_m.group(1), re.IGNORECASE)
-        if bm:
-            arc_belief = int(bm.group(1))
+        row_m = re.search(
+            r'^\|\s*([^|]+?)\s*\|\s*Arc\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|',
+            arc_m.group(1), re.MULTILINE | re.IGNORECASE
+        )
+        if row_m:
+            arc_belief = int(row_m.group(2))
+            notes = clean_context(row_m.group(3))
+            pm = re.search(r'[Pp]hase:\s*([A-Za-z_-]+)(?:\s*[\-–—]\s*(.+))?', notes)
+            if pm:
+                arc_register_phase = canonical_phase(pm.group(1), "")
+                arc_register_status = clean_context(pm.group(2) or "")
 
-    phase   = field(r'^## Phase:\s*(.+)', "?").upper()
+    phase   = canonical_phase(field(r'^## Phase:\s*(.+)', arc_register_phase or "setup")).upper()
     day     = field(r'^## Day:\s*(.+)', "?")
     started = field(r'^## Started:\s*(.+)', "?")
+    genre   = field(r'^## Genre:\s*(.+)', "")
     premise = section("The Premise")
     pressure = section("The Pressure")
     crisis   = section("The Crisis Point")
-    compass  = field(r'\*\*(SOUTH|NORTH|EAST|WEST)[^*]*\*\*', "?")
+    compass  = field(r'^## Compass:\s*(.+)', "")
+    if not compass:
+        compass = field(r'\*\*(SOUTH|NORTH|EAST|WEST|CENTER)[^*]*\*\*', "?")
     resolution_block = section("Resolution Paths")
 
     # Extract resolution paths as bullet list
     res_paths =[]
-    for m in re.finditer(r'^-\s+\*\*(.+?)\*\*[:\s]*(.+)', resolution_block, re.MULTILINE):
-        res_paths.append({"label": m.group(1).strip(), "text": m.group(2).strip()})
+    for line in resolution_block.splitlines():
+        m = re.match(r'^-\s+(?:\*\*)?(.+?)(?:\*\*)?:\s*(.+)', line.strip())
+        if m:
+            res_paths.append({"label": clean_context(m.group(1)), "text": clean_context(m.group(2))})
+
+    seeds = section("Seeds for Next Arc")
+    seed_items = [
+        clean_context(m.group(1))
+        for m in re.finditer(r'^-\s+(.+)', seeds, re.MULTILINE)
+    ]
 
     return {
         "name":        name,
         "phase":       phase,
         "day":         day,
         "started":     started,
+        "genre":       genre,
         "belief":      arc_belief,
         "premise":     premise,
         "pressure":    pressure,
@@ -331,7 +676,10 @@ def parse_arc() -> dict:
         "resolution":  res_paths,
         "key_npcs":    section("Key NPCs"),
         "nothing":     section("The Nothing's Role"),
-        "seeds":       section("Seeds for Next Arc"),
+        "seeds":       seeds,
+        "seed_items":   seed_items,
+        "register_status": arc_register_status,
+        "register_phase":  arc_register_phase.upper() if arc_register_phase else "",
         "compass_con": section("Wonder Compass Connection"),
     }
 
@@ -497,6 +845,28 @@ def parse_simulation_feed(limit: int = 40) -> list[dict]:
     return entries
 
 
+def parse_pact_actions(limit: int = 30) -> list[dict]:
+    if not PACT_ACTION_LOG.exists():
+        return []
+    entries = []
+    try:
+        lines = PACT_ACTION_LOG.read_text(encoding="utf-8", errors="replace").splitlines()
+    except Exception:
+        return []
+    for line in reversed(lines):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        entries.append(obj)
+        if len(entries) >= limit:
+            break
+    return entries
+
+
 def _thread_key(name: str) -> str:
     return (name or "").strip().lower()
 
@@ -543,6 +913,46 @@ def build_thread_live_overlay(limit: int = 200) -> dict[str, dict]:
                 bucket["consequence_summary"].append(summary)
 
     return overlay
+
+
+def parse_thread_phase_signals() -> dict[str, dict]:
+    """Latest tick-queue pressure signal for each thread.
+
+    The register remains authoritative for current phase. These signals show
+    where the simulation is pushing next, which is often the more useful card
+    context during play.
+    """
+    text = read(QUEUE_F)
+    signals: dict[str, dict] = {}
+    current_ts = ""
+
+    for line in text.splitlines():
+        tick_m = re.match(r'^## Tick (\d{4}-\d{2}-\d{2} \d{2}:\d{2})', line)
+        if tick_m:
+            current_ts = tick_m.group(1)
+            continue
+
+        m = re.search(
+            r'\*\*\[THREAD (ESCALATION|COOLING): ([^\]]+)\]\*\*\s+'
+            r'Readiness\s+(\d+)\s+pushes this thread from `([^`]+)` toward `([^`]+)`\.\s*(.+)',
+            line,
+            re.IGNORECASE,
+        )
+        if not m:
+            continue
+
+        direction, name, readiness, from_phase, toward_phase, why = m.groups()
+        signals[_thread_key(name)] = {
+            "kind": direction.lower(),
+            "name": clean_context(name),
+            "readiness": readiness,
+            "from": canonical_phase(from_phase, from_phase),
+            "toward": canonical_phase(toward_phase, toward_phase),
+            "why": clean_context(why),
+            "ts": current_ts,
+        }
+
+    return signals
 
 
 def _short_local_ts(ts: str) -> str:
@@ -593,13 +1003,32 @@ ANCHOR_TYPE_META = {
     "NOTICE": {"dir": "North",  "color": "#1d4ed8"},
     "SENSE":  {"dir": "South",  "color": "#7c3aed"},
     "WRITE":  {"dir": "West",   "color": "#b45309"},
+    "FIND":   {"dir": "Find",   "color": "#15803d"},
 }
+
+
+def latest_anchor_events() -> dict[str, dict]:
+    events: dict[str, dict] = {}
+    path = LOGS_DIR / "anchor-visits.jsonl"
+    if not path.exists():
+        return events
+    for line in path.read_text(errors="replace").splitlines():
+        try:
+            event = json.loads(line)
+        except Exception:
+            continue
+        name = event.get("anchor")
+        ts = event.get("timestamp", "")
+        if name and ts and ts >= events.get(name, {}).get("timestamp", ""):
+            events[name] = event
+    return events
 
 
 def parse_anchors(name: str = "bj") -> list[dict]:
     text = read(BASE / "players" / f"{name}-anchors.md")
     if not text:
         return []
+    latest_events = latest_anchor_events()
     anchors =[]
     for section in re.split(r'^## ', text, flags=re.MULTILINE)[1:]:
         lines = section.strip().splitlines()
@@ -607,8 +1036,8 @@ def parse_anchors(name: str = "bj") -> list[dict]:
         if not anchor_name or anchor_name.startswith("*"):
             continue
 
-        def field(pat, default=""):
-            m = re.search(pat, section)
+        def field(pat, default="", flags=0):
+            m = re.search(pat, section, flags)
             return m.group(1).strip() if m else default
 
         atype    = field(r'\*\*Type:\*\*\s*(.+)').upper()
@@ -621,6 +1050,9 @@ def parse_anchors(name: str = "bj") -> list[dict]:
         visits   = field(r'\*\*Visit count:\*\*\s*(.+)', "0")
         last_vis = field(r'\*\*Last visited:\*\*\s*(.+)', "*(none yet)*")
         coords   = field(r'\*\*Coordinates:\*\*\s*(.+)')
+        radius   = field(r'\*\*Radius meters:\*\*\s*(\d+)', "200")
+        event    = latest_events.get(anchor_name, {})
+        latest_ts = event.get("timestamp", "")
 
         anchors.append({
             "name":         anchor_name,
@@ -634,13 +1066,17 @@ def parse_anchors(name: str = "bj") -> list[dict]:
             "visits":       visits,
             "last_vis":     last_vis,
             "coords":       coords,
-            "player_words": field(r'\*\*Player\'s words:\*\*\s*(.+)'),
+            "radius":       int(radius) if radius.isdigit() else 200,
+            "latest_ts":    latest_ts,
+            "latest_mode":  event.get("mode", ""),
+            "latest_distance": event.get("distance_m", ""),
+            "player_words": field(r'\*\*Player[’\']s words:\*\*\s*(.+)'),
             "outer_stacks": field(r'\*\*Outer Stacks room:\*\*\s*(.+)'),
             "fae":          field(r'\*\*Fae:\*\*\s*(.+)'),
             "mini_story":   field(r'\*\*Mini-story:\*\*\s*(.+)'),
             "local_rule":   field(r'\*\*Local rule:\*\*\s*(.+)'),
         })
-    return anchors
+    return sorted(anchors, key=lambda a: (a.get("latest_ts") or "", a.get("last_vis") or "", a.get("created") or ""), reverse=True)
 
 
 def parse_forecast(talismans: list) -> dict:
@@ -648,6 +1084,7 @@ def parse_forecast(talismans: list) -> dict:
     state   = read(BASE / "lore" / "academy-state.md")
     nothing = read(NOTHING_F)
     spine   = read(ARC_SPINE_F)
+    whispers_raw = read(LOGS_DIR / "marginalia-whispers.md")
 
     def field(text, pat, default=""):
         m = re.search(pat, text, re.IGNORECASE | re.MULTILINE)
@@ -694,6 +1131,17 @@ def parse_forecast(talismans: list) -> dict:
     if w_m:
         for m in re.finditer(r'^-\s+\*\*([^*]+)\*\*:\s*(.+)', w_m.group(1), re.MULTILINE):
             whispers.append({"title": m.group(1).strip(), "text": m.group(2).strip()})
+    if not whispers and whispers_raw:
+        for heading_m in re.finditer(
+            r'^###\s+(.+?)\s*\n(.*?)(?=^### |\Z)',
+            whispers_raw,
+            re.MULTILINE | re.DOTALL,
+        ):
+            category = re.sub(r'^[^\w]+', '', heading_m.group(1)).strip()
+            for m in re.finditer(r'^-\s+\*\*([^*:]+):\*\*\s*(.+)', heading_m.group(2), re.MULTILINE):
+                title = m.group(1).strip()
+                text = m.group(2).strip()
+                whispers.append({"title": f"{category}: {title}", "text": text})
 
     # ── Academy environment ──
     env_rows =[]
@@ -704,6 +1152,28 @@ def parse_forecast(talismans: list) -> dict:
             loc, st, notes = m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
             if loc.lower() not in ("location", "---"):
                 env_rows.append({"loc": loc, "state": st, "notes": notes})
+    if not env_rows:
+        env_m = re.search(r'(?m)^##\s*(?:📍\s*)?Academy Environment\s*\n(.*?)(?=^## |\Z)', state, re.DOTALL)
+        if env_m:
+            current = None
+            notes = []
+            for raw_line in env_m.group(1).splitlines():
+                line = raw_line.strip()
+                if not line:
+                    continue
+                head_m = re.match(r'^\*\*([^*]+)\*\*\s*(?:[—-]\s*(.+))?$', line)
+                if head_m:
+                    if current:
+                        env_rows.append(current | {"notes": " ".join(notes).strip()})
+                    loc = head_m.group(1).strip()
+                    state_text = (head_m.group(2) or "active").strip()
+                    current = {"loc": loc, "state": state_text}
+                    notes = []
+                    continue
+                if current and line.startswith("-"):
+                    notes.append(line.lstrip("- ").strip())
+            if current:
+                env_rows.append(current | {"notes": " ".join(notes).strip()})
 
     # ── Nothing ──
     nothing_pressure = field(nothing, r'Pressure level:\s*(.+)')
@@ -806,12 +1276,64 @@ def _current_block() -> str:
     return "night"
 
 
+_SCHEDULE_MODULE = None
+
+
+def _schedule_module():
+    """Load the canonical Academy schedule without making Mission Control brittle."""
+    global _SCHEDULE_MODULE
+    if _SCHEDULE_MODULE is not None:
+        return _SCHEDULE_MODULE
+    path = BASE / "scripts" / "schedule.py"
+    try:
+        spec = importlib.util.spec_from_file_location("enchantify_academy_schedule", path)
+        if not spec or not spec.loader:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _SCHEDULE_MODULE = module
+        return module
+    except Exception:
+        return None
+
+
+def _short_professor(name: str) -> str:
+    return re.sub(r"^(?:Prof\.|Professor)\s+", "", name or "").strip()
+
+
+def _mission_slot_from_canonical(entry):
+    if not entry:
+        return None
+    subject, professor, *_ = entry
+    return (subject, _short_professor(professor))
+
+
+def _canonical_weekly_schedule() -> dict:
+    module = _schedule_module()
+    if not module or not hasattr(module, "CLASSES") or not hasattr(module, "WEEKDAY_NAMES"):
+        return ACADEMY_WEEKLY
+
+    weekly = {}
+    for weekday, day_name in enumerate(module.WEEKDAY_NAMES):
+        day = module.CLASSES.get(weekday, {})
+        club = day.get("club")
+        weekly[day_name] = {
+            "morning": _mission_slot_from_canonical(day.get("morning")),
+            "afternoon": _mission_slot_from_canonical(day.get("afternoon")),
+            "club": club[0] if club else None,
+        }
+    return weekly or ACADEMY_WEEKLY
+
+
 def parse_schedule() -> dict:
     text  = read(BASE / "lore" / "academy-state.md")
-    today = ACADEMY_DAYS.get(date.today().weekday(), ACADEMY_DAYS[6])
+    canonical = _schedule_module()
+    live = canonical.get_schedule_data() if canonical and hasattr(canonical, "get_schedule_data") else {}
+    today = ACADEMY_DAYS.get(live.get("weekday", date.today().weekday()), ACADEMY_DAYS[6])
+    weekly = _canonical_weekly_schedule()
 
     # Parse live block from academy-state (updated every 4 hours by simulation)
-    current_block = _current_block()
+    current_block = live.get("block") or _current_block()
     in_session    = ""
     acad_m = re.search(r'(?m)^## Academics\s*\n(.*?)(?=^## |\Z)', text, re.DOTALL)
     if acad_m:
@@ -824,6 +1346,9 @@ def parse_schedule() -> dict:
                     current_block = bk; break
         if ses_m:
             in_session = ses_m.group(1).strip()
+    if not in_session and live.get("class_now"):
+        subject, professor, room = live["class_now"]
+        in_session = f"{subject} — {professor}, {room}"
 
     # Current block meta
     block_meta = next(((bk, name, hrs, desc) for bk, name, hrs, desc in TIME_BLOCKS if bk == current_block), TIME_BLOCKS[-1])
@@ -838,7 +1363,8 @@ def parse_schedule() -> dict:
         "block_hours": block_meta[2],
         "block_desc":  block_meta[3],
         "in_session":  in_session,
-        "today":       ACADEMY_WEEKLY.get(today["name"], {}),
+        "today":       weekly.get(today["name"], {}),
+        "weekly":      weekly,
     }
 
 
@@ -850,8 +1376,188 @@ def _ms_to_local(ms: int) -> str:
         return "—"
 
 
+def _parse_iso_dt(raw: str):
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw)
+    except Exception:
+        return None
+
+
+def _short_local_ts(raw: str) -> str:
+    dt = _parse_iso_dt(raw)
+    return dt.strftime("%m-%d %H:%M") if dt else "—"
+
+
+def _age_label(raw: str) -> str:
+    dt = _parse_iso_dt(raw)
+    if not dt:
+        return "—"
+    seconds = max(0, int((datetime.now() - dt).total_seconds()))
+    if seconds < 90:
+        return f"{seconds}s ago"
+    minutes = seconds // 60
+    if minutes < 90:
+        return f"{minutes}m ago"
+    hours = minutes // 60
+    if hours < 48:
+        return f"{hours}h ago"
+    return f"{hours // 24}d ago"
+
+
+def _cron_interval_minutes(expr: str) -> int:
+    parts = (expr or "").split()
+    if len(parts) < 5:
+        return 0
+    minute, hour = parts[0], parts[1]
+    if minute.startswith("*/"):
+        try:
+            return int(minute[2:])
+        except ValueError:
+            return 0
+    if hour.startswith("*/"):
+        try:
+            return int(hour[2:]) * 60
+        except ValueError:
+            return 0
+    if "," in hour:
+        vals = [v for v in hour.split(",") if v.strip().isdigit()]
+        if len(vals) >= 2:
+            return max(1, round(1440 / len(vals)))
+    if hour == "*":
+        return 60
+    if hour.isdigit():
+        return 1440
+    return 0
+
+
+def _cron_overdue(last_raw: str, expr: str) -> tuple[bool, str]:
+    interval = _cron_interval_minutes(expr)
+    dt = _parse_iso_dt(last_raw)
+    if not interval or not dt:
+        return False, ""
+    age_min = (datetime.now() - dt).total_seconds() / 60
+    threshold = max(interval * 1.6, interval + 20)
+    if age_min > threshold:
+        return True, f"overdue by {int(age_min - interval)}m"
+    return False, f"expected every {interval}m"
+
+
+def parse_steward_health() -> dict[str, dict]:
+    """Summarize logs/steward/cron-runs.jsonl by job."""
+    by_job: dict[str, dict] = {}
+    events = []
+    if STEWARD_LOG.exists():
+        try:
+            lines = STEWARD_LOG.read_text(errors="replace").splitlines()[-800:]
+            for line in lines:
+                try:
+                    ev = json.loads(line)
+                except Exception:
+                    continue
+                if ev.get("job"):
+                    events.append(ev)
+        except Exception:
+            pass
+
+    for ev in events:
+        job = ev.get("job", "")
+        bucket = by_job.setdefault(job, {
+            "job": job,
+            "last_event": "",
+            "last_at": "",
+            "last_start": "",
+            "last_finish": "",
+            "last_delivery": "",
+            "last_skip": "",
+            "last_skip_reason": "",
+            "last_failure": "",
+            "last_error": "",
+            "last_duration": "",
+            "delivered_count": 0,
+            "skipped_count": 0,
+            "failed_count": 0,
+            "duplicate_skips": 0,
+        })
+        event = ev.get("event", "")
+        at = ev.get("at", "")
+        bucket["last_event"] = event
+        bucket["last_at"] = at
+        if event == "start":
+            bucket["last_start"] = at
+        elif event == "finished":
+            bucket["last_finish"] = at
+            if ev.get("duration_s") is not None:
+                bucket["last_duration"] = f'{ev.get("duration_s")}s'
+        elif event == "delivered":
+            bucket["last_delivery"] = at
+            bucket["delivered_count"] += 1
+        elif event == "skipped":
+            reason = ev.get("reason", "")
+            bucket["last_skip"] = at
+            bucket["last_skip_reason"] = reason
+            bucket["skipped_count"] += 1
+            if "duplicate" in reason.lower():
+                bucket["duplicate_skips"] += 1
+        elif event == "failed":
+            bucket["last_failure"] = at
+            bucket["last_error"] = ev.get("error", "")
+            bucket["failed_count"] += 1
+
+    return by_job
+
+
+def _steward_for_job(label: str, line: str, steward: dict[str, dict]) -> dict:
+    if label == "World Simulation":
+        return steward.get("world-pulse", {})
+    script_to_job = {
+        "bleed.py": "bleed",
+        "world-pulse.py": "world-pulse",
+        "send_academy_dispatch.py": "academy-dispatch",
+        "reach-out.py": "reach-out",
+        "npc-research.py": "npc-research",
+        "dream.py": "dream",
+        "sparky.py": "sparky",
+        "wallpaper.py": "wallpaper",
+    }
+    for script, job in script_to_job.items():
+        if script in line and job in steward:
+            return steward[job]
+    label_key = label.lower().replace(" ", "-")
+    return steward.get(label_key, {})
+
+
+def _expected_system_cron_lines() -> list[str]:
+    base = str(BASE)
+    py = "/usr/bin/python3"
+    log = str(LOGS_DIR)
+    return [
+        f"*/15 * * * * cd {base} && {py} scripts/pulse.py >> {log}/pulse.log 2>&1",
+        f"0 */3 * * * cd {base} && {py} scripts/schedule.py --update-state >> {log}/schedule.log 2>&1",
+        f"30 */3 * * * cd {base} && {py} scripts/arc-tick.py && {py} scripts/tick.py && {py} scripts/world-pulse.py && {py} scripts/send_academy_dispatch.py >> {log}/pulse.log 2>&1",
+        f"3 2 * * * cd {base} && {py} scripts/dream.py >> {log}/dream.log 2>&1",
+        f"5 8 * * * {py} {base}/scripts/sparky.py >> {log}/sparky.log 2>&1",
+        f"0 7 * * * {py} {base}/scripts/wallpaper.py --generate bj >> {log}/wallpaper.log 2>&1",
+        f"10 10,20 * * * cd {base} && {py} scripts/reach-out.py >> {log}/reach-out.log 2>&1",
+        f"0 18 * * * cd {base} && {py} scripts/bleed.py >> {log}/bleed.log 2>&1",
+        f"0 23 * * * {py} {base}/scripts/labyrinth-intelligence.py bj >> {log}/intelligence.log 2>&1",
+    ]
+
+
+def _system_cron_lines() -> tuple[list[str], bool]:
+    try:
+        ct = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=5)
+        if ct.returncode == 0 and ct.stdout.strip():
+            return ct.stdout.splitlines(), True
+    except Exception:
+        pass
+    return _expected_system_cron_lines(), False
+
+
 def parse_cron_jobs() -> list[dict]:
     jobs =[]
+    steward = parse_steward_health()
     try:
         result = subprocess.run([_OPENCLAW, "cron", "list", "--json"],
             capture_output=True, text=True, timeout=10
@@ -877,16 +1583,23 @@ def parse_cron_jobs() -> list[dict]:
 
             dur_s = f"{dur_ms // 1000}s" if dur_ms else ""
 
+            label = j.get("name", "?")[:45]
+            st = _steward_for_job(label, "", steward)
             jobs.append({
                 "name":     j.get("name", "?")[:45],
                 "status":   status,
                 "errors":   errors,
-                "last":     _ms_to_local(last_ms) if last_ms else "—",
+                "last":     _short_local_ts(st.get("last_at", "")) if st else (_ms_to_local(last_ms) if last_ms else "—"),
+                "last_raw": st.get("last_at", "") if st else "",
                 "next":     _ms_to_local(next_ms) if next_ms else "—",
-                "duration": dur_s,
-                "delivery": delivery,
+                "duration": st.get("last_duration") or dur_s,
+                "delivery": "delivered" if st.get("last_delivery") else delivery,
                 "expr":     expr,
                 "tz":       tz,
+                "steward":  st,
+                "source":   "openclaw",
+                "command":  "",
+                "log":      "",
             })
     except Exception:
         pass
@@ -894,7 +1607,7 @@ def parse_cron_jobs() -> list[dict]:
     # ── Supplement with system crontab entries for enchantify scripts ─────────
     openclaw_names = {j["name"] for j in jobs}
     _SCRIPT_LABELS = {
-        "pulse.py":               "World Pulse",
+        "pulse.py":               "Heartbeat Pulse",
         "reach-out.py":           "Character Outreach",
         "bleed.py":               "The Bleed",
         "sparky.py":              "Sparky Shinies",
@@ -906,19 +1619,25 @@ def parse_cron_jobs() -> list[dict]:
         "mission-control.py":     "Mission Control",
     }
     try:
-        ct = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=5)
-        for line in ct.stdout.splitlines():
+        cron_lines, from_system = _system_cron_lines()
+        for line in cron_lines:
             line = line.strip()
             if not line or line.startswith("#") or line.startswith("PATH"):
                 continue
             # match any of our scripts
             matched_label = None
-            for script, label in _SCRIPT_LABELS.items():
+            matched_script = ""
+            script_items = sorted(_SCRIPT_LABELS.items(), key=lambda item: len(item[0]), reverse=True)
+            for script, label in script_items:
                 if script in line:
                     matched_label = label
+                    matched_script = script
                     break
             if not matched_label:
                 continue
+            if "world-pulse.py" in line:
+                matched_label = "World Simulation"
+                matched_script = "world-pulse.py"
             if any(matched_label in name for name in openclaw_names):
                 continue  # already in openclaw list
             # parse cron expression (first 5 fields)
@@ -926,6 +1645,8 @@ def parse_cron_jobs() -> list[dict]:
             expr = " ".join(parts[:5]) if len(parts) >= 5 else ""
             # check last log file for recency
             log_hint = ""
+            log_raw = ""
+            log_name = ""
             log_map = {
                 "reach-out.py":    "reach-out.log",
                 "bleed.py":        "bleed.log",
@@ -940,27 +1661,58 @@ def parse_cron_jobs() -> list[dict]:
             }
             for script, logfile in log_map.items():
                 if script in line and logfile:
-                    lp = LOGS_DIR / logfile
+                    log_name = logfile
+                    lp = HEARTBEAT_F if script == "pulse.py" else LOGS_DIR / logfile
                     if lp.exists():
                         mtime = lp.stat().st_mtime
                         from datetime import timezone
-                        log_hint = datetime.fromtimestamp(mtime).strftime("%m-%d %H:%M")
+                        log_dt = datetime.fromtimestamp(mtime)
+                        log_hint = log_dt.strftime("%m-%d %H:%M")
+                        log_raw = log_dt.isoformat(timespec="seconds")
                     break
+            st = _steward_for_job(matched_label, line, steward)
+            steward_last = st.get("last_at", "") if st else ""
+            overdue, cadence = _cron_overdue(steward_last or log_raw, expr)
+            status = "overdue" if overdue else ("system" if not st else st.get("last_event", "system"))
             jobs.append({
                 "name":     matched_label,
-                "status":   "system",
-                "errors":   0,
-                "last":     log_hint or "—",
+                "status":   status,
+                "errors":   st.get("failed_count", 0) if st else 0,
+                "last":     _short_local_ts(steward_last) if steward_last else (log_hint or "—"),
+                "last_raw": steward_last or log_raw,
                 "next":     "—",
-                "duration": "",
-                "delivery": "",
+                "duration": st.get("last_duration", "") if st else "",
+                "delivery": "delivered" if st and st.get("last_delivery") else "",
                 "expr":     expr,
                 "tz":       "",
+                "steward":  st,
+                "source":   "crontab",
+                "cron_source": "system" if from_system else "expected",
+                "command":  line,
+                "log":      log_name,
+                "cadence":  cadence,
+                "script":   matched_script,
             })
     except Exception:
         pass
 
     return jobs
+
+
+def parse_narrative_health(player_name: str = "bj") -> dict:
+    try:
+        result = subprocess.run(
+            [sys.executable, str(BASE / "scripts" / "narrative-steward.py"), player_name, "--refresh", "--json"],
+            cwd=BASE,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if result.returncode != 0:
+            return {"status": "ERROR", "score": 0, "findings": [], "error": result.stderr or result.stdout}
+        return json.loads(result.stdout)
+    except Exception as exc:
+        return {"status": "ERROR", "score": 0, "findings": [], "error": str(exc)}
 
 
 # ── HTML generation ───────────────────────────────────────────────────────────
@@ -1046,12 +1798,21 @@ def render_arc_banner(arc: dict) -> str:
 
     compass = arc.get("compass", "")
     compass_html = f'<span class="arc-compass">⊕ {h(compass)}</span>' if compass and compass != "?" else ""
+    genre_html = f' · {h(arc.get("genre",""))}' if arc.get("genre") else ""
+    current_status = arc.get("register_status") or arc.get("nothing") or arc.get("crisis") or ""
+    seed_items = arc.get("seed_items", [])[:2]
+    if seed_items:
+        seeds_html = "".join(f'<div class="arc-res-row"><span class="arc-res-label">Seed</span> {h(seed[:145])}</div>' for seed in seed_items)
+    else:
+        seeds_html = res_html
 
     res_full = "\n".join(f'{r["label"]}: {r["text"]}' for r in arc.get("resolution",[]))
     md = modal_attr(arc.get("name", "Arc"),[
         ("Phase",       f'{phase} · Day {arc.get("day","?")} · started {arc.get("started","")}'),
+        ("Genre",       arc.get("genre", "")),
         ("Belief",      str(arc.get("belief", 0))),
         ("Compass",     arc.get("compass", "")),
+        ("Register status", arc.get("register_status", "")),
         ("Premise",     arc.get("premise", "")),
         ("Pressure",    arc.get("pressure", "")),
         ("Crisis point",arc.get("crisis", "")),
@@ -1065,7 +1826,7 @@ def render_arc_banner(arc: dict) -> str:
     return f'''<div class="arc-banner clickable" style="border-color:{phase_color}44" onclick="openModal(this)" data-modal={md}>
       <div class="arc-header">
         <div>
-          <div class="arc-eyebrow">Current Arc · Day {h(arc.get("day","?"))} · {h(arc.get("started",""))}</div>
+          <div class="arc-eyebrow">Current Arc{genre_html} · Day {h(arc.get("day","?"))} · {h(arc.get("started",""))}</div>
           <div class="arc-name" style="color:{phase_color}">{h(arc.get("name","?"))}</div>
         </div>
         <div class="arc-right">
@@ -1081,16 +1842,16 @@ def render_arc_banner(arc: dict) -> str:
       </div>
       <div class="arc-body">
         <div class="arc-col">
-          <div class="arc-section-label">Pressure</div>
-          <div class="arc-text">{h(arc.get("pressure","")[:180])}</div>
+          <div class="arc-section-label">Premise</div>
+          <div class="arc-text">{h(arc.get("premise","")[:230])}</div>
         </div>
         <div class="arc-col">
-          <div class="arc-section-label">Crisis Point</div>
-          <div class="arc-text">{h(arc.get("crisis","")[:180])}</div>
+          <div class="arc-section-label">Current Pressure</div>
+          <div class="arc-text">{h((arc.get("pressure") or current_status)[:230])}</div>
         </div>
         <div class="arc-col">
-          <div class="arc-section-label">Resolution Paths</div>
-          {res_html if res_html else "<div class='arc-text muted'>—</div>"}
+          <div class="arc-section-label">Next Seeds</div>
+          {seeds_html if seeds_html else "<div class='arc-text muted'>—</div>"}
         </div>
       </div>
     </div>'''
@@ -1102,11 +1863,17 @@ def render_thread_card(t: dict) -> str:
     anchor = f'<div class="card-anchor">{h(t["npc_anchor"])}</div>' if t["npc_anchor"] else ""
     live   = t.get("live", {}) or {}
     latest_event = live.get("latest_event") or {}
+    phase_signal = t.get("phase_signal", {}) or {}
 
     live_text = live.get("latest_narrative", "")
+    live_text_specific = live_text and not is_low_info_live_text(live_text)
     status_text = t["status"] or ""
+    status_specific = status_text and not is_low_info_live_text(status_text)
     next_text = t["next_beat"] or ""
     has_live = bool(live_text)
+    live_concrete = ""
+    if has_live and not live_text_specific and latest_event:
+        live_concrete = concrete_event_body(latest_event, t["name"], status_text)
 
     live_stamp = _short_local_ts(live.get("last_ts", ""))
     last = live_stamp or h(t["last_advanced"]) if t["last_advanced"] else (live_stamp or "never")
@@ -1132,13 +1899,21 @@ def render_thread_card(t: dict) -> str:
 
     consequence_summary = "\n".join(live.get("consequence_summary", [])[:3])
     influence_summary = ", ".join(live.get("influence_snapshot", [])[:5])
+    phase_signal_text = ""
+    if phase_signal:
+        phase_signal_text = (
+            f'{phase_signal.get("from", "").title()} → {phase_signal.get("toward", "").title()} '
+            f'(readiness {phase_signal.get("readiness", "?")})'
+        )
 
     md = modal_attr(t["name"],[
         ("Phase",            f'{t["phase"].title()} · Belief {t["belief"]}'),
-        ("Live now",         live.get("latest_narrative", "")),
+        ("Phase signal",     phase_signal_text),
+        ("Signal reason",    phase_signal.get("why", "")),
+        ("Live now",         live_text if live_text_specific else live_concrete),
         ("Latest movement",  live_summary),
-        ("Live reason",      live.get("latest_reason", "")),
-        ("Current status",   t["status"]),
+        ("Live reason",      "" if is_low_info_effect(live.get("latest_reason", "")) else live.get("latest_reason", "")),
+        ("Current status",   status_text if status_specific else ""),
         ("Next beat",        t["next_beat"]),
         ("Pressure",         t["pressure"]),
         ("Nothing pressure", t["nothing"]),
@@ -1147,6 +1922,7 @@ def render_thread_card(t: dict) -> str:
         ("NPC anchor",       t["npc_anchor"]),
         ("Born",             t["born"]),
         ("Last advanced",    t["last_advanced"]),
+        ("Last phase signal", _short_local_ts(phase_signal.get("ts", ""))),
         ("Last live event",  live_stamp),
         ("Latest raw event", latest_event.get("raw", "")),
     ])
@@ -1175,14 +1951,27 @@ def render_thread_card(t: dict) -> str:
             live_line += f' <span class="muted" style="font-size:.72rem">{h(live_stamp)}</span>'
         live_line += '</div>'
         beat_parts.append(live_line)
-        if live_text:
+        if live_text_specific:
             beat_parts.append(f'<div style="margin-bottom:.22rem">{h(live_text[:180])}</div>')
+        elif live_concrete:
+            beat_parts.append(f'<div style="margin-bottom:.22rem">{h(live_concrete[:220])}</div>')
 
-    planned_text = status_text or next_text
-    if planned_text:
-        planned_label = 'Planned' if has_live else 'Current'
+    if phase_signal:
+        signal_line = (
+            f'{phase_signal.get("from", "").title()} → {phase_signal.get("toward", "").title()}'
+            f' · readiness {phase_signal.get("readiness", "?")}'
+        )
+        beat_parts.append(
+            f'<div style="color:var(--seed);font-size:.8rem"><span class="muted">Phase pressure:</span> {h(signal_line)}</div>'
+        )
+
+    if status_specific:
+        planned_label = 'Register' if has_live else 'Current'
         planned_style = 'color:var(--muted);font-size:.82rem' if has_live else ''
-        beat_parts.append(f'<div style="{planned_style}"><span class="muted">{planned_label}:</span> {h(planned_text[:180])}</div>')
+        beat_parts.append(f'<div style="{planned_style}"><span class="muted">{planned_label}:</span> {h(status_text[:185])}</div>')
+    if next_text and next_text != status_text:
+        next_style = 'color:var(--muted);font-size:.8rem' if beat_parts else ''
+        beat_parts.append(f'<div style="{next_style}"><span class="muted">Next:</span> {h(next_text[:185])}</div>')
 
     beat_html = ''.join(beat_parts) if beat_parts else '—'
 
@@ -1255,6 +2044,7 @@ def render_simulation_entry(entry: dict) -> str:
     kind = entry.get("kind", "action")
     priority = (entry.get("priority") or "NORMAL").upper()
     css = "entry-priority" if priority == "HIGH" else "entry-pulse"
+    story = simulation_story(entry)
 
     ts = entry.get("timestamp", "")
     when = ""
@@ -1265,30 +2055,95 @@ def render_simulation_entry(entry: dict) -> str:
     header_bits = [b for b in [when, trigger, time_tag] if b]
     header = " · ".join(header_bits)
 
+    detail = story.get("detail", "")
+    detail_html = f'<div class="sim-detail muted">{h(detail)}</div>' if detail else ""
+    pressure = story.get("pressure", "")
+    pressure_html = f'<div class="sim-meta muted">pressure: {h(pressure)}</div>' if pressure else ""
+    reason = story.get("reason", "")
+    reason_html = ""
+    if reason and reason != story.get("body") and not is_low_info_effect(reason):
+        reason_html = f'<div class="sim-reason"><span class="muted">why</span> {h(reason)}</div>'
+
     if kind == "action":
-        title = f"{entry.get('actor', 'Someone')} [{entry.get('action', '?')}/{entry.get('intensity', '?')}]"
-        if entry.get("target"):
-            title += f" → {entry.get('target')}"
-        if entry.get("thread_name"):
-            title += f" on {entry.get('thread_name')}"
-        narrative = entry.get("narrative", "")
-        reason = entry.get("reason", "")
-        pressure = ", ".join(entry.get("influence_snapshot") or [])
-        extra = []
-        if reason:
-            extra.append(f"<div class=\"sim-reason\"><span class=\"muted\">why</span> {h(reason)}</div>")
-        if pressure:
-            extra.append(f"<div class=\"sim-meta muted\">pressure: {h(pressure)}</div>")
-        body = f"<div class=\"sim-title\">{h(title)}</div><div class=\"sim-narrative\">{h(narrative)}</div>{''.join(extra)}"
+        raw_bits = []
+        if entry.get("actor_kind"):
+            raw_bits.append(entry.get("actor_kind", ""))
+        if entry.get("action"):
+            raw_bits.append(entry.get("action", "").replace("_", " "))
+        raw_html = f'<div class="sim-raw muted">{h(" · ".join(raw_bits))}</div>' if raw_bits else ""
+        body = (
+            f'<div class="sim-title">{h(story.get("title", ""))}</div>'
+            f'{detail_html}'
+            f'<div class="sim-narrative">{h(story.get("body", ""))}</div>'
+            f'{reason_html}{pressure_html}{raw_html}'
+        )
     elif kind == "consequence":
-        title = f"{entry.get('name', 'Something')} shifted {entry.get('before', '?')} → {entry.get('after', '?')}"
-        body = f"<div class=\"sim-title\">{h(title)}</div><div class=\"sim-narrative\">{h(entry.get('reason', ''))}</div>"
+        body = (
+            f'<div class="sim-title">{h(story.get("title", ""))}</div>'
+            f'{detail_html}'
+            f'<div class="sim-narrative">{h(story.get("body", ""))}</div>'
+        )
     else:
-        title = entry.get("raw", kind)
-        body = f"<div class=\"sim-title\">{h(title)}</div><div class=\"sim-narrative\">{h(entry.get('narrative', ''))}</div>"
+        title = story.get("title") or entry.get("raw", kind)
+        body_text = story.get("body") or entry.get("narrative", "")
+        pressure_html_else = pressure_html if pressure else ""
+        body = f"<div class=\"sim-title\">{h(title)}</div>{detail_html}<div class=\"sim-narrative\">{h(body_text)}</div>{pressure_html_else}"
 
     header_html = f'<div class="sim-header muted">{h(header)}</div>' if header else ""
     return f'<div class="entry {css} sim-entry">{header_html}{body}</div>'
+
+
+def render_pact_action(entry: dict) -> str:
+    event = entry.get("event", "")
+    chapter = entry.get("chapter", "Unknown")
+    app = entry.get("app", "")
+    tier = entry.get("tier", "")
+    action_type = entry.get("action_type", "")
+    dry = "dry-run" if entry.get("dry_run") else "live"
+    when = (entry.get("timestamp") or "").replace("T", " ")[:16]
+    title_bits = [chapter]
+    if app:
+        title_bits.append(f"→ {app}")
+    if tier:
+        title_bits.append(f"({tier})")
+    title = " ".join(title_bits)
+
+    css = {
+        "failed": "entry-priority",
+        "skipped": "entry-war",
+        "consent_required": "entry-war",
+        "executed": "entry-pulse",
+        "planned": "entry-seed",
+        "spec_generated": "entry-seed",
+        "spec_fallback": "entry-war",
+    }.get(event, "entry-normal")
+
+    detail_bits = [x for x in [when, event.replace("_", " "), action_type.replace("_", " "), dry] if x]
+    result = entry.get("result") or entry.get("proposal") or entry.get("reason") or entry.get("error") or ""
+    driver = entry.get("driver", "")
+    extra = []
+    if driver:
+        extra.append(f"driver: {driver}")
+    if entry.get("war_subtype"):
+        extra.append(f"war: {entry.get('war_subtype')}")
+    if entry.get("consent_id"):
+        extra.append(f"consent: {entry.get('consent_id')}")
+    if entry.get("telegram_sent") is not None:
+        extra.append(f"telegram: {'sent' if entry.get('telegram_sent') else 'not sent'}")
+    if entry.get("before") is not None and entry.get("after") is not None:
+        extra.append(f"{entry.get('before')} -> {entry.get('after')}")
+    if entry.get("silent"):
+        extra.append("silent")
+    extra_html = f'<div class="sim-meta muted">{h("; ".join(extra))}</div>' if extra else ""
+
+    return (
+        f'<div class="entry {css} sim-entry">'
+        f'<div class="sim-header muted">{h(" · ".join(detail_bits))}</div>'
+        f'<div class="sim-title">{h(title)}</div>'
+        f'<div class="sim-narrative">{h(result)}</div>'
+        f'{extra_html}'
+        f'</div>'
+    )
 
 
 def render_anchor_card(a: dict) -> str:
@@ -1302,10 +2157,13 @@ def render_anchor_card(a: dict) -> str:
     md = modal_attr(a["name"],[
         ("Type",               f'{a["type"]} · {direction}'),
         ("Belief invested",    str(a["belief"])),
+        ("Trigger radius",      f'{a["radius"]} meters'),
         ("Created",            a["created"]),
         ("Season / Weather",   f'{a["season"]} · {a["weather"]}'),
         ("Moon",               a["moon"]),
         ("Coordinates",        a["coords"]),
+        ("Latest activity",     f'{a["latest_mode"]} · {a["latest_ts"]}' if a.get("latest_ts") else ""),
+        ("Latest distance",     f'{a["latest_distance"]}m' if a.get("latest_distance") != "" else ""),
         ("Player's words",     a["player_words"]),
         ("Academy echo",       a["echo"]),
         ("Outer Stacks room",  a["outer_stacks"]),
@@ -1323,6 +2181,7 @@ def render_anchor_card(a: dict) -> str:
       <div class="anchor-echo">{echo}</div>
       <div class="anchor-meta">
         <span class="anchor-stat">belief {a["belief"]}</span>
+        <span class="anchor-stat muted">radius {a["radius"]}m</span>
         <span class="anchor-stat muted">{h(a["season"])} · {h(a["moon"].split("(")[0].strip())}</span>
         <span class="anchor-stat muted">{visits}{last}</span>
       </div>
@@ -1562,7 +2421,7 @@ def render_schedule_tab(sched: dict) -> str:
     week_cols = ""
     for dname in day_order:
         day_data  = next((v for k, v in ACADEMY_DAYS.items() if v["name"] == dname), {})
-        slots     = ACADEMY_WEEKLY.get(dname, {})
+        slots     = sched.get("weekly", {}).get(dname, ACADEMY_WEEKLY.get(dname, {}))
         is_today  = dname == sched["day_name"]
         col_style = "border-color:#7c3aed44;background:#7c3aed08" if is_today else ""
 
@@ -1636,11 +2495,20 @@ def render_cron_row(job: dict) -> str:
     errors = job["errors"]
     if errors > 0:
         dot_color, dot_title = "var(--climax)",  f"{errors} consecutive error(s)"
+    elif status == "overdue":
+        dot_color, dot_title = "var(--rising)",  job.get("cadence") or "overdue"
+    elif status == "skipped":
+        dot_color, dot_title = "var(--muted)",   "last run skipped"
+    elif status == "failed":
+        dot_color, dot_title = "var(--climax)",  "last run failed"
+    elif status == "delivered":
+        dot_color, dot_title = "var(--seed)",    "delivered"
     elif status in ("ok", "success", "system"):
         dot_color, dot_title = "var(--seed)",    "last run ok" if status != "system" else "system ok"
     else:
         dot_color, dot_title = "var(--muted)",   status or "unknown"
 
+    st = job.get("steward", {}) or {}
     dur        = f'<span class="cron-dur muted"> {h(job["duration"])}</span>' if job["duration"] else ""
     expr       = f'<span class="cron-expr">{h(job["expr"])}</span>' if job["expr"] else ""
     delivered  = job.get("delivery", "")
@@ -1649,25 +2517,127 @@ def render_cron_row(job: dict) -> str:
         deliv_html = '<span class="cron-deliv ok">✓ sent</span>'
     elif delivered and delivered != "not-delivered":
         deliv_html = f'<span class="cron-deliv muted">{h(delivered)}</span>'
+    skip_html = ""
+    if st.get("last_skip_reason"):
+        skip_html = f'<span class="cron-deliv muted">skip: {h(st["last_skip_reason"][:36])}</span>'
+    fail_html = ""
+    if st.get("last_error"):
+        fail_html = f'<span class="cron-deliv fail">err: {h(st["last_error"][:36])}</span>'
+    age = _age_label(job.get("last_raw", ""))
+    age_html = f'<span class="cron-age">{h(age)}</span>' if age != "—" else ""
 
     tz_str     = f' ({job["tz"]})' if job.get("tz") else ""
     md = modal_attr(job["name"], [
         ("Schedule",   f'{job["expr"]}{tz_str}'),
         ("Status",     f'{job["status"]} · {errors} consecutive errors' if errors else job["status"]),
         ("Last run",   f'{job["last"]} ({job["duration"]})' if job["duration"] else job["last"]),
+        ("Age",        age),
         ("Next run",   job["next"]),
         ("Delivery",   delivered),
+        ("Last delivered", _short_local_ts(st.get("last_delivery", ""))),
+        ("Last skipped", f'{_short_local_ts(st.get("last_skip", ""))} · {st.get("last_skip_reason", "")}' if st.get("last_skip") else ""),
+        ("Last failure", f'{_short_local_ts(st.get("last_failure", ""))} · {st.get("last_error", "")}' if st.get("last_failure") else ""),
+        ("Delivered count", st.get("delivered_count", "")),
+        ("Skipped count", st.get("skipped_count", "")),
+        ("Duplicate skips", st.get("duplicate_skips", "")),
+        ("Cadence", job.get("cadence", "")),
+        ("Log", job.get("log", "")),
+        ("Command", job.get("command", "")),
     ])
 
     return f'''<tr class="clickable" onclick="openModal(this)" data-modal={md}>
       <td><span class="cron-dot" style="background:{dot_color}" title="{h(dot_title)}"></span></td>
       <td>
         <div class="cron-name">{h(job["name"])}{dur}</div>
-        <div class="cron-schedule">{expr} {deliv_html}</div>
+        <div class="cron-schedule">{expr} {deliv_html} {skip_html} {fail_html}</div>
       </td>
-      <td class="muted cron-time">{h(job["last"])}</td>
+      <td class="muted cron-time">{h(job["last"])} {age_html}</td>
       <td class="muted cron-time">{h(job["next"])}</td>
     </tr>'''
+
+
+def render_automation_health(crons: list[dict]) -> str:
+    stewarded = [j for j in crons if j.get("steward")]
+    delivered = sum(1 for j in stewarded if j.get("steward", {}).get("last_delivery"))
+    skipped = sum(1 for j in stewarded if j.get("steward", {}).get("last_skip"))
+    failed = sum(1 for j in stewarded if j.get("steward", {}).get("last_failure"))
+    overdue = sum(1 for j in crons if j.get("status") == "overdue")
+    newest = ""
+    for j in stewarded:
+        raw = j.get("steward", {}).get("last_at", "")
+        if raw and (not newest or raw > newest):
+            newest = raw
+    cards = [
+        ("Last steward mark", _age_label(newest), "ok" if newest else ""),
+        ("Delivered paths", str(delivered), "ok" if delivered else ""),
+        ("Recent skips", str(skipped), ""),
+        ("Failures", str(failed), "bad" if failed else "ok"),
+        ("Overdue", str(overdue), "warn" if overdue else "ok"),
+    ]
+    return '<div class="auto-health">' + "".join(
+        f'<div class="auto-card {cls}"><div class="auto-label">{h(label)}</div><div class="auto-value">{h(value)}</div></div>'
+        for label, value, cls in cards
+    ) + '</div>'
+
+
+def render_narrative_health(report: dict) -> str:
+    if not report:
+        return '<div class="muted">No narrative health report.</div>'
+    status = report.get("status") or report.get("health_status", "?")
+    score = report.get("score") or report.get("health_score", "?")
+    status_class = {
+        "OK": "ok",
+        "WATCH": "",
+        "WARN": "warn",
+        "ALERT": "bad",
+        "ERROR": "bad",
+    }.get(status, "")
+    findings = report.get("findings", [])
+    obligations = [item for item in report.get("obligations", []) if item.get("status", "open") == "open"]
+    cards = [
+        ("Status", status, status_class),
+        ("Score", f"{score}/100", status_class),
+        ("Open duties", str(len(obligations)), "bad" if obligations else "ok"),
+        ("Alerts", str(sum(1 for f in findings if f.get("level") == "ALERT") or sum(1 for f in obligations if f.get("severity") == "ALERT")), "bad" if any(f.get("level") == "ALERT" for f in findings) or any(f.get("severity") == "ALERT" for f in obligations) else "ok"),
+    ]
+    card_html = '<div class="auto-health">' + "".join(
+        f'<div class="auto-card {cls}"><div class="auto-label">{h(label)}</div><div class="auto-value">{h(value)}</div></div>'
+        for label, value, cls in cards
+    ) + '</div>'
+
+    modal_fields = [
+        ("Status", f"{status} ({score}/100)"),
+        ("Arc", f'{report.get("arc", {}).get("title", "")} · {report.get("arc", {}).get("phase", "")} day {report.get("arc", {}).get("day", "")}'),
+    ]
+    for item in obligations:
+        modal_fields.append((f'{item.get("severity", "")} · {item.get("kind", "")}', item.get("title", "")))
+        modal_fields.append(("Hook", item.get("scene_hook", "")))
+        modal_fields.append(("Satisfy", item.get("satisfy_by", "")))
+    for finding in findings:
+        modal_fields.append((f'{finding.get("level", "")} · {finding.get("area", "")}', finding.get("summary", "")))
+        if finding.get("detail"):
+            modal_fields.append(("Detail", finding.get("detail", "")))
+    for action in report.get("next_actions", []):
+        modal_fields.append(("Next", action))
+    md = modal_attr("Narrative Stewardship", modal_fields)
+
+    rows = []
+    if obligations:
+        for item in obligations[:5]:
+            level = item.get("severity", "")
+            cls = {"ALERT": "entry-priority", "WARN": "entry-war", "WATCH": "entry-seed", "OK": "entry-normal"}.get(level, "entry-normal")
+            rows.append(
+                f'<div class="entry {cls}"><strong>{h(level)} · {h(item.get("kind", ""))}</strong> {h(item.get("title", ""))}</div>'
+            )
+    for finding in findings[: max(0, 5 - len(rows))]:
+        level = finding.get("level", "")
+        cls = {"ALERT": "entry-priority", "WARN": "entry-war", "WATCH": "entry-seed", "OK": "entry-normal"}.get(level, "entry-normal")
+        rows.append(
+            f'<div class="entry {cls}"><strong>{h(level)} · {h(finding.get("area", ""))}</strong> {h(finding.get("summary", ""))}</div>'
+        )
+    if not rows:
+        rows.append('<div class="muted">No findings.</div>')
+    return f'<div class="clickable" onclick="openModal(this)" data-modal={md}>{card_html}<div class="tick-feed" style="margin-top:.65rem">{"".join(rows)}</div></div>'
 
 
 def _gallery_title(raw_title: str, scene_id: str, stem_fallback: str) -> str:
@@ -1817,7 +2787,7 @@ def render_scene_gallery(entries: list[dict]) -> str:
 
 # ── Full page ─────────────────────────────────────────────────────────────────
 
-def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, anchors=None, sched=None, forecast=None, sim_feed=None, gallery_entries=None) -> str:
+def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, anchors=None, sched=None, forecast=None, sim_feed=None, pact_actions=None, gallery_entries=None, narrative_health=None) -> str:
     generated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # Arc banner
@@ -1837,6 +2807,8 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
     queue_html = "".join(render_queue_entry(e) for e in queue) or '<div class="muted">Queue is clear.</div>'
     sim_feed = sim_feed or []
     sim_html = "".join(render_simulation_entry(e) for e in sim_feed) or '<div class="muted">No simulation ledger yet.</div>'
+    pact_actions = pact_actions or []
+    pact_html = "".join(render_pact_action(e) for e in pact_actions) or '<div class="muted">No pact app actions logged yet.</div>'
 
     # Anchor places
     anchors = anchors or[]
@@ -1883,6 +2855,8 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
     bleed_issue = f"#{bleed['issue_number']}" if bleed["issue_number"] else ""
 
     # Cron table
+    automation_health_html = render_automation_health(crons)
+    narrative_health_html = render_narrative_health(narrative_health or {})
     cron_html = ""
     for j in crons:
         cron_html += render_cron_row(j)
@@ -2115,7 +3089,16 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .cron-schedule {{ font-family: monospace; font-size: .63rem; color: var(--muted); margin-top: .1rem; display: flex; gap: .5rem; align-items: center; }}
   .cron-expr {{ color: #6b7280; }}
   .cron-deliv.ok {{ color: var(--seed); }}
+  .cron-deliv.fail {{ color: var(--climax); }}
+  .cron-age {{ display:block; font-size:.58rem; color:#6b7280; margin-top:.08rem; }}
   .cron-time {{ font-family: monospace; font-size: .65rem; white-space: nowrap; padding-top: .35rem; }}
+  .auto-health {{ display:grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap:.35rem; margin:.7rem 0 .65rem; }}
+  .auto-card {{ background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:.45rem .5rem; min-width:0; }}
+  .auto-card.ok {{ border-color:#15803d55; }}
+  .auto-card.warn {{ border-color:#92681a66; }}
+  .auto-card.bad {{ border-color:#c2410c66; }}
+  .auto-label {{ color:var(--muted); font-size:.6rem; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+  .auto-value {{ color:var(--text); font-family:monospace; font-size:.78rem; margin-top:.15rem; }}
 
   /* ── Image gallery ── */
   .gallery-shell {{ display:flex; flex-direction:column; gap:.75rem; }}
@@ -2383,6 +3366,7 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
         <button class="tab" onclick="switchTab(this,'forecast')">Forecast</button>
         <button class="tab" onclick="switchTab(this,'entities')">Entities</button>
         <button class="tab" onclick="switchTab(this,'talismans')">Talisman War</button>
+        <button class="tab" onclick="switchTab(this,'pact-actions')">App Actions</button>
         <button class="tab" onclick="switchTab(this,'anchors')">Anchors <span style="color:var(--muted);font-size:.6rem">({len(anchors)})</span></button>
         <button class="tab" onclick="switchTab(this,'images')">Images <span style="color:var(--muted);font-size:.6rem">({len(gallery_entries)})</span></button>
         <button class="tab" onclick="switchTab(this,'inventory')">Inventory</button>
@@ -2401,6 +3385,9 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
       </div>
       <div id="talismans" class="tab-content">
         {tal_bars}
+      </div>
+      <div id="pact-actions" class="tab-content">
+        <div class="tick-feed">{pact_html}</div>
       </div>
       <div id="anchors" class="tab-content">
         <div class="anchor-grid">{anchors_html}</div>
@@ -2445,6 +3432,14 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
       </div>
     </div>
 
+    <!-- Narrative Stewardship -->
+    <div class="panel">
+      <div class="panel-header">Narrative Stewardship</div>
+      <div class="panel-body" id="data-narrative-health">
+        {narrative_health_html}
+      </div>
+    </div>
+
     <!-- Automation -->
     <div class="panel">
       <div class="panel-header">Automation</div>
@@ -2453,6 +3448,7 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
           <span class="bleed-dot" style="color:{bleed_status_color}">◉</span>
           <span>The Bleed — {bleed_label} {bleed_issue}</span>
         </div>
+        {automation_health_html}
         <div class="section-label" style="margin-top:.8rem">Cron Jobs</div>
         <table class="cron-table">
           <tbody>{cron_html}</tbody>
@@ -2529,7 +3525,7 @@ const REFRESH_MS = 3 * 60 * 1000;  // 3 minutes
 const DATA_REGIONS =[
   'data-topbar', 'data-thread-count', 'data-arc-threads',
   'tick', 'entities', 'talismans', 'anchors', 'images', 'inventory', 'schedule', 'forecast',
-  'data-player', 'data-automation',
+  'data-player', 'data-narrative-health', 'data-automation',
 ];
 
 let refreshTimeout, countdownInterval, nextRefreshAt;
@@ -2606,6 +3602,7 @@ def generate() -> str:
     player    = parse_player()
     queue     = parse_tick_queue()
     sim_feed  = parse_simulation_feed()
+    pact_actions = parse_pact_actions()
     bleed     = parse_bleed_status()
     crons     = parse_cron_jobs()
     arc       = parse_arc()
@@ -2613,8 +3610,11 @@ def generate() -> str:
     sched    = parse_schedule()
     forecast = parse_forecast(talismans)
     gallery_entries = parse_scene_gallery()
+    narrative_health = parse_narrative_health(player.get("name", "bj"))
     return build_html(threads, npcs, talismans, player, queue, bleed, crons,
-                      arc=arc, anchors=anchors, sched=sched, forecast=forecast, sim_feed=sim_feed, gallery_entries=gallery_entries)
+                      arc=arc, anchors=anchors, sched=sched, forecast=forecast,
+                      sim_feed=sim_feed, pact_actions=pact_actions, gallery_entries=gallery_entries,
+                      narrative_health=narrative_health)
 
 
 def main():

@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from scene_ledger import append_entry
+import action_lifecycle
 
 
 def read_json(path: Path) -> dict:
@@ -27,6 +28,7 @@ def main() -> int:
     preflight = read_json(args.preflight) if args.preflight else {}
     metadata = packet.get("metadata", {})
     mechanics_preflight = preflight or metadata.get("mechanics_preflight", {})
+    scene_contract = metadata.get("scene_contract", {})
     entry = {
         "recorded_at": datetime.now().isoformat(),
         "player": args.player,
@@ -50,8 +52,21 @@ def main() -> int:
         "schedule": metadata.get("schedule", ""),
         "source_systems": metadata.get("source_systems", []),
         "mechanics_preflight": mechanics_preflight,
+        "scene_contract": scene_contract,
     }
     path = append_entry(entry, dry_run=args.dry_run)
+    if not args.dry_run and entry.get("delivery_ok"):
+        scene_text = "\n".join(
+            part for part in [entry.get("text", ""), entry.get("voice", ""), entry.get("director_slate", "")]
+            if part
+        )
+        noticed = action_lifecycle.mark_actions_noticed_from_scene(
+            scene_text,
+            scene_id=entry.get("scene_id") or "",
+            player=args.player,
+        )
+        if noticed:
+            print(f"noticed_actions={len(noticed)}")
     print(path)
     return 0
 

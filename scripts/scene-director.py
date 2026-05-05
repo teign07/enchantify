@@ -33,6 +33,7 @@ import os
 import re
 import sys
 import json
+import subprocess
 from datetime import datetime, date, timedelta
 from pathlib import Path
 
@@ -63,6 +64,11 @@ try:
     _HAS_NPC_LOG = True
 except ImportError:
     _HAS_NPC_LOG = False
+try:
+    import action_lifecycle
+    _HAS_ACTION_LIFECYCLE = True
+except ImportError:
+    _HAS_ACTION_LIFECYCLE = False
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -170,6 +176,15 @@ def layer_cast_suggestions() -> str:
         formatted.append(f"{entity['name']} ({tag}) — {note}")
 
     return " | ".join(formatted)
+
+
+def layer_open_actions() -> str:
+    if not _HAS_ACTION_LIFECYCLE:
+        return ""
+    hooks = action_lifecycle.render_open_actions(limit=4)
+    if not hooks:
+        return ""
+    return " | ".join(truncate(hook, 150) for hook in hooks)
 
 
 # ── Layer 1: WHO ───────────────────────────────────────────────────────────────
@@ -552,6 +567,7 @@ def layer_schedule() -> str:
     next_day   = data.get("class_next_day", "")
     next_time  = data.get("class_next_time", "")
     club       = data.get("club")        # tuple or None
+    practice   = data.get("practice") or {}
 
     parts = [f"{day_name} {block}"]
     if tone:
@@ -571,11 +587,68 @@ def layer_schedule() -> str:
         club_name = club[0] if isinstance(club, tuple) else str(club)
         parts.append(f"CLUB TONIGHT: {club_name}")
 
+    if practice:
+        parts.append(f"PRACTICE: {practice.get('name', '')} - {truncate(practice.get('prompt', ''), 110)}")
+        examples = [p.get("name", "") for p in practice.get("examples", []) if p.get("name")]
+        if examples:
+            parts.append(f"PRACTICE SHAPES: {', '.join(examples[:4])}")
+
     cue = data.get("narrative_cue", "")
     if cue:
         parts.append(f"CUE: {truncate(cue, 80)}")
 
     return " · ".join(parts)
+
+
+def layer_classroom(player_name: str) -> str:
+    """Return the active/available class lecture directive, compacted for the slate."""
+    data = get_schedule_data() if _SCHEDULE_OK else {}
+    state_path = WORKSPACE / "players" / f"{player_name}-classes.json"
+    has_current_class = bool(data.get("class_now"))
+    has_active_lesson = False
+    if state_path.exists():
+        try:
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            has_active_lesson = any(c.get("active") for c in state.get("classes", {}).values())
+        except Exception:
+            has_active_lesson = False
+    if not has_current_class and not has_active_lesson:
+        return ""
+
+    proc = subprocess.run(
+        [sys.executable, str(_SCRIPT_DIR / "class-lecture.py"), player_name, "--status", "--json"],
+        cwd=WORKSPACE,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    if proc.returncode != 0:
+        return "class-lecture.py unavailable"
+    try:
+        packet = json.loads(proc.stdout)
+    except Exception:
+        return "class lecture directive unreadable"
+
+    available = [s.get("id", "") for s in packet.get("source_chapters", []) if s.get("available")]
+    missing = [s.get("id", "") for s in packet.get("source_chapters", []) if not s.get("available")]
+    parts = [
+        f"{packet.get('class_name', '')}",
+        f"{packet.get('professor', '')} [{packet.get('voice', '')}]",
+        f"lesson: {packet.get('lesson_title', '')}",
+        f"segment {int(packet.get('segment_index', 0)) + 1}: {packet.get('segment', '')}",
+        f"attendance: {'active' if packet.get('active') else 'run class-lecture.py --attend before treating as attended'}",
+    ]
+    if packet.get("lesson_teaches"):
+        parts.append(f"teaches: {truncate(packet.get('lesson_teaches', ''), 120)}")
+    if packet.get("classmates"):
+        parts.append("classmates: " + ", ".join(packet.get("classmates", [])[:3]))
+    if packet.get("practice_shapes"):
+        parts.append("practice: " + ", ".join(packet.get("practice_shapes", [])[:3]))
+    if available:
+        parts.append("sources: " + ", ".join(available[:4]))
+    if missing:
+        parts.append("missing: " + ", ".join(missing[:4]))
+    return " · ".join(p for p in parts if p)
 
 
 # ── Layer 7: DREAM ─────────────────────────────────────────────────────────────
@@ -796,14 +869,16 @@ def build_slate(player_name: str) -> dict:
         "PLAYER":       layer_player(player_name),
         "MECHANICS":    layer_mechanics(player_name),
         "SCHEDULE":     layer_schedule(),
+        "CLASSROOM":    layer_classroom(player_name),
         "BLEED":        layer_bleed_hooks(),
         "DREAM":        layer_dream(),
+        "ACTIONS":      layer_open_actions(),
         "SUPPRESS":     layer_suppress(player_name),
     }
 
 
 _SLATE_KEYS = ("SCENE_ANCHOR", "CAST", "CAST_GROUND", "FEEL", "STORY", "TALISMAN", "NOTHING",
-               "RESEARCH", "PLAYER", "MECHANICS", "SCHEDULE", "BLEED", "DREAM", "SUPPRESS")
+               "RESEARCH", "PLAYER", "MECHANICS", "SCHEDULE", "CLASSROOM", "BLEED", "DREAM", "ACTIONS", "SUPPRESS")
 
 
 def print_slate(player_name: str, slate_only: bool = False):
