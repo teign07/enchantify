@@ -1,0 +1,34 @@
+{
+  "history": [
+    {
+      "action": "PROMOTE_SEED",
+      "name": "Elowen's Refectory Experiments",
+      "reason": "Dr. Elowen Vellum has Belief 34 and 2 queued seed signal(s); score 44.",
+      "confidence": "medium",
+      "payload": {
+        "name": "Elowen's Refectory Experiments",
+        "id": "elowen-s-refectory-experiments",
+        "type": "npc-subplot",
+        "phase": "setup",
+        "pressure": "low",
+        "npc_anchor": "Dr. Elowen Vellum",
+        "locations": "Academy corridors, Library, Great Hall, and wherever the Unwritten Interest touches the day",
+        "entities": "Dr. Elowen Vellum",
+        "nothing_pressure": "medium - the Nothing can flatten this into mere trivia instead of lived story",
+        "status": "Dr. Elowen Vellum's cutting-edge longevity research and longevity escape velocity: protein adequacy, resistance training, vo2 max, sleep regularity, metabolic health, fiber and microbiome work, creatine, omega-3s, cardiometabolic markers, cognitive preservation, and which interventions are useful now rather than merely fascinating has begun affecting Academy life.",
+        "next_beat": "Dr. Elowen Vellum leaves a concrete trace of this interest where bj can find it: a note, object, recommendation, or small request that reveals whether can over-index on measurable inputs; impatient with vague cravings; occasionally forgets that comfort food is not an error state. is helping or hurting.",
+        "starting_belief": 8,
+        "seed_count": 2,
+        "lore_basis": {
+          "personality": "Precise, dryly kind, exacting, quietly delighted by useful data. She treats breakfast like a footnote that can save a chapter.",
+          "faults": "Can over-index on measurable inputs; impatient with vague cravings; occasionally forgets that comfort food is not an error state.",
+          "quirks": "Annotates menus in red ink, weighs metaphors as if they contain protein, carries a silver bookmark-caliper, and writes snack recommendations in the margins of unrelated pages.",
+          "interest": "Cutting-edge longevity research and Longevity Escape Velocity: protein adequacy, resistance training, VO2 max, sleep regularity, metabolic health, fiber and microbiome work, creatine, omega-3s, cardiometabolic markers, cognitive preservation, and which interventions are useful now rather than merely fascinating. She presents findings as everyday actions for the player, taking current health and fuel data into account.",
+          "hooks": "Appears when the Fuel Gauge is thin, when the player asks about food or health, after a hard class, before risky exertion, or when the Labyrinth needs care to arrive as precision instead of fussing. May assign tiny \"Refectory Experiments\" such as add protein before class, pair caffeine with food, prepare an emergency snack, or take a recovery walk after a meal."
+        }
+      },
+      "applied_at": "2026-05-08"
+    }
+  ],
+  "last_run_at": "2026-05-08T21:45:56"
+}

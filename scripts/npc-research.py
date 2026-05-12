@@ -22,13 +22,16 @@ Usage:
 """
 
 import argparse
+import html
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
-import tempfile
 import time
+import textwrap
+import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
 from tick_queue_utils import ensure_header, prune_tick_queue
@@ -43,6 +46,8 @@ SCRIPT_DIR   = Path(__file__).parent
 BASE_DIR     = Path(os.environ.get("ENCHANTIFY_BASE_DIR", SCRIPT_DIR.parent))
 CACHE_PATH   = BASE_DIR / "config" / "npc-research-cache.json"
 RESEARCH_DIR = BASE_DIR / "memory" / "npc-research"
+LETTER_DIR   = RESEARCH_DIR / "letters"
+LETTER_IMAGES_DIR = RESEARCH_DIR / "letter-images"
 TICK_QUEUE   = BASE_DIR / "memory" / "tick-queue.md"
 QUEUE_HEADER = "# Tick Queue\n\n*Read at session open, then cleared.*\n"
 
@@ -62,7 +67,9 @@ TELEGRAM_TARGET  = "8729557865"
 TELEGRAM_CHANNEL = "telegram"
 
 # NPCs always eligible regardless of tracked relationship (core cast)
-CORE_NPCS = {"Zara Finch", "Professor Stonebrook", "Headmistress Thorne", "Boggle"}
+CORE_NPCS = {"Zara Finch", "Professor Stonebrook", "Headmistress Thorne", "Boggle", "Dr. Elowen Vellum"}
+
+CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 
 # ─── Config / API ─────────────────────────────────────────────────────────────
@@ -219,9 +226,9 @@ def parse_characters() -> list[dict]:
         name_match = re.match(r"^(.+)", section)
         if not name_match:
             continue
-        name = name_match.group(1).strip()
+        name = re.split(r"\s+[—–-]\s+", name_match.group(1).strip(), 1)[0].strip()
 
-        interest_m = re.search(r"\*\*Unwritten Interest:\*\*\s*(.+)", section)
+        interest_m = re.search(r"\*\*Unwritten Interest:\*\*\s*(.*?)(?=\s+\*\*Voice:\*\*|\n|$)", section)
         voice_m    = re.search(r"\*\*Voice:\*\*\s*(.+)", section)
 
         if interest_m and voice_m:
@@ -232,7 +239,7 @@ def parse_characters() -> list[dict]:
             })
 
     for m in re.finditer(
-        r"\*\*([A-Z][^*]+?)\*\*\s*[—–-].*?\*\*Unwritten Interest:\*\*\s*([^\n]+)",
+        r"\*\*([A-Z][^*]+?)\*\*\s*[—–-].*?\*\*Unwritten Interest:\*\*\s*(.*?)(?=\s+\*\*Voice:\*\*|\n|$)",
         text,
     ):
         name     = m.group(1).strip()
@@ -345,11 +352,11 @@ def select_npc(
             continue
         if reg["belief"] < BELIEF_MINIMUM:
             continue
-        if is_on_cooldown(cache, name):
+        if not forced_name and is_on_cooldown(cache, name):
             continue
 
         rel_score = relationships.get(name, None)
-        if name not in CORE_NPCS and (rel_score is None or rel_score < 25):
+        if not forced_name and name not in CORE_NPCS and (rel_score is None or rel_score < 25):
             continue
 
         c_info = char_data.get(name.lower(), {})
@@ -649,72 +656,564 @@ def queue_tick(npc: dict) -> None:
 
 # ─── Physical letter ─────────────────────────────────────────────────────────
 
-_LETTER_BORDER = "─" * 60
+STATIONERY = {
+    "Zara Finch": {
+        "accent": "#7d2636",
+        "accent2": "#0f766e",
+        "seal": "ZF",
+        "title": "Upper Reading Alcoves",
+        "motif": "ink-stained marginal diagrams, sea-glass color tests, and urgent underlines",
+        "note": "written quickly, then revised twice in smaller ink",
+    },
+    "Professor Stonebrook": {
+        "accent": "#365a47",
+        "accent2": "#8a6f2a",
+        "seal": "S",
+        "title": "Department of Practical Geomancy",
+        "motif": "pressed leaves, measured rule-lines, mineral swatches, and careful labels",
+        "note": "filed with exactitude; sentimental only in the margins",
+    },
+    "Headmistress Thorne": {
+        "accent": "#4b244a",
+        "accent2": "#9b6b2f",
+        "seal": "ET",
+        "title": "Office of the Headmistress",
+        "motif": "formal letterhead, wax-shadow seal, tide marks, and restrained red corrections",
+        "note": "official, but the paper remembers pressure",
+    },
+    "Boggle": {
+        "accent": "#7c3f00",
+        "accent2": "#2563eb",
+        "seal": "B!",
+        "title": "Under Table, Near the Good Crumbs",
+        "motif": "crooked arrows, biscuit crumbs, happy stains, and impossible footnotes",
+        "note": "typed badly on purpose, except where it is accidentally profound",
+    },
+    "Serenity Brown": {
+        "accent": "#3f5f73",
+        "accent2": "#a35b35",
+        "seal": "SB",
+        "title": "Quiet Stacks",
+        "motif": "soft pencil notes, folded-corner page marks, and careful breath between lines",
+        "note": "gentle enough that the dangerous parts can be heard",
+    },
+    "Dr. Elowen Vellum": {
+        "accent": "#315f5d",
+        "accent2": "#8f5a2a",
+        "seal": "EV",
+        "title": "Refectory Marginalia",
+        "motif": "red-ink annotations, silver bookmark-calipers, tidy nutrition tables, and pressed herb stains",
+        "note": "precise enough to be useful, kind enough to be obeyed",
+    },
+}
 
-def print_npc_letter(npc: dict, research: str, date_str: str) -> bool:
+DEFAULT_STATIONERY = {
+    "accent": "#4f4638",
+    "accent2": "#7b6f52",
+    "seal": "LS",
+    "title": "Labyrinth of Stories",
+    "motif": "sparse pen-and-ink marks, watercolor wash, marginalia, and archival overlays",
+    "note": "sent through the Margin-Glass with the sender's hand still visible",
+}
+
+
+def _slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+def _inline_markup(text: str) -> str:
+    safe = html.escape(text)
+    safe = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", safe)
+    safe = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<em>\1</em>", safe)
+    return safe
+
+
+def _research_to_html(research: str) -> str:
+    blocks = []
+    pending = []
+
+    def flush_pending():
+        if pending:
+            blocks.append(f"<p>{_inline_markup(' '.join(pending))}</p>")
+            pending.clear()
+
+    for raw in research.splitlines():
+        line = raw.strip()
+        if not line:
+            flush_pending()
+            continue
+        if set(line) <= {"-", "—", "_"} and len(line) >= 3:
+            flush_pending()
+            blocks.append("<div class=\"rule\"></div>")
+            continue
+        if line.startswith("#"):
+            flush_pending()
+            blocks.append(f"<h2>{_inline_markup(line.lstrip('#').strip())}</h2>")
+            continue
+        if line.startswith(("—", "- ")) or line.endswith((" Labyrinth of Stories", " Upper Reading Alcoves")):
+            flush_pending()
+            blocks.append(f"<p class=\"signature-line\">{_inline_markup(line)}</p>")
+            continue
+        if line.startswith("*") and line.endswith("*") and len(line) > 2:
+            flush_pending()
+            blocks.append(f"<p class=\"meta-line\">{_inline_markup(line.strip('*'))}</p>")
+            continue
+        pending.append(line)
+    flush_pending()
+    return "\n".join(blocks)
+
+
+def _shorten(text: str, limit: int = 96) -> str:
+    clean = re.sub(r"\s+", " ", text).strip()
+    if len(clean) <= limit:
+        return clean
+    return clean[:limit - 1].rstrip() + "…"
+
+
+def _letter_subject(npc: dict, research: str) -> str:
+    for raw in research.splitlines():
+        clean = raw.strip().strip("*").strip()
+        if not clean:
+            continue
+        filed = re.search(r"Filed Under:\s*(.+)", clean, flags=re.IGNORECASE)
+        if filed:
+            return _shorten(filed.group(1), 92)
+        if "PRIVATE RESEARCH" in clean.upper():
+            continue
+        if 12 <= len(clean) <= 110:
+            return _shorten(clean, 92)
+    return _shorten(npc.get("interest", "Unwritten research"), 92)
+
+
+def build_letter_image_prompt(npc: dict, date_str: str) -> str:
+    style = STATIONERY.get(npc["name"], DEFAULT_STATIONERY)
+    return (
+        f"Small archival ornament for a printed magical academy research letter from {npc['name']}. "
+        f"The character's focus is: {npc.get('interest', '')}. "
+        f"Visual motif: {style['motif']}. "
+        "illustrated in sparse pen-and-ink linework with loose watercolor washes on textured aged parchment, "
+        "with visible paper grain, soft ink bleed, watercolor blooms, layered manuscript-page composition, "
+        "handwritten marginalia, and selective pops of color. Keep the image airy, literary, sketch-like, "
+        "and slightly unfinished, like a page from a magical field journal rather than a polished digital illustration. "
+        "Include subtle page layout elements such as notes, labels, sketches, margin writing, or archival overlays so "
+        "the image feels embedded in a manuscript page. No readable text, no logo, no border, no watermark."
+    )
+
+
+def generate_letter_image(npc: dict, date_str: str) -> Optional[Path]:
+    if os.environ.get("NPC_RESEARCH_LETTER_IMAGE", "1").lower() in ("0", "false", "no"):
+        return None
+    LETTER_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    output = LETTER_IMAGES_DIR / f"{_slug(npc['name'])}-{date_str}.png"
+    cmd = [
+        sys.executable,
+        str(SCRIPT_DIR / "drawthings_scene.py"),
+        "--prompt",
+        build_letter_image_prompt(npc, date_str),
+        "--output",
+        str(output),
+        "--width",
+        "768",
+        "--height",
+        "512",
+        "--steps",
+        "4",
+        "--cfg-scale",
+        "1.0",
+        "--timeout-seconds",
+        "120",
+    ]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=135)
+    except subprocess.TimeoutExpired:
+        print("  ⚠ Letter image skipped: Draw Things timed out.")
+        return None
+    if proc.returncode == 0 and output.exists():
+        print(f"  ✓ Letter image generated → {output.relative_to(BASE_DIR)}")
+        return output
+    detail = (proc.stderr or proc.stdout or "Draw Things letter image generation failed").strip()
+    print(f"  ⚠ Letter image skipped: {detail[:180]}")
+    return None
+
+
+def build_letter_html(npc: dict, research: str, date_str: str, image_path: Optional[Path] = None) -> str:
+    style = STATIONERY.get(npc["name"], DEFAULT_STATIONERY)
+    title = html.escape(style["title"])
+    name = html.escape(npc["name"])
+    subject = html.escape(_letter_subject(npc, research))
+    voice_note = html.escape(style["note"])
+    image_html = ""
+    if image_path and image_path.exists():
+        image_html = f"<img class=\"letter-art\" src=\"{image_path.resolve().as_uri()}\" alt=\"letter ornament\">"
+
+    return f"""<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Letter from {name} — {date_str}</title>
+<style>
+@page {{ size: Letter; margin: 0.34in; }}
+* {{ box-sizing: border-box; }}
+body {{
+  margin: 0;
+  color: #2f2a22;
+  background: #efe4cb;
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.42;
+}}
+.page {{
+  min-height: 10.25in;
+  position: relative;
+  padding: 0.42in 0.48in 0.36in;
+  border: 1px solid rgba(83, 68, 44, 0.42);
+  background:
+    radial-gradient(circle at 16% 12%, rgba(255,255,255,0.32), transparent 22%),
+    radial-gradient(circle at 88% 24%, {style['accent2']}22, transparent 18%),
+    linear-gradient(90deg, rgba(87,68,39,0.08) 0 1px, transparent 1px 100%),
+    linear-gradient(#f7edd7, #eadbbd);
+  background-size: auto, auto, 22px 22px, auto;
+  overflow: visible;
+}}
+.page::before {{
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(49,39,25,0.025) 0 1px, transparent 1px 4px),
+    radial-gradient(circle at 8% 82%, {style['accent']}1f, transparent 18%),
+    radial-gradient(circle at 92% 88%, rgba(67, 52, 31, 0.15), transparent 16%);
+  mix-blend-mode: multiply;
+}}
+.masthead {{
+  position: relative;
+  display: grid;
+  grid-template-columns: 0.9in 1fr;
+  gap: 0.18in;
+  align-items: center;
+  border-bottom: 2px solid {style['accent']};
+  padding-bottom: 0.16in;
+}}
+.seal {{
+  width: 0.76in;
+  height: 0.76in;
+  border: 2px solid {style['accent']};
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: {style['accent']};
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  transform: rotate(-7deg);
+  background: rgba(255,255,255,0.18);
+  box-shadow: 0 0 0 7px rgba(255,255,255,0.13) inset;
+}}
+.from {{
+  margin: 0;
+  font-size: 26px;
+  color: {style['accent']};
+  letter-spacing: 0.02em;
+}}
+.subhead {{
+  margin-top: 2px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  color: #675943;
+}}
+.date-line {{
+  margin-top: 0.08in;
+  font-size: 12px;
+  color: #6f6048;
+}}
+.content {{
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1.34in;
+  gap: 0.22in;
+  margin-top: 0.24in;
+  align-items: start;
+}}
+.letter-body {{
+  font-size: 13.2px;
+}}
+.letter-body p {{
+  margin: 0 0 0.105in;
+}}
+.letter-body h2 {{
+  margin: 0 0 0.12in;
+  font-size: 16px;
+  color: {style['accent']};
+}}
+.meta-line {{
+  color: #675943;
+  font-size: 12px;
+  font-style: italic;
+}}
+.signature-line {{
+  color: {style['accent']};
+  font-style: italic;
+}}
+.rule {{
+  height: 1px;
+  margin: 0.1in 0 0.13in;
+  background: linear-gradient(90deg, transparent, {style['accent']}, transparent);
+}}
+.margin {{
+  border-left: 1px solid rgba(83,68,44,0.26);
+  padding-left: 0.14in;
+  color: #5f503a;
+  font-size: 11.4px;
+  break-inside: avoid;
+}}
+.letter-art {{
+  width: 100%;
+  border: 1px solid rgba(83,68,44,0.22);
+  margin-bottom: 0.14in;
+  filter: sepia(0.16) contrast(0.94);
+}}
+.scribble {{
+  color: {style['accent']};
+  font-style: italic;
+  transform: rotate(1.3deg);
+  margin-bottom: 0.18in;
+}}
+.label {{
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 9px;
+  color: #81735d;
+  margin-top: 0.18in;
+}}
+.footer {{
+  position: relative;
+  border-top: 1px solid rgba(83,68,44,0.25);
+  margin-top: 0.22in;
+  padding-top: 0.07in;
+  font-size: 10px;
+  color: #766850;
+  display: flex;
+  justify-content: space-between;
+}}
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="masthead">
+    <div class="seal">{html.escape(style['seal'])}</div>
+    <div>
+      <h1 class="from">A Letter from {name}</h1>
+      <div class="subhead">{title} · Enchantify Academy</div>
+      <div class="date-line">{date_str} · through the Margin-Glass · subject: {subject}</div>
+    </div>
+  </header>
+  <section class="content">
+    <article class="letter-body">
+      {_research_to_html(research)}
+    </article>
+    <aside class="margin">
+      {image_html}
+      <div class="scribble">{html.escape(style['motif'])}</div>
+      <div class="label">Hand</div>
+      <p>{voice_note}</p>
+      <div class="label">Filed</div>
+      <p>NPC research · Belief invested: {BELIEF_COST}</p>
+    </aside>
+  </section>
+  <footer class="footer">
+    <span>Delivered through the Margin-Glass</span>
+    <span>memory/npc-research · {name}</span>
+  </footer>
+</main>
+</body>
+</html>"""
+
+
+def write_letter_html(npc: dict, research: str, date_str: str, image_path: Optional[Path] = None) -> Path:
+    LETTER_DIR.mkdir(parents=True, exist_ok=True)
+    path = LETTER_DIR / f"{_slug(npc['name'])}-{date_str}.html"
+    path.write_text(build_letter_html(npc, research, date_str, image_path), encoding="utf-8")
+    print(f"  ✓ Letter HTML: {path.relative_to(BASE_DIR)}")
+    return path
+
+
+def read_research_note(path: Path) -> tuple[dict, str, str]:
+    """Read an existing memory/npc-research markdown note for preview rendering."""
+    text = path.read_text(encoding="utf-8")
+    name_m = re.search(r"^#\s*Research Note from\s+(.+?)\s*$", text, flags=re.MULTILINE)
+    date_m = re.search(r"^\*(\d{4}-\d{2}-\d{2})\s+·", text, flags=re.MULTILINE)
+    body = re.sub(r"^#.*?\n\*.*?\*\n\n", "", text, count=1, flags=re.DOTALL).strip()
+    name = name_m.group(1).strip() if name_m else path.stem.rsplit("-", 3)[0].replace("-", " ").title()
+    date_str = date_m.group(1) if date_m else datetime.now().strftime("%Y-%m-%d")
+
+    characters = {c["name"].lower(): c for c in parse_characters()}
+    register = parse_register_npcs()
+    char = characters.get(name.lower(), {})
+    reg = register.get(name, {})
+    npc = {
+        "name": name,
+        "interest": char.get("interest") or reg.get("notes") or "Unwritten research",
+        "voice": char.get("voice") or "In-character, natural, reflecting my academy role.",
+        "belief": reg.get("belief", 0),
+        "notes": reg.get("notes", ""),
+    }
+    return npc, body, date_str
+
+
+def preview_letter(note_path: Path, with_image: bool = True) -> Path:
+    npc, research, date_str = read_research_note(note_path)
+    image_path = generate_letter_image(npc, date_str) if with_image else None
+    html_path = write_letter_html(npc, research, date_str, image_path=image_path)
+    ps_path = write_letter_postscript(npc, research, date_str)
+    print(f"  ✓ Preview ready: {html_path}")
+    print(f"  ✓ Print fallback ready: {ps_path}")
+    return html_path
+
+
+def html_to_pdf(html_path: Path) -> Path:
+    pdf_path = html_path.with_suffix(".pdf")
+    if shutil.which("wkhtmltopdf"):
+        r = subprocess.run(
+            ["wkhtmltopdf", "--page-size", "Letter", "--quiet", "--enable-local-file-access", str(html_path), str(pdf_path)],
+            capture_output=True, timeout=30,
+        )
+        if r.returncode == 0 and pdf_path.exists():
+            return pdf_path
+
+    chrome = CHROME_PATH if os.path.exists(CHROME_PATH) else shutil.which("google-chrome") or shutil.which("chromium")
+    if chrome:
+        r = subprocess.run(
+            [chrome, "--headless", "--disable-gpu", "--no-sandbox",
+             f"--print-to-pdf={pdf_path}", "--print-to-pdf-no-header", html_path.resolve().as_uri()],
+            capture_output=True, timeout=45,
+        )
+        if r.returncode == 0 and pdf_path.exists():
+            return pdf_path
+    return html_path
+
+
+def _ps_escape(text: str) -> str:
+    normalized = unicodedata.normalize("NFKD", text)
+    ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
+    return ascii_text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _plain_research_lines(research: str, width: int = 78) -> list[str]:
+    lines = []
+    for para in research.splitlines():
+        clean = para.strip()
+        clean = re.sub(r"\*\*([^*]+)\*\*", r"\1", clean)
+        clean = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", clean)
+        if not clean:
+            lines.append("")
+            continue
+        if set(clean) <= {"-", "—", "_"} and len(clean) >= 3:
+            lines.append("-" * 24)
+            continue
+        lines.extend(textwrap.wrap(clean, width=width) or [""])
+    return lines
+
+
+def write_letter_postscript(npc: dict, research: str, date_str: str) -> Path:
+    """Reliable CUPS fallback when HTML-to-PDF rendering is unavailable."""
+    style = STATIONERY.get(npc["name"], DEFAULT_STATIONERY)
+    LETTER_DIR.mkdir(parents=True, exist_ok=True)
+    path = LETTER_DIR / f"{_slug(npc['name'])}-{date_str}.ps"
+
+    def rgb(hex_color: str) -> tuple[float, float, float]:
+        h = hex_color.lstrip("#")
+        return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+
+    accent = rgb(style["accent"])
+    accent2 = rgb(style["accent2"])
+    lines = _plain_research_lines(research)
+
+    ps = [
+        "%!PS-Adobe-3.0",
+        "%%Pages: (atend)",
+        "/inch {72 mul} def",
+        "/bodyfont {/Times-Roman findfont 10.2 scalefont setfont} def",
+        "/smallfont {/Times-Italic findfont 8.5 scalefont setfont} def",
+        "/headfont {/Times-Bold findfont 22 scalefont setfont} def",
+        "/sealfont {/Times-Bold findfont 20 scalefont setfont} def",
+    ]
+
+    page_count = 0
+    y = 0
+
+    def new_page():
+        nonlocal page_count, y
+        if page_count:
+            ps.append("showpage")
+        page_count += 1
+        y = 640
+        ps.extend([
+            f"%%Page: {page_count} {page_count}",
+            "0.96 0.91 0.80 setrgbcolor 0 0 612 792 rectfill",
+            "0.20 0.16 0.10 setrgbcolor 36 36 540 720 rectstroke",
+            f"{accent2[0]:.3f} {accent2[1]:.3f} {accent2[2]:.3f} setrgbcolor 52 682 508 1 rectfill",
+            f"{accent[0]:.3f} {accent[1]:.3f} {accent[2]:.3f} setrgbcolor",
+            "newpath 76 706 30 0 360 arc stroke",
+            "sealfont",
+            f"64 700 moveto ({_ps_escape(style['seal'])}) show",
+            "headfont",
+            f"118 710 moveto (A Letter from {_ps_escape(npc['name'])}) show",
+            "smallfont",
+            f"118 690 moveto ({_ps_escape(style['title'])} - Enchantify Academy - {date_str}) show",
+            f"410 658 moveto ({_ps_escape(style['note'])}) show",
+            "bodyfont",
+            "0.17 0.14 0.10 setrgbcolor",
+        ])
+
+    new_page()
+    for line in lines:
+        if y < 72:
+            new_page()
+        if not line:
+            y -= 9
+            continue
+        ps.append(f"58 {y} moveto ({_ps_escape(line)}) show")
+        y -= 12
+
+    ps.extend([
+        "smallfont",
+        f"{accent[0]:.3f} {accent[1]:.3f} {accent[2]:.3f} setrgbcolor",
+        "58 48 moveto (Delivered through the Margin-Glass) show",
+        "showpage",
+        f"%%Pages: {page_count}",
+        "%%EOF",
+    ])
+    path.write_text("\n".join(ps), encoding="ascii")
+    print(f"  ✓ Letter PostScript fallback: {path.relative_to(BASE_DIR)}")
+    return path
+
+
+def print_npc_letter(npc: dict, letter_path: Path, research: str, date_str: str) -> bool:
     """
     Print a physical letter from the NPC via the default CUPS printer.
-    Only runs for core NPCs. Formats as a styled plain-text letter.
+    Only runs for core NPCs. Uses the styled HTML/PDF letter artifact.
     """
     if npc["name"] not in CORE_NPCS:
         return False
 
-    lines = [
-        "",
-        _LETTER_BORDER,
-        f"  FROM: {npc['name']}",
-        f"        Enchantify Academy · Labyrinth of Stories",
-        f"  DATE: {date_str}",
-        _LETTER_BORDER,
-        "",
-    ]
-    # Wrap body text at 62 chars
-    for para in research.split("\n"):
-        para = para.strip()
-        if not para:
-            lines.append("")
-            continue
-        words = para.split()
-        line_buf = []
-        for word in words:
-            if sum(len(w) + 1 for w in line_buf) + len(word) > 62:
-                lines.append("  " + " ".join(line_buf))
-                line_buf = [word]
-            else:
-                line_buf.append(word)
-        if line_buf:
-            lines.append("  " + " ".join(line_buf))
-    lines += [
-        "",
-        _LETTER_BORDER,
-        "  Delivered through the Margin-Glass",
-        _LETTER_BORDER,
-        "",
-    ]
-
-    letter_text = "\n".join(lines)
-
-    with tempfile.NamedTemporaryFile(suffix=".txt", mode="w", delete=False, encoding="utf-8") as f:
-        f.write(letter_text)
-        tmp_path = f.name
-
+    print_file = html_to_pdf(letter_path)
+    if print_file.suffix.lower() == ".html":
+        print_file = write_letter_postscript(npc, research, date_str)
     try:
         result = subprocess.run(
-            ["lpr", "-o", "media=Letter", "-o", "cpi=12", "-o", "lpi=6", tmp_path],
+            ["lpr", "-o", "media=Letter", str(print_file)],
             capture_output=True, text=True, timeout=20,
         )
     except subprocess.TimeoutExpired:
-        Path(tmp_path).unlink(missing_ok=True)
         print("  ⚠ Print timed out after 20s.")
         return False
-    Path(tmp_path).unlink(missing_ok=True)
 
     if result.returncode == 0:
         print(f"  ✓ Letter printed: {npc['name']}")
         return True
-    else:
-        print(f"  ⚠ Print failed: {result.stderr.strip()[:120]}")
-        return False
+    print(f"  ⚠ Print failed: {result.stderr.strip()[:120]}")
+    return False
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -726,11 +1225,16 @@ def main():
     parser.add_argument("--dry-run",   action="store_true")
     parser.add_argument("--no-icloud", action="store_true", help="Skip iCloud Notes delivery")
     parser.add_argument("--no-print",  action="store_true", help="Skip physical letter printing")
+    parser.add_argument("--no-letter-image", action="store_true", help="Skip optional Draw Things letter ornament")
+    parser.add_argument("--preview-letter", type=Path, help="Render a styled letter from an existing memory/npc-research note and exit")
     parser.add_argument("--model-smoke", action="store_true", help="Check the configured gateway model and exit")
     args = parser.parse_args()
 
     if args.model_smoke:
         sys.exit(model_smoke_test())
+    if args.preview_letter:
+        preview_letter(args.preview_letter, with_image=not args.no_letter_image)
+        return
 
     with cron_steward.run("npc-research", dry_run=args.dry_run, forced=bool(args.npc)):
         characters    = parse_characters()
@@ -755,6 +1259,8 @@ def main():
             will_print = npc["name"] in CORE_NPCS and not args.no_print
             print(f"  [dry-run] Would generate research note for {npc['name']} focusing on {city}.")
             print(f"  [dry-run] Delivery: local"
+                  f"  + styled letter HTML"
+                  f"{'  + generated letter ornament' if not args.no_letter_image else ''}"
                   f"{'  + iCloud' if not args.no_icloud else ''}"
                   f"  + Telegram"
                   f"{'  + letter (CUPS)' if will_print else ''}")
@@ -783,10 +1289,12 @@ def main():
         print("---\n")
 
         deliver_local(npc, research, date_str)
+        letter_image = None if args.no_letter_image else generate_letter_image(npc, date_str)
+        letter_path = write_letter_html(npc, research, date_str, image_path=letter_image)
 
         printed = False
         if not args.no_print:
-            printed = print_npc_letter(npc, research, date_str)
+            printed = print_npc_letter(npc, letter_path, research, date_str)
 
         telegram_ok = deliver_telegram(npc, research)
 

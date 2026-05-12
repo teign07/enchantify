@@ -9,6 +9,7 @@ under /tmp or tmp/scene-outbox.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -60,14 +61,19 @@ def check_required_files() -> Check:
         "SOUL.md",
         "config/voice-assignments.md",
         "scripts/mechanics-preflight.py",
+        "scripts/fae-ledger.py",
+        "scripts/enchantment.py",
+        "scripts/food_log.py",
         "scripts/check-health.py",
         "scripts/scene-contract.py",
+        "scripts/page-contract.py",
         "scripts/scene-choices.py",
         "scripts/scene-preflight.py",
         "scripts/run-live-scene.py",
         "scripts/story-progress.py",
         "scripts/narrative-health.py",
         "scripts/narrative-steward.py",
+        "scripts/thread-steward.py",
         "scripts/cron_steward.py",
         "scripts/class-lecture.py",
         "scripts/widget-state.py",
@@ -78,6 +84,7 @@ def check_required_files() -> Check:
         "hooks/on-install.sh",
         "hooks/install.sh",
         "hooks/bootstrap.sh",
+        "mechanics/pages.md",
     ]
     missing = [item for item in required if not (BASE / item).exists()]
     if missing:
@@ -99,7 +106,13 @@ def check_agents_size() -> Check:
     limit = 13_500
     if size > limit:
         return Check("AGENTS size", False, f"{size} chars exceeds {limit}")
-    return Check("AGENTS size", True, f"{size} chars below loader cutoff")
+    installed = Path.home() / ".openclaw" / "agents" / "enchantify" / "agent.md"
+    if installed.exists():
+        installed_size = len(installed.read_text(encoding="utf-8"))
+        if installed_size > limit:
+            return Check("AGENTS size", False, f"installed agent.md {installed_size} chars exceeds {limit}")
+        return Check("AGENTS size", True, f"workspace {size}, installed {installed_size} chars below loader cutoff")
+    return Check("AGENTS size", True, f"workspace {size} chars below loader cutoff")
 
 
 def check_compile() -> Check:
@@ -157,12 +170,28 @@ def check_scene_choices() -> Check:
 
 
 def check_scene_contract(player: str) -> Check:
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPTS / "scene-contract.py"), player, "--mode", "slice", "--json"],
+        cwd=BASE,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+        return Check("scene contract", False, detail[0] if detail else "scene contract failed")
+    try:
+        contract_data = json.loads(proc.stdout)
+    except Exception as exc:
+        return Check("scene contract", False, f"invalid JSON: {exc}")
+    location = contract_data.get("current_location") or "Academy room"
     scene = (
-        "You are still at the Great Hall, at the Riddlewind table. The cups, the long benches, "
-        "and the ordinary scrape of chairs remain where the last page left them.\n\n"
+        f"You are still at {location}. The cups, the long benches, "
+        "and the ordinary scrape of chairs remain where the last page left them. If the draft under the "
+        "side door feels risky, the Book will call for a Belief roll before resolving it.\n\n"
         "What do you do?\n"
         "1. [LIFE] Ask whether anyone wants tea before the next strange thing happens.\n"
-        "2. [ARC] Investigate the marked drawer and read the clue inside.\n"
+        "2. [ARC] Try a Belief roll to investigate the marked drawer and read the clue inside.\n"
         "3. [SURPRISE] Follow the draft under the side door no one mentioned.\n"
     )
     with tempfile.NamedTemporaryFile("w", suffix=".txt", prefix="enchantify-contract-", delete=False) as f:
@@ -195,6 +224,35 @@ def check_scene_contract(player: str) -> Check:
             path.unlink()
         except FileNotFoundError:
             pass
+
+
+def check_page_contract(player: str) -> Check:
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPTS / "page-contract.py"), player, "--json"],
+        cwd=BASE,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+        return Check("page contract", False, detail[0] if detail else "page contract failed")
+    try:
+        data = json.loads(proc.stdout)
+    except Exception as exc:
+        return Check("page contract", False, f"invalid JSON: {exc}")
+    required = ["page_type", "page_label", "purpose", "artifact_due", "recommended_scene_mode"]
+    missing = [key for key in required if not data.get(key)]
+    if missing:
+        return Check("page contract", False, "missing: " + ", ".join(missing))
+    enchantment = run(
+        [sys.executable, str(SCRIPTS / "page-contract.py"), player, "--page-type", "enchantment"],
+        name="page contract enchantment",
+        timeout=60,
+    )
+    if not enchantment.ok:
+        return Check("page contract", False, enchantment.detail)
+    return Check("page contract", True, f"{data.get('page_label')} selected; explicit pages work")
 
 
 def check_story_context(player: str) -> Check:
@@ -320,10 +378,25 @@ def check_closeout_events_validator() -> Check:
         "quests_completed": [],
         "quests_added": [],
         "compass_runs_completed": 0,
+        "page": {
+            "type": "archive",
+            "label": "Archive Page",
+            "artifact_created": "runtime validation note",
+            "closed": True,
+            "proof": "The smoke test preserved a page-shaped closeout event.",
+        },
         "session_summary": "A quiet validation scene closed cleanly; no narrative state changed.",
         "most_alive_moment": "The Book checked its own binding.",
         "what_fell_flat": None,
         "thread_updates": [],
+        "closed_threads": [
+            {
+                "name": "Runtime Smoke Thread",
+                "outcome": "The validator proved closed thread events are accepted.",
+                "closure_type": "natural",
+                "aftercare": "No real thread was touched.",
+            }
+        ],
     }
     with tempfile.NamedTemporaryFile("w", suffix=".json", prefix="enchantify-events-", delete=False) as f:
         import json
@@ -463,13 +536,112 @@ def check_cron_steward() -> Check:
     return result
 
 
+def check_fae_ledger(player: str) -> Check:
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS / "fae-ledger.py"),
+            "add",
+            player,
+            "--fae",
+            "Goblin Index Empire",
+            "--gave",
+            "one test shelfmark",
+            "--terms",
+            "one precise overlooked label",
+            "--deadline",
+            "2099-01-01",
+            "--dry-run",
+        ],
+        cwd=BASE,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    add_output = (proc.stdout or "") + (proc.stderr or "")
+    if proc.returncode != 0 or "BARGAIN_ADDED" not in add_output:
+        return Check("fae ledger", False, add_output.strip().splitlines()[0] if add_output.strip() else "dry-run add failed")
+
+    listing = run(
+        [sys.executable, str(SCRIPTS / "fae-ledger.py"), "list", player, "--details"],
+        name="fae ledger list",
+    )
+    if not listing.ok:
+        return Check("fae ledger", False, listing.detail)
+    return Check("fae ledger", True, "add/list path works")
+
+
+def check_thread_steward() -> Check:
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPTS / "thread-steward.py"), "--json"],
+        cwd=BASE,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+        return Check("thread steward", False, detail[0] if detail else "thread steward failed")
+    try:
+        data = json.loads(proc.stdout)
+    except Exception as exc:
+        return Check("thread steward", False, f"invalid JSON: {exc}")
+    if "actions" not in data or "summary" not in data:
+        return Check("thread steward", False, "missing actions/summary in report")
+    return Check("thread steward", True, "lifecycle report runs")
+
+
+def check_thread_closure_path() -> Check:
+    inline = """
+import importlib.util
+import pathlib
+import shutil
+import sys
+import tempfile
+
+sys.path.insert(0, 'scripts')
+spec = importlib.util.spec_from_file_location('close_session', 'scripts/close-session.py')
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+
+with tempfile.TemporaryDirectory(prefix='enchantify-thread-close-') as d:
+    d = pathlib.Path(d)
+    threads = d / 'threads.md'
+    register = d / 'world-register.md'
+    shutil.copy2('lore/threads.md', threads)
+    shutil.copy2('lore/world-register.md', register)
+    old_threads = m.THREADS_MD
+    old_register = m.REGISTER_MD
+    m.THREADS_MD = threads
+    m.REGISTER_MD = register
+    m.apply_closed_threads([{
+        'name': "Elowen's Refectory Experiments",
+        'outcome': 'Runtime smoke ending only.',
+        'closure_type': 'natural',
+        'aftercare': 'The real thread remains open.',
+    }], False)
+    out_t = threads.read_text()
+    out_r = register.read_text()
+    m.THREADS_MD = old_threads
+    m.REGISTER_MD = old_register
+    assert "## Archive: Elowen's Refectory Experiments" in out_t
+    assert "| Elowen's Refectory Experiments | Thread |" not in out_r
+print('OK')
+"""
+    result = run([sys.executable, "-c", inline], name="thread closure path")
+    if result.ok:
+        return Check("thread closure path", True, "archive/remove dry-run works")
+    return result
+
+
 def check_live_scene_dry_run(player: str) -> Check:
     scene_text = (
-        "You stand in the Academy corridor. The lamps remember your name.\n\n"
+        "You are still outside Corin's marked room, close enough to hear the door handle move. "
+        "The card with the two red titles remains on the door, and no one has stepped away yet.\n\n"
         "What do you do?\n"
-        "1. Ask whether anyone wants tea before the next strange thing happens.\n"
-        "2. Open the marked drawer and read the note inside.\n"
-        "3. Follow the draft under the door no one mentioned.\n"
+        "1. [LIFE] Ask whether anyone wants tea before the next strange thing happens.\n"
+        "2. [ARC] Try a Belief roll to investigate the marked drawer and read the clue inside.\n"
+        "3. [SURPRISE] Follow the draft under the side door no one mentioned.\n"
     )
     voice_text = "[bm_lewis] " + scene_text
     with tempfile.NamedTemporaryFile("w", suffix=".txt", prefix="enchantify-scene-", delete=False) as scene_file:
@@ -526,6 +698,7 @@ def main() -> int:
         ),
         check_story_context(args.player),
         check_story_progress(args.player),
+        check_page_contract(args.player),
         check_class_lecture(args.player),
         check_widget_state(args.player),
         check_narrative_health(args.player),
@@ -536,6 +709,9 @@ def main() -> int:
         check_health_reader(),
         check_bleed_fallback(),
         check_cron_steward(),
+        check_fae_ledger(args.player),
+        check_thread_steward(),
+        check_thread_closure_path(),
         check_npc_research_path(args.player),
         check_outreach_path(),
         check_live_scene_dry_run(args.player),

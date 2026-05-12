@@ -450,30 +450,13 @@ def get_quiet_status():
 
 def get_fuel_summary() -> str:
     """Read today's entries from enchantify fuel-log.txt and return a one-line summary."""
-    fuel_log = os.path.join(ENCHANTIFY_WORKSPACE, "scripts", "fuel-log.txt")
-    if not os.path.exists(fuel_log):
-        return "Nothing logged yet."
-    today = datetime.now().strftime("%Y-%m-%d")
-    total_cal = 0
-    total_pro = 0
-    items = []
     try:
-        with open(fuel_log) as f:
-            for line in f:
-                parts = line.strip().split("|")
-                if len(parts) >= 5 and parts[0] == today:
-                    items.append(parts[2])
-                    total_cal += int(parts[3]) if parts[3].isdigit() else 0
-                    total_pro += int(parts[4]) if parts[4].isdigit() else 0
+        sys.path.insert(0, os.path.join(ENCHANTIFY_WORKSPACE, "scripts"))
+        from food_log import summarize
+        summary = summarize(days=1)
+        return summary.replace("Today: ", "", 1)
     except Exception:
         return "Log unreadable."
-    if not items:
-        return "Nothing logged yet."
-    cal_str = f"{total_cal} cal" if total_cal else "cal unknown"
-    pro_str = f"{total_pro}g protein" if total_pro else ""
-    summary = " · ".join(items)
-    totals = f"{cal_str}{', ' + pro_str if pro_str else ''}"
-    return f"{summary} — {totals}"
 
 
 def get_calendar():

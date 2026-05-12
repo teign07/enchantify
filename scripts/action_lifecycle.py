@@ -81,23 +81,26 @@ def record_open_action(entry: dict[str, Any]) -> None:
         return
     narrative = entry.get("narrative") or ""
     hidden = entry.get("hidden_effect") or ""
+    actor = entry.get("actor") or ""
+    thread_name = entry.get("thread_name") or ""
+    target = entry.get("target") or ""
     _append({
         "event": "opened",
         "action_id": action_id,
         "status": "open",
-        "actor": entry.get("actor", ""),
+        "actor": actor,
         "actor_kind": entry.get("actor_kind", ""),
         "chapter": entry.get("chapter", ""),
         "action": entry.get("action", ""),
-        "thread_name": entry.get("thread_name", ""),
+        "thread_name": thread_name,
         "thread_id": entry.get("thread_id", ""),
-        "target": entry.get("target", ""),
+        "target": target,
         "intensity": entry.get("intensity", ""),
         "priority": entry.get("priority", "NORMAL"),
         "narrative": _compact(narrative, 520),
         "hidden_effect": _compact(hidden, 300),
         "reason": _compact(entry.get("reason", ""), 300),
-        "keywords": _keywords(" ".join([narrative, hidden, entry.get("actor", ""), entry.get("thread_name", ""), entry.get("target", "")])),
+        "keywords": _keywords(" ".join([narrative, hidden, actor, thread_name, target])),
         "source_timestamp": entry.get("timestamp", ""),
     })
 
@@ -130,9 +133,10 @@ def render_open_actions(limit: int = 5) -> list[str]:
     lines = []
     for action in open_actions(limit=limit):
         target = f" -> {action['target']}" if action.get("target") else ""
+        mechanism = f" Mechanism: {action.get('hidden_effect')}" if action.get("hidden_effect") else ""
         lines.append(
             f"{action.get('actor')} {action.get('action', '').replace('_', ' ')}{target} "
-            f"via {action.get('thread_name')}: {action.get('narrative')}"
+            f"via {action.get('thread_name')}: {action.get('narrative')}{mechanism}"
         )
     return lines
 
@@ -169,4 +173,3 @@ def mark_actions_noticed_from_scene(scene_text: str, scene_id: str = "", player:
         })
         noticed.append(action_id)
     return noticed
-

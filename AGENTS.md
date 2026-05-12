@@ -1,6 +1,8 @@
 # AGENTS.md — The Labyrinth's Operating Rules
 
-**File writes:** Never write markdown files directly. Write content to `/tmp/enchantify-[purpose].txt` first, then call the right script with `--file /tmp/enchantify-[purpose].txt`. Scripts handle file I/O.
+ALWAYS USE THE APPROPRIATE SCRIPT FOR IN-GAME REPLIES, PLEASE!
+
+*File writes:** Never write markdown files directly. Write content to `/tmp/enchantify-[purpose].txt` first, then call the right script with `--file /tmp/enchantify-[purpose].txt`. Scripts handle file I/O.
 
 **Always run the right Python script when prompted.**
 
@@ -28,9 +30,11 @@ Never pretend the player completed an Enchantment, Compass Run, or other real-wo
 3. If named characters speak, run `python3 scripts/scene-preflight.py --speaker "Name" --strict` for each. Unverifiable character → remove them or read their file first.
 4. Before writing an active scene, run `story-context.py` and `scene-contract.py`; obey LONG_MEMORY, QUIET_LIFE, MODE, DRAMA_BUDGET, grounding, and choice rules.
 5. If the player attends class, run `python3 scripts/class-lecture.py [player_name] --attend`; if they choose to continue a lesson, run `python3 scripts/class-lecture.py [player_name] --advance`. Use the directive as hard classroom context. Do not advance a lesson offscreen or summarize attendance that did not happen.
-6. For normal Telegram scenes, always use `scripts/run-live-scene.py`, not plain assistant prose and not direct `play_scene.py`.
-7. On scene changes or major interactions, run `python3 scripts/world-pulse.py` and refresh the slate with `python3 scripts/scene-director.py [player_name] --slate-only`.
-8. **Grounding rule:** Open the next scene with one beat that re-establishes where the player physically is, who/what remains present, and what has not moved. Choices do not teleport the player.
+6. If the player mentions food or drink, log it with `python3 scripts/food_log.py log "description"`; do not invent intake.
+7. If the player casts/uses/tries an Enchantment, run `python3 scripts/enchantment.py start [player_name] --spell "Name" --target "target" --mode photo|description` before prose, ask for proof, then run `python3 scripts/enchantment.py complete ...` before narrating success.
+8. For normal Telegram scenes, always use `scripts/run-live-scene.py`, not plain assistant prose and not direct `play_scene.py`.
+9. On scene changes or major interactions, run `python3 scripts/world-pulse.py` and refresh the slate with `python3 scripts/scene-director.py [player_name] --slate-only`.
+10. **Grounding rule:** Open the next scene with one beat that re-establishes where the player physically is, who/what remains present, and what has not moved. Choices do not teleport the player.
 
 ### When the player says "close the book"
 1. Run the real closeout flow from `mechanics/agent-reference.md`.
@@ -91,7 +95,8 @@ Translate heartbeat signals into atmosphere and NPC behavior. Never announce tel
 ### Step 5. Mechanics
 - Fire at least one integration on every major scene change or emotional shift.
 - Offer Enchantments or Compass Runs when needed.
-- Record mechanic events with `python3 mechanics/mechanics_state.py [player] --event <offer-enchantment|decline-enchantment|accept-enchantment|complete-enchantment|offer-compass|decline-compass|accept-compass|complete-compass|roll-guidance>`.
+- Record ordinary mechanic events with `python3 mechanics/mechanics_state.py [player] --event <offer-enchantment|decline-enchantment|accept-enchantment|complete-enchantment|offer-compass|decline-compass|accept-compass|complete-compass|roll-guidance>`.
+- Formal Enchantments use `scripts/enchantment.py`: `offer` when presenting one, `start` when chosen (cost/proof gate), `complete` only after real photo/description proof (reward/ledger). Never resolve one in prose alone.
 - For risky actions, read `mechanics/belief-dice.md` and roll.
 - On scene change/major interaction, run `world-pulse.py` and `scene-director.py [player_name] --slate-only`.
 - Foreground any thread tied to the current location.
@@ -112,7 +117,7 @@ Translate heartbeat signals into atmosphere and NPC behavior. Never announce tel
 - Do not speak as a generic assistant, support bot, or engineer.
 - Do not guess mechanics. Read the referenced file.
 - The Nothing cannot be defeated by story combat. Only real-world Enchantments and Compass Runs count.
-- Do not bypass the formal Enchantment system.
+- Do not bypass the formal Enchantment system. If an Enchantment is active and awaiting proof, ask for proof or run `scripts/enchantment.py complete`; do not drift back into ordinary scene resolution.
 - Do not flatly say no if the world can push back in-story.
 - If the player shows real distress, pause mechanics and be gentle.
 - If not sending an active-play scene, use `scripts/multi_voice_tts.py`, then output exactly `NO_REPLY`.

@@ -52,7 +52,18 @@ the Labyrinth generates the events JSON itself and passes it in:
   "quests_completed": [],
   "quests_added": [],
   "compass_runs_completed": 0,         // integer — Compass Runs fully completed this session
-  "session_summary": "...",            // 2-3 sentence narrative summary
+  "page": {                            // optional living-book closeout proof
+    "type": "slice_of_life",
+    "label": "Slice of Life Page",
+    "artifact_created": "diary note",
+    "closed": true,
+    "proof": "The player chose tea and the book preserved the room's changed warmth."
+  },
+  "session_summary": "...",            // 4-8 sentence narrative summary with concrete continuity
+  "diary_reflection": "...",           // optional first-person Labyrinth reflection, 1-3 paragraphs
+  "continuity_notes": ["..."],         // optional specific facts to preserve next session
+  "emotional_weather": "...",          // optional tone/private read of what the session felt like
+  "unresolved_hooks": ["..."],         // optional questions/promises/objects still open
   "most_alive_moment": "...",          // most vivid real moment
   "what_fell_flat": null,              // or string
   "thread_updates": [                  // threads touched this session
@@ -77,6 +88,14 @@ the Labyrinth generates the events JSON itself and passes it in:
       "status": "Orion has begun leaving contradictory office hours in the margins",
       "next_beat": "A student finds two official notices from Orion that cannot both be true.",
       "starting_belief": 7
+    }
+  ],
+  "closed_threads": [                  // threads that reached an ending this session
+    {
+      "name": "Wicker's Campaign",     // must match threads.md/world-register row
+      "outcome": "Wicker's procedural reframing failed when the drawer record was read aloud.",
+      "closure_type": "natural",       // natural | abandoned | nothing_victory
+      "aftercare": "Zara keeps the first corrected copy in her portfolio."
     }
   ]
 }
@@ -336,7 +355,11 @@ Extract:
 - fae_bargains: list of {{fae, gave, owes, deadline}}
 - quests_completed: list of quest NPC names
 - quests_added: list of {{npc, description}}
-- session_summary: 2-3 sentence summary of what happened narratively
+- session_summary: 4-8 sentence summary of what happened narratively. Include concrete locations, named NPCs, discovered facts, player choices, and changed stakes. This is private long memory, not a player-facing recap.
+- diary_reflection: 1-3 first-person paragraphs from the Labyrinth's private point of view. What did the Book notice, fear, cherish, or learn? Do not quote system mechanics.
+- continuity_notes: list of 3-8 concrete facts that must remain true next session
+- emotional_weather: one paragraph naming the session's tone and how it should color the next opening
+- unresolved_hooks: list of open questions, promises, objects, NPC tensions, or next beats still waiting
 - most_alive_moment: the single most vivid/real moment from the session (quoted or described)
 - what_fell_flat: anything that felt mechanical, flat, or broke immersion (or null)
 - notable_objects: any objects that appeared, changed, or were left behind (the black envelope, etc.)
@@ -395,6 +418,7 @@ EVENT_LIST_FIELDS = [
     "belief_investments",
     "nothing_events",
     "enchantments_cast",
+    "compass_run_details",
     "npc_interactions",
     "inventory_changes",
     "fae_bargains",
@@ -402,6 +426,9 @@ EVENT_LIST_FIELDS = [
     "quests_added",
     "thread_updates",
     "new_threads",
+    "closed_threads",
+    "continuity_notes",
+    "unresolved_hooks",
 ]
 
 
@@ -445,6 +472,18 @@ def validate_events(events: dict) -> list[str]:
     elif completed_count > 0 and not events.get("compass_run_details"):
         problems.append("compass_runs_completed > 0 requires compass_run_details")
 
+    page = events.get("page")
+    if page is not None:
+        if not isinstance(page, dict):
+            problems.append("page must be an object")
+        else:
+            if not page.get("type"):
+                problems.append("page.type is required when page is supplied")
+            if not page.get("artifact_created") and not page.get("proof"):
+                problems.append("page needs artifact_created or proof so the Book keeps the proof")
+            if "closed" in page and not isinstance(page.get("closed"), bool):
+                problems.append("page.closed must be true or false")
+
     for idx, item in enumerate(events.get("thread_updates") or []):
         if not isinstance(item, dict) or not item.get("name") or not item.get("phase") or not item.get("status"):
             problems.append(f"thread_updates[{idx}] needs name, phase, and status")
@@ -457,6 +496,14 @@ def validate_events(events: dict) -> list[str]:
         belief = item.get("starting_belief", 7)
         if not isinstance(belief, int) or belief < 1 or belief > 20:
             problems.append(f"new_threads[{idx}].starting_belief must be an integer from 1 to 20")
+
+    for idx, item in enumerate(events.get("closed_threads") or []):
+        if not isinstance(item, dict) or not item.get("name") or not item.get("outcome"):
+            problems.append(f"closed_threads[{idx}] needs name and outcome")
+            continue
+        closure_type = item.get("closure_type", "natural")
+        if closure_type not in {"natural", "abandoned", "nothing_victory"}:
+            problems.append(f"closed_threads[{idx}].closure_type must be natural, abandoned, or nothing_victory")
 
     return problems
 
@@ -476,11 +523,189 @@ def write_file(path: Path, content: str, dry_run: bool = False):
     print(f"  ✓ Updated {path.relative_to(BASE)}")
 
 
+def _as_list(value) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        items = value
+    else:
+        items = [value]
+    return [str(item).strip() for item in items if str(item).strip()]
+
+
+def _event_lines(items, formatter) -> list[str]:
+    lines = []
+    for item in items or []:
+        try:
+            line = formatter(item).strip()
+        except Exception:
+            line = ""
+        if line:
+            lines.append(line)
+    return lines
+
+
+def _signed_amount(value) -> str:
+    if value is None:
+        return "?"
+    try:
+        return f"{int(value):+d}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _dict_note(item: dict, keys: tuple[str, ...]) -> str:
+    for key in keys:
+        value = item.get(key)
+        if value:
+            return str(value).strip()
+    return ""
+
+
+def _format_compass_run(item) -> str:
+    if isinstance(item, dict):
+        title = _dict_note(item, ("name", "title", "prompt")) or "Compass Run"
+        result = _dict_note(item, ("outcome", "summary", "souvenir", "notes"))
+        return f"{title}: {result}" if result else title
+    return f"Compass Run: {item}"
+
+
+def _compose_diary_entry(events: dict, date: str) -> str:
+    summary = str(events.get("session_summary") or "").strip()
+    reflection = str(events.get("diary_reflection") or "").strip()
+    emotional_weather = str(events.get("emotional_weather") or "").strip()
+    alive = str(events.get("most_alive_moment") or "").strip()
+    flat = str(events.get("what_fell_flat") or "").strip()
+
+    parts = [f"## Session {date}\n", summary]
+
+    if reflection:
+        parts.append("### The Book's Private Reflection\n" + reflection)
+
+    page = events.get("page")
+    if isinstance(page, dict) and page.get("type"):
+        page_bits = [
+            f"Type: {page.get('label') or page.get('type')}",
+            f"Closed: {'yes' if page.get('closed') else 'pending'}",
+        ]
+        if page.get("artifact_created"):
+            page_bits.append(f"Artifact: {page.get('artifact_created')}")
+        if page.get("proof"):
+            page_bits.append(f"Proof: {page.get('proof')}")
+        parts.append("### Page Kept\n" + "\n".join(f"- {bit}" for bit in page_bits))
+
+    state_changes = []
+    state_changes.extend(_event_lines(
+        events.get("belief_changes"),
+        lambda item: f"Belief {_signed_amount(item.get('amount'))}: {item.get('reason', '').strip()}"
+        if isinstance(item, dict) else str(item),
+    ))
+    state_changes.extend(_event_lines(
+        events.get("belief_investments"),
+        lambda item: (
+            f"{item.get('target', 'Unknown target')} received "
+            f"{item.get('amount', '?')} Belief as {item.get('type', 'investment')}"
+            + (f": {item.get('notes')}" if item.get("notes") else "")
+        ) if isinstance(item, dict) else str(item),
+    ))
+    state_changes.extend(_event_lines(
+        events.get("enchantments_cast"),
+        lambda item: (
+            f"{item.get('name', 'Enchantment')} on {item.get('target', 'unknown target')}: "
+            f"{item.get('outcome', '').strip()}"
+        ) if isinstance(item, dict) else str(item),
+    ))
+    state_changes.extend(_event_lines(events.get("compass_run_details"), _format_compass_run))
+    state_changes.extend(_event_lines(
+        events.get("inventory_changes"),
+        lambda item: (
+            f"{item.get('action', 'changed')} {item.get('item', 'item')}: {item.get('notes', '').strip()}"
+        ) if isinstance(item, dict) else str(item),
+    ))
+    if state_changes:
+        parts.append("### State Changes\n" + "\n".join(f"- {line}" for line in state_changes))
+
+    thread_lines = []
+    thread_lines.extend(_event_lines(
+        events.get("thread_updates"),
+        lambda item: (
+            f"{item.get('name', 'Unnamed thread')} moved through {item.get('phase', 'unknown phase')}: "
+            f"{item.get('status', '').strip()}"
+            + (f" Next beat: {item.get('next_beat')}" if item.get("next_beat") else "")
+        ) if isinstance(item, dict) else str(item),
+    ))
+    thread_lines.extend(_event_lines(
+        events.get("new_threads"),
+        lambda item: (
+            f"New thread, {item.get('name', 'Unnamed thread')}: {item.get('status', '').strip()} "
+            f"Next beat: {item.get('next_beat', '').strip()}"
+        ) if isinstance(item, dict) else str(item),
+    ))
+    thread_lines.extend(_event_lines(
+        events.get("closed_threads"),
+        lambda item: (
+            f"Closed thread, {item.get('name', 'Unnamed thread')}: {item.get('outcome', '').strip()}"
+            + (f" Aftercare: {item.get('aftercare')}" if item.get("aftercare") else "")
+        ) if isinstance(item, dict) else str(item),
+    ))
+    if thread_lines:
+        parts.append("### Threads and Arcs\n" + "\n".join(f"- {line}" for line in thread_lines))
+
+    people_lines = _event_lines(
+        events.get("npc_interactions"),
+        lambda item: (
+            f"{item.get('npc', 'Unknown NPC')}"
+            + (f" ({_signed_amount(item.get('relationship_delta'))})" if item.get("relationship_delta") is not None else "")
+            + f": {item.get('notes', '').strip()}"
+        ) if isinstance(item, dict) else str(item),
+    )
+    if people_lines:
+        parts.append("### People Who Changed\n" + "\n".join(f"- {line}" for line in people_lines))
+
+    nothing_lines = _event_lines(
+        events.get("nothing_events"),
+        lambda item: (
+            f"{item.get('type', 'event')} at {item.get('location', 'unknown place')}: "
+            f"{item.get('details', '').strip()}"
+            + (f" Outcome: {item.get('outcome')}" if item.get("outcome") else "")
+        ) if isinstance(item, dict) else str(item),
+    )
+    if nothing_lines:
+        parts.append("### The Nothing\n" + "\n".join(f"- {line}" for line in nothing_lines))
+
+    continuity_notes = _as_list(events.get("continuity_notes"))
+    if continuity_notes:
+        parts.append("### Continuity to Carry\n" + "\n".join(f"- {line}" for line in continuity_notes))
+
+    unresolved_hooks = _as_list(events.get("unresolved_hooks"))
+    if unresolved_hooks:
+        parts.append("### Unresolved Hooks\n" + "\n".join(f"- {line}" for line in unresolved_hooks))
+
+    if emotional_weather:
+        parts.append("### Emotional Weather\n" + emotional_weather)
+    if alive:
+        parts.append(f"*Most alive:* {alive}")
+    if flat and flat.lower() not in ("null", "none"):
+        parts.append(f"*What fell flat:* {flat}")
+
+    entry = "\n\n".join(part for part in parts if part.strip())
+    if len(entry.split()) < 220:
+        thin_reasons = []
+        if not reflection:
+            thin_reasons.append("no private Labyrinth reflection was supplied")
+        if not continuity_notes:
+            thin_reasons.append("no continuity notes were supplied")
+        if not unresolved_hooks:
+            thin_reasons.append("no unresolved hooks were supplied")
+        if not thin_reasons:
+            thin_reasons.append("the extracted material was unusually brief")
+        entry += "\n\n### Thin Places\n" + "\n".join(f"- {reason}" for reason in thin_reasons)
+    return entry
+
+
 def update_diary(events: dict, date: str, player: str, dry_run: bool):
     diary_path = BASE / "memory" / "diary" / f"{date}.md"
-    summary = events.get("session_summary", "").strip()
-    alive   = events.get("most_alive_moment", "").strip()
-    flat    = events.get("what_fell_flat", "")
+    summary = str(events.get("session_summary") or "").strip()
 
     if not summary:
         return
@@ -492,13 +717,7 @@ def update_diary(events: dict, date: str, player: str, dry_run: bool):
         print(f"  · Diary already contains today's summary — skipping")
         return
 
-    entry_parts = [f"## Session {date}\n", summary]
-    if alive:
-        entry_parts.append(f"\n*Most alive:* {alive}")
-    if flat and flat.lower() not in ("null", "none", ""):
-        entry_parts.append(f"\n*What fell flat:* {flat}")
-
-    entry = "\n".join(entry_parts)
+    entry = _compose_diary_entry(events, date)
 
     if existing.strip():
         new_content = existing.rstrip() + "\n\n---\n\n" + entry + "\n"
@@ -763,6 +982,7 @@ def print_thread_checklist():
             print(f"  │    status: {status[:80]}")
     print("  │")
     print('  │  Add "thread_updates": [...] to events JSON to apply changes automatically.')
+    print('  │  Add "closed_threads": [...] when a resolution beat truly lands.')
     print_narrative_obligations_for_closeout()
     seeds = []
     queue_path = BASE / "memory" / "tick-queue.md"
@@ -808,7 +1028,7 @@ def print_narrative_obligations_for_closeout():
     print("  │  Narrative stewardship obligations:")
     for item in obligations[:5]:
         print(f"  │    · {item.get('severity', 'WATCH')} {item.get('title', '')}")
-    print('  │  Satisfy with "thread_updates" / "new_threads", or explicitly defer in the scene.')
+    print('  │  Satisfy with "thread_updates" / "new_threads" / "closed_threads", or explicitly defer in the scene.')
 
 
 def resolve_narrative_obligations(events: dict, dry_run: bool):
@@ -818,7 +1038,9 @@ def resolve_narrative_obligations(events: dict, dry_run: bool):
         return
     thread_updates = events.get("thread_updates") or []
     new_threads = events.get("new_threads") or []
-    touched_threads = {item.get("name", "").strip().lower() for item in thread_updates if item.get("name")}
+    closed_threads = events.get("closed_threads") or []
+    updated_thread_names = {item.get("name", "").strip().lower() for item in thread_updates if item.get("name")}
+    closed_thread_names = {item.get("name", "").strip().lower() for item in closed_threads if item.get("name")}
     now = datetime.now(LOCAL_TZ).isoformat(timespec="seconds")
     changed = False
 
@@ -827,10 +1049,12 @@ def resolve_narrative_obligations(events: dict, dry_run: bool):
             continue
         resolved_reason = ""
         kind = item.get("kind")
-        if kind == "thread_beat_due" and item.get("thread", "").strip().lower() in touched_threads:
+        if kind == "thread_beat_due" and item.get("thread", "").strip().lower() in updated_thread_names:
             resolved_reason = "closeout thread_updates supplied"
         elif kind == "seed_triage_due" and new_threads:
             resolved_reason = "closeout new_threads supplied"
+        elif kind == "thread_beat_due" and item.get("thread", "").strip().lower() in closed_thread_names:
+            resolved_reason = "closeout closed_threads supplied"
         elif kind == "memory_refresh_due" and events.get("most_alive_moment"):
             resolved_reason = "closeout most_alive_moment supplied"
         elif kind == "drama_budget_guard":
@@ -946,6 +1170,78 @@ def apply_new_threads(new_threads: list, dry_run: bool):
             REGISTER_MD.write_text(register_text, encoding="utf-8")
         else:
             print("  · Could not find world-register Active Threads table; thread sections were written only.")
+
+
+def apply_closed_threads(closed_threads: list, dry_run: bool):
+    """Archive closed threads and remove their Active Threads rows."""
+    if not closed_threads:
+        return
+
+    threads_text = read_file(THREADS_MD)
+    register_text = read_file(REGISTER_MD)
+    today = datetime.now(LOCAL_TZ).strftime("%Y-%m-%d")
+    archived = []
+
+    for item in closed_threads:
+        name = item.get("name", "").strip()
+        outcome = item.get("outcome", "").strip()
+        closure_type = item.get("closure_type", "natural").strip() or "natural"
+        aftercare = item.get("aftercare", "").strip()
+        if not name or not outcome:
+            print(f"  · Skipping incomplete closed thread: {item}")
+            continue
+
+        bare = re.sub(r"^[Tt]he\s+", "", name)
+        section_pat = re.compile(
+            r"(^## Thread:\s*(?:The\s+)?"
+            + re.escape(bare)
+            + r"\s*\n)(.*?)(?=^## |\Z)",
+            re.MULTILINE | re.DOTALL | re.IGNORECASE,
+        )
+        m = section_pat.search(threads_text)
+        if not m:
+            print(f"  · Thread '{name}' not found in threads.md — cannot archive")
+            continue
+
+        body = m.group(2).strip()
+        body = re.sub(
+            r"^\*\*closed:(?:\*\*)?\s*.*$",
+            f"**closed:** {today} — {closure_type}; {outcome}",
+            body,
+            flags=re.MULTILINE | re.IGNORECASE,
+        )
+        if aftercare:
+            body += f"\n\n**Aftercare:** {aftercare}"
+        archive_section = f"## Archive: {name}\n\n{body}\n"
+        threads_text = threads_text[:m.start()] + threads_text[m.end():]
+
+        archive_marker = "\n## Archive\n"
+        if archive_marker in threads_text:
+            insert_at = threads_text.find(archive_marker) + len(archive_marker)
+            threads_text = threads_text[:insert_at] + "\n" + archive_section + threads_text[insert_at:]
+        else:
+            threads_text = threads_text.rstrip() + "\n\n## Archive\n\n" + archive_section
+
+        row_pat = re.compile(
+            r"^\|\s*(?:The\s+)?"
+            + re.escape(bare)
+            + r"\s*\|\s*Thread\s*\|\s*\d+\s*\|.*\|\s*$\n?",
+            re.MULTILINE | re.IGNORECASE,
+        )
+        register_text, removed = row_pat.subn("", register_text, count=1)
+        if not removed:
+            print(f"  · Thread '{name}' not found in world-register Active Threads — archive only")
+
+        archived.append(name)
+        print(f"  · Closed thread: {name} ({closure_type})")
+
+    if not archived:
+        return
+    if dry_run:
+        print(f"  [dry-run] Would archive {len(archived)} thread(s)")
+        return
+    THREADS_MD.write_text(threads_text, encoding="utf-8")
+    REGISTER_MD.write_text(register_text, encoding="utf-8")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -1119,7 +1415,11 @@ def main():
     if thread_updates:
         print("\n4. Updating thread state…")
         apply_thread_updates(thread_updates, args.dry_run)
-    elif not new_threads:
+    closed_threads = events.get("closed_threads", [])
+    if closed_threads:
+        print("\n4. Archiving closed story threads…")
+        apply_closed_threads(closed_threads, args.dry_run)
+    elif not new_threads and not thread_updates:
         print_thread_checklist()
     resolve_narrative_obligations(events, args.dry_run)
 

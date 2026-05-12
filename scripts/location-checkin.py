@@ -27,6 +27,25 @@ SCRIPTS = BASE / "scripts"
 PLAYERS = BASE / "players"
 VISIT_LOG = BASE / "logs" / "anchor-visits.jsonl"
 DEFAULT_RADIUS_M = 200
+ALLOWED_ANCHOR_TYPES = {"NOTICE", "EMBARK", "SENSE", "WRITE", "REST"}
+ANCHOR_TYPE_ALIASES = {
+    "FIND": "NOTICE",
+    "DISCOVER": "NOTICE",
+    "SEARCH": "NOTICE",
+    "LOOK": "NOTICE",
+    "GO": "EMBARK",
+    "MOVE": "EMBARK",
+    "TRAVEL": "EMBARK",
+    "FEEL": "SENSE",
+    "TOUCH": "SENSE",
+    "BODY": "SENSE",
+    "REMEMBER": "WRITE",
+    "RECORD": "WRITE",
+    "KEEP": "WRITE",
+    "PAUSE": "REST",
+    "STOP": "REST",
+    "BREATHE": "REST",
+}
 
 
 def _load_anchor_check():
@@ -95,6 +114,18 @@ def sentence(text: str, fallback: str) -> str:
     return text.rstrip(".") + "." if text else fallback
 
 
+def normalize_anchor_type(raw: str) -> tuple[str, str | None]:
+    """Return one of the five Wonder Compass anchor kinds, plus any warning."""
+    value = re.sub(r"[^A-Za-z]", "", raw or "").upper()
+    if value in ALLOWED_ANCHOR_TYPES:
+        return value, None
+    if value in ANCHOR_TYPE_ALIASES:
+        normalized = ANCHOR_TYPE_ALIASES[value]
+        return normalized, f"ANCHOR_TYPE_NORMALIZED {value}->{normalized}"
+    allowed = ", ".join(sorted(ALLOWED_ANCHOR_TYPES))
+    raise ValueError(f"INVALID_ANCHOR_TYPE {raw!r}. Use only: {allowed}")
+
+
 def generated_room(name: str, anchor_type: str, words: str, belief: int) -> dict[str, str]:
     direction = {
         "NOTICE": "small overlooked details",
@@ -102,7 +133,6 @@ def generated_room(name: str, anchor_type: str, words: str, belief: int) -> dict
         "SENSE": "texture, sound, scent, and embodied knowing",
         "WRITE": "sentences, records, and what can be kept",
         "REST": "warmth, pause, and protected simplicity",
-        "FIND": "objects waiting for their next use",
     }.get(anchor_type.upper(), "the exact meaning of this place")
     room = (
         f"{name} opens as a room of {direction}: shelves and thresholds arranged around the player's words, "
@@ -125,19 +155,21 @@ def generated_room(name: str, anchor_type: str, words: str, belief: int) -> dict
 def build_anchor_record(args, lat: float, lon: float) -> str:
     today = date.today().isoformat()
     season = args.season or current_season()
-    generated = generated_room(args.name, args.type, args.words, args.belief)
+    anchor_type, warning = normalize_anchor_type(args.type)
+    args.type_warning = warning
+    generated = generated_room(args.name, anchor_type, args.words, args.belief)
     room = args.room or generated["room"]
     fae = args.fae or generated["fae"]
     mini_story = args.mini_story or generated["mini_story"]
     local_rule = args.local_rule or generated["local_rule"]
     echo = args.echo or sentence(
-        f"A door appears in the Academy with {args.type.upper()} pressure from {args.name}",
+        f"A door appears in the Academy with {anchor_type} pressure from {args.name}",
         "A new door appears in the Academy, waiting for the real place to be revisited.",
     )
     return f"""## {args.name}
 - **Coordinates:** {lat:.6f}, {lon:.6f}
 - **Radius meters:** {args.radius}
-- **Type:** {args.type.upper()}
+- **Type:** {anchor_type}
 - **Belief invested:** {args.belief}
 - **Created:** {today}
 - **Weather:** {args.weather or "Unknown at creation"}
@@ -248,9 +280,15 @@ def main() -> int:
         print("--create requires --name and --words")
         return 2
 
-    record = build_anchor_record(args, lat, lon)
+    try:
+        record = build_anchor_record(args, lat, lon)
+    except ValueError as exc:
+        print(str(exc))
+        return 2
     append_anchor_record(args.player, record, dry_run=args.dry_run)
     log_creation(args.player, args.name, lat, lon, args.radius, dry_run=args.dry_run)
+    if getattr(args, "type_warning", None):
+        print(args.type_warning)
     print(f"ANCHOR_CREATED {args.name} at {lat:.6f}, {lon:.6f} radius={args.radius}m")
     print("ROOM_CREATED: yes")
     print("FIRST_VISIT: send a later coordinate within radius to open the room.")

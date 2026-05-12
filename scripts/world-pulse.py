@@ -15,12 +15,14 @@ Run: python3 scripts/world-pulse.py
 Called by: 3-hour cron (after tick.py, before dispatching to player).
 """
 import json
+import hashlib
 import os
 import random
 import re
 import subprocess
 import sys
 import time
+import traceback
 import uuid
 import urllib.request
 import urllib.error
@@ -55,9 +57,17 @@ QUEUE_HEADER = (
     "*Populated by skill-lore, tick.py, and world-pulse.py. Read at session open.*\n\n---\n"
 )
 CACHE_PATH     = BASE_DIR / "config" / "world-pulse-cache.json"
+PROSE_STATE_PATH = BASE_DIR / "config" / "world-prose-state.json"
 SKILL_ID       = "world-pulse"
 QUEST_CAPACITY = 5
-ALLOW_AUTONOMOUS_THREAD_WRITES = os.environ.get("ENCHANTIFY_ALLOW_AUTONOMOUS_THREAD_WRITES", "").lower() in {"1", "true", "yes", "on"}
+
+_legacy_autonomous = os.environ.get("ENCHANTIFY_ALLOW_AUTONOMOUS_THREAD_WRITES")
+if _legacy_autonomous is not None:
+    AUTONOMOUS_PROSE_ENABLED = _legacy_autonomous.lower() in {"1", "true", "yes", "on"}
+else:
+    AUTONOMOUS_PROSE_ENABLED = os.environ.get("ENCHANTIFY_AUTONOMOUS_PROSE", "1").lower() not in {"0", "false", "no", "off"}
+AUTONOMOUS_PROSE_TIMEOUT = int(os.environ.get("ENCHANTIFY_AUTONOMOUS_PROSE_TIMEOUT", "60"))
+AUTONOMOUS_PROSE_LIMIT = int(os.environ.get("ENCHANTIFY_AUTONOMOUS_PROSE_LIMIT", "2"))
 
 random.seed(datetime.now().isoformat())
 
@@ -287,7 +297,102 @@ def load_openclaw_config():
         print(f"[{SKILL_ID}] Failed to parse OpenClaw config: {e}")
         return None
 
-def generate_consequence_via_llm(thread_name: str, thread_body: str, occurred_beat: str, retries: int = 3):
+def load_prose_state() -> dict:
+    if PROSE_STATE_PATH.exists():
+        try:
+            data = json.loads(PROSE_STATE_PATH.read_text())
+            data.setdefault("seen", {})
+            return data
+        except Exception:
+            pass
+    return {"seen": {}}
+
+
+def save_prose_state(state: dict) -> None:
+    PROSE_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    PROSE_STATE_PATH.write_text(json.dumps(state, indent=2, sort_keys=True))
+
+
+def prose_key(thread_name: str, occurred_beat: str) -> str:
+    raw = f"{thread_name}\n{occurred_beat}".encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()[:24]
+
+
+def truncate_text(text: str, limit: int = 240) -> str:
+    text = re.sub(r"\s+", " ", (text or "")).strip()
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 1)].rstrip() + "…"
+
+
+def thread_body_for(threads_text: str, thread_name: str) -> tuple[str, str]:
+    pattern = re.compile(
+        rf"^## Thread:\s*{re.escape(thread_name)}\s*$.*?(?=^## Thread:|\Z)",
+        re.MULTILINE | re.DOTALL | re.IGNORECASE,
+    )
+    match = pattern.search(threads_text)
+    if not match:
+        return "", ""
+    body = match.group(0)
+    next_m = re.search(r"^\*\*Next beat:\*\*\s*(.+)$", body, re.MULTILINE)
+    return body, next_m.group(1).strip() if next_m else ""
+
+
+def parse_autonomous_thread_beats(queue_text: str) -> dict[str, str]:
+    beats: dict[str, str] = {}
+    for m in re.finditer(r'-\s+\*\*\[Beat:\s+([^\]]+)\]\*\*', queue_text):
+        name = m.group(1).strip()
+        beats.setdefault(name, "")
+
+    block_re = re.compile(
+        r'(?ms)^## \[world-pulse\](?: \[PRIORITY: HIGH\])?(?: \[[^\]]+\])? \d{4}-\d{2}-\d{2} \d{2}:\d{2}\n(.*?)(?=^## |\Z)'
+    )
+    raw_re = re.compile(r'^\*Raw:\s*(.+?)\[[a-z_]+/[a-z]+\]\s+on\s+([^|→\n]+).*$', re.MULTILINE)
+    seed_re = re.compile(r'^\*?Narrative seed:?\*?\s*(.+)$', re.MULTILINE)
+    for block in block_re.finditer(queue_text):
+        body = block.group(1)
+        raw_m = raw_re.search(body)
+        seed_m = seed_re.search(body)
+        if not raw_m:
+            continue
+        thread_name = raw_m.group(2).strip()
+        if thread_name in {"Academy Daily Life", "The Current Arc"}:
+            continue
+        seed = seed_m.group(1).strip() if seed_m else raw_m.group(1).strip()
+        seed = re.sub(r'\s+', ' ', seed)
+        if seed:
+            beats[thread_name] = seed
+
+    return {k: v for k, v in beats.items() if k}
+
+
+def validate_generated_consequence(next_beat: str, register_note: str) -> tuple[Optional[str], Optional[str]]:
+    next_beat = truncate_text(next_beat, 520)
+    register_note = truncate_text(register_note, 140)
+    if not next_beat or not register_note:
+        return None, None
+    forbidden = [
+        r"\bBj\s+(?:decides|chooses|says|does|discovers|finds|realizes|solves|defeats|completes)\b",
+        r"\byou\s+(?:decide|choose|say|do|discover|find|realize|solve|defeat|complete)\b",
+        r"\bthe player\s+(?:decides|chooses|says|does|discovers|finds|realizes|solves|defeats|completes)\b",
+    ]
+    combined = f"{next_beat} {register_note}"
+    if any(re.search(pattern, combined, re.IGNORECASE) for pattern in forbidden):
+        return None, None
+    return next_beat, register_note
+
+
+def fallback_consequence(thread_name: str, occurred_beat: str) -> tuple[Optional[str], Optional[str]]:
+    clean = truncate_text(occurred_beat, 240)
+    next_beat = (
+        f"Offscreen, {thread_name} has acquired a concrete trace: {clean} "
+        "The next visible scene should surface that trace in the room, rumor, object, or NPC behavior before asking the player what to do."
+    )
+    register_note = truncate_text(clean, 120)
+    return validate_generated_consequence(next_beat, register_note)
+
+
+def generate_consequence_via_llm(thread_name: str, thread_body: str, occurred_beat: str, retries: int = 1):
     config = load_openclaw_config()
     if not config:
         print(f"[{SKILL_ID}] OpenClaw config not found. Skipping autonomous generation.")
@@ -298,20 +403,27 @@ def generate_consequence_via_llm(thread_name: str, thread_body: str, occurred_be
     model = "openclaw"
     url = f"http://127.0.0.1:{port}/v1/chat/completions"
 
-    system_prompt = "You are an automated GM for a solo RPG. You MUST return ONLY a valid JSON object. Do NOT use <think> or <thinking> blocks. Do NOT output markdown formatting. Output raw JSON starting with '{'."
+    system_prompt = "You are an automated living-world GM for a solo RPG. Return ONLY a valid JSON object. Do NOT use <think> or <thinking> blocks. Do NOT output markdown formatting. Output raw JSON starting with '{'."
     user_prompt = f"""A background simulation just triggered a story beat for the thread '{thread_name}'. 
 
 THREAD CONTEXT (Current state of the story):
 {thread_body}
 
-THE BEAT THAT JUST HAPPENED:
+THE OFFSCREEN ACTION THAT JUST HAPPENED:
 {occurred_beat}
 
-Determine the immediate consequence of this action. What happens next?
+Write the living-world consequence. This is prose, but bounded:
+- NPCs, factions, places, rumors, evidence, and objects may act offscreen.
+- Do not write any player action, player dialogue, player discovery, or player decision.
+- Do not fully resolve the thread while the player is away.
+- Do not invent new named characters, new major lore, or a final victory.
+- next_beat should be the next visible playable consequence, not a whole scene.
+- register_note should say what changed in-world, not a stock status line.
+
 Respond ONLY with a JSON object in this exact format:
 {{
-    "next_beat": "1 to 2 sentences describing the next logical action or consequence. Make it actionable.",
-    "register_note": "A short, 5-10 word summary of the current status."
+    "next_beat": "1 to 2 concrete sentences of offscreen consequence and what visible trace should surface next.",
+    "register_note": "A compact, concrete status note, 6-18 words."
 }}"""
 
     payload = {
@@ -344,7 +456,7 @@ Respond ONLY with a JSON object in this exact format:
 
     for attempt in range(1, retries + 1):
         try:
-            with urllib.request.urlopen(req, timeout=180) as response:
+            with urllib.request.urlopen(req, timeout=AUTONOMOUS_PROSE_TIMEOUT) as response:
                 raw_text = response.read().decode("utf-8")
                 
                 if not raw_text.strip():
@@ -375,7 +487,12 @@ Respond ONLY with a JSON object in this exact format:
                 try:
                     data = json.loads(content)
                     if "next_beat" in data and "register_note" in data:
-                        return data["next_beat"], data["register_note"]
+                        next_beat, register_note = validate_generated_consequence(data["next_beat"], data["register_note"])
+                        if next_beat and register_note:
+                            return next_beat, register_note
+                        print(f"[{SKILL_ID}] Attempt {attempt}: rejected unsafe or empty consequence.")
+                        time.sleep(5)
+                        continue
                     else:
                         print(f"[{SKILL_ID}] Attempt {attempt}: JSON missing required keys.")
                         time.sleep(5)
@@ -404,8 +521,8 @@ Respond ONLY with a JSON object in this exact format:
 def process_simulation_beats(events: list) -> None:
     if not TICK_QUEUE.exists():
         return
-    if not ALLOW_AUTONOMOUS_THREAD_WRITES:
-        print(f"[{SKILL_ID}] Autonomous thread rewriting disabled (set ENCHANTIFY_ALLOW_AUTONOMOUS_THREAD_WRITES=1 to enable).")
+    if not AUTONOMOUS_PROSE_ENABLED:
+        print(f"[{SKILL_ID}] Autonomous living-world prose disabled (set ENCHANTIFY_AUTONOMOUS_PROSE=1 to enable).")
         return
     
     threads_path = BASE_DIR / "lore" / "threads.md"
@@ -418,62 +535,74 @@ def process_simulation_beats(events: list) -> None:
     threads_text = threads_path.read_text()
     register_text = register_path.read_text() if register_path.exists() else ""
 
-    threads_updated = False
-    register_updated = False
+    prose_state = load_prose_state()
     queue_updated = False
     today_str = datetime.now().strftime("%Y-%m-%d")
 
-    # 1. Process Narrative Beats
-    beats = set(re.findall(r'-\s+\*\*\[Beat:\s+([^\]]+)\]\*\*', queue_text))
+    # 1. Process living-world prose from actual offscreen actions and legacy Beat markers.
+    beats = parse_autonomous_thread_beats(queue_text)
+    processed = 0
     
-    for thread_name in beats:
-        pattern = re.compile(
-            rf'(## Thread:\s+{re.escape(thread_name)}.*?Next beat:\s*)([^\n]+)(.*?Last advanced:\s*)([^\n]*)',
-            re.DOTALL | re.IGNORECASE
+    for thread_name, occurred_beat in beats.items():
+        if processed >= AUTONOMOUS_PROSE_LIMIT:
+            break
+        if thread_name in {"Academy Daily Life", "The Current Arc"}:
+            continue
+
+        thread_body, current_next = thread_body_for(threads_text, thread_name)
+        if not thread_body:
+            continue
+        if not occurred_beat:
+            occurred_beat = current_next
+        occurred_beat = truncate_text(occurred_beat, 420)
+        if not occurred_beat or occurred_beat.startswith("*(Simulation"):
+            continue
+
+        key = prose_key(thread_name, occurred_beat)
+        if key in prose_state.get("seen", {}):
+            continue
+
+        print(f"[{SKILL_ID}] Writing living-world consequence for {thread_name}...")
+        new_beat, new_note = generate_consequence_via_llm(thread_name, thread_body, occurred_beat)
+        if not new_beat or not new_note:
+            print(f"[{SKILL_ID}] Using bounded fallback consequence for {thread_name}.")
+            new_beat, new_note = fallback_consequence(thread_name, occurred_beat)
+        if not new_beat or not new_note:
+            print(f"[{SKILL_ID}] Skipped {thread_name}: no safe autonomous consequence.")
+            continue
+
+        sync_result = sync_thread_files(
+            thread_name,
+            status=new_note,
+            next_beat=new_beat,
+            last_advanced=today_str,
         )
-        match = pattern.search(threads_text)
-        if match:
-            thread_body = match.group(0)
-            occurred_beat = match.group(2).strip()
-            
-            # Prevent infinite processing loops
-            if occurred_beat and not occurred_beat.startswith("*(Simulation"):
-                print(f"[{SKILL_ID}] Generating consequence for {thread_name} via OpenClaw...")
-                new_beat, new_note = generate_consequence_via_llm(thread_name, thread_body, occurred_beat)
-                
-                if new_beat and new_note:
-                    events.append({
-                        "raw": f"{thread_name} (Simulation Beat)",
-                        "seed": f"While you were away, the simulation advanced: {occurred_beat}",
-                        "priority": "HIGH"
-                    })
+        threads_text = sync_result.get("threads_text", threads_text)
+        register_text = sync_result.get("register_text", register_text)
+        if sync_result.get("threads_changed") or sync_result.get("register_changed"):
+            events.append({
+                "raw": f"{thread_name} (Living-World Prose)",
+                "seed": f"Offscreen consequence written: {new_note}",
+                "priority": "HIGH",
+            })
+            prose_state.setdefault("seen", {})[key] = {
+                "thread": thread_name,
+                "date": today_str,
+                "beat": occurred_beat,
+                "register_note": new_note,
+            }
+            processed += 1
+            print(f"[{SKILL_ID}] Saved living-world prose for {thread_name}.")
 
-                    sync_result = sync_thread_files(
-                        thread_name,
-                        status=new_note,
-                        next_beat=new_beat,
-                        last_advanced=today_str,
-                    )
-                    threads_text = sync_result.get("threads_text", threads_text)
-                    register_text = sync_result.get("register_text", register_text)
-                    threads_updated = threads_updated or sync_result.get("threads_changed", False)
-                    register_updated = register_updated or sync_result.get("register_changed", False)
-                    if sync_result.get("threads_changed") or sync_result.get("register_changed"):
-                        print(f"[{SKILL_ID}] Successfully generated and saved consequences for {thread_name}.")
-                    
-                    # Consume the beat in the queue so we don't process it again in 3 hours!
-                    queue_text = re.sub(
-                        rf'-\s+\*\*\[Beat:\s+{re.escape(thread_name)}\]\*\*',
-                        f'- **[Auto-Advanced: {thread_name}]**',
-                        queue_text
-                    )
-                    queue_updated = True
+        queue_text = re.sub(
+            rf'-\s+\*\*\[Beat:\s+{re.escape(thread_name)}\]\*\*',
+            f'- **[Auto-Prose: {thread_name}]**',
+            queue_text
+        )
+        queue_updated = True
 
-                else:
-                    print(f"[{SKILL_ID}] Skipped updating {thread_name} due to generation failure.")
-                
-                # Polite API Backoff: Sleep 10 seconds between successful requests
-                time.sleep(10)
+        if processed < AUTONOMOUS_PROSE_LIMIT:
+            time.sleep(2)
 
     # 2. Process Phase Escalations
     escalations = set(re.findall(
@@ -485,8 +614,6 @@ def process_simulation_beats(events: list) -> None:
         if sync_result.get("threads_changed") or sync_result.get("register_changed"):
             threads_text = sync_result.get("threads_text", threads_text)
             register_text = sync_result.get("register_text", register_text)
-            threads_updated = threads_updated or sync_result.get("threads_changed", False)
-            register_updated = register_updated or sync_result.get("register_changed", False)
 
             events.append({
                 "raw": f"{thread_name} (Phase Shift)",
@@ -506,13 +633,88 @@ def process_simulation_beats(events: list) -> None:
     if queue_updated:
         TICK_QUEUE.write_text(queue_text)
 
-    if threads_updated:
-        threads_path.write_text(threads_text)
-        print(f"[{SKILL_ID}] Updated lore/threads.md with new autonomous beats.")
+    if processed:
+        save_prose_state(prose_state)
+        print(f"[{SKILL_ID}] Living-world prose wrote {processed} autonomous consequence(s).")
 
-    if register_updated:
-        register_path.write_text(register_text)
-        print(f"[{SKILL_ID}] Updated lore/world-register.md with new thread notes.")
+
+def phase_for_belief(belief: int) -> str:
+    if belief >= 50:
+        return "resolution"
+    if belief >= 30:
+        return "climax"
+    if belief >= 15:
+        return "rising"
+    if belief >= 5:
+        return "setup"
+    return "dormant"
+
+
+def parse_thread_action_names(queue_text: str) -> set[str]:
+    names = set()
+    for m in re.finditer(r'-\s+\*\*\[Beat:\s+([^\]]+)\]\*\*', queue_text):
+        names.add(m.group(1).strip())
+    for m in re.finditer(r'^\*Raw:\s*.+?\[[a-z_]+/[a-z]+\]\s+on\s+([^|→\n]+)', queue_text, re.MULTILINE):
+        names.add(m.group(1).strip())
+    return names
+
+
+def parse_thread_phase_targets(queue_text: str, register_text: str) -> dict[str, str]:
+    targets: dict[str, str] = {}
+
+    for m in re.finditer(
+        r'\[THREAD (?:ESCALATION|COOLING):\s+([^\]]+)\].*?\b(?:toward|to)\s+`([^`]+)`',
+        queue_text,
+        re.IGNORECASE,
+    ):
+        targets[m.group(1).strip()] = m.group(2).strip().lower()
+
+    for row in parse_thread_rows(register_text):
+        if row["name"] == "Academy Daily Life":
+            continue
+        targets.setdefault(row["name"], phase_for_belief(row["belief"]))
+
+    return targets
+
+
+def process_thread_physics(events: list) -> None:
+    """Apply deterministic thread physics before bounded prose generation.
+
+    This keeps lore/threads.md and world-register.md from drifting while still
+    letting process_simulation_beats write living-world consequences afterward.
+    """
+    if not TICK_QUEUE.exists() or not THREADS_MD.exists() or not REGISTER_MD.exists():
+        return
+
+    queue_text = TICK_QUEUE.read_text()
+    register_text = REGISTER_MD.read_text()
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    acted_threads = parse_thread_action_names(queue_text)
+    phase_targets = parse_thread_phase_targets(queue_text, register_text)
+    changed_threads = 0
+    changed_register = 0
+
+    for thread_name, phase in phase_targets.items():
+        if thread_name in {"Academy Daily Life", "The Current Arc"}:
+            continue
+        last_advanced = today_str if thread_name in acted_threads else None
+        result = sync_thread_files(thread_name, phase=phase, last_advanced=last_advanced)
+        if result.get("threads_changed"):
+            changed_threads += 1
+        if result.get("register_changed"):
+            changed_register += 1
+        if result.get("threads_changed") or result.get("register_changed"):
+            events.append({
+                "raw": f"{thread_name} (Thread Physics)",
+                "seed": f"{thread_name} now carries {phase} pressure in the canonical thread ledger.",
+                "priority": "HIGH" if phase in {"climax", "resolution"} else "NORMAL",
+            })
+
+    if changed_threads or changed_register:
+        print(
+            f"[{SKILL_ID}] Thread physics synced {changed_threads} thread file update(s) "
+            f"and {changed_register} register update(s)."
+        )
 
 
 def parse_thread_rows(register_text: str) -> list[dict]:
@@ -639,12 +841,15 @@ def run_living_world_simulation(events: list, ctx: Optional[dict] = None) -> Non
         ledger_entries: list[dict] = []
 
         for action in actions:
+            influences = [str(item) for item in (action.influence_snapshot or []) if item]
+            visible_trace = action.visible_trace or f"{action.npc} changed the pressure around {action.thread_name}."
+            reason = action.reason or "the living world moved offscreen"
             raw = f"{action.npc} [{action.action}/{action.intensity}] on {action.thread_name}"
             if action.target:
                 raw += f" → {action.target}"
-            if action.influence_snapshot:
-                raw += f" | pressure: {', '.join(action.influence_snapshot)}"
-            seed = action.visible_trace + f" Offscreen reason: {action.reason}."
+            if influences:
+                raw += f" | pressure: {', '.join(influences)}"
+            seed = visible_trace + f" Offscreen reason: {reason}."
             event_id = str(uuid.uuid4())
             events.append({
                 "raw": raw,
@@ -669,11 +874,11 @@ def run_living_world_simulation(events: list, ctx: Optional[dict] = None) -> Non
                 "target": action.target,
                 "priority": action.priority,
                 "raw": raw,
-                "narrative": action.visible_trace,
-                "reason": action.reason,
+                "narrative": visible_trace,
+                "reason": reason,
                 "hidden_effect": action.hidden_effect,
                 "belief_delta_hint": action.belief_delta_hint,
-                "influence_snapshot": action.influence_snapshot,
+                "influence_snapshot": influences,
             })
             action_lifecycle.record_open_action(ledger_entries[-1])
             if _HAS_NPC_LOG:
@@ -749,6 +954,7 @@ def run_living_world_simulation(events: list, ctx: Optional[dict] = None) -> Non
         print(f"[{SKILL_ID}] Living-world simulation produced {len(actions)} offscreen action(s), {len(applied)} applied consequence(s), and {len(updated_state.get('talisman_intents', []))} talisman intent(s).")
     except Exception as e:
         print(f"[{SKILL_ID}] Living-world simulation error: {e}")
+        traceback.print_exc()
 
 # ─── Write to tick-queue ──────────────────────────────────────────────────────
 
@@ -859,6 +1065,7 @@ if __name__ == "__main__":
             
             # ACTIVE SIMULATION INTERVENTION
             run_living_world_simulation(events, ctx)
+            process_thread_physics(events)
             process_simulation_beats(events)
             maybe_auto_advance_arc(events)
 

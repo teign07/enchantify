@@ -48,8 +48,12 @@ TMP = BASE / "tmp"
 TEXT_OUTBOX = TMP / "scene-outbox"
 ARTIFACT_OUTBOX = TEXT_OUTBOX / "artifacts"
 ARCHIVE_ART_STYLE = (
-    "sparse pen-and-ink line art with watercolor washes on textured parchment, "
-    "muted sepia and gray palette, selective jewel-like pops of teal, gold, and red in magical details"
+    "illustrated in sparse pen-and-ink linework with loose watercolor washes on textured aged parchment, "
+    "with visible paper grain, soft ink bleed, watercolor blooms, layered manuscript-page composition, "
+    "handwritten marginalia, and selective pops of color. Keep the image airy, literary, sketch-like, "
+    "and slightly unfinished, like a page from a magical field journal rather than a polished digital illustration. "
+    "Include subtle page layout elements such as notes, labels, sketches, margin writing, or archival overlays so "
+    "the image feels embedded in a manuscript page"
 )
 
 INTENSITY_SEQUENCES = {

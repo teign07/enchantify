@@ -735,10 +735,10 @@ def summarize_influences(profile: ActorProfile, thread: ThreadPolicy, entities: 
     seen_keys: set[str] = set()
 
     def add_influence(key: str, weight: int, label: str) -> None:
-        if weight <= 0 or key in seen_keys:
+        if weight <= 0 or key in seen_keys or not label:
             return
         seen_keys.add(key)
-        influences.append((weight, key, label))
+        influences.append((weight, key, str(label)))
 
     for name, ent in entities.items():
         if name == profile.name:
@@ -759,10 +759,15 @@ def summarize_influences(profile: ActorProfile, thread: ThreadPolicy, entities: 
     if anchor_pressure and thread.thread_id.startswith("anchor-"):
         add_influence("__ley_pressure__", anchor_pressure, f"ley pressure ({anchor_pressure})")
     influences.sort(key=lambda item: item[0], reverse=True)
-    return [label for _, _, label in influences[:3]]
+    return [label for _, _, label in influences[:3] if label]
+
+
+def clean_influences(influences: list[str]) -> list[str]:
+    return [str(item) for item in (influences or []) if item]
 
 
 def pick_action(profile: ActorProfile, thread: ThreadPolicy, entity_belief: int, talismans: dict[str, int], influences: list[str]) -> tuple[str, str]:
+    influences = clean_influences(influences)
     allowed = [a for a in profile.preferred_actions if a in ACTION_CLASSES]
     if not allowed:
         allowed = ["prepare"]
@@ -828,6 +833,7 @@ def allowed_to_land(intensity: str, thread: ThreadPolicy, entity_belief: int) ->
 
 
 def build_trace(profile: ActorProfile, thread: ThreadPolicy, action: str, target: Optional[str], influences: list[str]) -> tuple[str, str]:
+    influences = clean_influences(influences)
     influence_text = f" Nearby pressures: {', '.join(influences)}." if influences else ""
     if thread.thread_id == "academy-daily":
         return build_daily_life_trace(profile, action, influences)
@@ -893,6 +899,7 @@ def _stable_pick_pair(items: list[tuple[str, str]], key: str) -> tuple[str, str]
 
 def build_daily_life_trace(profile: ActorProfile, action: str, influences: list[str]) -> tuple[str, str]:
     """Turn Academy Daily Life movement into a concrete offscreen happening."""
+    influences = clean_influences(influences)
     recipes = DAILY_LIFE_ACTION_BANK.get(action) or DAILY_LIFE_ACTION_BANK.get("reposition", [])
     location, deed, result = _stable_pick(recipes, f"{profile.name}|{action}|{profile.chapter or ''}")
     influence_subject = ", ".join(influences[:3]) if influences else "the ordinary campus pressures"
@@ -914,6 +921,7 @@ def build_concrete_thread_trace(
     target: Optional[str],
     influences: list[str],
 ) -> tuple[str, str]:
+    influences = clean_influences(influences)
     chapter_recipes = CHAPTER_ACTION_TACTICS.get(profile.chapter or "", {}).get(action, [])
     if chapter_recipes:
         deed, result = _stable_pick_pair(chapter_recipes, f"{profile.name}|{thread.thread_id}|{action}|{target or ''}")
@@ -922,11 +930,20 @@ def build_concrete_thread_trace(
         deed, result = _stable_pick(recipes, f"{profile.name}|{thread.thread_id}|{action}|{target or ''}")
     influence_text = f" Pressure source: {', '.join(influences[:3])}." if influences else ""
     target_name = target or thread.name
-    action_label = action.replace("_", " ")
-    visible = (
-        f"{profile.name} used {action_label} on {target_name} through {thread.name}: "
-        f"{deed}. As a result, {result}.{influence_text}"
-    )
+    thread_part = f" around {thread.name}" if target_name != thread.name else ""
+    if action == "protect":
+        visible = f"{profile.name} protected {target_name}{thread_part}: {deed}. As a result, {result}.{influence_text}"
+    elif action == "invest_belief":
+        visible = f"{profile.name} invested belief in {target_name}{thread_part}: {deed}. As a result, {result}.{influence_text}"
+    elif action == "attack_belief":
+        visible = f"{profile.name} attacked {target_name}'s Belief{thread_part}: {deed}. As a result, {result}.{influence_text}"
+    elif action == "reveal":
+        visible = f"{profile.name} revealed pressure in {target_name}{thread_part}: {deed}. As a result, {result}.{influence_text}"
+    elif action == "research":
+        visible = f"{profile.name} researched {target_name}{thread_part}: {deed}. As a result, {result}.{influence_text}"
+    else:
+        action_label = action.replace("_", " ")
+        visible = f"{profile.name} used {action_label} on {target_name}{thread_part}: {deed}. As a result, {result}.{influence_text}"
     hidden = f"Concrete {action.replace('_', ' ')} action for {thread.name}: {deed}; result: {result}."
     return visible, hidden
 

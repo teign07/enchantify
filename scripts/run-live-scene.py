@@ -75,6 +75,36 @@ def main() -> int:
         )
         return 2
 
+    contract_cmd = [
+        sys.executable,
+        str(SCRIPTS / "scene-contract.py"),
+        args.player,
+        "--validate-scene",
+        str(args.text_file),
+    ]
+    if args.scene_mode:
+        contract_cmd += ["--mode", args.scene_mode]
+    if args.drama_budget:
+        contract_cmd += ["--drama-budget", args.drama_budget]
+    contract = subprocess.run(contract_cmd, capture_output=True, text=True)
+    if contract.returncode != 0:
+        sys.stderr.write("run-live-scene refused delivery: scene contract failed.\n")
+        sys.stderr.write((contract.stderr or contract.stdout or "").strip()[:1600] + "\n")
+        return contract.returncode or 1
+
+    choices_cmd = [
+        sys.executable,
+        str(SCRIPTS / "scene-choices.py"),
+        "--scene-file",
+        str(args.text_file),
+        "--strict-balance",
+    ]
+    choices = subprocess.run(choices_cmd, capture_output=True, text=True)
+    if choices.returncode != 0:
+        sys.stderr.write("run-live-scene refused delivery: Rule of Three failed.\n")
+        sys.stderr.write((choices.stderr or choices.stdout or "").strip()[:1600] + "\n")
+        return choices.returncode or 1
+
     cmd = [
         sys.executable,
         str(SCRIPTS / "play_scene.py"),

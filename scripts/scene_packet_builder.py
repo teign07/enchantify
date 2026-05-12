@@ -57,13 +57,17 @@ def build_image_prompt(title: str, mood: str, feel: str, cast: str, scene_text: 
     cast_hint = cast[:120] if cast else "current scene cast"
     feel_hint = feel[:120] if feel else mood
     style = (
-        "illustrated in sparse pen-and-ink line art with watercolor washes on textured parchment, "
-        "mostly muted sepia and gray, with selective pops of teal, gold, and red in magical details"
+        "illustrated in sparse pen-and-ink linework with loose watercolor washes on textured aged parchment, "
+        "with visible paper grain, soft ink bleed, watercolor blooms, layered manuscript-page composition, "
+        "handwritten marginalia, and selective pops of color. Keep the image airy, literary, sketch-like, "
+        "and slightly unfinished, like a page from a magical field journal rather than a polished digital illustration. "
+        "Include subtle page layout elements such as notes, labels, sketches, margin writing, or archival overlays so "
+        "the image feels embedded in a manuscript page"
     )
     return (
         f"{title}, {mood}, {feel_hint}, featuring {cast_hint}. "
         f"Scene frame: {scene_hint}. "
-        f"{style}. Literary magical-archive look. No text, no UI elements, no labels."
+        f"{style}. No UI elements, no caption, no watermark."
     )
 
 

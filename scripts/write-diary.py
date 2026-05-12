@@ -25,6 +25,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent
 DIARY_DIR = BASE_DIR / "memory" / "diary"
+MIN_DIARY_WORDS = 220
 
 
 def main():
@@ -51,6 +52,13 @@ def main():
     if not content:
         print("❌ No content provided. Pass --file or pipe content via stdin.")
         sys.exit(1)
+
+    word_count = len(content.split())
+    if word_count < MIN_DIARY_WORDS:
+        print(
+            f"⚠ Diary entry is short ({word_count} words). "
+            "Closeout memory is strongest with concrete continuity, NPC movement, hooks, and emotional weather."
+        )
 
     # Determine output path
     DIARY_DIR.mkdir(parents=True, exist_ok=True)

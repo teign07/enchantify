@@ -189,21 +189,27 @@ Fae bargains are recorded in `## The Margin` in the player file — never in The
 - `EXPIRED` — condition-based deadline passed (Labyrinth judgment call)
 
 **Deadline formats:**
-- `YYYY-MM-DD` — tick.py can auto-detect and mark OVERDUE
-- `before next visit` — Labyrinth must judge; tick.py cannot evaluate conditions
-- `within 24 hours` — Labyrinth must judge
+- `YYYY-MM-DD` — `scripts/fae-ledger.py tick [player]` can auto-detect and mark OVERDUE
+- `before next visit` — Labyrinth must judge; record it, then let the next relevant scene test it
+- `within 24 hours` — Labyrinth must judge if no exact date was written
+
+**Ledger script:**
+- Add: `python3 scripts/fae-ledger.py add [player] --fae "Name" --gave "what they gave" --terms "what is owed" --deadline "YYYY-MM-DD or condition"`
+- List: `python3 scripts/fae-ledger.py list [player] --details`
+- Fulfill: `python3 scripts/fae-ledger.py fulfill [player] "search text" --report "specific field report"`
+- Repair late debt: `python3 scripts/fae-ledger.py fulfill [player] "search text" --repair --report "late payment plus repair detail"`
 
 ---
 
 ## What Happens When a Bargain Is Broken
 
-Each species responds differently. These consequences are woven into the world — never announced as a status update.
+Each species responds differently. These consequences are woven into the world — never announced as a status update. The point is not punishment; it is Faerie law made visible. A broken bargain changes relationship, terms, room texture, and future prices until repaired.
 
 | Species | Consequence |
 |---|---|
 | **Hearthkin** | The warmth in the Archive shifts. The ledger-keeper turns a page without comment. The vessel that was warm goes cold — still there, still theirs, but no longer waiting. |
 | **Wayskeeper** | She adjusts her description. Notes the delay in notation that can't be read yet. Does not consider it a failure. Considers it a data point. |
-| **Goblins** | The market closes. The inventory is behind a different door now — that door has a price. The debt is in the ledger. It will not be forgotten. |
+| **Goblins** | The market may remain physically open, but labels, directions, provenance, and useful prices go wrong. The inventory is behind a different door now — that door has a price. The debt is in the ledger. It will not be forgotten. |
 | **Appendix Provinces** | Practical and final: storage fee increases. They do not chase debts. They adjust terms. |
 | **Punctuation Pixies** | The debt gets redenominated. A word in something recently read was different than it should have been. They collect in unusual currency. |
 | **Deep Lore Dwarves** | They will be there at the next Outer Stacks entry. Formally. They will say one word: *"Still."* |

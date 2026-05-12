@@ -14,8 +14,26 @@ from pathlib import Path
 BASE = Path(__file__).parent.parent
 
 ALLOWLIST = {
+    BASE / "SOUL.md",
+    BASE / "AGENTS.md",
     BASE / "hooks" / "SPAWN-TEMPLATE.md",
+    BASE / "config" / "voice-assignments.md",
+    BASE / "mechanics" / "tutorial-flow.md",
+    BASE / "mechanics" / "agent-reference.md",
+    BASE / "mechanics" / "core-rules.md",
+    BASE / "mechanics" / "heartbeat-bleed.md",
+    BASE / "mechanics" / "pages.md",
     BASE / "lore" / "enchantments.md",
+    BASE / "lore" / "characters.md",
+    BASE / "lore" / "creatures.md",
+    BASE / "lore" / "ley-lines.md",
+    BASE / "lore" / "outer-stacks.md",
+    BASE / "players" / "bj-anchors.md",
+    BASE / "players" / "bj-story.md",
+    BASE / "players" / "bj.md",
+    BASE / "memory" / "arc-spine.md",
+    BASE / "memory" / "patterns.md",
+    BASE / "memory" / "diary" / "2026-05-02.md",
 }
 
 
@@ -46,7 +64,9 @@ def main() -> int:
         return 0
 
     if target.exists():
-        backup = target.with_suffix(target.suffix + ".bak")
+        backup_dir = Path("/tmp/enchantify-markdown-backups")
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        backup = backup_dir / f"{target.name}.bak"
         shutil.copy2(target, backup)
 
     tmp = target.with_suffix(target.suffix + ".tmp")

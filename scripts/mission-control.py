@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-mission-control.py — Enchantify Mission Control Dashboard
+mission-control.py — Enchantify Story-Field Journal
 
-Reads live workspace data and generates a self-refreshing HTML dashboard.
+Reads live workspace data and generates a self-refreshing HTML field journal.
 
 Usage:
   python3 scripts/mission-control.py           # generate → hooks/mission-control.html
@@ -207,6 +207,7 @@ def clean_context(text: str) -> str:
 def is_low_info_live_text(text: str) -> bool:
     lower = (text or "").lower()
     generic_bits = (
+        "acted offscreen to advance",
         "pieces have shifted offscreen",
         "acted offscreen to advance",
         "something that might have thinned held together instead",
@@ -684,21 +685,28 @@ def parse_arc() -> dict:
     }
 
 
-def parse_entities() -> tuple[list, list, list]:
-    """Returns (npcs, threads_register, talismans)."""
+def parse_entities() -> tuple[list, list]:
+    """Returns (all register entities, talismans)."""
     text = read(REGISTER_F)
-    npcs, threads_r, talismans = [],[], []
+    entities, talismans = [], []
 
     row_re = re.compile(
         r'^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|',
         re.MULTILINE
     )
+    whisper_re = re.compile(r'^-\s+(.+?)\s+\(([^,]+),\s*Belief\s*(\d+)\)\s*(?:[—-]\s*(.*))?$')
 
     in_talismans = False
     in_active    = False
+    section_title = ""
+    section_order = 0
     for line in text.splitlines():
         # Only trigger on actual section headings (line-start ##), not inline mentions
         stripped = line.strip()
+        heading_m = re.match(r'^##\s+(.+?)\s*$', stripped)
+        if heading_m:
+            section_title = heading_m.group(1).strip()
+            section_order += 1
         if re.match(r'^## Chapter Talismans', stripped):
             in_talismans = True; in_active = False; continue
         if re.match(r'^## Active Threads', stripped):
@@ -707,8 +715,17 @@ def parse_entities() -> tuple[list, list, list]:
             in_talismans = False; in_active = False
 
         m = row_re.match(line)
-        if not m: continue
-        name, etype, bstr, notes = m.group(1).strip(), m.group(2).strip(), m.group(3), m.group(4).strip()
+        if not m and section_title.startswith("Whisper Register"):
+            m = whisper_re.match(stripped)
+            if m:
+                name, etype, bstr, notes = m.group(1).strip(), m.group(2).strip(), m.group(3), (m.group(4) or "").strip()
+            else:
+                continue
+        elif m:
+            name, etype, bstr, notes = m.group(1).strip(), m.group(2).strip(), m.group(3), m.group(4).strip()
+        else:
+            continue
+
         if name.lower() in ("entity", "talisman", "name", "---", ""): continue
         try: b = int(bstr)
         except ValueError: continue
@@ -719,22 +736,28 @@ def parse_entities() -> tuple[list, list, list]:
 
         if in_talismans:
             chapter = etype.strip().lower()
-            talismans.append({
+            tal = {
                 "name": name, "chapter": chapter, "belief": b,
                 "color": CHAPTER_COLOR.get(chapter, "#555"),
                 "philosophy": clean_notes,
-            })
-        elif in_active:
-            pass  # handled in parse_threads
-        else:
-            npcs.append({
-                "name": name, "type": etype, "belief": b,
-                "threads": threads_tag, "notes": clean_notes,
-            })
+            }
+            talismans.append(tal)
+            etype = "Talisman"
+            clean_notes = f"{chapter.title()} — {clean_notes}" if clean_notes else chapter.title()
 
-    npcs.sort(key=lambda x: -x["belief"])
+        entities.append({
+            "name": name,
+            "type": etype,
+            "belief": b,
+            "threads": threads_tag,
+            "notes": clean_notes,
+            "section": section_title or "World Register",
+            "section_order": section_order,
+            "chapter": etype if in_talismans else "",
+        })
+
     talismans.sort(key=lambda x: -x["belief"])
-    return npcs, talismans
+    return entities, talismans
 
 
 def parse_player(name: str = "bj") -> dict:
@@ -759,8 +782,8 @@ def parse_player(name: str = "bj") -> dict:
         for m in re.finditer(r'^\|\s*([^|*][^|]*)\|\s*([^|]+)\|\s*([^|]+)\|\s*([^|]+)\|\s*([^|]+)\|',
                              margin_m.group(1), re.MULTILINE):
             fae, gave, terms, deadline, status =[x.strip() for x in m.groups()]
-            if fae and not fae.startswith("*"):
-                bargains.append({"fae": fae, "status": status, "deadline": deadline})
+            if fae and not fae.startswith("*") and not set(fae) <= {"-"}:
+                bargains.append({"fae": fae, "gave": gave, "terms": terms, "status": status, "deadline": deadline})
 
     # Inventory
     inv_m = re.search(r'\*\*Inventory:\*\*\s*\n(.*?)(?=\n-\s*\*\*[A-Z]|\n##|\Z)', text, re.DOTALL)
@@ -845,6 +868,51 @@ def parse_simulation_feed(limit: int = 40) -> list[dict]:
     return entries
 
 
+def parse_tick_action_feed(limit: int = 30) -> list[dict]:
+    text = read(QUEUE_F)
+    if not text:
+        return []
+    entries = []
+    block_re = re.compile(
+        r'(?ms)^## \[world-pulse\](?: \[PRIORITY: HIGH\])?(?: \[[^\]]+\])? (?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2})\n(?P<body>.*?)(?=^## |\Z)'
+    )
+    raw_re = re.compile(
+        r'^\*Raw:\s*(?P<actor>.+?) \[(?P<action>[a-z_]+)/(?P<intensity>[a-z]+)\] on (?P<thread>[^|→\n]+?)(?:\s*→\s*(?P<target>[^|\n]+))?(?:\s*\|\s*pressure:\s*(?P<pressure>.+?))?\*$',
+        re.MULTILINE,
+    )
+    seed_re = re.compile(r'^\*?Narrative seed:?\*?\s*(?P<seed>.+)$', re.MULTILINE)
+    for block in reversed(list(block_re.finditer(text))):
+        body = block.group("body")
+        raw_m = raw_re.search(body)
+        if not raw_m:
+            continue
+        seed_m = seed_re.search(body)
+        pressure = raw_m.group("pressure") or ""
+        entries.append({
+            "id": f"tick-{block.group('ts')}-{len(entries)}",
+            "timestamp": block.group("ts").replace(" ", "T") + ":00",
+            "source": "tick-queue",
+            "kind": "action",
+            "trigger": "scheduled",
+            "time_tag": "",
+            "actor": clean_context(raw_m.group("actor")),
+            "actor_kind": "",
+            "action": raw_m.group("action"),
+            "intensity": raw_m.group("intensity"),
+            "thread_name": clean_context(raw_m.group("thread")),
+            "target": clean_context(raw_m.group("target") or ""),
+            "priority": "HIGH" if "[PRIORITY: HIGH]" in block.group(0) else "NORMAL",
+            "raw": clean_context(raw_m.group(0)),
+            "narrative": clean_context(seed_m.group("seed") if seed_m else ""),
+            "reason": "",
+            "hidden_effect": "",
+            "influence_snapshot": [clean_context(p) for p in pressure.split(", ") if clean_context(p)],
+        })
+        if len(entries) >= limit:
+            break
+    return entries
+
+
 def parse_pact_actions(limit: int = 30) -> list[dict]:
     if not PACT_ACTION_LOG.exists():
         return []
@@ -872,7 +940,8 @@ def _thread_key(name: str) -> str:
 
 
 def build_thread_live_overlay(limit: int = 200) -> dict[str, dict]:
-    feed = parse_simulation_feed(limit=limit)
+    feed = parse_tick_action_feed(limit=40) + parse_simulation_feed(limit=limit)
+    feed.sort(key=lambda item: item.get("timestamp", ""), reverse=True)
     overlay: dict[str, dict] = {}
 
     for entry in feed:
@@ -882,13 +951,17 @@ def build_thread_live_overlay(limit: int = 200) -> dict[str, dict]:
         key = _thread_key(thread_name)
         bucket = overlay.setdefault(key, {
             "latest_event": None,
+            "latest_action_event": None,
             "events": [],
+            "recent_actions": [],
             "last_ts": "",
+            "last_action_ts": "",
             "last_actor": "",
             "last_action": "",
             "last_intensity": "",
             "latest_narrative": "",
             "latest_reason": "",
+            "latest_hidden_effect": "",
             "latest_target": "",
             "influence_snapshot": [],
             "consequence_summary": [],
@@ -899,16 +972,34 @@ def build_thread_live_overlay(limit: int = 200) -> dict[str, dict]:
         if ts >= bucket["last_ts"]:
             bucket["latest_event"] = entry
             bucket["last_ts"] = ts
+
+        if entry.get("kind") == "action":
+            bucket["recent_actions"].append(entry)
+            bucket["recent_actions"] = bucket["recent_actions"][:5]
+            if ts >= bucket["last_action_ts"]:
+                bucket["latest_action_event"] = entry
+                bucket["last_action_ts"] = ts
+                bucket["last_actor"] = entry.get("actor", "")
+                bucket["last_action"] = entry.get("action", entry.get("kind", ""))
+                bucket["last_intensity"] = entry.get("intensity", "")
+                bucket["latest_narrative"] = entry.get("narrative", "")
+                bucket["latest_reason"] = entry.get("reason", "")
+                bucket["latest_hidden_effect"] = entry.get("hidden_effect", "")
+                bucket["latest_target"] = entry.get("target", "")
+                bucket["influence_snapshot"] = entry.get("influence_snapshot", []) or []
+        elif not bucket.get("latest_action_event") and ts >= bucket.get("last_action_ts", ""):
             bucket["last_actor"] = entry.get("actor", "")
             bucket["last_action"] = entry.get("action", entry.get("kind", ""))
             bucket["last_intensity"] = entry.get("intensity", "")
             bucket["latest_narrative"] = entry.get("narrative", "")
             bucket["latest_reason"] = entry.get("reason", "")
+            bucket["latest_hidden_effect"] = entry.get("hidden_effect", "")
             bucket["latest_target"] = entry.get("target", "")
             bucket["influence_snapshot"] = entry.get("influence_snapshot", []) or []
 
         if entry.get("kind") == "consequence":
-            summary = entry.get("narrative") or entry.get("raw") or ""
+            story = simulation_story(entry)
+            summary = story.get("body") or entry.get("narrative") or entry.get("raw") or ""
             if summary and summary not in bucket["consequence_summary"]:
                 bucket["consequence_summary"].append(summary)
 
@@ -1040,7 +1131,15 @@ def parse_anchors(name: str = "bj") -> list[dict]:
             m = re.search(pat, section, flags)
             return m.group(1).strip() if m else default
 
-        atype    = field(r'\*\*Type:\*\*\s*(.+)').upper()
+        raw_type = field(r'\*\*Type:\*\*\s*(.+)').upper()
+        atype    = {
+            "FIND": "NOTICE",
+            "DISCOVER": "NOTICE",
+            "SEARCH": "NOTICE",
+            "LOOK": "NOTICE",
+        }.get(raw_type, raw_type)
+        if atype not in {"NOTICE", "EMBARK", "SENSE", "WRITE", "REST"}:
+            atype = "NOTICE"
         belief   = field(r'\*\*Belief invested:\*\*\s*(\d+)', "0")
         created  = field(r'\*\*Created:\*\*\s*(.+)')
         weather  = field(r'\*\*Weather:\*\*\s*(.+)')
@@ -1079,6 +1178,115 @@ def parse_anchors(name: str = "bj") -> list[dict]:
     return sorted(anchors, key=lambda a: (a.get("latest_ts") or "", a.get("last_vis") or "", a.get("created") or ""), reverse=True)
 
 
+def _heartbeat_blocks(hb: str) -> dict[str, str]:
+    blocks = {}
+    for name in ("PULSE", "SPARKY", "DIARY"):
+        m = re.search(rf'<!-- {name}_START -->(.*?)<!-- {name}_END -->', hb, re.DOTALL)
+        blocks[name.lower()] = m.group(1).strip() if m else ""
+    return blocks
+
+
+def _heartbeat_field(text: str, pat: str, default: str = "") -> str:
+    m = re.search(pat, text, re.IGNORECASE | re.MULTILINE)
+    return m.group(1).strip() if m else default
+
+
+def parse_current_heartbeat() -> dict:
+    hb = read(HEARTBEAT_F)
+    blocks = _heartbeat_blocks(hb)
+    pulse = blocks.get("pulse") or hb
+
+    def field(pat, default=""):
+        return _heartbeat_field(pulse, pat, default)
+
+    def markdown_list_section(heading: str) -> list[dict[str, str]]:
+        m = re.search(rf'(?m)^###\s+{re.escape(heading)}\s*\n(.*?)(?=^### |\Z)', pulse, re.DOTALL)
+        if not m:
+            return []
+        rows = []
+        last_row = None
+        for raw in m.group(1).splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            if line.startswith("- "):
+                line = line[2:].strip()
+            elif line.startswith("•"):
+                line = line[1:].strip()
+            else:
+                if last_row is not None:
+                    last_row["value"] = (last_row["value"] + " " + line).strip()
+                continue
+            parts = re.split(r'\s+\|\s+(?=\*\*[^*]+:\*\*)', line)
+            found = False
+            for part in parts:
+                bold = re.match(r'\*\*([^*]+):\*\*\s*(.*)', part)
+                if bold:
+                    last_row = {"label": bold.group(1).strip(), "value": bold.group(2).strip()}
+                    rows.append(last_row)
+                    found = True
+            if found:
+                continue
+            if last_row is not None and line:
+                last_row["value"] = (last_row["value"] + " " + line).strip()
+            else:
+                last_row = {"label": "", "value": line}
+                rows.append(last_row)
+        return rows
+
+    pulse_ts = field(r'## Pulse — (.+)')
+    pulse_dt = None
+    is_stale = False
+    if pulse_ts:
+        for fmt in ("%I:%M %p, %A %B %d", "%I:%M %p, %A %b %d"):
+            try:
+                parsed = datetime.strptime(pulse_ts, fmt).replace(year=datetime.now().year)
+                pulse_dt = parsed
+                break
+            except ValueError:
+                continue
+    if pulse_dt:
+        is_stale = (datetime.now() - pulse_dt) > timedelta(hours=24)
+
+    world = [
+        {"label": "Belfast Feel", "value": field(r'\*\*Belfast Feel:\*\*\s*(.+)')},
+        {"label": "Raw", "value": field(r'\*Raw:\s*(.+?)\*')},
+        {"label": "Forecast", "value": field(r'\*\*Forecast:\*\*\s*([\s\S]+?)(?=\n-\s*\*\*|\Z)')},
+        {"label": "Season", "value": field(r'\*\*Season:\*\*\s*(.+)')},
+        {"label": "Sun", "value": field(r'\*\*Sun:\*\*\s*(.+)')},
+        {"label": "Moon", "value": field(r'\*\*Moon:\*\*\s*(.+)')},
+        {"label": "Tides", "value": field(r'\*\*Tides:\*\*\s*(.+)')},
+        {"label": "Audio", "value": field(r'\*\*Audio:\*\*\s*(.+)')},
+    ]
+    founder = markdown_list_section("💖 Founder Status (BJ)")
+    system = markdown_list_section("🖥️ System")
+    business = markdown_list_section("📈 Business (The Doobaleedoos)")
+
+    today = []
+    today_m = re.search(r'(?m)^###\s+📅 Today\s*\n(.*?)(?=^### |\Z)', pulse, re.DOTALL)
+    if today_m:
+        lines = [line.rstrip() for line in today_m.group(1).splitlines() if line.strip()]
+        today = [line.strip() for line in lines[:12]]
+
+    sparky = re.sub(r'###[^\n]+\n|\*\d{4}-\d{2}-\d{2}\*\n?', '', blocks.get("sparky", "")).strip()
+    diary = []
+    for m in re.finditer(r'\*(Diary|Dream)\s*(?:\([^)]+\))?:\*\s*(.+)', blocks.get("diary", "")):
+        diary.append({"kind": m.group(1), "text": m.group(2).strip()})
+
+    return {
+        "pulse_ts": pulse_ts,
+        "stale": is_stale,
+        "world": [row for row in world if row["value"]],
+        "founder": founder,
+        "system": system,
+        "business": business,
+        "today": today,
+        "sparky": sparky,
+        "diary": diary,
+        "raw": hb.strip(),
+    }
+
+
 def parse_forecast(talismans: list) -> dict:
     hb      = read(HEARTBEAT_F)
     state   = read(BASE / "lore" / "academy-state.md")
@@ -1096,8 +1304,7 @@ def parse_forecast(talismans: list) -> dict:
 
     # ── Heartbeat ──
     # Extract only the PULSE block
-    pulse_m = re.search(r'<!-- PULSE_START -->(.*?)<!-- PULSE_END -->', hb, re.DOTALL)
-    pulse   = pulse_m.group(1) if pulse_m else hb
+    pulse   = _heartbeat_blocks(hb).get("pulse") or hb
 
     feel     = field(pulse, r'\*\*Belfast Feel:\*\*\s*(.+)')
     raw_wx   = field(pulse, r'\*Raw:\s*(.+?)\*')
@@ -1862,11 +2069,13 @@ def render_thread_card(t: dict) -> str:
     badge  = f'<span class="badge-new">new</span>' if t["age_note"] == "new" else ""
     anchor = f'<div class="card-anchor">{h(t["npc_anchor"])}</div>' if t["npc_anchor"] else ""
     live   = t.get("live", {}) or {}
-    latest_event = live.get("latest_event") or {}
+    latest_event = live.get("latest_action_event") or live.get("latest_event") or {}
     phase_signal = t.get("phase_signal", {}) or {}
 
     live_text = live.get("latest_narrative", "")
     live_text_specific = live_text and not is_low_info_live_text(live_text)
+    hidden_text = live.get("latest_hidden_effect", "")
+    hidden_specific = hidden_text and not is_low_info_effect(hidden_text)
     status_text = t["status"] or ""
     status_specific = status_text and not is_low_info_live_text(status_text)
     next_text = t["next_beat"] or ""
@@ -1875,7 +2084,7 @@ def render_thread_card(t: dict) -> str:
     if has_live and not live_text_specific and latest_event:
         live_concrete = concrete_event_body(latest_event, t["name"], status_text)
 
-    live_stamp = _short_local_ts(live.get("last_ts", ""))
+    live_stamp = _short_local_ts(live.get("last_action_ts") or live.get("last_ts", ""))
     last = live_stamp or h(t["last_advanced"]) if t["last_advanced"] else (live_stamp or "never")
     if not last:
         last = "never"
@@ -1899,6 +2108,17 @@ def render_thread_card(t: dict) -> str:
 
     consequence_summary = "\n".join(live.get("consequence_summary", [])[:3])
     influence_summary = ", ".join(live.get("influence_snapshot", [])[:5])
+    recent_action_lines = []
+    for action_entry in live.get("recent_actions", [])[:4]:
+        story = simulation_story(action_entry)
+        when = _short_local_ts(action_entry.get("timestamp", ""))
+        title = story.get("title", "")
+        body = story.get("body", "")
+        hidden = clean_context(action_entry.get("hidden_effect") or "")
+        line_bits = [x for x in [when, title, body, f"Mechanism: {hidden}" if hidden and hidden != body else ""] if x]
+        if line_bits:
+            recent_action_lines.append(" — ".join(line_bits))
+    recent_actions_text = "\n\n".join(recent_action_lines)
     phase_signal_text = ""
     if phase_signal:
         phase_signal_text = (
@@ -1911,8 +2131,11 @@ def render_thread_card(t: dict) -> str:
         ("Phase signal",     phase_signal_text),
         ("Signal reason",    phase_signal.get("why", "")),
         ("Live now",         live_text if live_text_specific else live_concrete),
+        ("Action prose",     live_text if live_text_specific else ""),
+        ("How it was done",  hidden_text if hidden_specific else ""),
         ("Latest movement",  live_summary),
         ("Live reason",      "" if is_low_info_effect(live.get("latest_reason", "")) else live.get("latest_reason", "")),
+        ("Recent action prose", recent_actions_text),
         ("Current status",   status_text if status_specific else ""),
         ("Next beat",        t["next_beat"]),
         ("Pressure",         t["pressure"]),
@@ -1952,9 +2175,11 @@ def render_thread_card(t: dict) -> str:
         live_line += '</div>'
         beat_parts.append(live_line)
         if live_text_specific:
-            beat_parts.append(f'<div style="margin-bottom:.22rem">{h(live_text[:180])}</div>')
+            beat_parts.append(f'<div style="margin-bottom:.22rem">{h(live_text[:280])}</div>')
         elif live_concrete:
-            beat_parts.append(f'<div style="margin-bottom:.22rem">{h(live_concrete[:220])}</div>')
+            beat_parts.append(f'<div style="margin-bottom:.22rem">{h(live_concrete[:280])}</div>')
+        if hidden_specific and hidden_text != live_text:
+            beat_parts.append(f'<div style="margin-bottom:.22rem;color:var(--muted);font-size:.8rem"><span class="muted">Mechanism:</span> {h(hidden_text[:220])}</div>')
 
     if phase_signal:
         signal_line = (
@@ -1971,7 +2196,7 @@ def render_thread_card(t: dict) -> str:
         beat_parts.append(f'<div style="{planned_style}"><span class="muted">{planned_label}:</span> {h(status_text[:185])}</div>')
     if next_text and next_text != status_text:
         next_style = 'color:var(--muted);font-size:.8rem' if beat_parts else ''
-        beat_parts.append(f'<div style="{next_style}"><span class="muted">Next:</span> {h(next_text[:185])}</div>')
+        beat_parts.append(f'<div style="{next_style}"><span class="muted">Hook:</span> {h(next_text[:245])}</div>')
 
     beat_html = ''.join(beat_parts) if beat_parts else '—'
 
@@ -2017,6 +2242,7 @@ def render_entity_row(e: dict) -> str:
     md = modal_attr(e["name"],[
         ("Type",    e["type"]),
         ("Belief",  str(b)),
+        ("Register section", e.get("section", "")),
         ("Threads", threads_str),
         ("Notes",   e["notes"]),
     ])
@@ -2028,6 +2254,30 @@ def render_entity_row(e: dict) -> str:
       <td class="ent-belief">{b}</td>
       <td class="ent-tags">{thread_tags}</td>
     </tr>'''
+
+
+def render_entity_sections(entities: list[dict]) -> str:
+    if not entities:
+        return '<div class="muted">No world-register entities found.</div>'
+    grouped: dict[str, list[dict]] = {}
+    order: dict[str, int] = {}
+    for e in entities:
+        section = e.get("section") or "World Register"
+        grouped.setdefault(section, []).append(e)
+        order.setdefault(section, int(e.get("section_order") or 999))
+
+    parts = [
+        f'<div class="entity-summary">{len(entities)} registered entities · includes threads, talismans, NPCs, locations, tools, objects, fae, and whispers</div>'
+    ]
+    for section in sorted(grouped, key=lambda s: order.get(s, 999)):
+        rows = grouped[section]
+        body = "".join(render_entity_row(e) for e in rows)
+        parts.append(f'''
+        <div class="entity-section">
+          <div class="entity-section-head">{h(section)} <span>{len(rows)}</span></div>
+          <table class="ent-table"><tbody>{body}</tbody></table>
+        </div>''')
+    return "\n".join(parts)
 
 
 def render_queue_entry(entry: dict) -> str:
@@ -2358,6 +2608,89 @@ def render_forecast_tab(f: dict) -> str:
     <div class="fc-grid">
       {founder_html}
       {env_html}
+    </div>'''
+
+
+def render_heartbeat_tab(hb: dict) -> str:
+    if not hb:
+        return '<div class="muted">No heartbeat data.</div>'
+
+    status_color = "var(--rising)" if hb.get("stale") else "var(--seed)"
+    status_label = "stale" if hb.get("stale") else "live"
+    raw_md = modal_attr("HEARTBEAT.md", [
+        ("Updated", hb.get("pulse_ts", "")),
+        ("Status", status_label),
+        ("Raw heartbeat", hb.get("raw", "")),
+    ])
+
+    def rows(items: list[dict[str, str]], *, compact: bool = False) -> str:
+        html = ""
+        for item in items:
+            label = item.get("label", "")
+            value = item.get("value", "")
+            if not value:
+                continue
+            cls = "hb-row hb-row-compact" if compact else "hb-row"
+            html += f'<div class="{cls}"><span class="hb-label">{h(label)}</span><span class="hb-value">{h(value)}</span></div>'
+        return html or '<div class="muted">—</div>'
+
+    world_rows = rows(hb.get("world", []))
+    founder_rows = rows(hb.get("founder", []))
+    system_rows = rows(hb.get("system", []), compact=True)
+    business_rows = rows(hb.get("business", []), compact=True)
+
+    today_items = "".join(f'<li>{h(line)}</li>' for line in hb.get("today", []))
+    today_html = f'<ul class="hb-list">{today_items}</ul>' if today_items else '<div class="muted">Nothing scheduled in the pulse.</div>'
+
+    sparky = hb.get("sparky", "")
+    sparky_html = f'<div class="hb-note hb-sparky">{h(sparky)}</div>' if sparky else '<div class="muted">Sparky has not left a note in this pulse.</div>'
+
+    diary_bits = ""
+    for entry in hb.get("diary", []):
+        color = "#7c3aed" if entry.get("kind") == "Dream" else "var(--sepia)"
+        diary_bits += f'<div class="hb-note"><span class="hb-note-kind" style="color:{color}">{h(entry.get("kind",""))}</span>{h(entry.get("text",""))}</div>'
+    diary_html = diary_bits or '<div class="muted">No diary or dream excerpt in the current heartbeat.</div>'
+
+    return f'''
+    <div class="heartbeat-head clickable" onclick="openModal(this)" data-modal={raw_md}>
+      <div>
+        <div class="heartbeat-title">Current Heartbeat</div>
+        <div class="heartbeat-sub muted">The real-world pulse the Labyrinth is bleeding into story texture.</div>
+      </div>
+      <div class="heartbeat-stamp" style="color:{status_color}">
+        <span>{h(status_label.upper())}</span>
+        <span class="muted">{h(hb.get("pulse_ts","—"))}</span>
+      </div>
+    </div>
+    <div class="heartbeat-grid">
+      <div class="hb-block hb-block-wide">
+        <div class="fc-block-title">World Right Now</div>
+        {world_rows}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Founder Status</div>
+        {founder_rows}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Today</div>
+        {today_html}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Sparky Says</div>
+        {sparky_html}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Diary & Dream</div>
+        {diary_html}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">System</div>
+        {system_rows}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Business</div>
+        {business_rows}
+      </div>
     </div>'''
 
 
@@ -2787,7 +3120,7 @@ def render_scene_gallery(entries: list[dict]) -> str:
 
 # ── Full page ─────────────────────────────────────────────────────────────────
 
-def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, anchors=None, sched=None, forecast=None, sim_feed=None, pact_actions=None, gallery_entries=None, narrative_health=None) -> str:
+def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, anchors=None, sched=None, forecast=None, heartbeat=None, sim_feed=None, pact_actions=None, gallery_entries=None, narrative_health=None) -> str:
     generated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # Arc banner
@@ -2800,8 +3133,8 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
     max_tal = max((t["belief"] for t in talismans), default=1)
     tal_bars = "".join(render_talisman_bar(t, max_tal) for t in talismans)
 
-    # Top-N entities
-    top_npcs = "".join(render_entity_row(e) for e in npcs[:25])
+    # Full world register
+    entities_html = render_entity_sections(npcs)
 
     # Queue entries
     queue_html = "".join(render_queue_entry(e) for e in queue) or '<div class="muted">Queue is clear.</div>'
@@ -2823,6 +3156,7 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
 
     # Forecast
     forecast_html = render_forecast_tab(forecast) if forecast else '<div class="muted">No forecast data.</div>'
+    heartbeat_html = render_heartbeat_tab(heartbeat) if heartbeat else '<div class="muted">No heartbeat data.</div>'
 
     # Gallery
     gallery_entries = gallery_entries or []
@@ -2841,8 +3175,16 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
     fae_html = ""
     for b in player.get("bargains", []):
         status = b["status"].upper()
-        color = {"OPEN": "var(--seed)", "OVERDUE": "var(--climax)", "DELIVERED": "var(--muted)"}.get(status, "var(--muted)")
-        fae_html += f'<div class="fae-row"><span style="color:{color}">{h(status)}</span> <span class="muted">{h(b["fae"])}</span> · {h(b["deadline"])}</div>'
+        color = {"OPEN": "var(--seed)", "OVERDUE": "var(--climax)", "BROKEN": "var(--climax)", "EXPIRED": "var(--climax)", "DELIVERED": "var(--muted)", "REPAIRED": "var(--muted)"}.get(status, "var(--muted)")
+        details = []
+        if b.get("gave"):
+            details.append(("Given", b["gave"]))
+        if b.get("terms"):
+            details.append(("Owed", b["terms"]))
+        if b.get("deadline"):
+            details.append(("Deadline", b["deadline"]))
+        modal = modal_attr(f'{b["fae"]} · {status}', details)
+        fae_html += f'<div class="fae-row clickable" onclick="openModal(this)" data-modal={modal}><span style="color:{color}">{h(status)}</span> <span class="muted">{h(b["fae"])}</span> · {h(b["deadline"])}</div>'
     if not fae_html:
         fae_html = '<div class="muted">The Margin is clean.</div>'
 
@@ -2876,14 +3218,23 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Enchantify — Mission Control</title>
+<title>Enchantify — Story-Field Journal</title>
 <style>
   :root {{
-    --bg:         #111113;
-    --surface:    #1c1c1f;
-    --border:     #2a2a2f;
-    --text:       #d4d4d8;
-    --muted:      #52525b;
+    --bg:         #e6d6b8;
+    --surface:    rgba(252, 244, 224, .86);
+    --surface-strong: rgba(255, 249, 233, .94);
+    --surface-soft: rgba(132, 87, 42, .07);
+    --border:     rgba(89, 62, 35, .26);
+    --rule:       rgba(94, 63, 33, .18);
+    --text:       #2f261d;
+    --muted:      #806f5b;
+    --ink:        #2f261d;
+    --sepia:      #6f4f2c;
+    --teal-ink:   #167475;
+    --garnet:     #8e2e3b;
+    --moss:       #55723c;
+    --gold-ink:   #a76f24;
     --dormant:    #3f3f46;
     --setup:      #4e6b8a;
     --rising:     #92681a;
@@ -2901,70 +3252,144 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
     font-family: 'Georgia', 'Times New Roman', serif;
   }}
   *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }}
+  body {{
+    background:
+      radial-gradient(circle at 15% 5%, rgba(255,255,255,.24), transparent 22rem),
+      radial-gradient(circle at 82% 16%, rgba(122, 70, 28, .13), transparent 19rem),
+      linear-gradient(110deg, rgba(92, 57, 28, .14), transparent 18%, transparent 82%, rgba(78, 45, 24, .12)),
+      var(--bg);
+    color: var(--text); min-height: 100vh; font-size: 14px;
+  }}
+  body::before {{
+    content:""; position: fixed; inset: 0; pointer-events: none; z-index: -2;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(80,51,24,.045) 0 1px, transparent 1px 7px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.055) 0 1px, transparent 1px 11px);
+    mix-blend-mode: multiply; opacity: .55;
+  }}
+  body::after {{
+    content:""; position: fixed; right: max(1rem, calc((100vw - 1600px)/2 + 1rem)); top: 5.25rem;
+    width: min(32vw, 480px); height: 76vh; pointer-events: none; opacity: .07; z-index: -1;
+    background: url('mission-control-assets/ledger-margin.png') top right / cover no-repeat;
+    filter: sepia(.2) saturate(.85);
+  }}
   a {{ color: inherit; text-decoration: none; }}
 
   /* ── Layout ── */
   .topbar {{
-    display: flex; align-items: center; gap: 1.5rem;
-    padding: .7rem 1.5rem;
-    background: var(--surface); border-bottom: 1px solid var(--border);
-    font-family: monospace; font-size: .8rem;
+    display: flex; align-items: center; gap: 1rem;
+    padding: .75rem clamp(1rem, 3vw, 2rem);
+    background: rgba(68, 45, 25, .84); border-bottom: 1px solid rgba(49,32,18,.35);
+    color: #f3e8ce;
+    font-family: "Courier New", monospace; font-size: .78rem;
+    box-shadow: 0 8px 24px rgba(58, 36, 15, .18);
+    position: sticky; top: 0; z-index: 20;
   }}
   .topbar-title {{
-    font-family: Georgia, serif; font-size: 1rem; letter-spacing: .08em;
-    color: #a1a1aa; text-transform: uppercase;
+    font-family: Georgia, serif; font-size: 1.05rem; letter-spacing: .06em;
+    color: #fff3d2; text-transform: uppercase;
   }}
-  .topbar-divider {{ color: var(--border); }}
+  .topbar-divider {{ color: rgba(255,243,210,.36); }}
   .topbar-item {{ display: flex; gap: .4rem; align-items: center; }}
-  .topbar-label {{ color: var(--muted); }}
-  .topbar-refresh {{ color: var(--muted); font-size: .7rem; }}
+  .topbar-label {{ color: rgba(255,243,210,.62); }}
+  .topbar-refresh {{ color: rgba(255,243,210,.62); font-size: .68rem; }}
   .topbar-refresh-btn {{
-    margin-left: auto; background: none; border: 1px solid var(--border);
-    color: var(--muted); font-size: .75rem; cursor: pointer; border-radius: 3px;
+    margin-left: auto; background: rgba(255,243,210,.08); border: 1px solid rgba(255,243,210,.32);
+    color: #fff3d2; font-size: .75rem; cursor: pointer; border-radius: 2px;
     padding: .1rem .4rem; line-height: 1.4;
   }}
-  .topbar-refresh-btn:hover {{ color: var(--text); border-color: var(--muted); }}
+  .topbar-refresh-btn:hover {{ background: rgba(255,243,210,.16); border-color: rgba(255,243,210,.55); }}
   .topbar-refresh-btn.spinning {{ animation: spin .6s linear infinite; }}
   @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
   .belief-inline {{
     display: inline-block; width: 60px; height: 6px;
-    background: var(--border); border-radius: 3px; vertical-align: middle;
+    background: rgba(255,243,210,.22); border-radius: 3px; vertical-align: middle;
     position: relative; overflow: hidden;
   }}
   .belief-inline-fill {{
     position: absolute; left: 0; top: 0; height: 100%;
-    background: #7c3aed; border-radius: 3px;
+    background: #2aa7a1; border-radius: 3px;
   }}
 
   .grid {{
     display: grid;
-    grid-template-columns: 1fr 340px;
+    grid-template-columns: minmax(0, 1fr) 360px;
     grid-template-rows: auto auto;
-    gap: 1rem; padding: 1rem;
+    gap: 1rem; padding: 1.25rem clamp(.75rem, 2vw, 1.5rem) 2rem;
     max-width: 1600px; margin: 0 auto;
+  }}
+  .folio-mast {{
+    max-width: 1600px; margin: 1.1rem auto 0; padding: 0 clamp(.75rem, 2vw, 1.5rem);
+  }}
+  .folio-sheet {{
+    position: relative; overflow: hidden; min-height: 0;
+    background:
+      linear-gradient(rgba(255, 249, 233, .68), rgba(255, 249, 233, .76)),
+      url('mission-control-assets/ledger-margin.png') center 38% / cover no-repeat,
+      linear-gradient(90deg, rgba(108,72,36,.09), transparent 20%, transparent 82%, rgba(108,72,36,.06)),
+      var(--surface-strong);
+    border: 1px solid var(--border); border-radius: 3px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.55) inset, 0 12px 30px rgba(58,36,15,.12);
+    padding: 1rem 1.2rem .9rem;
+  }}
+  .folio-sheet::before {{
+    content:""; position:absolute; inset:.55rem; border:1px solid rgba(94,63,33,.12); pointer-events:none;
+  }}
+  .folio-sheet > * {{ position: relative; z-index: 1; }}
+  .folio-logo {{
+    display:block; width:min(780px, 100%); max-height:210px; object-fit:contain;
+    object-position:left center; margin:-.35rem 0 .35rem; mix-blend-mode:multiply;
+  }}
+  .folio-kicker {{
+    font-family:"Courier New", monospace; font-size:.66rem; text-transform:uppercase;
+    letter-spacing:.12em; color:var(--muted); margin-bottom:.25rem;
+  }}
+  .folio-title {{
+    font-size: clamp(1.6rem, 3vw, 2.45rem); line-height:1; color:var(--ink);
+    font-weight: normal; letter-spacing:0;
+  }}
+  .folio-sub {{
+    max-width: 920px; margin-top:.45rem; font-size:.84rem; line-height:1.5; color:var(--sepia);
+  }}
+  .folio-marks {{
+    display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.65rem; padding-right: 0;
+  }}
+  .folio-mark {{
+    font-family:"Courier New", monospace; font-size:.62rem; letter-spacing:.04em;
+    border:1px solid rgba(89,62,35,.22); background:rgba(255,251,238,.42);
+    padding:.16rem .42rem; border-radius:2px; color:var(--muted);
   }}
 
   /* ── Panels ── */
   .panel {{
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 4px; overflow: hidden;
+    background:
+      linear-gradient(90deg, rgba(91, 57, 27, .045), transparent 18%, transparent 82%, rgba(91,57,27,.035)),
+      var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px; overflow: hidden; position: relative;
+    box-shadow: 0 1px 0 rgba(255,255,255,.45) inset, 0 10px 28px rgba(58, 36, 15, .10);
+  }}
+  .panel::before {{
+    content:""; position:absolute; inset: .45rem; border:1px solid rgba(94,63,33,.10);
+    pointer-events:none;
   }}
   .panel-header {{
-    padding: .5rem 1rem;
-    border-bottom: 1px solid var(--border);
-    font-family: monospace; font-size: .7rem; letter-spacing: .1em;
-    color: var(--muted); text-transform: uppercase; display: flex;
+    padding: .58rem 1rem .5rem;
+    border-bottom: 1px solid var(--rule);
+    font-family: "Courier New", monospace; font-size: .68rem; letter-spacing: .08em;
+    color: var(--sepia); text-transform: uppercase; display: flex;
     align-items: center; gap: .8rem;
+    background: rgba(108, 72, 36, .055);
   }}
   .panel-header span {{ color: var(--text); }}
-  .panel-body {{ padding: 1rem; }}
+  .panel-body {{ padding: 1rem; position: relative; }}
 
   /* ── Thread cards ── */
   .thread-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: .75rem; }}
   .card {{
-    background: var(--bg); border: 1px solid; border-radius: 4px;
+    background: rgba(255, 251, 238, .48); border: 1px solid; border-radius: 3px;
     padding: .75rem; display: flex; flex-direction: column; gap: .5rem;
+    box-shadow: 0 1px 0 rgba(255,255,255,.4) inset;
   }}
   .card-header {{ display: flex; align-items: center; justify-content: space-between; }}
   .card-title {{ font-size: .85rem; font-weight: bold; }}
@@ -2973,7 +3398,7 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .card-meta {{ font-size: .65rem; color: var(--muted); font-family: monospace; }}
   .badge-new {{
     display: inline-block; margin-left: .5rem;
-    background: var(--seed); color: #86efac;
+    background: rgba(85,114,60,.16); color: var(--moss);
     font-size: .55rem; padding: .1rem .3rem; border-radius: 2px;
     font-family: monospace; text-transform: uppercase; vertical-align: middle;
   }}
@@ -2995,7 +3420,7 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
     position: absolute; right: 0; top: 0; height: 100%;
     display: flex; align-items: center;
     font-family: monospace; font-size: .65rem; font-weight: bold;
-    padding-right: .3rem; text-shadow: 0 0 6px #000;
+    padding-right: .3rem; text-shadow: 0 1px 0 rgba(255,255,255,.45);
   }}
   .phase-bar.permanent {{
     background: var(--dormant); border-radius: 2px; height: 18px;
@@ -3006,12 +3431,22 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   /* ── Talisman bars ── */
   .tal-row {{ display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }}
   .tal-name {{ width: 100px; font-size: .75rem; font-weight: bold; flex-shrink: 0; }}
-  .tal-bar-wrap {{ flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }}
+  .tal-bar-wrap {{ flex: 1; height: 8px; background: rgba(97,65,35,.14); border-radius: 4px; overflow: hidden; }}
   .tal-bar {{ height: 100%; border-radius: 4px; transition: width .4s; }}
   .tal-belief {{ width: 30px; text-align: right; font-family: monospace; font-size: .75rem; flex-shrink: 0; }}
   .tal-chapter {{ width: 80px; font-size: .65rem; font-family: monospace; flex-shrink: 0; }}
 
   /* ── Entity table ── */
+  .entity-summary {{ font-size: .7rem; color: var(--muted); margin-bottom: .7rem; }}
+  .entity-section {{ margin-bottom: 1rem; }}
+  .entity-section:last-child {{ margin-bottom: 0; }}
+  .entity-section-head {{
+    display:flex; justify-content:space-between; align-items:center;
+    font-family: monospace; font-size: .66rem; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .08em;
+    border-bottom: 1px solid var(--border); padding-bottom: .25rem; margin-bottom: .15rem;
+  }}
+  .entity-section-head span {{ color: var(--text); font-size: .62rem; }}
   .ent-table {{ width: 100%; border-collapse: collapse; font-size: .75rem; }}
   .ent-table td {{ padding: .25rem .4rem; border-bottom: 1px solid var(--border); }}
   .ent-table tr:last-child td {{ border-bottom: none; }}
@@ -3020,28 +3455,28 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .ent-belief {{ font-family: monospace; text-align: right; color: var(--text); }}
   .ent-tags {{ font-family: monospace; font-size: .6rem; }}
   .tag {{
-    display: inline-block; background: var(--thread-line); color: #93c5fd;
+    display: inline-block; background: rgba(22,116,117,.12); color: var(--teal-ink);
     border-radius: 2px; padding: .05rem .3rem; margin-right: .2rem; font-size: .6rem;
   }}
 
   /* ── Tick feed ── */
   .tick-feed {{ display: flex; flex-direction: column; gap: .3rem; max-height: 360px; overflow-y: auto; }}
   .entry {{
-    padding: .35rem .6rem; border-radius: 3px; font-size: .72rem; line-height: 1.5;
+    padding: .38rem .6rem; border-radius: 2px; font-size: .72rem; line-height: 1.5;
     border-left: 3px solid transparent;
   }}
-  .entry-escalation {{ background: #2d1b00; border-color: var(--rising); color: #fcd34d; }}
-  .entry-cooling     {{ background: #1a1a2e; border-color: var(--setup); color: #93c5fd; }}
-  .entry-seed        {{ background: #052e16; border-color: var(--seed); color: #86efac; }}
-  .entry-fae         {{ background: #1e0533; border-color: var(--fae); color: #d8b4fe; }}
-  .entry-priority    {{ background: #2d0000; border-color: var(--priority); color: #fca5a5; }}
-  .entry-war         {{ background: #271500; border-color: var(--war); color: #fde68a; }}
-  .entry-beat        {{ background: #1a1f2e; border-color: var(--beat); }}
-  .entry-thread      {{ background: #1a2030; border-color: var(--thread-line); color: #93c5fd; }}
-  .entry-talisman    {{ background: #1c1510; border-color: var(--war); color: #fcd34d; }}
-  .entry-invest      {{ background: #0d1b35; border-color: var(--invest); color: #93c5fd; }}
-  .entry-pulse       {{ background: #111; border-color: var(--border); color: var(--muted); }}
-  .entry-normal      {{ background: #161618; border-color: var(--border); color: var(--text); }}
+  .entry-escalation {{ background: rgba(167,111,36,.12); border-color: var(--rising); color: #5e3c12; }}
+  .entry-cooling     {{ background: rgba(78,107,138,.12); border-color: var(--setup); color: #274761; }}
+  .entry-seed        {{ background: rgba(85,114,60,.12); border-color: var(--seed); color: #385421; }}
+  .entry-fae         {{ background: rgba(107,33,168,.10); border-color: var(--fae); color: #593070; }}
+  .entry-priority    {{ background: rgba(142,46,59,.12); border-color: var(--priority); color: #74212d; }}
+  .entry-war         {{ background: rgba(180,83,9,.12); border-color: var(--war); color: #714315; }}
+  .entry-beat        {{ background: rgba(47,38,29,.06); border-color: var(--beat); }}
+  .entry-thread      {{ background: rgba(30,58,95,.10); border-color: var(--thread-line); color: #253f62; }}
+  .entry-talisman    {{ background: rgba(167,111,36,.12); border-color: var(--war); color: #6d4514; }}
+  .entry-invest      {{ background: rgba(29,78,216,.08); border-color: var(--invest); color: #204a8b; }}
+  .entry-pulse       {{ background: rgba(47,38,29,.045); border-color: var(--border); color: var(--muted); }}
+  .entry-normal      {{ background: rgba(255,251,238,.40); border-color: var(--rule); color: var(--text); }}
   .sim-entry         {{ display: flex; flex-direction: column; gap: .2rem; }}
   .sim-header        {{ font-family: monospace; font-size: .62rem; text-transform: uppercase; letter-spacing: .04em; }}
   .sim-title         {{ font-size: .72rem; color: var(--text); }}
@@ -3052,10 +3487,10 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   /* ── Player panel ── */
   .belief-bar-wrap {{ margin: .5rem 0; }}
   .belief-bar-track {{
-    height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden;
+    height: 8px; background: rgba(97,65,35,.14); border-radius: 4px; overflow: hidden;
   }}
   .belief-bar-fill {{
-    height: 100%; background: #7c3aed; border-radius: 4px;
+    height: 100%; background: linear-gradient(90deg, var(--teal-ink), var(--gold-ink)); border-radius: 4px;
   }}
   .belief-label {{ font-family: monospace; font-size: .7rem; color: var(--muted); margin-top: .2rem; }}
   .stat-row {{ display: flex; gap: .8rem; flex-wrap: wrap; margin-bottom: .5rem; }}
@@ -3072,7 +3507,7 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .bleed-status {{
     display: flex; align-items: center; gap: .5rem;
     font-family: monospace; font-size: .8rem; padding: .5rem .75rem;
-    border-radius: 3px; background: var(--bg);
+    border-radius: 2px; background: rgba(255,251,238,.46); border: 1px solid var(--rule);
   }}
   .bleed-dot {{ font-size: 1rem; }}
 
@@ -3093,7 +3528,7 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .cron-age {{ display:block; font-size:.58rem; color:#6b7280; margin-top:.08rem; }}
   .cron-time {{ font-family: monospace; font-size: .65rem; white-space: nowrap; padding-top: .35rem; }}
   .auto-health {{ display:grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap:.35rem; margin:.7rem 0 .65rem; }}
-  .auto-card {{ background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:.45rem .5rem; min-width:0; }}
+  .auto-card {{ background:rgba(255,251,238,.44); border:1px solid var(--border); border-radius:3px; padding:.45rem .5rem; min-width:0; }}
   .auto-card.ok {{ border-color:#15803d55; }}
   .auto-card.warn {{ border-color:#92681a66; }}
   .auto-card.bad {{ border-color:#c2410c66; }}
@@ -3102,16 +3537,16 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
 
   /* ── Image gallery ── */
   .gallery-shell {{ display:flex; flex-direction:column; gap:.75rem; }}
-  .gallery-stage-wrap {{ background: var(--bg); border:1px solid var(--border); border-radius:4px; overflow:hidden; min-height: 280px; display:flex; align-items:center; justify-content:flex-start; }}
-  .gallery-stage-image {{ width:100%; min-width:0; max-height:460px; object-fit:contain; object-position:left center; display:block; background:#0b0b0d; }}
+  .gallery-stage-wrap {{ background: rgba(80,51,24,.10); border:1px solid var(--border); border-radius:3px; overflow:hidden; min-height: 280px; display:flex; align-items:center; justify-content:flex-start; }}
+  .gallery-stage-image {{ width:100%; min-width:0; max-height:460px; object-fit:contain; object-position:left center; display:block; background:#efe0bd; }}
   .gallery-stage-meta {{ display:flex; flex-direction:column; gap:.2rem; }}
   .gallery-stage-title {{ font-size:.9rem; font-weight:bold; }}
   .gallery-stage-sub {{ font-family: monospace; font-size:.65rem; }}
   .gallery-stage-caption {{ font-size:.74rem; line-height:1.45; }}
   .gallery-filmstrip {{ display:flex; gap:.5rem; overflow-x:auto; padding-bottom:.2rem; }}
-  .gallery-thumb {{ background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--text); min-width:140px; max-width:140px; padding:.35rem; cursor:pointer; display:flex; flex-direction:column; gap:.35rem; text-align:left; }}
-  .gallery-thumb.active {{ border-color:#7c3aed; box-shadow: inset 0 0 0 1px #7c3aed44; }}
-  .gallery-thumb img {{ width:100%; height:88px; object-fit:cover; border-radius:2px; background:#0b0b0d; }}
+  .gallery-thumb {{ background:rgba(255,251,238,.48); border:1px solid var(--border); border-radius:3px; color:var(--text); min-width:140px; max-width:140px; padding:.35rem; cursor:pointer; display:flex; flex-direction:column; gap:.35rem; text-align:left; }}
+  .gallery-thumb.active {{ border-color:var(--teal-ink); box-shadow: inset 0 0 0 1px rgba(22,116,117,.22); }}
+  .gallery-thumb img {{ width:100%; height:88px; object-fit:cover; border-radius:2px; background:#efe0bd; }}
   .gallery-thumb-label {{ font-size:.68rem; line-height:1.3; white-space:normal; }}
 
   .muted {{ color: var(--muted); }}
@@ -3121,25 +3556,27 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   /* ── Modal ── */
   .modal-overlay {{
     display: none; position: fixed; inset: 0; z-index: 1000;
-    background: rgba(0,0,0,.72); align-items: center; justify-content: center;
+    background: rgba(35,24,14,.58); align-items: center; justify-content: center;
+    backdrop-filter: blur(2px);
   }}
   .modal-overlay.open {{ display: flex; }}
   .modal-box {{
-    background: #18181b; border: 1px solid #3f3f46; border-radius: 6px;
+    background: #f7edcf; border: 1px solid rgba(89,62,35,.34); border-radius: 4px;
     width: min(640px, 94vw); max-height: 82vh;
     display: flex; flex-direction: column; overflow: hidden;
-    box-shadow: 0 24px 48px rgba(0,0,0,.6);
+    box-shadow: 0 24px 48px rgba(49,31,13,.38);
   }}
   .modal-header {{
     display: flex; align-items: center; justify-content: space-between;
-    padding: .75rem 1rem; border-bottom: 1px solid #3f3f46; flex-shrink: 0;
+    padding: .75rem 1rem; border-bottom: 1px solid rgba(89,62,35,.24); flex-shrink: 0;
+    background: rgba(108,72,36,.07);
   }}
   .modal-title {{ font-size: .95rem; font-weight: bold; color: var(--text); }}
   .modal-close {{
     background: none; border: none; color: var(--muted); font-size: 1.2rem;
     cursor: pointer; line-height: 1; padding: .1rem .3rem; border-radius: 3px;
   }}
-  .modal-close:hover {{ color: var(--text); background: #27272a; }}
+  .modal-close:hover {{ color: var(--text); background: rgba(108,72,36,.12); }}
   .modal-body {{ overflow-y: auto; padding: .75rem 1rem; display: flex; flex-direction: column; gap: .6rem; }}
   .mf-row {{ display: grid; grid-template-columns: 130px 1fr; gap: .4rem; align-items: baseline; }}
   .mf-label {{
@@ -3150,13 +3587,21 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
 
   /* ── Scrollbar ── */
   ::-webkit-scrollbar {{ width: 4px; }}
-  ::-webkit-scrollbar-track {{ background: var(--bg); }}
+  ::-webkit-scrollbar-track {{ background: rgba(97,65,35,.09); }}
   ::-webkit-scrollbar-thumb {{ background: var(--border); border-radius: 2px; }}
 
   /* ── Arc banner ── */
   .arc-banner {{
-    background: var(--bg); border: 1px solid; border-radius: 4px;
+    background: rgba(255,251,238,.52); border: 1px solid; border-radius: 3px;
     padding: .85rem 1rem; display: flex; flex-direction: column; gap: .75rem;
+    position: relative; overflow: hidden;
+  }}
+  .arc-banner::after {{
+    content:""; position:absolute; right:.75rem; top:.55rem; width:86px; height:86px; opacity:.13;
+    background: radial-gradient(circle, transparent 42%, currentColor 43% 45%, transparent 46%),
+                linear-gradient(currentColor, currentColor) center/1px 100% no-repeat,
+                linear-gradient(90deg, currentColor, currentColor) center/100% 1px no-repeat;
+    transform: rotate(-12deg);
   }}
   .arc-header {{ display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }}
   .arc-eyebrow {{ font-family: monospace; font-size: .65rem; color: var(--muted); margin-bottom: .2rem; }}
@@ -3164,7 +3609,7 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .arc-right {{ text-align: right; display: flex; flex-direction: column; gap: .3rem; align-items: flex-end; }}
   .arc-phase {{ font-family: monospace; font-size: .8rem; font-weight: bold; letter-spacing: .1em; }}
   .arc-belief-wrap {{ display: flex; align-items: center; gap: .4rem; flex-direction: row-reverse; }}
-  .arc-belief-track {{ width: 80px; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }}
+  .arc-belief-track {{ width: 80px; height: 5px; background: rgba(97,65,35,.15); border-radius: 3px; overflow: hidden; }}
   .arc-belief-fill {{ height: 100%; border-radius: 3px; }}
   .arc-belief-label {{ font-family: monospace; font-size: .65rem; color: var(--muted); }}
   .arc-compass {{ font-family: monospace; font-size: .65rem; color: var(--muted); }}
@@ -3178,19 +3623,19 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
 
   /* ── Forecast ── */
   .fc-world {{
-    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+    background: rgba(255,251,238,.52); border: 1px solid var(--border); border-radius: 3px;
     padding: .65rem .85rem; margin-bottom: .6rem; display: flex; flex-direction: column; gap: .35rem;
   }}
   .fc-world-feel {{ font-size: .82rem; color: var(--text); line-height: 1.4; }}
   .fc-world-row  {{ display: flex; flex-wrap: wrap; gap: .4rem; }}
   .fc-pill {{
     font-family: monospace; font-size: .62rem; padding: .1rem .4rem;
-    background: #27272a; border-radius: 2px;
+    background: rgba(108,72,36,.10); border-radius: 2px;
   }}
   .fc-forecast {{ font-size: .68rem; line-height: 1.5; font-style: italic; }}
   .fc-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .5rem; }}
   .fc-block {{
-    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+    background: rgba(255,251,238,.46); border: 1px solid var(--border); border-radius: 3px;
     padding: .6rem .75rem; display: flex; flex-direction: column; gap: .4rem;
     margin-bottom: .5rem;
   }}
@@ -3200,14 +3645,14 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .fc-badge {{
     font-family: monospace; font-size: .62rem; padding: .1rem .4rem; border-radius: 2px; flex-shrink: 0;
   }}
-  .fc-badge-neutral {{ background: #27272a; color: var(--muted); }}
+  .fc-badge-neutral {{ background: rgba(108,72,36,.10); color: var(--muted); }}
   .fc-nothing-strategy, .fc-philo {{ font-size: .72rem; line-height: 1.5; }}
   .fc-bullets {{ padding-left: 1rem; display: flex; flex-direction: column; gap: .2rem; }}
   .fc-bullets li {{ font-size: .68rem; line-height: 1.5; color: var(--muted); }}
   .fc-tal-bars   {{ display: flex; flex-direction: column; gap: .25rem; margin-top: .2rem; }}
   .fc-tal-row    {{ display: flex; align-items: center; gap: .4rem; }}
   .fc-tal-name   {{ font-size: .68rem; font-weight: bold; width: 90px; flex-shrink: 0; }}
-  .fc-tal-bar-wrap {{ flex: 1; height: 6px; background: #27272a; border-radius: 3px; overflow: hidden; }}
+  .fc-tal-bar-wrap {{ flex: 1; height: 6px; background: rgba(97,65,35,.15); border-radius: 3px; overflow: hidden; }}
   .fc-tal-bar    {{ height: 100%; border-radius: 3px; }}
   .fc-tal-b      {{ font-family: monospace; font-size: .62rem; width: 24px; text-align: right; flex-shrink: 0; }}
   .fc-whispers   {{ display: flex; flex-direction: column; gap: .3rem; }}
@@ -3225,10 +3670,38 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .fc-env-loc   {{ font-size: .72rem; color: var(--text); }}
   .fc-env-state {{ font-family: monospace; font-size: .6rem; text-align: right; flex-shrink: 0; }}
 
+  /* ── Heartbeat ── */
+  .heartbeat-head {{
+    display:flex; justify-content:space-between; gap:1rem; align-items:flex-start;
+    background:rgba(255,251,238,.52); border:1px solid var(--border); border-radius:3px;
+    padding:.75rem .9rem; margin-bottom:.65rem;
+  }}
+  .heartbeat-title {{ font-size:1rem; color:var(--text); font-weight:bold; }}
+  .heartbeat-sub {{ font-size:.72rem; line-height:1.5; margin-top:.15rem; }}
+  .heartbeat-stamp {{ font-family:monospace; font-size:.68rem; display:flex; flex-direction:column; align-items:flex-end; gap:.15rem; white-space:nowrap; }}
+  .heartbeat-grid {{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:.55rem; }}
+  .hb-block {{
+    background:rgba(255,251,238,.46); border:1px solid var(--border); border-radius:3px;
+    padding:.65rem .75rem; min-width:0;
+  }}
+  .hb-block-wide {{ grid-column:1 / -1; }}
+  .hb-row {{ display:grid; grid-template-columns:110px 1fr; gap:.55rem; padding:.24rem 0; border-bottom:1px solid var(--border); }}
+  .hb-row:last-child {{ border-bottom:none; }}
+  .hb-row-compact {{ grid-template-columns:82px 1fr; }}
+  .hb-label {{ font-family:monospace; font-size:.62rem; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }}
+  .hb-value {{ font-size:.72rem; line-height:1.45; color:var(--text); white-space:pre-wrap; }}
+  .hb-list {{ padding-left:1rem; display:flex; flex-direction:column; gap:.2rem; }}
+  .hb-list li {{ font-size:.72rem; line-height:1.45; color:var(--text); }}
+  .hb-note {{ font-size:.72rem; line-height:1.55; color:var(--text); border-left:2px solid var(--rule); padding-left:.55rem; margin-top:.35rem; }}
+  .hb-note:first-of-type {{ margin-top:0; }}
+  .hb-note-kind {{ display:inline-block; font-family:monospace; font-size:.62rem; text-transform:uppercase; letter-spacing:.05em; margin-right:.4rem; }}
+  .hb-sparky {{ border-left-color:var(--fae); font-style:italic; }}
+
   /* ── Schedule ── */
   .sched-now {{
     display: flex; justify-content: space-between; gap: 1rem;
-    border: 1px solid; border-radius: 4px; padding: .7rem .85rem; margin-bottom: .1rem;
+    border: 1px solid; border-radius: 3px; padding: .7rem .85rem; margin-bottom: .1rem;
+    background: rgba(255,251,238,.42);
   }}
   .sched-now-left, .sched-now-right {{ display: flex; flex-direction: column; gap: .2rem; }}
   .sched-now-block {{ font-family: monospace; font-size: .85rem; font-weight: bold; letter-spacing: .1em; }}
@@ -3241,13 +3714,13 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .sched-today-header {{ display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }}
   .sched-tone-badge {{
     font-family: monospace; font-size: .6rem; text-transform: uppercase; letter-spacing: .08em;
-    background: #27272a; color: var(--muted); padding: .1rem .35rem; border-radius: 2px;
+    background: rgba(108,72,36,.10); color: var(--muted); padding: .1rem .35rem; border-radius: 2px;
   }}
   .sched-slots {{ display: flex; flex-direction: column; gap: .3rem; }}
   .sched-slot {{
     display: flex; align-items: baseline; gap: .6rem;
     padding: .3rem .5rem; border: 1px solid var(--border); border-radius: 3px;
-    background: var(--bg);
+    background: rgba(255,251,238,.45);
   }}
   .sched-slot-empty {{ border-color: transparent !important; background: transparent !important; }}
   .sched-slot-time  {{ font-family: monospace; font-size: .6rem; flex-shrink: 0; width: 56px; }}
@@ -3258,11 +3731,11 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .sched-day-col {{
     display: flex; flex-direction: column; gap: .25rem;
     border: 1px solid var(--border); border-radius: 3px; padding: .4rem .3rem;
-    cursor: pointer; background: var(--bg);
+    cursor: pointer; background: rgba(255,251,238,.42);
   }}
   .sched-day-col:hover {{ opacity: .85; }}
   .sched-day-col-name {{ font-family: monospace; font-size: .65rem; font-weight: bold; color: var(--muted); }}
-  .sched-day-col-name-today {{ color: #7c3aed !important; }}
+  .sched-day-col-name-today {{ color: var(--teal-ink) !important; }}
   .sched-day-col-num  {{ font-family: monospace; font-size: .55rem; }}
   .sched-day-col-slot {{ font-size: .6rem; min-height: 1rem; }}
   .sched-mini-class   {{ display: block; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .6rem; }}
@@ -3272,6 +3745,7 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
     display: flex; flex-direction: column; gap: .1rem;
     border: 1px solid var(--border); border-radius: 3px; padding: .3rem .5rem;
     min-width: 100px;
+    background: rgba(255,251,238,.32);
   }}
   .sched-block-active {{ font-weight: bold; }}
   .sched-block-name {{ font-size: .7rem; }}
@@ -3282,12 +3756,12 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .inv-row:last-child {{ border-bottom: none; }}
   .inv-name {{ font-size: .78rem; font-weight: bold; color: var(--text); margin-bottom: .15rem; }}
   .inv-desc {{ font-size: .72rem; color: var(--muted); line-height: 1.5; }}
-  .inv-label {{ font-style: italic; color: #a78bfa; }}
+  .inv-label {{ font-style: italic; color: var(--teal-ink); }}
 
   /* ── Anchor cards ── */
   .anchor-grid {{ display: flex; flex-direction: column; gap: .6rem; }}
   .anchor-card {{
-    background: var(--bg); border: 1px solid; border-radius: 4px;
+    background: rgba(255,251,238,.50); border: 1px solid; border-radius: 3px;
     padding: .65rem .75rem; display: flex; flex-direction: column; gap: .35rem;
   }}
   .anchor-header {{ display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }}
@@ -3299,23 +3773,40 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .anchor-stat {{ font-family: monospace; font-size: .65rem; color: var(--text); }}
 
   /* ── Sub-tabs ── */
-  .tab-bar {{ display: flex; border-bottom: 1px solid var(--border); padding: 0 1rem; gap: .25rem; }}
+  .tab-bar {{
+    display: flex; border-bottom: 1px solid var(--rule); padding: .55rem .85rem 0; gap: .2rem;
+    background: rgba(108,72,36,.06); flex-wrap: wrap;
+  }}
   .tab {{
-    padding: .35rem .75rem; font-family: monospace; font-size: .65rem;
+    padding: .38rem .7rem .34rem; font-family: "Courier New", monospace; font-size: .62rem;
     text-transform: uppercase; letter-spacing: .08em;
     color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
-    background: none; border-top: none; border-left: none; border-right: none;
+    background: rgba(255,251,238,.32); border-top: 1px solid rgba(89,62,35,.18); border-left: 1px solid rgba(89,62,35,.18); border-right: 1px solid rgba(89,62,35,.18);
+    border-radius: 3px 3px 0 0;
     transition: color .15s;
   }}
-  .tab.active {{ color: var(--text); border-bottom-color: #7c3aed; }}
+  .tab.active {{ color: var(--ink); border-bottom-color: var(--teal-ink); background: rgba(255,251,238,.72); }}
   .tab-content {{ display: none; padding: .75rem 1rem; }}
   .tab-content.active {{ display: block; }}
+  @media (max-width: 980px) {{
+    .grid {{ grid-template-columns: 1fr; }}
+    body::after {{ display:none; }}
+    .folio-logo {{ width:100%; max-height:170px; }}
+    .folio-marks {{ padding-right:0; }}
+    .topbar {{ flex-wrap: wrap; gap: .65rem; }}
+    .topbar-refresh-btn {{ margin-left: 0; }}
+    .arc-body, .fc-grid {{ grid-template-columns: 1fr; }}
+    .heartbeat-grid {{ grid-template-columns: 1fr; }}
+    .hb-block-wide {{ grid-column:auto; }}
+    .hb-row {{ grid-template-columns:1fr; gap:.15rem; }}
+    .sched-week {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+  }}
 </style>
 </head>
 <body>
 
 <div class="topbar" id="data-topbar">
-  <div class="topbar-title">⋈ Enchantify</div>
+  <div class="topbar-title">⋈ Story-Field Journal</div>
   <div class="topbar-divider">·</div>
   <div class="topbar-item">
     <span class="topbar-label">student</span>
@@ -3342,6 +3833,23 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   <div class="topbar-refresh">next refresh in <span id="data-countdown">3:00</span> · <span id="data-generated">generated {generated}</span></div>
 </div>
 
+<header class="folio-mast">
+  <div class="folio-sheet">
+    <img class="folio-logo" src="mission-control-assets/enchantify-logo.png" alt="Enchantify — The Labyrinth of Stories">
+    <div class="folio-kicker">Story-Field Journal · annotated folio · live apparatus</div>
+    <h1 class="folio-title">Story-Field Journal</h1>
+    <div class="folio-sub">A working page of the Labyrinth: threads, heartbeat, forecasts, anchors, automations, app actions, entities, images, and the current state of the Academy gathered into one annotated folio.</div>
+    <div class="folio-marks">
+      <span class="folio-mark">{len(threads)} active threads</span>
+      <span class="folio-mark">{len(npcs)} registered entities</span>
+      <span class="folio-mark">{len(anchors)} anchors</span>
+      <span class="folio-mark">Belief {h(player.get("belief","?"))}/100</span>
+      <span class="folio-mark">{bleed_label} {bleed_issue}</span>
+      <span class="folio-mark">Heartbeat {h((heartbeat or {}).get("pulse_ts","—"))}</span>
+    </div>
+  </div>
+</header>
+
 <div class="grid">
 
   <!-- ── Left column ── -->
@@ -3364,6 +3872,7 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
         <button class="tab active" onclick="switchTab(this,'tick')">Simulation Feed</button>
         <button class="tab" onclick="switchTab(this,'queue')">Session Queue</button>
         <button class="tab" onclick="switchTab(this,'forecast')">Forecast</button>
+        <button class="tab" onclick="switchTab(this,'heartbeat')">Heartbeat</button>
         <button class="tab" onclick="switchTab(this,'entities')">Entities</button>
         <button class="tab" onclick="switchTab(this,'talismans')">Talisman War</button>
         <button class="tab" onclick="switchTab(this,'pact-actions')">App Actions</button>
@@ -3379,9 +3888,7 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
         <div class="tick-feed">{queue_html}</div>
       </div>
       <div id="entities" class="tab-content">
-        <table class="ent-table">
-          <tbody>{top_npcs}</tbody>
-        </table>
+        {entities_html}
       </div>
       <div id="talismans" class="tab-content">
         {tal_bars}
@@ -3403,6 +3910,9 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
       </div>
       <div id="forecast" class="tab-content">
         {forecast_html}
+      </div>
+      <div id="heartbeat" class="tab-content">
+        {heartbeat_html}
       </div>
     </div>
 
@@ -3609,16 +4119,17 @@ def generate() -> str:
     anchors   = parse_anchors(player.get("name", "bj"))
     sched    = parse_schedule()
     forecast = parse_forecast(talismans)
+    heartbeat = parse_current_heartbeat()
     gallery_entries = parse_scene_gallery()
     narrative_health = parse_narrative_health(player.get("name", "bj"))
     return build_html(threads, npcs, talismans, player, queue, bleed, crons,
-                      arc=arc, anchors=anchors, sched=sched, forecast=forecast,
+                      arc=arc, anchors=anchors, sched=sched, forecast=forecast, heartbeat=heartbeat,
                       sim_feed=sim_feed, pact_actions=pact_actions, gallery_entries=gallery_entries,
                       narrative_health=narrative_health)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Enchantify Mission Control")
+    parser = argparse.ArgumentParser(description="Enchantify Story-Field Journal")
     parser.add_argument("--open",  action="store_true", help="Open in browser after generating")
     parser.add_argument("--serve", action="store_true", help="Serve on http://localhost:9191 with live refresh")
     parser.add_argument("--out",   default=str(BASE / "hooks" / "mission-control.html"), help="Output path")

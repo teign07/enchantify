@@ -95,6 +95,8 @@ def _load_runtime_state(workspace: Path, player_name: str) -> dict:
     mechanics["enchantment"].setdefault("offered_on", None)
     mechanics["enchantment"].setdefault("accepted_on", None)
     mechanics["enchantment"].setdefault("completed_on", None)
+    mechanics["enchantment"].setdefault("active", None)
+    mechanics["enchantment"].setdefault("last", None)
     data["mechanics"] = mechanics
     return data
 
@@ -243,6 +245,7 @@ def get_mechanics_state(workspace: Path, player_name: str) -> dict:
         "session": session,
         "compass": compass_state,
         "enchantment": enchantment_state,
+        "active_enchantment": enchantment_state.get("active"),
     }
 
 

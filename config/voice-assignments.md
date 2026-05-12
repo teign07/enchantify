@@ -105,6 +105,7 @@
 
 ## Library & Staff
 
+- **Dr. Elowen Vellum:** `af_v0nicole(2)+af_kore(1)` — Crisp, feminine, precise; Nicole's clear intimacy sharpened by Kore's ancient composure. The voice of a margin note that has read the clinical trial.
 - **Archibald Evergreen (Head Librarian):** `bm_v0lewis(2)+bm_george(1)` — Venerable, vast, a chorus of ancient scholars. The blend gives him his own shelf.
 - **Evelyn Riad (Researcher):** `af_kore` — Dedicated, uncovering clues in the digital deep.
 - **Quentin Pagester (they/them, Archivist):** `bm_fable(1)+af_aoede(1)` — Meticulous, precise. An equal blend for a non-binary archivist — Fable's storytelling warmth merged with Aoede's clarity.

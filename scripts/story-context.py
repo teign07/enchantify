@@ -220,17 +220,78 @@ def recent_scene_entries(limit: int = 5) -> list[dict[str, Any]]:
         title = entry.get("title") or "scene"
         if "Session closed cleanly" in title:
             title = entry.get("scene_id") or "scene"
+        scene_text = entry.get("text") or entry.get("voice") or ""
+        raw_location = contract.get("current_location", "")
+        inferred_location = infer_scene_location(scene_text, title, raw_location)
         out.append({
             "recorded_at": entry.get("recorded_at"),
             "scene_id": entry.get("scene_id"),
             "title": truncate(title, 120),
             "mode": contract.get("scene_mode"),
             "drama_budget": contract.get("drama_budget"),
+            "current_location": inferred_location,
+            "available_cast": contract.get("available_cast", ""),
             "essential_ok": entry.get("essential_ok"),
             "delivery_ok": entry.get("delivery_ok"),
             "opening": truncate(opening, 220),
+            "ending": truncate(last_scene_text_beat(scene_text), 260),
         })
     return out
+
+
+def infer_scene_location(text: str, title: str = "", fallback: str = "") -> str:
+    fallback = (fallback or "").strip()
+    if fallback and "unknown" not in fallback.lower():
+        return fallback
+    hay = f"{title}\n{text}".lower()
+    patterns = [
+        ("Dormitory", ("dorm", "dormitory", "bedside", "blanket", "pillow", "dresser")),
+        ("Headmistress's Office", ("headmistress's office", "headmistress office", "thorne's office")),
+        ("The Great Hall", ("great hall", "dining hall", "long table", "house table")),
+        ("The Library", ("library", "return desk", "archive ledge", "stacks")),
+        ("Restricted Section", ("restricted section", "restricted shelf")),
+        ("Duskthorn Common Areas", ("duskthorn common", "duskthorn corridor", "duskthorn door")),
+        ("The Observatory", ("observatory", "telescope", "star chart")),
+        ("The Crossroads of Simple Joys", ("crossroads", "hearthkin", "shelf of joys")),
+        ("The marked room outside Corin's door", ("card on the door", "red titles", "door handle moves", "books in the room")),
+        ("Academy corridor", ("corridor", "hallway", "door handle", "footsteps crossing the floor")),
+        ("Current room", ("in the room", "inside the room", "the room")),
+    ]
+    for location, needles in patterns:
+        if any(needle in hay for needle in needles):
+            return location
+    return fallback or "previous scene location"
+
+
+def last_scene_text_beat(text: str) -> str:
+    """Return the last narrative-ish beat before choices/metadata."""
+    lines = []
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line or line == "---":
+            continue
+        if re.search(r"\[(LIFE|ARC|SURPRISE)\]", line, re.IGNORECASE):
+            break
+        if line.lower().startswith(("choices", "what do you do", "you could")):
+            break
+        lines.append(line)
+    return lines[-1] if lines else ""
+
+
+def scene_continuity_anchor(recent_scenes: list[dict[str, Any]]) -> dict[str, str]:
+    """The physical anchor the next reply must honor before moving anywhere."""
+    for scene in reversed(recent_scenes):
+        if scene.get("delivery_ok") is False:
+            continue
+        return {
+            "scene_id": scene.get("scene_id", ""),
+            "title": scene.get("title", ""),
+            "location": scene.get("current_location", ""),
+            "cast": scene.get("available_cast", ""),
+            "opening": scene.get("opening", ""),
+            "ending": scene.get("ending", ""),
+        }
+    return {}
 
 
 def current_arc_progress() -> dict[str, Any]:
@@ -250,14 +311,30 @@ def current_arc_progress() -> dict[str, Any]:
     }
 
 
+def claimed_thread_anchors() -> set[str]:
+    text = read_safe(BASE / "lore" / "threads.md")
+    claimed: set[str] = set()
+    for section in re.split(r"^## Thread:\s*", text, flags=re.MULTILINE)[1:]:
+        for label in ("npc_anchor", "entities"):
+            m = re.search(rf"\*\*{label}:(?:\*\*)?\s*([^\n]+)", section, re.IGNORECASE)
+            if not m:
+                continue
+            for item in re.split(r",|;", m.group(1)):
+                item = item.strip().strip("`")
+                if item and item.lower() not in {"all npcs", "none", "unknown"}:
+                    claimed.add(item.lower())
+    return claimed
+
+
 def emerging_thread_seeds(limit: int = 6) -> list[str]:
     text = read_safe(BASE / "memory" / "tick-queue.md")
+    claimed = claimed_thread_anchors()
     seeds: list[str] = []
     for line in text.splitlines():
         m = re.search(r"\[THREAD SEED:\s*([^\]]+)\]", line)
         if m:
             name = m.group(1).strip()
-            if name not in seeds:
+            if name.lower() not in claimed and name not in seeds:
                 seeds.append(name)
     return seeds[-limit:]
 
@@ -266,15 +343,21 @@ def open_simulation_actions(limit: int = 5) -> list[dict[str, str]]:
     actions = []
     for action in action_lifecycle.open_actions(limit=limit):
         target = f" -> {action.get('target')}" if action.get("target") else ""
+        hidden = action.get("hidden_effect") or ""
+        mechanism = f" Mechanism: {hidden}" if hidden else ""
         actions.append({
             "id": action.get("action_id", ""),
             "actor": action.get("actor", ""),
             "action": action.get("action", ""),
             "thread": action.get("thread_name", ""),
             "target": action.get("target", ""),
+            "narrative": action.get("narrative", ""),
+            "mechanism": hidden,
+            "priority": action.get("priority", ""),
+            "source_timestamp": action.get("source_timestamp", ""),
             "hook": truncate(
-                f"{action.get('actor')} {action.get('action', '').replace('_', ' ')}{target}: {action.get('narrative')}",
-                320,
+                f"{action.get('actor')} {action.get('action', '').replace('_', ' ')}{target}: {action.get('narrative')}{mechanism}",
+                420,
             ),
         })
     return actions
@@ -377,6 +460,7 @@ def quiet_life_threads(context: dict[str, Any]) -> list[str]:
 
 
 def build_context(player: str) -> dict[str, Any]:
+    recent_scenes = recent_scene_entries()
     context: dict[str, Any] = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "player": player_snapshot(player),
@@ -384,7 +468,8 @@ def build_context(player: str) -> dict[str, Any]:
         "arc": arc_snapshot(player),
         "patterns": patterns_snapshot(),
         "recent_diary": diary_snapshot(),
-        "recent_scenes": recent_scene_entries(),
+        "recent_scenes": recent_scenes,
+        "scene_continuity_anchor": scene_continuity_anchor(recent_scenes),
         "story_progress": current_arc_progress(),
         "emerging_thread_seeds": emerging_thread_seeds(),
         "open_simulation_actions": open_simulation_actions(),
@@ -395,6 +480,7 @@ def build_context(player: str) -> dict[str, Any]:
     context["model_guidance"] = [
         "Use this context as hard continuity, not exposition.",
         "Carry forward unresolved promises, objects, and location before adding new pressure.",
+        "Before any scene movement, honor SCENE_CONTINUITY_ANCHOR: establish the previous physical location, remaining cast/objects, and the fact that the player has not teleported.",
         "Prefer one remembered specific over three vague callbacks.",
         "Protect slice-of-life scenes from automatic escalation.",
         "If a THREAD SEED is touched meaningfully in play, name a real subplot at closeout instead of leaving it as atmosphere forever.",
@@ -421,6 +507,15 @@ def render_text(context: dict[str, Any]) -> str:
         lines.append("RECENT_REALIZED_SCENES:")
         for scene in context["recent_scenes"][-3:]:
             lines.append(f"- {scene.get('title')} :: {scene.get('opening')}")
+    if context.get("scene_continuity_anchor"):
+        anchor = context["scene_continuity_anchor"]
+        lines.append("SCENE_CONTINUITY_ANCHOR:")
+        lines.append(f"- last_scene={anchor.get('title') or anchor.get('scene_id')}")
+        lines.append(f"- previous_location={anchor.get('location') or 'unknown'}")
+        if anchor.get("cast"):
+            lines.append(f"- previous_cast={anchor.get('cast')}")
+        if anchor.get("ending"):
+            lines.append(f"- last_visible_beat={anchor.get('ending')}")
     if context["academy"].get("active_threads"):
         lines.append("ACTIVE_STORY_THREADS:")
         for item in context["academy"]["active_threads"][:4]:

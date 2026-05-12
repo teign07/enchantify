@@ -40,12 +40,14 @@ The player's nutritional state maps to their physical capacity in the Academy. L
 
 | Signal | Academy Translation |
 |--------|-------------------|
-| Only coffee so far | An NPC (Thorne, Zara, Boggle) finds a way to suggest food. Framed as care or a character moment. Never a lecture. |
-| Low protein | The training corridor feels harder to navigate. The Academy's response: someone brings a snack. |
-| Adequate food | The world has full color. Nothing depleted. |
+| Only coffee so far | Dr. Elowen Vellum, the Academy Dietician, or a close NPC finds a way to put food in reach. Framed as care, precision, or character texture. Never a lecture. |
+| Low protein | The training corridor feels harder to navigate. Elowen's response: one concrete protein-forward suggestion, preferably small and doable today. |
+| Low calories / missed meals | The Refectory Marginalia grows sharper in the margins. Offer an immediate, gentle next bite before asking for heroics. |
+| Low fiber / thin food variety | Elowen recommends adding one plant, grain, bean, fruit, or vegetable rather than overhauling the day. |
+| Adequate food | The world has full color. Nothing depleted. Elowen may simply approve and move on. |
 | Good fuel, good protein | The Belief dice roll slightly better. The Academy feels generous. |
 
-**The Thorne Rule:** If the player has eaten nothing but coffee, Headmistress Thorne notices. She doesn't say so directly — but the next note, NPC interaction, or ambient detail will quietly insist they eat. This is non-negotiable. It's how the Labyrinth takes care of its readers.
+**The Vellum Rule:** If the player has eaten nothing but coffee, logged very little protein, or shows recovery debt in HEARTBEAT.md, Dr. Elowen Vellum notices first. She gives one or two precise, usable suggestions tied to the current fuel/health data. She is never moralizing, clinical, or generic. Headmistress Thorne may still reinforce the care through atmosphere, but Elowen owns the nutrition read.
 
 ---
 

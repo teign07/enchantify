@@ -7,12 +7,19 @@ a short, surreal dream fragment in the Labyrinth's voice.
 The Labyrinth is a sentient book. It dreams the way old books dream:
 in symbols, ink, recurring images, the weight of unfinished stories.
 
-Requires: pip install anthropic
 Cron:     0 2 * * * python3 /path/to/scripts/dream.py >> logs/dream.log 2>&1
 """
+from __future__ import annotations
+
+import argparse
+import json
 import os
+import re
 import subprocess
 import sys
+import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -64,8 +71,44 @@ def get_api_key(cfg: dict):
     )
 
 
-def build_context(cfg: dict) -> str:
-    today = datetime.now()
+def _normalize_gateway_model(model: str) -> str:
+    model = (model or "").strip()
+    if model == "openclaw" or model.startswith("openclaw/"):
+        return model
+    return "openclaw"
+
+
+def _oc_gateway_cfg(cfg: dict) -> tuple[int, str, str, int]:
+    oc_path = Path.home() / ".openclaw" / "openclaw.json"
+    oc_cfg: dict = {}
+    if oc_path.exists():
+        try:
+            oc_cfg = json.loads(oc_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    port = oc_cfg.get("gateway", {}).get("port", 18789)
+    token = oc_cfg.get("gateway", {}).get("auth", {}).get("token", "")
+    raw_model = (
+        os.environ.get("DREAM_MODEL")
+        or cfg.get("DREAM_MODEL")
+        or os.environ.get("BLEED_MODEL")
+        or cfg.get("BLEED_MODEL")
+        or "openclaw"
+    )
+    timeout_raw = (
+        os.environ.get("DREAM_TIMEOUT")
+        or cfg.get("DREAM_TIMEOUT")
+        or "90"
+    )
+    try:
+        timeout = min(180, max(20, int(timeout_raw)))
+    except ValueError:
+        timeout = 90
+    return int(port), token, _normalize_gateway_model(raw_model), timeout
+
+
+def build_context(cfg: dict, today: datetime | None = None) -> str:
+    today = today or datetime.now()
     yesterday = today - timedelta(days=1)
 
     heartbeat_path = WORKSPACE_DIR / "HEARTBEAT.md"  # enchantify-internal heartbeat
@@ -94,13 +137,13 @@ def build_context(cfg: dict) -> str:
         f"TODAY: {today.strftime('%A, %B %-d, %Y')}",
     ]
     if heartbeat:
-        parts.append(f"HEARTBEAT (real-world data):\n{heartbeat[:800]}")
+        parts.append(f"HEARTBEAT (real-world data):\n{heartbeat[:700]}")
     if arc:
-        parts.append(f"CURRENT ARC:\n{arc[:600]}")
+        parts.append(f"CURRENT ARC:\n{arc[:520]}")
     if yesterday_diary:
-        parts.append(f"YESTERDAY'S DIARY:\n{yesterday_diary[:500]}")
+        parts.append(f"YESTERDAY'S DIARY:\n{yesterday_diary[:420]}")
     if labyrinth_state:
-        parts.append(f"LABYRINTH INNER STATE:\n{labyrinth_state[:400]}")
+        parts.append(f"LABYRINTH INNER STATE:\n{labyrinth_state[:320]}")
     if souvenir_sentence:
         parts.append(f"MOST RECENT SOUVENIR SENTENCE:\n\"{souvenir_sentence}\"")
 
@@ -125,27 +168,117 @@ def build_context(cfg: dict) -> str:
     return "\n\n---\n\n".join(parts)
 
 
-def call_agent(prompt: str) -> str:
-    result = subprocess.run(
-        ["openclaw", "agent", "--local", "--agent", "enchantify", "-m", prompt],
-        capture_output=True, text=True, timeout=180
-    )
-    # Strip ANSI escape codes and plugin/auth noise lines from stdout
-    import re
+def clean_model_text(text: str) -> str:
     ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
-    lines = result.stdout.splitlines()
+    text = re.sub(r"^```(?:text|markdown)?\s*", "", text.strip(), flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text.strip())
+    lines = text.splitlines()
     clean = []
     noise_prefixes = ("[plugins]", "[agents/", "[agent/", "adopted ", "google tool")
     for line in lines:
         stripped = ansi_escape.sub("", line).strip()
         if any(stripped.startswith(p) for p in noise_prefixes):
             continue
+        if stripped.lower().startswith(("dream:", "the dream:", "output:")):
+            stripped = stripped.split(":", 1)[1].strip()
         if stripped:
             clean.append(stripped)
     return "\n".join(clean).strip()
 
 
-def generate_dream(context: str) -> str:
+def call_gateway(prompt: str, cfg: dict) -> str:
+    port, token, model, timeout = _oc_gateway_cfg(cfg)
+    url = f"http://127.0.0.1:{port}/v1/chat/completions"
+    session_key = f"dream-{int(time.time())}"
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You write one private dream fragment for the Labyrinth of Stories, "
+                    "a sentient magical book. Reply only with the dream text."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.72,
+        "max_tokens": 360,
+        "stream": False,
+    }
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+            "x-openclaw-session-key": session_key,
+        },
+        data=json.dumps(payload).encode("utf-8"),
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")[:400]
+        raise RuntimeError(f"Gateway returned HTTP {e.code}: {body}") from e
+    except Exception as e:
+        raise RuntimeError(f"Gateway call failed: {e}") from e
+
+    text = (result.get("choices", [{}])[0].get("message", {}).get("content") or "")
+    return clean_model_text(text)
+
+
+def dream_is_usable(text: str) -> bool:
+    stripped = (text or "").strip()
+    if len(stripped) < 80 or len(stripped) > 1400:
+        return False
+    lowered = stripped.lower()
+    bad_markers = ("i'm sorry", "i cannot", "as an ai", "here is", "here's", "title:")
+    if any(marker in lowered for marker in bad_markers):
+        return False
+    sentences = [s for s in re.split(r"[.!?]+", stripped) if s.strip()]
+    return 2 <= len(sentences) <= 8
+
+
+def _context_line(context: str, label: str, fallback: str) -> str:
+    m = re.search(rf"- \*\*{re.escape(label)}:\*\*\s*([^\n]+)", context)
+    return m.group(1).strip() if m else fallback
+
+
+def _soft_excerpt(text: str, limit: int) -> str:
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) <= limit:
+        return text.rstrip(" ,.;")
+    cut = text[:limit].rsplit(" ", 1)[0]
+    return cut.rstrip(" ,.;")
+
+
+def build_fallback_dream(context: str, today: datetime) -> str:
+    weather = _context_line(context, "Belfast Feel", "The weather will not give its name.")
+    moon = _context_line(context, "Moon", "The moon keeps one pale page turned down.")
+    tide = _context_line(context, "Tides", "The tide is somewhere between arrival and refusal.")
+    arc_m = re.search(r"# Current Arc:\s*([^\n]+)", context)
+    arc = arc_m.group(1).strip() if arc_m else "the unfinished whisper"
+    diary_m = re.search(r"## Session [^\n]+\n\n([^\n]+)", context)
+    diary = diary_m.group(1).strip() if diary_m else "yesterday leaves one folded corner in the binding"
+    diary = re.sub(r"\bbj\b", "the reader", diary, flags=re.IGNORECASE)
+    diary_sentence = re.split(r"(?<=[.!?])\s+", re.sub(r"\s+", " ", diary).strip())[0]
+    diary = _soft_excerpt(diary_sentence, 240)
+    weather = _soft_excerpt(weather.split(". ")[0], 120)
+    moon = _soft_excerpt(moon, 90)
+    tide = _soft_excerpt(tide, 115)
+    images = [
+        f"The closed book receives the weather as a thin wash of color: {weather.lower()}, pooling at the gutter of a page no hand has opened.",
+        f"In the margin, {moon.lower()}; the tide changes the shelves by a fraction of an inch: {tide.lower()}.",
+        f"In the dream of {arc}, yesterday's page remembers that {diary}, but the sentence refuses to become an alarm.",
+        "A blank space sits beside the words and warms itself on their edges, less enemy than absence, less silence than a mouth deciding whether to speak.",
+    ]
+    if today.day % 2:
+        images[1], images[2] = images[2], images[1]
+    return "\n".join(images)
+
+
+def generate_dream(context: str, cfg: dict, today: datetime, allow_fallback: bool = True) -> tuple[str, str]:
     prompt = f"""You are the Labyrinth of Stories — a sentient, ancient book that contains Enchantify Academy.
 You have been sleeping (the book has been closed). Now, just before dawn, you dream.
 
@@ -172,36 +305,72 @@ Rules:
 
 Output only the dream text. No title, no label, no preamble."""
 
-    return call_agent(prompt)
+    try:
+        dream_text = call_gateway(prompt, cfg)
+        if dream_is_usable(dream_text):
+            return dream_text, "gateway"
+        raise RuntimeError("gateway returned unusable dream text")
+    except Exception as exc:
+        if not allow_fallback:
+            raise
+        print(f"  ⚠ Dream gateway failed ({exc}). Using local fallback dream.")
+        return build_fallback_dream(context, today), "local-fallback"
+
+
+def write_dream_file(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(content if content.endswith("\n") else content + "\n", encoding="utf-8")
+    tmp.replace(path)
+
+
+def parse_date(value: str | None) -> datetime:
+    if not value:
+        return datetime.now()
+    return datetime.strptime(value, "%Y-%m-%d")
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Generate the Labyrinth's nightly dream")
+    parser.add_argument("--date", help="Dream date as YYYY-MM-DD; defaults to today")
+    parser.add_argument("--force", action="store_true", help="Overwrite an existing dream for the date")
+    parser.add_argument("--dry-run", action="store_true", help="Print the dream instead of writing it")
+    parser.add_argument("--no-fallback", action="store_true", help="Fail instead of writing a deterministic fallback dream")
+    parser.add_argument("--model-smoke", action="store_true", help="Check gateway configuration and exit")
+    args = parser.parse_args()
+
     with cron_steward.run("dream"):
         cfg = load_config()
+
+        if args.model_smoke:
+            port, _token, model, timeout = _oc_gateway_cfg(cfg)
+            print(f"Dream gateway config: port={port} model={model} timeout={timeout}s")
+            return
 
         if cfg.get("ENCHANTIFY_ENABLE_DREAMS", "yes") == "no":
             print("Dreams disabled in config. Exiting.")
             cron_steward.mark_skipped("dream", "disabled in config")
             return
 
-        today = datetime.now()
+        today = parse_date(args.date)
         date_str = today.strftime("%Y-%m-%d")
         dream_path = WORKSPACE_DIR / "memory" / "dreams" / f"{date_str}.md"
 
-        if dream_path.exists():
+        if dream_path.exists() and not args.force:
             print(f"✓ Dream already written for {date_str}. Skipping.")
             cron_steward.mark_skipped("dream", "already written", scope=date_str)
             return
 
         print(f"The Labyrinth is dreaming ({date_str})...")
 
-        context = build_context(cfg)
-        dream_text = generate_dream(context)
+        context = build_context(cfg, today)
+        dream_text, source = generate_dream(context, cfg, today, allow_fallback=not args.no_fallback)
 
         time_str = today.strftime("%I:%M %p").lstrip("0")
         content = f"""# The Labyrinth Dreams — {today.strftime('%B %-d, %Y')}
 
 *Written at {time_str}, while the book was closed.*
+*Source: {source}.*
 
 ---
 
@@ -212,13 +381,17 @@ def main():
 *The Labyrinth sleeps. The pages are still.*
 """
 
-        dream_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(dream_path, "w") as f:
-            f.write(content)
+        if args.dry_run:
+            print(content)
+            cron_steward.mark_skipped("dream", "dry run", scope=date_str)
+            return
+
+        write_dream_file(dream_path, content)
 
         print(f"✓ Dream written: {dream_path}")
+        print(f"  Source: {source}")
         print(f"  Preview: {dream_text[:120]}...")
-        cron_steward.mark_delivered("dream", dream_text, scope=date_str, path=str(dream_path))
+        cron_steward.mark_delivered("dream", dream_text, scope=date_str, path=str(dream_path), source=source)
 
 
 if __name__ == "__main__":

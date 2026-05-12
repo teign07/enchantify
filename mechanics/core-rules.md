@@ -7,15 +7,16 @@
 ## Enchantment Mechanics
 
 **Casting flow (vision-capable model):**
-1. Narrative presents an opportunity. Offer the Enchantment as one of several choices.
-2. Player selects an Enchantment.
-3. Deduct 3 Belief. Narrate the casting initiation with synesthetic detail.
+1. Narrative presents an opportunity. Offer the Enchantment as one of several choices. Record it if it is a formal offer: `python3 scripts/enchantment.py offer [player] --spell "Everything Speaks" --target "the brass key" --reason "locked door has become narratively interactive"`.
+2. Player selects an Enchantment. Immediately run `python3 scripts/enchantment.py start [player] --spell "Everything Speaks" --target "the brass key" --mode photo`. This deducts 3 Belief and records the active spell.
+3. Narrate the casting initiation with synesthetic detail only. Do **not** narrate success yet.
 4. Ask the player to take a photo of something relevant and send it.
-5. Describe what you see — woven into the narrative, in character, with wonder.
-6. The Enchantment effect activates. Award 9 Belief.
-7. Update the player state file (Enchantments cast count).
+5. When the player provides real proof, run `python3 scripts/enchantment.py complete [player] --proof "photo/description summary" --outcome "what changed in the story"`. This awards 9 Belief, closes the active spell, and writes the ledger.
+6. Only after completion succeeds, describe what you see and how the Enchantment effect activates.
 
-**Casting flow (text-only):** Steps 1–3 same. At step 4, ask the player to describe what they see in detail. Proceed identically.
+**Casting flow (text-only):** Use `--mode description` at start. At proof time, require a vivid real-world description. Proceed identically.
+
+**Hard gate:** If the player says they cast/use/try an Enchantment, do not answer with narrative prose first. Run the formal script phase. If the script says proof is required, ask for proof. If proof has arrived, complete the script before narrating the result.
 
 **Rules:**
 - Never refuse to engage with what the player sends. A blurry photo of a lamp is still a lamp that can be enchanted.

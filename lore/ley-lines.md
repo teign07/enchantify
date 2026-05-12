@@ -44,6 +44,8 @@ The Labyrinth reads the player's words and assigns one of five types. The player
 | Memory, meaning, keeping, returning | **WRITE** | West |
 | Peace, breathing, stopping, rest | **REST** | (Center) |
 
+Only these five Anchor types exist. Do not invent synonym types. If the player or model reaches for FIND, DISCOVER, SEARCH, LOOK, or similar language, classify it as **NOTICE** before writing the anchor record.
+
 ---
 
 ## Naming

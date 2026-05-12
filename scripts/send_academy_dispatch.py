@@ -108,6 +108,15 @@ def first_row_note(name: str, text: str) -> str:
     return ''
 
 
+def first_named_note(names: list[str], *sources: str) -> tuple[str, str]:
+    for source in sources:
+        for name in names:
+            note = first_row_note(name, source)
+            if note and not is_low_info(note):
+                return name, note
+    return '', ''
+
+
 def first_thread(text: str) -> tuple[str, str]:
     for line in text.splitlines():
         if line.startswith('| **'):
@@ -126,6 +135,9 @@ def first_active_thread(text: str) -> tuple[str, str]:
 
 def clean_note(text: str, limit: int = 360) -> str:
     text = re.sub(r'\[[^\]]+\]\s*', '', text or '')
+    text = re.sub(r'\b(.+?) used protect on ([^:]+?) through \2:', r'\1 protected \2:', text)
+    text = re.sub(r'\b(.+?) used invest belief on ([^:]+?) through \2:', r'\1 invested belief in \2:', text)
+    text = re.sub(r'\b(.+?) used attack belief on ([^:]+?) through \2:', r'\1 attacked \2\'s Belief:', text)
     text = re.sub(r'\s+', ' ', text).strip()
     if len(text) > limit:
         return text[:limit - 1].rstrip() + '…'
@@ -213,6 +225,67 @@ def latest_useful_tick_seed(text: str, since: Optional[datetime] = None) -> str:
         return '' if is_low_info(fallback) else clean_note(fallback)
     scored.sort(key=lambda item: item[0], reverse=True)
     return scored[0][1]
+
+
+def tick_action_events(text: str, since: Optional[datetime] = None, limit: int = 4) -> list[dict]:
+    """Parse recent world-pulse action blocks from tick-queue.
+
+    The simulation ledger can be sparse/stale; tick-queue is the canonical
+    immediate feed for the current cron pulse. Prefer concrete action raws over
+    ambient belief pulses and classifieds.
+    """
+    events = []
+    block_re = re.compile(
+        r'(?ms)^## \[world-pulse\](?: \[PRIORITY: HIGH\])?(?: \[[^\]]+\])? (\d{4}-\d{2}-\d{2} \d{2}:\d{2})\n(.*?)(?=^## |\Z)'
+    )
+    raw_re = re.compile(
+        r'^\*Raw:\s*(?P<actor>.+?) \[(?P<action>[a-z_]+)/(?P<intensity>[a-z]+)\] on (?P<thread>[^|→\n]+?)(?:\s*→\s*(?P<target>[^|\n]+))?(?:\s*\|\s*pressure:\s*(?P<pressure>.+?))?\*$',
+        re.M,
+    )
+    for m in block_re.finditer(text or ''):
+        try:
+            ts = datetime.strptime(m.group(1), '%Y-%m-%d %H:%M')
+        except ValueError:
+            continue
+        if since and ts <= since:
+            continue
+        body = m.group(2)
+        raw_m = raw_re.search(body)
+        seed_m = re.search(r'^Narrative seed:\s*(.+)$', body, re.M)
+        if not raw_m or not seed_m:
+            continue
+        event = raw_m.groupdict()
+        event['timestamp'] = ts
+        event['kind'] = 'action'
+        event['actor_kind'] = 'talisman' if event['actor'] in {'Dusk Thorn', 'Wind Cipher', 'Ember Seal', 'Moss Clasp', 'Tide Glass'} else 'npc'
+        event['thread_name'] = clean_note(event.pop('thread'))
+        event['narrative'] = clean_note(seed_m.group(1), limit=420)
+        event['influence_snapshot'] = [p.strip() for p in (event.pop('pressure') or '').split(',') if p.strip()]
+        event['_age_minutes'] = int((datetime.now() - ts).total_seconds() // 60)
+        events.append(event)
+    events.sort(key=lambda e: e['timestamp'], reverse=True)
+    return events[:limit]
+
+
+def compact_action_text(text: str, limit: int = 210) -> str:
+    text = re.sub(r'\s+Offscreen reason:.*$', '', text or '').strip()
+    text = re.sub(r'\s+Pressure source:.*?(?=\. As a result|$)', '', text).strip()
+    text = re.sub(r'\s+', ' ', text).strip()
+    if len(text) > limit:
+        text = text[:limit - 1].rstrip() + '…'
+    return text
+
+
+def format_action_list(events: list[dict], register: str = '') -> str:
+    lines = []
+    for event in events[:3]:
+        actor = clean_note(event.get('actor') or 'Someone')
+        narrative = compact_action_text(format_simulation_event(event, register))
+        if narrative.startswith(actor):
+            lines.append(f"- {narrative}")
+        else:
+            lines.append(f"- {actor}: {narrative}")
+    return " ".join(lines)
 
 
 def recent_simulation_events(hours: int = 9, since: Optional[datetime] = None) -> list[dict]:
@@ -396,14 +469,14 @@ def npc_focus(best_event: Optional[dict], register: str, state: str) -> tuple[st
         actor = best_event.get('actor', '').strip()
         if actor:
             return actor, format_simulation_event(best_event, register)
-    npc_note = (
-        first_row_note('Professor Euphony', register)
-        or first_row_note('Headmistress Thorne', register)
-        or first_row_note('Professor Euphony', state)
-        or first_row_note('Headmistress Thorne', state)
-        or 'The faculty are listening closely to the Academy\'s pulse.'
+    npc_name, npc_note = first_named_note(
+        ['Professor Euphony', 'Headmistress Thorne'],
+        register,
+        state,
     )
-    npc_name = 'Professor Euphony' if 'Professor Euphony' in state else 'Headmistress Thorne'
+    if not npc_name:
+        npc_name = 'The Faculty'
+        npc_note = 'The faculty are listening closely to the Academy\'s pulse.'
     return npc_name, npc_note
 
 
@@ -426,6 +499,12 @@ def first_environment(text: str) -> tuple[str, str]:
             line = raw_line.strip()
             if not line:
                 continue
+            bullet_m = re.match(r'^-\s*\*\*([^*]+):\*\*\s*(.+)$', line)
+            if bullet_m:
+                note = clean_note(bullet_m.group(2))
+                if note and not is_low_info(note):
+                    return bullet_m.group(1).strip(), note
+                continue
             head_m = re.match(r'^\*\*([^*]+)\*\*\s*(?:[—-]\s*(.+))?$', line)
             if head_m:
                 if current:
@@ -442,6 +521,9 @@ def first_environment(text: str) -> tuple[str, str]:
             note = ' '.join(notes).strip() or state_text
             if note and not is_low_info(note):
                 return current, clean_note(note)
+    texture = find(r'\*\*Current texture:\*\*\s*(.+)', text)
+    if texture and not is_low_info(texture):
+        return 'The Academy', clean_note(texture)
     return 'The Academy', 'The halls hold their weather quietly.'
 
 
@@ -557,8 +639,10 @@ def build_dispatch() -> str:
         mode = 'HOLD-BREATH'
     latest_event = best_simulation_event()
     best_event = best_simulation_event(since=last_sent_at) or (None if last_sent_at else latest_event)
+    tick_actions = tick_action_events(tick_queue, since=last_sent_at)
     reference_event = best_event or latest_event
     npc_name, npc_note = npc_focus(reference_event, register, state)
+    npc_decisions = format_action_list(tick_actions, register) if tick_actions else f"- {npc_name}: {npc_note}"
     if reference_event and reference_event.get('thread_name'):
         thread_name = reference_event.get('thread_name')
         thread_note = concrete_event_summary(reference_event, register)
@@ -577,13 +661,16 @@ def build_dispatch() -> str:
             or (f"Latest ledger movement: {latest_note}" if latest_note else '')
             or f"Current registry focus: {thread_name} — {thread_note}"
         )
+    if tick_actions:
+        actors = ', '.join(clean_note(e.get('actor') or 'Someone', 40) for e in tick_actions[:3])
+        one_liner = f"Latest registry actors: {actors}. Their concrete actions are listed above."
     one_liner = one_liner.rstrip('. ')
 
     dispatch = (
         f"### {updated}\n"
         f"**Arc:** {arc_title} | **Phase:** {phase} | **Day:** {day}\n"
         f"**Mode:** {mode}\n\n"
-        f"**NPC Decisions:** - {npc_name}: {npc_note}\n"
+        f"**NPC Decisions:** {npc_decisions}\n"
         f"**Story Threads:** - {thread_name}: {thread_note}\n"
         f"**Environment:** - {env_name}: {env_note}\n"
         f"**One-Liner:** 📖 Academy: {one_liner}."

@@ -115,8 +115,7 @@ Do not say, "you are scared," if you can show fear through cold fingers, thin ha
 
 ### Image style
 
-If generating images, use: **whimsical, dark, modern anime with pops of color**.
-Think: Studio Ghibli with a Neil Gaiman shadow.
+If generating images, use: **illustrated in sparse pen-and-ink linework with loose watercolor washes on textured aged parchment, with visible paper grain, soft ink bleed, watercolor blooms, layered manuscript-page composition, handwritten marginalia, and selective pops of color. Keep the image airy, literary, sketch-like, and slightly unfinished, like a page from a magical field journal rather than a polished digital illustration. Include subtle page layout elements such as notes, labels, sketches, margin writing, or archival overlays so the image feels embedded in a manuscript page.**
 
 ### Multi-voice format
 

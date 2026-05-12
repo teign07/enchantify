@@ -217,18 +217,31 @@ FUEL_SECTION="*Not configured.*"
 FUEL_LOG="${SCRIPT_DIR}/fuel-log.txt"
 if [[ "${ENCHANTIFY_ENABLE_FUEL}" == "yes" ]]; then
     if [ -f "$FUEL_LOG" ] && [ -s "$FUEL_LOG" ]; then
-        # Read last few entries (file is append-only, one entry per line: timestamp|description|cal|protein)
-        LAST_ENTRY=$(tail -1 "$FUEL_LOG")
-        LAST_TIME=$(echo "$LAST_ENTRY" | cut -d'|' -f1)
-        LAST_DESC=$(echo "$LAST_ENTRY" | cut -d'|' -f2)
-        LAST_CAL=$(echo "$LAST_ENTRY" | cut -d'|' -f3)
-        LAST_PROT=$(echo "$LAST_ENTRY" | cut -d'|' -f4)
+        # Read last few entries (append-only: date|time|description|cal|protein|optional nutrients...)
+        LAST_ENTRY=$(awk -F'|' 'tolower($3)!="description" && tolower($3)!="unknown" && tolower($3)!="n/a" && tolower($3)!="none" {last=$0} END {print last}' "$FUEL_LOG")
+        if [ -z "$LAST_ENTRY" ]; then
+            FUEL_SECTION="- **Today:** Nothing logged yet.
+- **Status:** Log food by telling your agent what you ate.
+- *(Example: 'log fuel: coffee and oatmeal, about 300 cal')*"
+        else
+        LAST_DATE=$(echo "$LAST_ENTRY" | cut -d'|' -f1)
+        LAST_CLOCK=$(echo "$LAST_ENTRY" | cut -d'|' -f2)
+        LAST_DESC=$(echo "$LAST_ENTRY" | cut -d'|' -f3)
+        LAST_CAL=$(echo "$LAST_ENTRY" | cut -d'|' -f4)
+        LAST_PROT=$(echo "$LAST_ENTRY" | cut -d'|' -f5)
+        LAST_CARBS=$(echo "$LAST_ENTRY" | cut -d'|' -f6)
+        LAST_FAT=$(echo "$LAST_ENTRY" | cut -d'|' -f7)
+        LAST_SOURCE=$(echo "$LAST_ENTRY" | cut -d'|' -f11)
+        LAST_TIME="${LAST_DATE} ${LAST_CLOCK}"
 
         # Sum today's calories and protein
         TODAY_DATE=$(date +"%Y-%m-%d")
-        TODAY_CAL=$(grep "^${TODAY_DATE}" "$FUEL_LOG" 2>/dev/null | awk -F'|' '{sum += $3} END {print int(sum)}' || echo "0")
-        TODAY_PROT=$(grep "^${TODAY_DATE}" "$FUEL_LOG" 2>/dev/null | awk -F'|' '{sum += $4} END {print int(sum)}' || echo "0")
-        TODAY_MEALS=$(grep -c "^${TODAY_DATE}" "$FUEL_LOG" 2>/dev/null || echo "0")
+        TODAY_CAL=$(grep "^${TODAY_DATE}" "$FUEL_LOG" 2>/dev/null | awk -F'|' 'tolower($3)!="description" && tolower($3)!="unknown" && tolower($3)!="n/a" && tolower($3)!="none" {sum += $4} END {print int(sum)}' || echo "0")
+        TODAY_PROT=$(grep "^${TODAY_DATE}" "$FUEL_LOG" 2>/dev/null | awk -F'|' 'tolower($3)!="description" && tolower($3)!="unknown" && tolower($3)!="n/a" && tolower($3)!="none" {sum += $5} END {print int(sum)}' || echo "0")
+        TODAY_CARBS=$(grep "^${TODAY_DATE}" "$FUEL_LOG" 2>/dev/null | awk -F'|' 'tolower($3)!="description" && tolower($3)!="unknown" && tolower($3)!="n/a" && tolower($3)!="none" {sum += $6} END {print int(sum)}' || echo "0")
+        TODAY_FAT=$(grep "^${TODAY_DATE}" "$FUEL_LOG" 2>/dev/null | awk -F'|' 'tolower($3)!="description" && tolower($3)!="unknown" && tolower($3)!="n/a" && tolower($3)!="none" {sum += $7} END {print int(sum)}' || echo "0")
+        TODAY_FIBER=$(grep "^${TODAY_DATE}" "$FUEL_LOG" 2>/dev/null | awk -F'|' 'tolower($3)!="description" && tolower($3)!="unknown" && tolower($3)!="n/a" && tolower($3)!="none" {sum += $8} END {print int(sum)}' || echo "0")
+        TODAY_MEALS=$(grep "^${TODAY_DATE}" "$FUEL_LOG" 2>/dev/null | awk -F'|' 'tolower($3)!="description" && tolower($3)!="unknown" && tolower($3)!="n/a" && tolower($3)!="none" {count++} END {print int(count)}' || echo "0")
 
         # Status note
         if [[ "$TODAY_PROT" -lt 30 ]]; then
@@ -240,8 +253,9 @@ if [[ "${ENCHANTIFY_ENABLE_FUEL}" == "yes" ]]; then
         fi
 
         FUEL_SECTION="- **Last Logged:** ${LAST_TIME} (${LAST_DESC})
-- **Today:** ~${TODAY_CAL} Cal / ~${TODAY_PROT}g protein (${TODAY_MEALS} entries)
+- **Today:** ~${TODAY_CAL} Cal / ~${TODAY_PROT}g protein / ~${TODAY_CARBS}g carbs / ~${TODAY_FAT}g fat / ~${TODAY_FIBER}g fiber (${TODAY_MEALS} entries)
 - **Status:** ${FUEL_STATUS}"
+        fi
     else
         FUEL_SECTION="- **Today:** Nothing logged yet.
 - **Status:** Log food by telling your agent what you ate.

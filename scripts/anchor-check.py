@@ -38,6 +38,25 @@ PROXIMITY_METERS = 200
 CHECKIN_BELIEF   = 5
 BASE_DIR = Path(__file__).parent.parent
 ANCHOR_VISIT_LOG = BASE_DIR / "logs" / "anchor-visits.jsonl"
+ALLOWED_ANCHOR_TYPES = {"NOTICE", "EMBARK", "SENSE", "WRITE", "REST"}
+ANCHOR_TYPE_ALIASES = {
+    "FIND": "NOTICE",
+    "DISCOVER": "NOTICE",
+    "SEARCH": "NOTICE",
+    "LOOK": "NOTICE",
+    "GO": "EMBARK",
+    "MOVE": "EMBARK",
+    "TRAVEL": "EMBARK",
+    "FEEL": "SENSE",
+    "TOUCH": "SENSE",
+    "BODY": "SENSE",
+    "REMEMBER": "WRITE",
+    "RECORD": "WRITE",
+    "KEEP": "WRITE",
+    "PAUSE": "REST",
+    "STOP": "REST",
+    "BREATHE": "REST",
+}
 
 
 def haversine(lat1, lon1, lat2, lon2):
@@ -47,6 +66,13 @@ def haversine(lat1, lon1, lat2, lon2):
     dlambda = math.radians(lon2 - lon1)
     a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
     return 2 * R * math.asin(math.sqrt(a))
+
+
+def normalize_anchor_type(raw: str) -> str:
+    value = re.sub(r"[^A-Za-z]", "", raw or "").upper()
+    if value in ALLOWED_ANCHOR_TYPES:
+        return value
+    return ANCHOR_TYPE_ALIASES.get(value, "NOTICE")
 
 
 def parse_anchors(text):
@@ -84,7 +110,7 @@ def parse_anchors(text):
             "name":         name,
             "lat":          float(coords.group(1)),
             "lon":          float(coords.group(2)),
-            "type":         anchor_type.group(1) if anchor_type else "UNKNOWN",
+            "type":         normalize_anchor_type(anchor_type.group(1) if anchor_type else ""),
             "radius":       int(radius.group(1)) if radius else PROXIMITY_METERS,
             "belief":       int(belief.group(1)) if belief else 0,
             "echo":         echo.group(1).strip() if echo else "",

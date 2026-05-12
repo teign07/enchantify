@@ -202,6 +202,26 @@ def get_player_data(cfg: dict) -> dict:
     return data
 
 
+def get_fae_ledger_brief(player_name: str = "bj") -> str:
+    """Summarize open fae bargains from the player's Margin."""
+    text = read_file_safe(WORKSPACE_DIR / "players" / f"{player_name}.md")
+    m = re.search(r'## The Margin\n(.*?)(?=\n## |\n---\n|\Z)', text, re.DOTALL)
+    if not m:
+        return "The Margin is missing; no fae ledger could be read."
+    rows = []
+    for line in m.group(1).splitlines():
+        if not line.startswith("|") or "*(The margin is clean" in line or set(line.replace("|", "").strip()) <= {"-"}:
+            continue
+        parts = [p.strip() for p in line.split("|")[1:-1]]
+        if len(parts) < 5 or parts[0] == "Fae":
+            continue
+        fae, gave, terms, deadline, status = parts[:5]
+        status = status.upper()
+        if status in {"OPEN", "OVERDUE", "BROKEN", "EXPIRED"}:
+            rows.append(f"- {status}: {fae} gave {gave}; owed {terms}; due {deadline}")
+    return "\n".join(rows[:5]) if rows else "The Margin is clean; no open fae bargains."
+
+
 def get_thread_summary() -> str:
     threads_content  = read_file_safe(WORKSPACE_DIR / "lore" / "threads.md")
     register_content = read_file_safe(WORKSPACE_DIR / "lore" / "world-register.md")
@@ -350,6 +370,142 @@ def get_entity_standings() -> str:
         entities.append((name, etype.strip(), int(belief)))
     entities.sort(key=lambda x: -x[2])
     return "\n".join(f"- {n} ({t}): Belief {b}" for n, t, b in entities[:10])
+
+
+def build_goblin_market_exchange(player_name: str = "bj") -> str:
+    """Build a deterministic Goblin Market board for The Bleed.
+
+    Goblins trade in attention, not Belief. This board turns current state into
+    concrete offers and sensory prices so the market can become playable later.
+    """
+    heartbeat = read_file_safe(WORKSPACE_DIR / "HEARTBEAT.md", 140)
+    pulse = extract_pulse_section(heartbeat)
+    anchors_text = read_file_safe(WORKSPACE_DIR / "players" / f"{player_name}-anchors.md")
+    register_text = read_file_safe(WORKSPACE_DIR / "lore" / "world-register.md")
+    queue_text = read_file_safe(WORKSPACE_DIR / "memory" / "tick-queue.md", 80)
+    fuel_data = get_fuel_data()
+
+    def grab(pattern: str, text: str, default: str = "", flags: int = 0) -> str:
+        m = re.search(pattern, text, flags)
+        return m.group(1).strip() if m else default
+
+    def short(text: str, n: int = 82) -> str:
+        text = re.sub(r"\s+", " ", (text or "").strip())
+        return text[:n] + "…" if len(text) > n else text
+
+    def anchor_type(text: str) -> str:
+        value = re.sub(r"[^A-Za-z]", "", text or "").upper()
+        value = {"FIND": "NOTICE", "DISCOVER": "NOTICE", "SEARCH": "NOTICE", "LOOK": "NOTICE"}.get(value, value)
+        return value if value in {"NOTICE", "EMBARK", "SENSE", "WRITE", "REST"} else "NOTICE"
+
+    season = grab(r'- \*\*Season:\*\*\s*(.+)', pulse)
+    moon = grab(r'- \*\*Moon:\*\*\s*(.+)', pulse)
+    weather = grab(r'- \*\*Belfast Feel:\*\*\s*(.+)', pulse)
+    goblin_belief = grab(r'^\|\s*The Goblin Index Empire\s*\|\s*fae\s*\|\s*(\d+)\s*\|', register_text, "?", re.MULTILINE)
+
+    anchors = []
+    for section in re.split(r'^## ', anchors_text, flags=re.MULTILINE)[1:]:
+        lines = section.strip().splitlines()
+        name = lines[0].strip() if lines else "Unnamed Anchor"
+        atype = anchor_type(grab(r'\*\*Type:\*\*\s*(.+)', section, "?"))
+        visits = grab(r'\*\*Visit count:\*\*\s*(\d+)', section, "0")
+        room = grab(r'\*\*Outer Stacks room:\*\*\s*(.+)', section, "", re.DOTALL)
+        rule = grab(r'\*\*Local rule:\*\*\s*(.+)', section, "", re.DOTALL)
+        anchors.append({"name": name, "type": atype, "visits": visits, "room": short(room), "rule": short(rule, 72)})
+
+    thread_rows = []
+    active_m = re.search(r'## Active Threads(.*?)(?=^## |\Z)', register_text, re.DOTALL | re.MULTILINE)
+    if active_m:
+        row_re = re.compile(r'^\|\s*([^|]+?)\s*\|\s*Thread\s*\|\s*(\d+)\s*\|\s*([^|]+)\|', re.MULTILINE | re.IGNORECASE)
+        for m in row_re.finditer(active_m.group(1)):
+            name, belief, notes = m.group(1).strip(), int(m.group(2)), m.group(3).strip()
+            if name.lower() == "academy daily life":
+                continue
+            thread_rows.append({"name": name, "belief": belief, "notes": short(notes, 90)})
+    thread_rows.sort(key=lambda t: -t["belief"])
+
+    recent_market = []
+    for line in queue_text.splitlines():
+        if any(k in line.lower() for k in ("goblin", "market", "outer stacks", "anchor", "calling card")):
+            recent_market.append(short(line, 100))
+    recent_market = recent_market[:2]
+
+    offers = []
+    if anchors:
+        a = sorted(anchors, key=lambda x: int(x.get("visits") or 0), reverse=True)[0]
+        offers.append({
+            "giving": f"one annotated shelfmark toward {a['name']}",
+            "asking": "one detail noticed within twenty-four hours that was present before you noticed it",
+            "rate": f"anchor trade · {a['type']} · visits {a['visits']} · {a['room'] or 'room terms not public'}",
+        })
+    else:
+        offers.append({
+            "giving": "a starter shelfmark for the first reliable Outer Stacks door",
+            "asking": "the oldest useful thing you can touch today, described precisely",
+            "rate": "new-customer rate · no tab yet",
+        })
+
+    if thread_rows:
+        t = thread_rows[0]
+        offers.append({
+            "giving": f"a footnote to the next pressure point in {t['name']}",
+            "asking": "the gap between what something is called and what it actually is",
+            "rate": f"thread pressure · Belief {t['belief']} · {t['notes']}",
+        })
+
+    fuel_low = any(k in fuel_data.lower() for k in ("low protein", "no provisions", "no recent", "coffee", "low calories"))
+    if fuel_low:
+        offers.append({
+            "giving": "a Refectory marginal note that makes one meal easier to choose",
+            "asking": "one honest sensory sentence about the first real nourishment taken afterward",
+            "rate": "Vellum-adjacent counter · care is not discounted, only itemized",
+        })
+
+    offers.append({
+        "giving": "one calling-card rumor from the Index Empire's delivery ledger",
+        "asking": "a thing no one labeled, signed, or explained",
+        "rate": f"Index Empire standing · Belief {goblin_belief} · {season or 'season unreadable'}",
+    })
+
+    if "rain" in (weather + " " + season).lower():
+        offers.append({
+            "giving": "a waterproof errand folded into a receipt",
+            "asking": "the smell of wet pavement, named without using the word rain",
+            "rate": "rain market · pages curl, prices soften at the edges",
+        })
+    elif "quiet" in pulse.lower():
+        offers.append({
+            "giving": "a quiet-market discount on one small unanswered question",
+            "asking": "the first sound that interrupts silence",
+            "rate": "quiet house rate · low competition at the counter",
+        })
+
+    header_bits = [f"Index Empire standing: Belief {goblin_belief}"]
+    if season:
+        header_bits.append(season.split("—")[0].strip())
+    if moon:
+        header_bits.append(moon.split("(")[0].strip())
+    if recent_market:
+        header_bits.append("recent frontier stir recorded")
+
+    lines = ["Market condition: " + " · ".join(header_bits)]
+    for offer in offers[:5]:
+        lines.append(f"- Giving: {offer['giving']} | Seeking: {offer['asking']} | Rate note: {offer['rate']}")
+    lines.append("Settlement rule: payment is a genuine sensory observation. Performed noticing is refused; unpaid attention closes the useful doors.")
+    return "\n".join(lines)
+
+
+def normalize_exchange_text(text: str) -> str:
+    """Keep Belief Exchange ticker entries on separate lines even if the LLM collapses them."""
+    text = (text or "").strip()
+    if not text:
+        return ""
+    text = re.sub(r'\s+[•]\s+', '\n• ', text)
+    text = re.sub(r'\s+-\s+(?=[A-Z][^:\n]{1,90}\s+\([^)]+\):\s*Belief\s+\d+)', '\n- ', text)
+    text = re.sub(r'\s+(?=-\s*[A-Z][^:\n]{1,90}\s+\([^)]+\):\s*Belief\s+\d+)', '\n', text)
+    text = re.sub(r'(Belief\s+\d+)\s+(?=-\s*)', r'\1\n', text)
+    lines = [line.strip() for line in text.splitlines()]
+    return "\n".join(line for line in lines if line)
 
 
 def get_leading_talisman() -> dict:
@@ -596,6 +752,8 @@ def get_fuel_data(days: int = 10) -> str:
         parts = line.split("|")
         if len(parts) < 5:
             continue
+        if parts[2].strip().lower() in ("description", "unknown", "n/a", "none") and all((p.strip() in ("", "0")) for p in parts[3:10]):
+            continue
         try:
             entry_date = date.fromisoformat(parts[0])
         except ValueError:
@@ -608,6 +766,11 @@ def get_fuel_data(days: int = 10) -> str:
             "description": parts[2],
             "calories":    int(parts[3]) if parts[3].isdigit() else 0,
             "protein":     int(parts[4]) if parts[4].isdigit() else 0,
+            "carbs":       int(parts[5]) if len(parts) > 5 and parts[5].isdigit() else 0,
+            "fat":         int(parts[6]) if len(parts) > 6 and parts[6].isdigit() else 0,
+            "fiber":       int(parts[7]) if len(parts) > 7 and parts[7].isdigit() else 0,
+            "sodium":      int(parts[9]) if len(parts) > 9 and parts[9].isdigit() else 0,
+            "source":      parts[10] if len(parts) > 10 else "legacy",
         })
 
     if not entries:
@@ -618,17 +781,34 @@ def get_fuel_data(days: int = 10) -> str:
     for e in entries:
         d = e["date"]
         if d not in daily:
-            daily[d] = {"calories": 0, "protein": 0, "items": []}
+            daily[d] = {"calories": 0, "protein": 0, "carbs": 0, "fat": 0, "fiber": 0, "sodium": 0, "items": [], "sources": set()}
         daily[d]["calories"] += e["calories"]
         daily[d]["protein"]  += e["protein"]
+        daily[d]["carbs"]    += e["carbs"]
+        daily[d]["fat"]      += e["fat"]
+        daily[d]["fiber"]    += e["fiber"]
+        daily[d]["sodium"]   += e["sodium"]
         daily[d]["items"].append(e["description"])
+        daily[d]["sources"].add(e["source"])
 
     lines = ["RECENT FUEL LOG (last 10 days):"]
     for d in sorted(daily.keys()):
         items_str = " / ".join(daily[d]["items"])
+        source_str = ", ".join(sorted(daily[d]["sources"] - {""}))
+        nutrient_bits = []
+        if daily[d]["carbs"]:
+            nutrient_bits.append(f"{daily[d]['carbs']}g carbs")
+        if daily[d]["fat"]:
+            nutrient_bits.append(f"{daily[d]['fat']}g fat")
+        if daily[d]["fiber"]:
+            nutrient_bits.append(f"{daily[d]['fiber']}g fiber")
+        if daily[d]["sodium"]:
+            nutrient_bits.append(f"{daily[d]['sodium']}mg sodium")
+        nutrient_tail = f", {', '.join(nutrient_bits)}" if nutrient_bits else ""
+        source_tail = f" [{source_str}]" if source_str else ""
         lines.append(
-            f"  {d}: {daily[d]['calories']} cal, {daily[d]['protein']}g protein"
-            f"  — {items_str}"
+            f"  {d}: {daily[d]['calories']} cal, {daily[d]['protein']}g protein{nutrient_tail}"
+            f"  — {items_str}{source_tail}"
         )
 
     # Simple pattern notes
@@ -929,6 +1109,11 @@ def get_outer_stacks_brief(player_name: str) -> str:
         text = (text or "").strip()
         return text[:n] + "…" if len(text) > n else text
 
+    def anchor_type(text: str) -> str:
+        value = re.sub(r"[^A-Za-z]", "", text or "").upper()
+        value = {"FIND": "NOTICE", "DISCOVER": "NOTICE", "SEARCH": "NOTICE", "LOOK": "NOTICE"}.get(value, value)
+        return value if value in {"NOTICE", "EMBARK", "SENSE", "WRITE", "REST"} else "NOTICE"
+
     def load_json(path: Path) -> dict:
         if not path.exists():
             return {}
@@ -951,7 +1136,7 @@ def get_outer_stacks_brief(player_name: str) -> str:
     for section in re.split(r'^## ', anchors_text, flags=re.MULTILINE)[1:]:
         lines = section.strip().splitlines()
         name = lines[0].strip() if lines else "?"
-        atype = grab(r'\*\*Type:\*\*\s*(.+)', section, default="?")
+        atype = anchor_type(grab(r'\*\*Type:\*\*\s*(.+)', section, default="?"))
         belief = grab(r'\*\*Belief invested:\*\*\s*(\d+)', section, default="?")
         echo = grab(r'\*\*Academy echo:\*\*\s*(.+)', section, flags=re.DOTALL, default="")
         room = grab(r'\*\*Outer Stacks room:\*\*\s*(.+)', section, flags=re.DOTALL, default="")
@@ -1158,6 +1343,61 @@ def build_outer_stacks_fallback(data: dict) -> str:
     return "\n\n".join(parts)
 
 
+GOSSIP_SOURCES = [
+    ("Zara Finch", "Z.F.", "warm, observant, worried in specifics; notices what others miss"),
+    ("Damien Nights", "D.N.", "brooding, shadowy, reluctant; says too little and means more"),
+    ("Melisande Blackwood", "M.B.", "cold, surgical, loyal, ruthless; cuts straight to motive"),
+    ("Selene Moonfall", "S.M.", "silky, social, condescending; makes every compliment a lever"),
+    ("Raven Hearts", "R.H.", "quiet, flat, unreadable; records shadows and social angles"),
+    ("Serenity Brown", "S.B.", "hopeful, gentle, sometimes too generous; sees the possible good"),
+    ("Cedric Widden", "C.W.", "nervous, funny despite himself; jokes where fear leaks through"),
+    ("Professor Luna Wispwood", "L.W.", "flighty, adventurous, vivid; turns warnings into weather"),
+]
+
+
+def gossip_source_roster() -> str:
+    return "\n".join(f"- {name} ({initials}): {style}" for name, initials, style in GOSSIP_SOURCES)
+
+
+def build_fallback_gossip(data: dict) -> str:
+    lead_thread = _thread_names(data.get("thread_summary", ""))[0] if _thread_names(data.get("thread_summary", "")) else "Wicker's Campaign"
+    tick = _first_nonempty_line(data.get("tick_queue", ""), "No one admits to moving the latest rumor.")
+    tick = re.sub(r"[*_`]+", "", tick)
+    return (
+        "Zara Finch says Wicker Eddies has been smiling at empty chairs again, which would be ordinary theater if the chairs had not started facing him back. "
+        "She adds that anyone who calls this coincidence should be asked why coincidence keeps choosing the same table. — Z.F.\n\n"
+        "Damien Nights reports that two shadows near the west stair changed direction when Wicker passed, then pretended they had always meant to. "
+        "He would like it noted that this is not proof of anything, which is what people say when proof has begun breathing nearby. — D.N.\n\n"
+        f"Melisande Blackwood has observed that {lead_thread} is attracting amateurs who confuse attention with leverage. "
+        "Her correction was brief, private, and apparently effective; no one has repeated the mistake in her hearing. — M.B.\n\n"
+        "Selene Moonfall says the real scandal is not that Wicker knows things, but that so many students make being knowable look effortless. "
+        "She recommends mystery as a basic hygiene practice. — S.M.\n\n"
+        f"Cedric Widden was heard describing the latest corridor report as '{compact_text(tick, 120)}' and then immediately denying he had described anything at all. "
+        "The denial was more convincing before it asked for a biscuit. — C.W."
+    )
+
+
+def validate_gossip_section(text: str) -> list[str]:
+    errors = []
+    if re.search(r"(?:^|\s)[—-]\s*W\.E\.\s*$", text or "", re.MULTILINE):
+        errors.append("GOSSIP uses W.E. as a signature; gossip about Wicker must come from other characters")
+    if "W.E.'s voice" in (text or "") or "Wicker reports" in (text or ""):
+        errors.append("GOSSIP leaked old Wicker-column prompt language")
+    signed = re.findall(r"(?:^|\s)[—-]\s*([A-Z]\.[A-Z]\.|[A-Z]\.)\s*$", text or "", re.MULTILINE)
+    non_wicker_signed = [sig for sig in signed if sig != "W.E."]
+    if len(non_wicker_signed) < 4:
+        errors.append("GOSSIP needs at least four signed items from actual non-Wicker characters")
+    return errors
+
+
+def repair_gossip_section(sections: dict, data: dict) -> None:
+    gossip = sections.get("GOSSIP", "")
+    errors = validate_gossip_section(gossip)
+    if errors:
+        print("  ↺ Replacing GOSSIP with sourced corridor whispers: " + "; ".join(errors))
+        sections["GOSSIP"] = build_fallback_gossip(data)
+
+
 def validate_generated_sections(sections: dict) -> list[str]:
     required = ["HEADLINE", "GOSSIP", "FEATURE", "CLASSIFIEDS", "OUTERSTACKS", "FORECAST", "MARKET"]
     errors = []
@@ -1168,6 +1408,7 @@ def validate_generated_sections(sections: dict) -> list[str]:
     outer = (sections.get("OUTERSTACKS") or "").strip()
     if outer and len(outer) < 120:
         errors.append("OUTERSTACKS too short")
+    errors.extend(validate_gossip_section(sections.get("GOSSIP", "")))
     return errors
 
 
@@ -1204,6 +1445,7 @@ def build_fallback_sections(data: dict, reason: str = "") -> dict:
     war_data = data.get("war_data") or "No chapter war data available."
     market = data.get("market_odds_formatted") or "(no thread market data available)"
     fuel = data.get("fuel_data") or "No provisions log was filed."
+    fae_ledger = data.get("fae_ledger") or "The Margin is clean; no open fae bargains."
     outer = build_outer_stacks_fallback(data) or "No new frontier dispatch has crossed the desk. The Outer Stacks remain adjacent, unsupervised, and politely unaccounted for."
     if len(outer) < 140:
         outer += " The frontier desk notes that thin reports are not empty reports; they usually mean the nearest doors are waiting for a physical visit before saying more."
@@ -1235,13 +1477,7 @@ def build_fallback_sections(data: dict, reason: str = "") -> dict:
             f"thread pressure, student state, chapter war figures, and frontier reports were all read locally before publication.\n\n"
             f"Readers are advised to treat quiet details as consequential until further notice. The Academy has recently shown a habit of making small things count."
         ),
-        "GOSSIP": (
-            "One hears the front page had to be composed without its usual theatrical flourishes. How bracing. Facts look almost indecent when they arrive undressed.\n\n"
-            f"{lead_thread} continues to attract attention from people who claim not to be watching it. They are, naturally, watching it very closely.\n\n"
-            "A certain table in the Great Hall has developed the unfortunate habit of remembering who spoke kindly near it. This will ruin several reputations if it continues.\n\n"
-            "Cedric Widden has been seen negotiating with silence as if silence were a roommate who owed rent. Results remain inconclusive.\n\n"
-            "The wise student keeps one eye on the ordinary. It is where the best leverage hides.\n\n— W.E."
-        ),
+        "GOSSIP": build_fallback_gossip(data),
         "WEATHER": forecast,
         "FORECAST": (
             f"70% chance of continued pressure around {lead_thread}; its ledger position makes it difficult to ignore.\n"
@@ -1259,7 +1495,12 @@ def build_fallback_sections(data: dict, reason: str = "") -> dict:
             f"{fuel}\n\n"
             "The Provisions Desk recommends treating stamina as narrative infrastructure. A student cannot carry a season on coffee, symbolism, and vibes alone."
         ),
-        "EXCHANGE": data.get("entity_standings") or "No exchange prices were available before press time.",
+        "EXCHANGE": (
+            (data.get("entity_standings") or "No exchange prices were available before press time.")
+            + "\n\nFae Ledger:\n"
+            + fae_ledger
+        ),
+        "GOBLINEXCHANGE": data.get("goblin_exchange", ""),
         "FEATURE": (
             f"Title: What the Quiet Is For\n"
             "Byline: The Recovery Desk\n"
@@ -1374,6 +1615,9 @@ Player:
 Chapter {data.get('player', {}).get('chapter')} · Belief {data.get('player', {}).get('belief')}/100
 {compact_text(data.get('player_recap', ''), 700)}
 
+Goblin Market Exchange:
+{compact_text(data.get('goblin_exchange', ''), 900)}
+
 Classified leads:
 {compact_text(data.get('classified_leads', ''), 800)}
 
@@ -1407,6 +1651,9 @@ Use the data. Do not mention that this is a chunk. Do not include sections not r
 DATA:
 {context}
 
+GOSSIP SOURCES:
+{gossip_source_roster()}
+
 REQUESTED SECTIONS:
 {instructions}
 
@@ -1435,7 +1682,8 @@ def generate_content_chunked(data: dict, reason: str = "") -> dict:
             ["HEADLINE", "GOSSIP", "FEATURE"],
             3200,
             "HEADLINE: title/subhead/body, 4-6 paragraphs, concrete reporting on a current event that has new information. "
-            "GOSSIP: 5 distinct W.E. gossip items, fresh and specific, ending — W.E. "
+            "GOSSIP: 5 distinct corridor whisper items from actual named Academy characters, each signed with that character's initials. "
+            "Wicker Eddies may be the subject, but he must not be the columnist or signature. Never use — W.E. "
             "FEATURE: titled/bylined longer context piece, 4-6 paragraphs, not a repeat of recent features.",
         ),
         (
@@ -1450,7 +1698,8 @@ def generate_content_chunked(data: dict, reason: str = "") -> dict:
             ["FUEL", "EXCHANGE", "CLASSIFIEDS"],
             2400,
             "FUEL: compact provisions log, specific foods and dry professional tone. "
-            "EXCHANGE: belief ticker for significant entities and one commentary paragraph. "
+            "EXCHANGE: belief ticker for significant entities, one entity per line in '- Name (Type): Belief N' format, then one commentary paragraph. "
+            "Do not write the Goblin Market board inside EXCHANGE; it is provided and rendered separately. "
             "CLASSIFIEDS: 5-6 fresh notices grounded in classified leads and current state.",
         ),
         (
@@ -1487,6 +1736,12 @@ def generate_content_chunked(data: dict, reason: str = "") -> dict:
                     last_error = f"missing required section(s): {', '.join(missing)}"
                     print(f"  ⚠ Section packet incomplete ({', '.join(names)}): {last_error}")
                     continue
+                if "GOSSIP" in names:
+                    gossip_errors = validate_gossip_section(parsed.get("GOSSIP", ""))
+                    if gossip_errors:
+                        last_error = "; ".join(gossip_errors)
+                        print(f"  ⚠ Section packet gossip rejected: {last_error}")
+                        continue
                 for name in names:
                     sections[name] = parsed[name].strip()
                 last_error = ""
@@ -1595,6 +1850,12 @@ PLAYER STORY DATA (for The Correspondent section):
 CLASSIFIED LEADS (real hooks for the classifieds section):
 {data['classified_leads']}
 
+GOBLIN MARKET EXCHANGE (rendered as its own board under The Exchange; use as context, do not duplicate it verbatim in EXCHANGE):
+{data['goblin_exchange']}
+
+FAE LEDGER (literal bargains; do not flatten into generic "fae activity"):
+{data['fae_ledger']}
+
 CHAPTER WAR DATA (for The War Report section):
 {data['war_data']}
 
@@ -1635,11 +1896,14 @@ If the player has not interacted with a thread in real gameplay, it should not d
 the front page issue after issue. Dormant threads belong inside, not on the front page.]
 
 ===GOSSIP===
-[The social column, in W.E.'s voice. Write 5-6 separate gossip items — each item is its own
-paragraph of 2-4 sentences. Wicker reports true things slanted. He names names when it suits
-him and withholds them when it doesn't. He is never without an angle. He always knows more
-than he lets on. He never directly identifies himself. Each item should feel like a distinct
-morsel — a different corner of the Academy social world. End with his byline: — W.E.
+[The corridor whisper column. Write 5-6 separate gossip items — each item is its own
+paragraph of 2-4 sentences, from an actual named Academy character listed below.
+Each item must be written in that character's style and end with that character's initials.
+Wicker Eddies may be the subject of gossip, but he must not be the source, columnist,
+or signature for gossip about himself. Never use W.E. as a gossip signature.
+Use a mix of sources; do not make every item come from Wicker's crew.
+Approved gossip sources:
+{gossip_source_roster()}
 CONSTRAINT: Every item must be freshly written. Do not reuse sentences, observations, or
 characters from previous issues' gossip columns. Check the previous coverage block above —
 any item that appeared before must not appear again unless something new has happened.]
@@ -1682,9 +1946,11 @@ formatted like a weather/conditions report. Brief is correct here.]
 Written as if the Academy's anonymous Provisions Correspondent is filing a professional
 report on what the student correspondent has been consuming.
 
-Use the FUEL LOG data provided. Translate real food into Academy texture — not literally
-(don't mention calories), but as narrative material: what the pattern suggests about the
-student's state, their habits, their relationship to comfort and routine.
+Use the FUEL LOG data provided. If the log says no recent fuel data, say so plainly in-world:
+the Provisions Desk has no filed meals and recommends the correspondent resume logging.
+Do not invent meals or imply nourishment that was not logged. If nutrient details are present,
+translate them into Academy texture; do not print raw calories unless the section is explicitly
+about ledger accuracy. Treat low-confidence estimates as approximate.
 
 Structure:
 - 2-3 sentences observing the recent pattern. Specific. Deadpan. Name the recurring items.
@@ -1698,9 +1964,12 @@ Tone: the wine critic of student dining. Precise, slightly arch, genuinely obser
 Brief is correct here — this is a sidebar, not a feature.]
 
 ===EXCHANGE===
-[The Belief Exchange ticker. List ALL significant entities with Belief scores as prices.
+[The Belief Exchange ticker. List ALL significant entities with Belief scores as prices,
+one entity per line in this exact format: "- Name (Type): Belief N".
 Mark trend: ↑ rising / ↓ falling / — steady. One paragraph of market commentary below
-the ticker — what does the current pattern mean narratively?]
+the ticker — what does the current pattern mean narratively?
+Do not include Goblin Market offers here. The Goblin Market Exchange is printed separately
+under this section and trades in attention rather than Belief.]
 
 ===FEATURE===
 [A longer in-world piece: a profile, an investigation, a history, or an opinion column.
@@ -1972,6 +2241,88 @@ def paragraphs(text: str) -> str:
     )
 
 
+def exchange_html(text: str) -> str:
+    text = normalize_exchange_text(text)
+    if not text:
+        return ""
+    ticker_rows = []
+    commentary = []
+    for line in text.splitlines():
+        clean = line.strip()
+        if not clean:
+            continue
+        if re.match(r'^[-•]\s+.+?\([^)]+\):\s*Belief\s+\d+', clean):
+            ticker_rows.append(clean)
+        else:
+            commentary.append(clean)
+    parts = []
+    if ticker_rows:
+        rows = []
+        for row in ticker_rows:
+            item = re.sub(r'^[-•]\s+', '', row)
+            m = re.match(r'^(.+?)\s+\(([^)]+)\):\s*Belief\s+(\d+)(.*)$', item)
+            if m:
+                name, etype, belief, tail = m.groups()
+                rows.append(
+                    '<div class="exchange-row">'
+                    f'<span class="exchange-name">{html.escape(name.strip())}</span>'
+                    f'<span class="exchange-type">{html.escape(etype.strip())}</span>'
+                    f'<span class="exchange-belief">{html.escape(belief.strip())}</span>'
+                    f'<span class="exchange-tail">{html.escape(tail.strip())}</span>'
+                    '</div>'
+                )
+            else:
+                rows.append(f'<div class="exchange-row">{html.escape(item)}</div>')
+        parts.append('<div class="exchange-ticker">' + "\n".join(rows) + '</div>')
+    if commentary:
+        parts.append(paragraphs("\n".join(commentary)))
+    if not parts:
+        return paragraphs(text)
+    return "\n".join(parts)
+
+
+def goblin_exchange_html(text: str) -> str:
+    text = (text or "").strip()
+    if not text:
+        return ""
+    rows = []
+    notes = []
+    condition = ""
+    for line in text.splitlines():
+        clean = line.strip()
+        if not clean:
+            continue
+        if clean.lower().startswith("market condition:"):
+            condition = clean.split(":", 1)[1].strip()
+            continue
+        if clean.startswith("- Giving:"):
+            item = clean[2:].strip()
+            parts = [p.strip() for p in item.split("|")]
+            data = {"Giving": "", "Seeking": "", "Rate note": ""}
+            for part in parts:
+                if ":" in part:
+                    k, v = part.split(":", 1)
+                    data[k.strip()] = v.strip()
+            rows.append(data)
+        else:
+            notes.append(clean)
+
+    out = ['<div class="goblin-board">']
+    out.append('<div class="goblin-board-head"><span>Goblin Market Exchange</span>' + (f'<em>{html.escape(condition)}</em>' if condition else '') + '</div>')
+    for row in rows:
+        out.append(
+            '<div class="goblin-row">'
+            f'<div class="goblin-giving">{html.escape(row.get("Giving", ""))}</div>'
+            f'<div class="goblin-seeking">{html.escape(row.get("Seeking", ""))}</div>'
+            f'<div class="goblin-rate">{html.escape(row.get("Rate note", ""))}</div>'
+            '</div>'
+        )
+    if notes:
+        out.append('<div class="goblin-settlement">' + html.escape(" ".join(notes)) + '</div>')
+    out.append('</div>')
+    return "\n".join(out)
+
+
 def build_timetable_html() -> str:
     """Pure-data timetable for the right rail — no LLM."""
     if not _SCHEDULE_AVAILABLE:
@@ -2079,9 +2430,13 @@ def build_feature_image_prompt(feature: str, meta: dict) -> str:
         f"Feature illustration for The Bleed, issue #{meta.get('issue_number')}. "
         f"Story title: {title}. "
         f"Illustrate the most vivid in-world scene or symbolic image suggested by this story and surrounding issue context: {scene_basis}. "
-        "Style: literary magical-archive illustration, sparse pen-and-ink line art with watercolor washes on textured parchment, "
-        "muted sepia and gray palette, selective jewel-like pops of teal, gold, and red in magical details. "
-        "Vertical editorial illustration, atmospheric, magical-school newspaper art, elegant, slightly eerie, richly specific, no text, no caption, no border, no watermark."
+        "Style: illustrated in sparse pen-and-ink linework with loose watercolor washes on textured aged parchment, "
+        "with visible paper grain, soft ink bleed, watercolor blooms, layered manuscript-page composition, "
+        "handwritten marginalia, and selective pops of color. Keep the image airy, literary, sketch-like, "
+        "and slightly unfinished, like a page from a magical field journal rather than a polished digital illustration. "
+        "Include subtle page layout elements such as notes, labels, sketches, margin writing, or archival overlays so "
+        "the image feels embedded in a manuscript page. Vertical editorial illustration, atmospheric, magical-school newspaper art, "
+        "elegant, slightly eerie, richly specific, no caption, no border, no watermark."
     )
 
 
@@ -2129,6 +2484,7 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     barometer   = sections.get("BAROMETER", "")
     fuel        = sections.get("FUEL", "")
     exchange    = sections.get("EXCHANGE", "")
+    goblin_exchange = sections.get("GOBLINEXCHANGE", "")
     timetable   = build_timetable_html()
     classifieds = sections.get("CLASSIFIEDS", "")
     weather     = sections.get("WEATHER", "")
@@ -2362,6 +2718,101 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     line-height: 1.6;
   }}
 
+  .exchange-ticker {{
+    display: flex;
+    flex-direction: column;
+    gap: 2pt;
+    margin-bottom: 5pt;
+  }}
+
+  .exchange-row {{
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 46pt 20pt minmax(0, .6fr);
+    gap: 4pt;
+    align-items: baseline;
+    border-bottom: 1px dotted #d0d0d0;
+    padding: 1pt 0 2pt;
+    break-inside: avoid;
+  }}
+
+  .exchange-name {{
+    font-weight: 700;
+    color: #111;
+  }}
+
+  .exchange-type, .exchange-belief, .exchange-tail {{
+    font-family: 'Courier New', monospace;
+    font-size: 7pt;
+    color: #555;
+  }}
+
+  .exchange-belief {{
+    text-align: right;
+    color: #111;
+    font-weight: 700;
+  }}
+
+  .goblin-board {{
+    margin-top: 7pt;
+    border-top: 1.5px solid #111;
+    padding-top: 5pt;
+    break-inside: avoid;
+  }}
+
+  .goblin-board-head {{
+    display: flex;
+    justify-content: space-between;
+    gap: 6pt;
+    align-items: baseline;
+    font-family: 'IM Fell English SC', Georgia, serif;
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: 4pt;
+  }}
+
+  .goblin-board-head em {{
+    font-family: 'Courier New', monospace;
+    font-size: 6.5pt;
+    text-transform: none;
+    letter-spacing: 0;
+    color: #555;
+    text-align: right;
+  }}
+
+  .goblin-row {{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3pt 6pt;
+    border-bottom: 1px dotted #d0d0d0;
+    padding: 3pt 0;
+    break-inside: avoid;
+  }}
+
+  .goblin-giving {{
+    font-weight: 700;
+    color: #111;
+  }}
+
+  .goblin-seeking {{
+    color: #333;
+    font-style: italic;
+  }}
+
+  .goblin-rate {{
+    grid-column: 1 / -1;
+    font-family: 'Courier New', monospace;
+    font-size: 6.8pt;
+    color: #555;
+  }}
+
+  .goblin-settlement {{
+    margin-top: 4pt;
+    font-size: 7.5pt;
+    line-height: 1.45;
+    font-style: italic;
+  }}
+
   .ticker-line {{
     display: flex;
     justify-content: space-between;
@@ -2512,7 +2963,7 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
 
     <div class="col gossip-body">
       <div class="col-head">Gossip &amp; Corridor Whispers</div>
-      <div class="byline">Our Social Correspondent, W.E.</div>
+      <div class="byline">Compiled from signed corridor sources</div>
       {paragraphs(gossip)}
     </div>
 
@@ -2524,7 +2975,7 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
       {'<div class="rail-section"><div class="col-head">The Provisions Log</div><div class="rail-body" style="font-size:8.5pt; line-height:1.6; font-style:italic;">' + paragraphs(fuel) + '</div></div>' if fuel else ''}
       <div class="rail-section">
         <div class="col-head">The Exchange</div>
-        <div class="rail-body">{paragraphs(exchange)}</div>
+        <div class="rail-body">{exchange_html(exchange)}{goblin_exchange_html(goblin_exchange)}</div>
       </div>
       <div class="rail-section">
         <div class="col-head">Today at the Academy</div>
@@ -2634,7 +3085,7 @@ def build_telegram_text(sections: dict, sparky: str, meta: dict) -> str:
 
     gossip = sections.get("GOSSIP", "")
     if gossip:
-        parts += [f"<b>— Gossip (W.E.) —</b>", esc(gossip[:800] + ("…" if len(gossip) > 800 else "")), ""]
+        parts += [f"<b>— Gossip & Corridor Whispers —</b>", esc(gossip[:800] + ("…" if len(gossip) > 800 else "")), ""]
 
     feature = sections.get("FEATURE", "")
     if feature:
@@ -2654,6 +3105,12 @@ def build_telegram_text(sections: dict, sparky: str, meta: dict) -> str:
     exchange = sections.get("EXCHANGE", "")
     if exchange:
         parts += [f"<b>The Exchange</b>", esc(exchange), ""]
+    fae_ledger = get_fae_ledger_brief(meta.get("player_name", "bj"))
+    if fae_ledger and "clean" not in fae_ledger.lower():
+        parts += [f"<b>The Margin</b>", esc(fae_ledger[:800] + ("…" if len(fae_ledger) > 800 else "")), ""]
+    goblin_exchange = sections.get("GOBLINEXCHANGE", "")
+    if goblin_exchange:
+        parts += [f"<b>Goblin Market Exchange</b>", esc(goblin_exchange[:800] + ("…" if len(goblin_exchange) > 800 else "")), ""]
 
     player_box = sections.get("PLAYER", "")
     if player_box:
@@ -2957,6 +3414,9 @@ def main():
             }
             # Extract plain text per section from the saved HTML for Telegram rebuild
             sections = _sections_from_saved_html(saved_html)
+            if sections.get("EXCHANGE"):
+                sections["EXCHANGE"] = normalize_exchange_text(sections["EXCHANGE"])
+            sections["GOBLINEXCHANGE"] = build_goblin_market_exchange(player_data.get("name", "bj"))
         else:
             print(f"  Preparing issue #{issue_number}...")
             # ── Read data sources ────────────────────────────────────────────
@@ -3010,6 +3470,8 @@ def main():
                 "tick_queue":            tick_queue or "(no simulation activity since last session)",
                 "thread_summary":        thread_summary,
                 "entity_standings":      entity_standings,
+                "goblin_exchange":       build_goblin_market_exchange(player_data.get("name", "bj")),
+                "fae_ledger":            get_fae_ledger_brief(player_data.get("name", "bj")),
                 "classified_leads":      build_classified_leads(),
                 "market_odds_formatted": market_odds_formatted,
                 "war_data":              format_war_data(war_info),
@@ -3028,12 +3490,19 @@ def main():
             if not sections:
                 print("  ⚠ Agent returned no content. Check logs.")
                 return
+            sections["GOBLINEXCHANGE"] = data["goblin_exchange"]
+
+            repair_gossip_section(sections, data)
+            if sections.get("EXCHANGE"):
+                sections["EXCHANGE"] = normalize_exchange_text(sections["EXCHANGE"])
 
             if _bleed_allow_fallback() and not (sections.get("OUTERSTACKS") or "").strip():
                 fallback = build_outer_stacks_fallback(data)
                 if fallback:
                     sections["OUTERSTACKS"] = fallback
                     print("  ↺ OUTERSTACKS missing from model output — used deterministic fallback.")
+            if sections.get("EXCHANGE"):
+                sections["EXCHANGE"] = normalize_exchange_text(sections["EXCHANGE"])
 
             # ── Build HTML ───────────────────────────────────────────────────
             headline_parts = parse_headline(sections.get("HEADLINE", ""))

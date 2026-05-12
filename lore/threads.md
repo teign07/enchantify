@@ -71,16 +71,16 @@ Two endings:
 
 **id:** `academy-daily`
 **type:** slice-of-life
-**phase:** quiet *(permanent — this thread never escalates)*
+**phase:** quiet
 **pressure:** background *(always present, never urgent)*
 **npc_anchor:** all NPCs
 **locations:** Great Hall, Library, Corridors, Cafeteria, Classrooms, Courtyard
 **entities:** Boggle, Great Hall, fae species (all tagged academy-daily in register)
 **Nothing pressure:** low — the Nothing makes the ordinary feel hollow, not absent. Meals taste of nothing. Boggle's puns land wrong. The corridor light flattens.
 
-**Next beat:** A few students start exaggerating their steps and clapping in deliberate rhythm to shake off the silver-ink drag, turning the corridor shuffle into a half-joking march toward lunch. Professor Boggle, realizing the room needs stronger nonsense, climbs onto a bench and begins calling out increasingly awful puns until the first real groans crack the damp spell and the spicy ice finally starts to melt.
+**Next beat:** Corin's ledger sits at 26 compromised books. The Tollbooth waits. The Amber Codex has no known jumper trace.
 
-**Last advanced:** 2026-04-21
+**Last advanced:** 2026-05-08
 **born:** 2026-04-01
 **closed:** —
 
@@ -119,9 +119,9 @@ Two endings:
 **entities:** Zara Finch
 **Nothing pressure:** medium — the Nothing would love to make her doubt the portfolio is good enough. Self-erasure before the deadline.
 
-**Next beat:** The glowing 'Believe' rune expands, fracturing Zara's portfolio pages into shifting inkwells. She must now choose: extract the runes to protect her work or let them dissolve into the paper, risking their permanent loss.
+**Next beat:** The tidal ring on Zara's portfolio cover has deepened overnight — the salt smell is stronger now, and the ring itself has taken on a faint iridescence, like the inside of a shell. Anyone who handles the portfolio will feel a faint dampness at their fingertips, real as tide-wet stone, though the pages themselves are dry.
 
-**Last advanced:** 2026-04-21
+**Last advanced:** 2026-05-10
 **born:** 2026-04-12
 **closed:** —
 
@@ -131,16 +131,16 @@ Two endings:
 
 **id:** `wicker-schemes`
 **type:** antagonist
-**phase:** escalating
+**phase:** resolution
 **pressure:** medium-high *(Wicker's Belief is 60 — he has significant narrative mass)*
 **npc_anchor:** Wicker Eddies (Belief 60)
 **locations:** The Great Hall, Duskthorn common areas, wherever Zara or bj are
 **entities:** Wicker Eddies
 **Nothing pressure:** high — Wicker is adjacent to the Nothing. His schemes drain Belief from others as a feature, not a side effect. The Nothing doesn't control him; they simply have similar tastes.
 
-**Next beat:** The ink-black rot pulses with a rhythmic, sickening heat, seeking to undo the 'overwriting' bj performed during the last confrontation. As Zara's Belief continues to drain into the slogans, bj must find the three 'Dissent Anchors' and re-anchor them with a physical detail from his current surroundings to stop the bleed.
+**Next beat:** Offscreen, Wicker's Campaign has acquired a concrete trace: Wicker Eddies protected Wicker's Campaign: locked the vulnerable record in a drawer with two names on the key-tag. As a result, the Nothing cannot erase that detail casually. Pressure source: Dusk Thorn (talisman 98). Offscreen reason: Wick… The next visible scene should surface that trace in the room, rumor, object, or NPC behavior before asking the player what to do.
 
-**Last advanced:** 2026-04-19
+**Last advanced:** 2026-05-12
 **born:** 2026-04-01
 **closed:** —
 
@@ -152,16 +152,16 @@ Two endings:
 
 **id:** `duskthorn-investigation`
 **type:** mystery
-**phase:** rising
+**phase:** resolution
 **pressure:** high *(the player has engaged, and Thorne is active)*
 **npc_anchor:** Headmistress Thorne (Belief 83)
 **locations:** Duskthorn Common Areas, The West Corridor, The Restricted Section, Headmistress's Office
 **entities:** Headmistress Thorne, Dusk Thorn Talisman, Victor Ebonheart
 **Nothing pressure:** high — something in Duskthorn is already adjacent to absence. The sealed corridor smells of it.
 
-**Next beat:** bj and Serenity compare their halves and find the staircase entry matching what Serenity saw during Run 1. The final page in a different hand points toward a second person who found the notes. The note-keeper now knows the bundle is gone and will move.
+**Next beat:** The frost seam around the locked drawer has thickened overnight into a visible rime — scholars passing the West Corridor door at the right angle will see it catching lantern-light like a held breath. Thorne has begun taking a longer route through the commons, avoiding the corridor entirely, though she pauses each time near the Duskthorn noticeboard as if checking whether something has been removed.
 
-**Last advanced:** 2026-05-02
+**Last advanced:** 2026-05-12
 **born:** 2026-04-01
 **closed:** —
 
@@ -211,6 +211,24 @@ When a new subplot, mystery, or character goal emerges with enough Belief to sus
 - `**born:**` set to today's date; `**closed:** —`
 
 ---
+
+## Thread: Elowen's Refectory Experiments
+
+**id:** `elowen-refectory-experiments`
+**type:** npc-subplot
+**phase:** setup
+**pressure:** low
+**npc_anchor:** Dr. Elowen Vellum
+**locations:** Academy corridors, Library, Great Hall, and wherever the Unwritten Interest touches the day
+**entities:** Dr. Elowen Vellum
+**Nothing pressure:** medium - the Nothing can flatten this into mere trivia instead of lived story
+
+**Next beat:** A precise refectory note appears with one useful experiment for the day, one measurement Elowen refuses to moralize, and one comfort she insists must remain part of the binding.
+
+**Last advanced:** 2026-05-08
+**born:** 2026-05-08
+**closed:** —
+
 
 ## Archive
 

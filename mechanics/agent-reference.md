@@ -116,7 +116,10 @@ Use AppleScript.
 
 ### Other integrations
 - printer after Compass West → `bash scripts/print-souvenir.sh`
-- food mention → `bash scripts/log-fuel.sh "description" [cal] [protein]`
+- food or drink mention → `python3 scripts/food_log.py log "description"` when calories/protein are unknown; use `bash scripts/log-fuel.sh "description" [cal] [protein]` only for legacy compatibility. Never assume the player ate or drank something unless they said so. If no food is logged today, the Fuel Gauge should say so plainly.
+- Enchantment offer → `python3 scripts/enchantment.py offer [player_name] --spell "Name" --target "target" --reason "why"`
+- Enchantment selected → `python3 scripts/enchantment.py start [player_name] --spell "Name" --target "target" --mode photo|description`; narrate initiation only and ask for proof
+- Enchantment proof provided → `python3 scripts/enchantment.py complete [player_name] --proof "photo or description summary" --outcome "story effect"`; only then narrate success
 - wallpaper updates → `python3 scripts/wallpaper.py --generate [player_name] &`
 - dispatches → handled via heartbeat systems
 
@@ -176,21 +179,28 @@ Core rule:
 - the fae gives first
 - then the debt exists
 
-Write bargains like this:
-`| [Fae] | [what they gave] | [what is owed] | [date or condition] | OPEN |`
+Use the ledger script; do not hand-edit the Margin unless a writer script is unavailable:
+- add: `python3 scripts/fae-ledger.py add [player] --fae "Name" --gave "what they gave" --terms "what is owed" --deadline "YYYY-MM-DD or condition"`
+- list: `python3 scripts/fae-ledger.py list [player] --details`
+- fulfill: `python3 scripts/fae-ledger.py fulfill [player] "search text" --report "specific field report"`
+- repair: `python3 scripts/fae-ledger.py fulfill [player] "search text" --repair --report "late payment plus repair detail"`
 
-What is owed must be sensory, never an object.
+What is owed must be sensory, experiential, or attentional; never a generic object.
 
 If the player delivers something genuine:
-- mark it `DELIVERED`
-- give the reward
+- run the fulfill command
+- narrate the fae accepting the exact detail, not merely closing a task
 
 If the offering is vague:
 - do not mark it delivered
+- ask once for the missing specificity in the fae's own style
 
 If a bargain goes overdue:
-- let tick.py surface consequences in the world
-- do not present it like a status dashboard
+- run `python3 scripts/fae-ledger.py tick [player]`
+- weave the consequence into rooms, wording, warmth, labels, prices, thresholds, or future terms
+- never present it like a status dashboard
+
+Consequences are individual and proportional: Goblins alter prices and labels; Hearthkin cool vessels and hospitality; Wayskeepers delay or conditionalize arrivals; Sprites edit words; Salamanders overheat vitality; Literary Elves make polished sentences lose honesty; Deep Lore Dwarves make the buried fact heavier
 
 ## 9. Wellness Tone
 

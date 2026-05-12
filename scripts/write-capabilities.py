@@ -39,10 +39,12 @@ def main():
         print(new_content[:300] + ("..." if len(new_content) > 300 else ""))
         return
 
-    backup = TARGET.with_suffix(".md.bak")
     if TARGET.exists():
+        backup_dir = Path("/tmp/enchantify-markdown-backups")
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        backup = backup_dir / f"{TARGET.name}.bak"
         shutil.copy2(TARGET, backup)
-        print(f"  Backup: {backup.name}")
+        print(f"  Backup: {backup}")
 
     tmp = TARGET.with_suffix(".md.tmp")
     tmp.write_text(new_content if new_content.endswith("\n") else new_content + "\n", encoding="utf-8")

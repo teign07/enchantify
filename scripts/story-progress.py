@@ -150,12 +150,27 @@ def parse_register_threads(text: str) -> dict[str, dict]:
     return rows
 
 
+def claimed_thread_anchors() -> set[str]:
+    claimed: set[str] = set()
+    for section in re.split(r"^## Thread:\s*", read(THREADS), flags=re.MULTILINE)[1:]:
+        for label in ("npc_anchor", "entities"):
+            m = re.search(rf"\*\*{label}:(?:\*\*)?\s*([^\n]+)", section, re.IGNORECASE)
+            if not m:
+                continue
+            for item in re.split(r",|;", m.group(1)):
+                item = item.strip().strip("`")
+                if item and item.lower() not in {"all npcs", "none", "unknown"}:
+                    claimed.add(item.lower())
+    return claimed
+
+
 def queue_thread_seeds() -> list[str]:
     text = read(QUEUE)
+    claimed = claimed_thread_anchors()
     seeds = []
     for line in text.splitlines():
         m = re.search(r"\[THREAD SEED:\s*([^\]]+)\]", line)
-        if m:
+        if m and m.group(1).strip().lower() not in claimed:
             seeds.append(m.group(1).strip())
     return sorted(set(seeds))
 

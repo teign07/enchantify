@@ -51,6 +51,8 @@ When the window closes, it closes mid-sentence. The Labyrinth does not ignore th
 **Generate at anchor creation, not first visit.** The moment a player anchors a place, the Labyrinth builds the room from their words and writes it fully to `players/[name]-anchors.md` under `**Outer Stacks room:**` and `**Local rule:**`. The player is told a room exists and is waiting for them. They are not told what is in it. The room is real from the moment of creation — NPCs can sense its door, reference it, stand outside it. The player just can't enter until they physically return to the place.
 
 **What goes into generation:**
+
+**Sealed room-kind vocabulary:** Outer Stacks room kinds are only the five Wonder Compass directions: NOTICE, EMBARK, SENSE, WRITE, or REST. Never create, record, announce, or imply any other room kind. If a phrase like "find," "discover," or "search" seems right, interpret it as NOTICE.
 - **The player's exact words** — the primary material. Not what the place is, but what they said it holds.
 - **Anchor type** (NOTICE/EMBARK/SENSE/WRITE/REST) — the compass direction the place points in the player's life.
 - **Weather, moon, and season at creation** — the room is born carrying these conditions. A room born on a new moon in early spring is a different room than one born at the full moon in deep winter.

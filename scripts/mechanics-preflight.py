@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -31,6 +32,26 @@ import mechanics_state  # type: ignore
 
 
 DECLINE_PRESSURE_THRESHOLD = 3
+
+
+def fae_pressure(workspace: Path, player_name: str) -> list[str]:
+    script = workspace / "scripts" / "fae-ledger.py"
+    if not script.exists():
+        return []
+    proc = subprocess.run(
+        [sys.executable, str(script), "list", player_name, "--details"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if proc.returncode != 0:
+        return [f"Fae ledger could not be read: {(proc.stderr or proc.stdout).strip()[:160]}"]
+    lines = []
+    for line in proc.stdout.splitlines():
+        if line.startswith("- OPEN") or line.startswith("- OVERDUE") or line.startswith("- BROKEN") or line.startswith("- EXPIRED"):
+            lines.append(line[2:].strip())
+    return lines[:3]
 
 
 def build_preflight(workspace: Path, player_name: str) -> dict:
@@ -46,6 +67,7 @@ def build_preflight(workspace: Path, player_name: str) -> dict:
     enchantment = {
         "recommended": bool(state.get("should_offer_enchantment")),
         "offered_today": state.get("enchantment", {}).get("offered_on"),
+        "active": state.get("active_enchantment"),
         "completed_today": state.get("enchantment", {}).get("completed_on"),
     }
     dice = {
@@ -61,19 +83,32 @@ def build_preflight(workspace: Path, player_name: str) -> dict:
     obligations = []
     blocks = []
     warnings = []
+    fae = fae_pressure(workspace, player_name)
 
     if compass["eligible"]:
         obligations.append("Compass Run should be offered or deliberately deferred in-scene")
     if enchantment["recommended"]:
         obligations.append("Enchantment should be offered or its absence justified in-scene")
+    if enchantment["active"]:
+        active = enchantment["active"]
+        obligations.append(
+            f"Active Enchantment awaits proof: {active.get('spell')} on {active.get('target')}. Complete it with scripts/enchantment.py complete after real proof, or keep waiting."
+        )
     if compass["locked_today"]:
         blocks.append("Do not present Compass Run completion as available again today")
     if dice["should_roll"]:
         warnings.append("Use belief dice when the next action is risky and uncertain")
+    if not enchantment["recommended"]:
+        warnings.append("Use scene-contract for opportunity-based Enchantments; healthy Belief does not suppress spell offers")
     if pressure["decline_pressure_active"]:
         warnings.append("Repeated declines are active; another refusal should carry believable cost")
     if belief is not None and belief <= 20:
         warnings.append("Belief is critically low")
+    for item in fae:
+        if item.upper().startswith(("OVERDUE", "BROKEN", "EXPIRED")):
+            obligations.append(f"Fae bargain consequence is active: {item}")
+        else:
+            warnings.append(f"Open fae bargain: {item}")
 
     summary_parts = [f"belief={belief if belief is not None else '?'} ({pressure['belief_band']})"]
     if compass["eligible"]:
@@ -84,9 +119,11 @@ def build_preflight(workspace: Path, player_name: str) -> dict:
         summary_parts.append("compass=not-needed-now")
 
     if enchantment["recommended"]:
-        summary_parts.append("enchantment=offer")
+        summary_parts.append("enchantment=recovery-offer")
+    elif enchantment["active"]:
+        summary_parts.append("enchantment=awaiting-proof")
     else:
-        summary_parts.append("enchantment=not-needed-now")
+        summary_parts.append("enchantment=scene-contract")
 
     summary_parts.append("dice=roll-on-risk" if dice["should_roll"] else "dice=light")
 
@@ -105,6 +142,7 @@ def build_preflight(workspace: Path, player_name: str) -> dict:
         "obligations": obligations,
         "blocks": blocks,
         "warnings": warnings,
+        "fae": fae,
         "summary": " | ".join(summary_parts),
     }
 
