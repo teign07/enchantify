@@ -54,6 +54,7 @@ ISSUE_NUMBER_FILE = WORKSPACE_DIR / "bleed" / "issue-number.txt"
 ISSUES_DIR        = WORKSPACE_DIR / "bleed" / "issues"
 ISSUE_IMAGES_DIR  = WORKSPACE_DIR / "bleed" / "images"
 CLASSIFIEDS_LEDGER_DIR = WORKSPACE_DIR / "logs" / "classifieds-ledger"
+BLEED_RIPPLES_LOG = WORKSPACE_DIR / "logs" / "bleed-ripples.jsonl"
 BLEED_LOCK_STALE_SECONDS = 8 * 60 * 60
 
 
@@ -735,14 +736,34 @@ def format_war_data(war: dict) -> str:
     return "\n".join(lines)
 
 
-def get_fuel_data(days: int = 10) -> str:
-    """Read the fuel log and return a summarized view for the past N days."""
+def get_current_fuel_summary() -> str:
+    """Return today's fuel state from the canonical food_log module when possible."""
+    try:
+        if str(WORKSPACE_DIR / "scripts") not in sys.path:
+            sys.path.insert(0, str(WORKSPACE_DIR / "scripts"))
+        from food_log import summarize  # type: ignore
+        return summarize(days=1)
+    except Exception:
+        heartbeat = read_file_safe(WORKSPACE_DIR / "HEARTBEAT.md", 80)
+        m = re.search(r"- \*\*Fuel:\*\*\s*(.+)", heartbeat)
+        return f"Today: {m.group(1).strip()}" if m else "Today: fuel summary unavailable."
+
+
+def get_fuel_data(days: int = 3) -> str:
+    """Read the fuel log with today first and older entries as secondary context."""
     log_path = WORKSPACE_DIR / "scripts" / "fuel-log.txt"
+    today_summary = get_current_fuel_summary()
     if not log_path.exists():
-        return "(no fuel log found)"
+        return "\n".join([
+            "CURRENT FUEL STATE (authoritative for this issue):",
+            today_summary,
+            "",
+            "RECENT FUEL CONTEXT:",
+            "(no fuel log found)",
+        ])
 
     from datetime import timedelta
-    cutoff = date.today() - timedelta(days=days)
+    cutoff = date.today() - timedelta(days=max(days - 1, 0))
 
     entries = []
     for line in log_path.read_text().splitlines():
@@ -774,7 +795,13 @@ def get_fuel_data(days: int = 10) -> str:
         })
 
     if not entries:
-        return "(no fuel data in the past 10 days)"
+        return "\n".join([
+            "CURRENT FUEL STATE (authoritative for this issue):",
+            today_summary,
+            "",
+            "RECENT FUEL CONTEXT:",
+            f"(no fuel data in the past {days} days)",
+        ])
 
     # Daily totals
     daily: dict = {}
@@ -791,8 +818,14 @@ def get_fuel_data(days: int = 10) -> str:
         daily[d]["items"].append(e["description"])
         daily[d]["sources"].add(e["source"])
 
-    lines = ["RECENT FUEL LOG (last 10 days):"]
-    for d in sorted(daily.keys()):
+    today_iso = date.today().isoformat()
+    lines = [
+        "CURRENT FUEL STATE (authoritative for this issue):",
+        today_summary,
+        "",
+        f"RECENT FUEL CONTEXT (last {days} days; background only, do not lead with older meals):",
+    ]
+    for d in sorted(daily.keys(), reverse=True):
         items_str = " / ".join(daily[d]["items"])
         source_str = ", ".join(sorted(daily[d]["sources"] - {""}))
         nutrient_bits = []
@@ -826,11 +859,188 @@ def get_fuel_data(days: int = 10) -> str:
 
     avg_cal = sum(d["calories"] for d in daily.values()) // max(len(daily), 1)
     avg_pro = sum(d["protein"] for d in daily.values()) // max(len(daily), 1)
-    lines.append(f"AVERAGES (logged days only): {avg_cal} cal/day, {avg_pro}g protein/day")
+    if today_iso in daily:
+        today = daily[today_iso]
+        lines.append(
+            f"TODAY TOTALS: {today['calories']} cal, {today['protein']}g protein, "
+            f"{today['carbs']}g carbs, {today['fat']}g fat, {today['fiber']}g fiber, {today['sodium']}mg sodium"
+        )
+    lines.append(f"BACKGROUND AVERAGES (logged days only, not today's headline): {avg_cal} cal/day, {avg_pro}g protein/day")
     if patterns:
         lines.append("PATTERNS: " + "; ".join(patterns))
 
     return "\n".join(lines)
+
+
+def get_vellum_chart(player: str = "bj") -> str:
+    """Read the player's Vellum chart when present.
+
+    This is optional personal context: labs, BP, medications, supplements,
+    constraints, goals, and current experiments. Absence must never cause the
+    column to invent health facts.
+    """
+    safe_player = re.sub(r"[^a-zA-Z0-9_-]", "", player or "bj") or "bj"
+    path = WORKSPACE_DIR / "players" / f"{safe_player}-vellum-chart.md"
+    text = read_file_safe(path, 180)
+    return compact_text(text, 3500) if text else ""
+
+
+def _read_recent_jsonl(path: Path, limit: int = 20) -> list[dict]:
+    rows: list[dict] = []
+    if not path.exists():
+        return rows
+    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines()[-max(limit * 3, limit):]:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows[-limit:]
+
+
+def _money(amount) -> str:
+    try:
+        return f"${float(amount):,.2f}"
+    except (TypeError, ValueError):
+        return "$0.00"
+
+
+def build_gimble_ledger_brief(player: str = "bj") -> str:
+    """Package Actual Budget/Gimble context for a concise Bleed column."""
+    safe_player = re.sub(r"[^a-zA-Z0-9_-]", "", player or "bj") or "bj"
+    chart = read_file_safe(WORKSPACE_DIR / "players" / f"{safe_player}-ledger-chart.md", 120)
+    rows = _read_recent_jsonl(WORKSPACE_DIR / "players" / f"{safe_player}-ledger-log.jsonl", 40)
+    latest = rows[-1] if rows else {}
+    weather = next((r for r in reversed(rows) if r.get("kind") in ("money_weather", "daily_sync", "weekly_audit")), latest)
+    summary = weather.get("summary") if isinstance(weather.get("summary"), dict) else {}
+
+    lines = [
+        "GIMBLE LEDGER BRIEF:",
+        "Role: Gimble of the Errata Registry, goblin finance support, shame-free accountant of kinetic ink.",
+        "Voice: exact, goblin-practical, unsentimental but safe; accuracy first, no moralizing.",
+        "Rules: no shame, no risky investment/tax certainty, no moving money; turn fog into one number, one risk, one action.",
+        "",
+        "LATEST GIMBLE NOTE:",
+        compact_text(str(weather.get("message") or "(no Gimble note logged yet)"), 1200),
+    ]
+    if summary:
+        accounts = summary.get("accounts") or []
+        if accounts:
+            lines.append("")
+            lines.append("ACCOUNTS:")
+            for account in accounts[:6]:
+                lines.append(f"- {account.get('name', 'Account')}: {_money(account.get('balance'))}")
+        month = summary.get("month") or {}
+        if month:
+            lines.append("")
+            lines.append(
+                "MONTH STATE: "
+                f"income available {_money(month.get('income_available'))}; "
+                f"spent {_money(month.get('total_spent'))}; "
+                f"to budget {_money(month.get('to_budget'))}"
+            )
+        uncategorized = summary.get("uncategorized_count")
+        if uncategorized is not None:
+            lines.append(f"UNBOUND ECHOES: {uncategorized} uncategorized transaction(s).")
+        recent = summary.get("recent") or []
+        if recent:
+            lines.append("RECENT TRANSACTIONS:")
+            for tx in recent[:7]:
+                payee = tx.get("payee") or tx.get("imported_payee") or "Unknown payee"
+                category = tx.get("category") or "uncategorized"
+                lines.append(f"- {tx.get('date', '?')}: {payee} { _money(tx.get('amount')) } [{category}]")
+    if chart:
+        lines.extend(["", "LEDGER CHART:", compact_text(chart, 1200)])
+    return "\n".join(lines)
+
+
+def build_inkrest_column_brief(player: str = "bj") -> str:
+    """Package Dr. Inkrest's therapy/mood memory for a Bleed support column."""
+    safe_player = re.sub(r"[^a-zA-Z0-9_-]", "", player or "bj") or "bj"
+    chart = read_file_safe(WORKSPACE_DIR / "players" / f"{safe_player}-therapy-chart.md", 140)
+    mood_rows = _read_recent_jsonl(WORKSPACE_DIR / "players" / f"{safe_player}-inkrest-log.jsonl", 24)
+    support_memory = read_file_safe(WORKSPACE_DIR / "players" / f"{safe_player}-support-memory.json", 160)
+    pending_path = WORKSPACE_DIR / "players" / f"{safe_player}-inkrest-pending.json"
+    pending = ""
+    if pending_path.exists():
+        try:
+            pending_data = json.loads(pending_path.read_text(encoding="utf-8"))
+            if isinstance(pending_data, dict):
+                pending = json.dumps(pending_data, ensure_ascii=True)[:900]
+        except json.JSONDecodeError:
+            pending = ""
+
+    lines = [
+        "DR. INKREST BRIEF:",
+        "Role: Dr. Selene Inkrest, depth/narrative therapist of the Academy's difficult pages.",
+        "Voice: warm, careful, modern narrative therapy with depth-psychology imagery; practical closure over grand interpretation.",
+        "Rules: no diagnosis, no replacing real therapy, no forced catharsis; use mood memory gently and return symbols to the next livable hour.",
+    ]
+    if mood_rows:
+        lines.append("")
+        lines.append("RECENT ONE-WORD WEATHER:")
+        for row in mood_rows[-10:]:
+            word = row.get("word") or row.get("mood") or row.get("text") or row.get("answer") or ""
+            ts = row.get("timestamp") or row.get("recorded_at") or row.get("time") or ""
+            if word:
+                lines.append(f"- {ts}: {word}")
+    if pending:
+        lines.extend(["", "PENDING CHECK-IN:", pending])
+    if chart:
+        lines.extend(["", "THERAPY CHART:", compact_text(chart, 1600)])
+    if support_memory:
+        lines.extend(["", "SUPPORT MEMORY:", compact_text(support_memory, 1200)])
+    if len(lines) <= 4:
+        lines.append("(no Inkrest memory has been logged yet)")
+    return "\n".join(lines)
+
+
+def build_vellum_longevity_brief(fuel_data: str, health: str, pulse: str, vellum_chart: str = "") -> str:
+    """Package Vellum's column inputs so the model treats her as longevity counsel, not a food clerk."""
+    research_frame = [
+        "CURRENT PRACTICAL LONGEVITY FRAMEWORK:",
+        "- Preserve and build muscle: adequate protein across the day, resistance training, and creatine when appropriate.",
+        "- Protect cardiovascular capacity: daily walking, regular zone-2 movement, and occasional harder efforts scaled to readiness.",
+        "- Stabilize metabolism: fiber-rich plants, protein-forward meals, fewer long stretches of caffeine-only fueling.",
+        "- Protect recovery: sleep regularity, morning light, lower late alcohol/caffeine, and enough calories to support activity.",
+        "- Support cognition and inflammation basics: omega-3-rich fish/foods, hydration, micronutrient diversity, and social connection.",
+        "- Use measurable habits, not moral judgments. Vellum advises experiments, not penance.",
+    ]
+    counsel_rules = [
+        "VELLUM COUNSEL RULES:",
+        "- She may recommend supplements, exercise protocols, and longevity experiments when context supports them.",
+        "- Every supplement recommendation must include why, evidence strength, risks/interactions, and one doctor/pharmacist question when relevant.",
+        "- Every exercise recommendation must be scaled to readiness and offer a minimum-effective version.",
+        "- She may interpret logged trends and prepare doctor questions, but must not diagnose, prescribe, alter prescription medication, or invent lab values.",
+        "- If bloodwork, blood pressure, medications, allergies, or conditions are absent, name the missing context instead of pretending it is known.",
+    ]
+    return "\n".join([
+        "DR. ELOWEN VELLUM COLUMN BRIEF:",
+        "Role: Literary Elf, Book Fae, Academy Dietician, and Department of Applied Longevity physician.",
+        "Voice: precise, dryly kind, marginalia-minded, clinically practical, never shaming.",
+        "Purpose: translate BJ's fuel, vitals, labs, movement, recovery, and longevity research into one or two useful next experiments.",
+        "Freshness rule: treat CURRENT FUEL STATE and HEARTBEAT CONTEXT as today's authoritative data. Older fuel context is background pattern only; do not write as if old meals happened today.",
+        "",
+        "VELLUM CHART / KNOWN PERSONAL CONTEXT:",
+        vellum_chart or "(no Vellum chart data available yet; do not invent bloodwork, blood pressure, medications, or supplements)",
+        "",
+        "LOGGED MEALS / FUEL:",
+        fuel_data or "(no fuel data available)",
+        "",
+        "HEALTH / VITALITY SIGNALS:",
+        health or "(no health signals available)",
+        "",
+        "HEARTBEAT CONTEXT:",
+        compact_text(pulse or "", 800),
+        "",
+        *counsel_rules,
+        "",
+        *research_frame,
+    ])
 
 
 def get_player_recap_data(cfg: dict) -> str:
@@ -1321,6 +1531,115 @@ def record_classifieds_hooks(date_str: str, issue_number: int, classifieds_text:
     out.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
 
 
+def _first_section_sentence(text: str, fallback: str = "") -> str:
+    text = re.sub(r"<[^>]+>", " ", html_unescape(text or ""))
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return fallback
+    bits = re.split(r"(?<=[.!?])\s+", text)
+    return compact_text(bits[0] if bits else text, 220)
+
+
+def _ripple_entities(text: str, limit: int = 4) -> list[str]:
+    text = text or ""
+    candidates: list[str] = []
+    for m in re.finditer(r"\b([A-Z][a-z]+(?:\s+(?:[A-Z][a-z]+|[A-Z]\.)){1,3})\b", text):
+        name = re.sub(r"\s+", " ", m.group(1)).strip()
+        if name in {"The Bleed", "Dr Vellum", "Academy Daily", "Outer Stacks"}:
+            continue
+        if name not in candidates:
+            candidates.append(name)
+        if len(candidates) >= limit:
+            break
+    return candidates
+
+
+def _append_bleed_ripples(entries: list[dict]) -> None:
+    if not entries:
+        return
+    BLEED_RIPPLES_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with BLEED_RIPPLES_LOG.open("a", encoding="utf-8") as f:
+        for entry in entries:
+            f.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
+
+
+def record_bleed_ripples(date_str: str, issue_number: int, sections: dict, meta: dict) -> list[dict]:
+    """Let published journalism create public-pressure facts for later scenes.
+
+    These are not objective canon rewrites. They are how the Academy reacts to
+    what was printed: rumors, reputation pressure, practical nudges, and hooks.
+    """
+    ripples: list[dict] = []
+    now = datetime.now().isoformat(timespec="seconds")
+
+    def add(section: str, effect_type: str, pressure: str, detail: str, *, weight: int = 1) -> None:
+        detail = compact_text(detail, 420)
+        if not detail:
+            return
+        ripples.append({
+            "id": f"bleed-{date_str}-{issue_number}-{len(ripples) + 1}",
+            "timestamp": now,
+            "date": date_str,
+            "issue_number": issue_number,
+            "section": section,
+            "effect_type": effect_type,
+            "pressure": pressure,
+            "detail": detail,
+            "entities": _ripple_entities(detail),
+            "weight": weight,
+            "status": "open",
+        })
+
+    headline = parse_headline(sections.get("HEADLINE", ""))
+    if headline.get("title") or headline.get("body"):
+        add(
+            "HEADLINE",
+            "public_record",
+            "front-page interpretation",
+            f"{headline.get('title', '').strip()}: {headline.get('body', '').strip()}",
+            weight=4,
+        )
+
+    feature = _first_section_sentence(sections.get("FEATURE", ""))
+    if feature:
+        add("FEATURE", "rumor_pressure", "feature article becomes corridor talk", feature, weight=3)
+
+    gossip = _first_section_sentence(sections.get("GOSSIP", ""))
+    if gossip:
+        add("GOSSIP", "social_reaction", "gossip creates reputation pressure", gossip, weight=3)
+
+    war = _first_section_sentence(sections.get("WARREPORT", ""))
+    if war:
+        add("WARREPORT", "talisman_pressure", "app war report changes what factions think is possible", war, weight=4)
+
+    talisman = _first_section_sentence(sections.get("TALISMAN", ""))
+    if talisman:
+        add("TALISMAN", "talisman_pressure", "talisman column colors the next pact move", talisman, weight=3)
+
+    fuel = _first_section_sentence(sections.get("FUEL", ""))
+    if fuel:
+        add("FUEL", "practical_nudge", "Dr. Vellum's column becomes usable advice", fuel, weight=2)
+
+    gimble = _first_section_sentence(sections.get("GIMBLE", ""))
+    if gimble:
+        add("GIMBLE", "ledger_nudge", "Gimble's column becomes a shame-free money prompt", gimble, weight=2)
+
+    inkrest = _first_section_sentence(sections.get("INKREST", ""))
+    if inkrest:
+        add("INKREST", "support_nudge", "Dr. Inkrest's column becomes a reauthoring prompt", inkrest, weight=2)
+
+    goblin = _first_section_sentence(sections.get("GOBLINEXCHANGE", ""))
+    if goblin:
+        add("GOBLINEXCHANGE", "market_offer", "goblin exchange may appear in play", goblin, weight=2)
+
+    classifieds = [b.strip() for b in re.split(r"\n\s*\n", sections.get("CLASSIFIEDS", "")) if b.strip()]
+    for block in classifieds[:3]:
+        add("CLASSIFIEDS", "open_hook", "classified notice can enter the scene as a physical/public hook", block, weight=2)
+
+    _append_bleed_ripples(ripples)
+    return ripples
+
+
 def build_outer_stacks_fallback(data: dict) -> str:
     brief = (data.get("outer_stacks") or "").strip()
     if not brief:
@@ -1444,7 +1763,9 @@ def build_fallback_sections(data: dict, reason: str = "") -> dict:
     health = data.get("health") or "Vitality signals unavailable."
     war_data = data.get("war_data") or "No chapter war data available."
     market = data.get("market_odds_formatted") or "(no thread market data available)"
-    fuel = data.get("fuel_data") or "No provisions log was filed."
+    vellum = data.get("vellum_column_data") or data.get("fuel_data") or "No provisions log was filed."
+    gimble = data.get("gimble_column_data") or "Gimble has not filed a ledger note yet."
+    inkrest = data.get("inkrest_column_data") or "Dr. Inkrest has not filed a reauthoring note yet."
     fae_ledger = data.get("fae_ledger") or "The Margin is clean; no open fae bargains."
     outer = build_outer_stacks_fallback(data) or "No new frontier dispatch has crossed the desk. The Outer Stacks remain adjacent, unsupervised, and politely unaccounted for."
     if len(outer) < 140:
@@ -1486,14 +1807,18 @@ def build_fallback_sections(data: dict, reason: str = "") -> dict:
             "Overall narrative outlook: settled on the surface, active underneath."
         ),
         "MARKET": market,
-        "BAROMETER": (
-            f"Vitality index: {health}\n"
-            "Corridor conditions: locally responsive, with attention pooling around high-Belief rooms.\n"
-            "Student weather: suitable for short walks, careful meals, and questions that do not need to become crises."
-        ),
         "FUEL": (
-            f"{fuel}\n\n"
-            "The Provisions Desk recommends treating stamina as narrative infrastructure. A student cannot carry a season on coffee, symbolism, and vibes alone."
+            f"{vellum}\n\n"
+            f"Vitality barometer: {health}\n\n"
+            "Dr. Vellum's Desk recommends treating longevity as narrative infrastructure: muscle, sleep, movement, protein, fiber, and joy, all annotated without moral drama."
+        ),
+        "GIMBLE": (
+            f"{gimble}\n\n"
+            "Gimble's ruling: bind one clear number, name one risk, and take one tiny account-keeping action without shame."
+        ),
+        "INKREST": (
+            f"{inkrest}\n\n"
+            "Dr. Inkrest's note: notice the story the day is asking BJ to inhabit, then choose the smallest kinder revision available in the next hour."
         ),
         "EXCHANGE": (
             (data.get("entity_standings") or "No exchange prices were available before press time.")
@@ -1537,8 +1862,9 @@ REQUIRED_BLEED_SECTIONS = [
     "WEATHER",
     "FORECAST",
     "MARKET",
-    "BAROMETER",
     "FUEL",
+    "GIMBLE",
+    "INKREST",
     "EXCHANGE",
     "FEATURE",
     "CLASSIFIEDS",
@@ -1631,8 +1957,14 @@ Ascendant:
 {compact_text(data.get('talisman_data', ''), 700)}
 Chapter NPCs: {compact_text(data.get('talisman_npcs', ''), 500)}
 
-Fuel:
-{compact_text(data.get('fuel_data', ''), 600)}
+Dr. Vellum:
+{compact_text(data.get('vellum_column_data', data.get('fuel_data', '')), 900)}
+
+Gimble:
+{compact_text(data.get('gimble_column_data', ''), 900)}
+
+Dr. Inkrest:
+{compact_text(data.get('inkrest_column_data', ''), 900)}
 
 Weather:
 {compact_text(data.get('forecast', ''), 700)}
@@ -1687,17 +2019,23 @@ def generate_content_chunked(data: dict, reason: str = "") -> dict:
             "FEATURE: titled/bylined longer context piece, 4-6 paragraphs, not a repeat of recent features.",
         ),
         (
-            ["WEATHER", "FORECAST", "MARKET", "BAROMETER"],
+            ["WEATHER", "FORECAST", "MARKET"],
             2200,
             "WEATHER: 4-day Academy weather using exact forecast conditions. "
             "FORECAST: narrative weather with probabilities and named threads. "
-            "MARKET: thread futures ticker with YES/NO odds from data and commentary. "
-            "BAROMETER: compact health/vitality conditions.",
+            "MARKET: thread futures ticker with YES/NO odds from data and commentary.",
         ),
         (
-            ["FUEL", "EXCHANGE", "CLASSIFIEDS"],
-            2400,
-            "FUEL: compact provisions log, specific foods and dry professional tone. "
+            ["FUEL", "GIMBLE", "INKREST"],
+            2800,
+            "FUEL: Dr. Vellum's Desk; one comprehensive column combining logged foods, health/vitality signals, and practical longevity advice. "
+            "Do not create a separate Barometer; Vellum owns the whole body/longevity reading. "
+            "GIMBLE: Ledger Office column from Actual Budget/Gimble data; one number, one risk, one non-shaming next action. "
+            "INKREST: Reauthoring Desk column from Inkrest mood/therapy memory; one pattern, one gentle reframing, one next-hour action.",
+        ),
+        (
+            ["EXCHANGE", "CLASSIFIEDS"],
+            2200,
             "EXCHANGE: belief ticker for significant entities, one entity per line in '- Name (Type): Belief N' format, then one commentary paragraph. "
             "Do not write the Goblin Market board inside EXCHANGE; it is provided and rendered separately. "
             "CLASSIFIEDS: 5-6 fresh notices grounded in classified leads and current state.",
@@ -1822,8 +2160,8 @@ This is not a parody — it's a real paper. The extraordinary is covered with th
 reportage as the ordinary. Specificity is everything. Invent concrete details where needed —
 named corridors, specific times, partial quotes — the kind of texture that makes a place feel real.
 
-The reader should be able to SETTLE INTO THIS PAPER. Every section except The Barometer,
-The Exchange, The Correction, The Missing, and The Correspondent should be substantial, readable prose.
+The reader should be able to SETTLE INTO THIS PAPER. Every section except The Exchange,
+The Correction, The Missing, and The Correspondent should be substantial, readable prose.
 
 {data['previous_coverage']}
 
@@ -1868,8 +2206,14 @@ LEADING CHAPTER TALISMAN (for The Ascendant column):
 CHAPTER NPCs AVAILABLE FOR INTERVIEW:
 {data['talisman_npcs']}
 
-FUEL LOG (for The Provisions Log column):
-{data['fuel_data']}
+DR. VELLUM LONGEVITY BRIEF (for Dr. Vellum's Desk):
+{data['vellum_column_data']}
+
+GIMBLE LEDGER BRIEF (for Gimble's Ledger Office):
+{data.get('gimble_column_data', '')}
+
+DR. INKREST BRIEF (for Dr. Inkrest's Reauthoring Desk):
+{data.get('inkrest_column_data', '')}
 
 ENVIRONMENTAL (heartbeat):
 {data['pulse']}
@@ -1936,32 +2280,66 @@ This is the most analytical column — precise, slightly clinical, the newspaper
 MARKET ODDS DATA (pre-calculated from entity belief and thread phase):
 {data['market_odds_formatted']}
 
-===BAROMETER===
-[Health/biometric data AS Academy conditions. Steps = distance covered on Academy grounds.
-Sleep/HRV = student vitality index. Weather = atmospheric pressure. 4-6 short lines,
-formatted like a weather/conditions report. Brief is correct here.]
-
 ===FUEL===
-[The Provisions Log — a compact recurring column in The Bleed's dry academic voice.
-Written as if the Academy's anonymous Provisions Correspondent is filing a professional
-report on what the student correspondent has been consuming.
+[Dr. Vellum's Desk — one comprehensive recurring column by Dr. Elowen Vellum, Literary Elf,
+Book Fae, Academy Dietician, and Department of Applied Longevity physician.
 
-Use the FUEL LOG data provided. If the log says no recent fuel data, say so plainly in-world:
-the Provisions Desk has no filed meals and recommends the correspondent resume logging.
-Do not invent meals or imply nourishment that was not logged. If nutrient details are present,
-translate them into Academy texture; do not print raw calories unless the section is explicitly
-about ledger accuracy. Treat low-confidence estimates as approximate.
+Use the DR. VELLUM LONGEVITY BRIEF. She should include logged meal details when present,
+but the column is no longer only about food. It should connect fuel, sleep, movement,
+recovery, and practical longevity research to the rest of the correspondent's day.
+This is also where health/vitality/barometer signals belong. Do not create or imply a
+separate Barometer column.
+
+Hard rules:
+- Do not invent meals, supplements, exercise, sleep, symptoms, diagnoses, or completed actions.
+- If fuel data is missing, say the ledger is empty and advise resuming logging.
+- Do not claim medical certainty, prescribe medication, or replace a real clinician.
+- Translate raw numbers into practical advice; use calories/protein only when ledger accuracy matters.
+- Give useful, everyday next moves: protein/fiber/hydration, a walk, resistance training,
+  earlier caffeine cutoff, alcohol caution, sleep regularity, creatine/omega-3 as "consider if appropriate,"
+  or a grocery/meal composition suggestion.
 
 Structure:
-- 2-3 sentences observing the recent pattern. Specific. Deadpan. Name the recurring items.
-  ("The correspondent has logged the same morning assembly on four consecutive days...")
-- 1-2 sentences of dry editorial opinion or mild advice, in the voice of someone who has
-  strong feelings about what serious students eat. Not preachy — professional. Wry.
-- 1 closing sentence: a brief prognosis for narrative stamina this week, based on what
-  they've been putting in.
+- 2-3 precise sentences observing what was logged and what vitality signals suggest.
+- 2-3 sentences of longevity advice for the rest of the day, tied to the actual data.
+- 1 closing prognosis in Vellum's dry, kind, exacting voice.
 
-Tone: the wine critic of student dining. Precise, slightly arch, genuinely observant.
-Brief is correct here — this is a sidebar, not a feature.]
+Tone: precise Literary Elf physician with a silver bookmark-caliper. Dryly kind, arch,
+evidence-aware, never shaming. Give her enough room to be genuinely useful.]
+
+===GIMBLE===
+[Gimble's Ledger Office — a recurring finance support column by Gimble of the Errata Registry,
+goblin accountant of kinetic ink.
+
+Use the GIMBLE LEDGER BRIEF. Ground the column in Actual Budget/SimpleFIN data when present:
+current balances, recent transactions, uncategorized "Unbound Echoes", category fog, or the
+latest Gimble instruction. If data is missing, say the ledger has not filed and give one setup
+action.
+
+Hard rules:
+- No shame. No moralizing. Debt and spending are weather, not worth.
+- Do not recommend risky investments, tax/legal certainty, or moving money without consent.
+- Keep it practical: one number, one risk, one tiny action.
+- Use Enchantify finance language sparingly: kinetic ink, vessels, Unbound Echoes, binding the ink.
+
+Tone: goblin-precise, transactional, oddly safe, allergic to unrecorded facts.]
+
+===INKREST===
+[Dr. Inkrest's Reauthoring Desk — a recurring mental-health support column by Dr. Selene Inkrest,
+the Academy's depth and narrative therapist.
+
+Use the DR. INKREST BRIEF. Ground the column in mood check-ins, therapy chart material, support
+memory, or current emotional weather when present. If no mood has been logged, invite a tiny
+one-word check-in without pressure.
+
+Hard rules:
+- Do not diagnose. Do not replace real therapy. Do not force catharsis.
+- Treat depression/PTSD context gently; no guilt, no pressure, no "you should."
+- Use narrative therapy language: problem is not the person; look for preferred identity,
+unique outcomes, tiny reauthoring moves.
+- Bring depth imagery back to the next livable hour.
+
+Tone: warm, precise, unsentimental, symbol-literate, deeply practical.]
 
 ===EXCHANGE===
 [The Belief Exchange ticker. List ALL significant entities with Belief scores as prices,
@@ -2181,11 +2559,12 @@ def _sections_from_saved_html(html: str) -> dict:
     sections['FEATURE'] = extract_feature(stripped)
 
     simple_pairs = [
-        ('GOSSIP', 'Gossip &amp; Corridor Whispers', 'The Barometer'),
-        ('BAROMETER', 'The Barometer', 'The Provisions Log'),
-        ('FUEL', 'The Provisions Log', 'The Exchange'),
-        ('EXCHANGE', 'The Exchange', 'Today at the Academy'),
-        ('PLAYER', 'The Correspondent', 'Chapter War Report'),
+        ('GOSSIP', 'Gossip &amp; Corridor Whispers', 'Today at the Academy'),
+        ('FUEL', "Dr. Vellum's Desk", "Gimble's Ledger Office"),
+        ('GIMBLE', "Gimble's Ledger Office", "Dr. Inkrest's Reauthoring Desk"),
+        ('INKREST', "Dr. Inkrest's Reauthoring Desk", 'The Exchange'),
+        ('EXCHANGE', 'The Exchange', 'Chapter War Report'),
+        ('PLAYER', 'The Correspondent', "Dr. Vellum's Desk"),
         ('WARREPORT', 'Chapter War Report', 'Academy Meteorological Society'),
         ('WEATHER', 'Academy Meteorological Society', 'Story Forecast'),
         ('FORECAST', 'Story Forecast', 'Thread Futures Market'),
@@ -2427,14 +2806,18 @@ def build_feature_image_prompt(feature: str, meta: dict) -> str:
     fallback_context = re.sub(r'\s+', ' ', ' '.join(bit for bit in context_bits if bit)).strip()
     scene_basis = body[:900] if body else fallback_context[:900]
     return (
-        f"Feature illustration for The Bleed, issue #{meta.get('issue_number')}. "
+        f"Character-focused editorial portrait for The Bleed, issue #{meta.get('issue_number')}. "
         f"Story title: {title}. "
-        f"Illustrate the most vivid in-world scene or symbolic image suggested by this story and surrounding issue context: {scene_basis}. "
+        f"Center one named Academy character or correspondent implied by this story. Show face, expression, posture, hands, clothing, and one meaningful object or gesture. "
+        f"Use the story context to choose the character's emotional beat: {scene_basis}. "
+        "Keep rooms, corridors, libraries, doors, desks, and landscapes as faint atmospheric background only; do not make architecture the subject. "
         "Style: illustrated in sparse pen-and-ink linework with loose watercolor washes on textured aged parchment, "
         "with visible paper grain, soft ink bleed, watercolor blooms, layered manuscript-page composition, "
-        "handwritten marginalia, and selective pops of color. Keep the image airy, literary, sketch-like, "
+        "lush handwritten marginalia, lush watercolor washes, visible library stamps, wax seals, labels, tabs, arrows, "
+        "annotations, archival overlays, and selective pops of color. Make the page furniture abundant and integral, "
+        "not timid decoration. Keep the image airy, literary, sketch-like, "
         "and slightly unfinished, like a page from a magical field journal rather than a polished digital illustration. "
-        "Include subtle page layout elements such as notes, labels, sketches, margin writing, or archival overlays so "
+        "Include generous page layout elements such as notes, labels, sketches, margin writing, stamps, seals, and overlays so "
         "the image feels embedded in a manuscript page. Vertical editorial illustration, atmospheric, magical-school newspaper art, "
         "elegant, slightly eerie, richly specific, no caption, no border, no watermark."
     )
@@ -2481,8 +2864,9 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     hl          = parse_headline(sections.get("HEADLINE", ""))
     gossip      = sections.get("GOSSIP", "")
     feature     = sections.get("FEATURE", "")
-    barometer   = sections.get("BAROMETER", "")
     fuel        = sections.get("FUEL", "")
+    gimble      = sections.get("GIMBLE", "")
+    inkrest     = sections.get("INKREST", "")
     exchange    = sections.get("EXCHANGE", "")
     goblin_exchange = sections.get("GOBLINEXCHANGE", "")
     timetable   = build_timetable_html()
@@ -2516,7 +2900,6 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
         else:
             img_src = html.escape(feature_image)
         feature_image_html = f'<div class="feature-image-wrap"><img class="feature-image" src="{img_src}" alt="Feature story illustration"></div>'
-
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2630,7 +3013,7 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
   }}
 
   /* ── MAIN CONTENT GRID ── */
-  /* Row 1: Gossip (wide) | Right rail (narrow) */
+  /* Main rows: give living columns real width; keep the rail light. */
   .content-row {{
     display: grid;
     column-gap: 0;
@@ -2639,7 +3022,7 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
   }}
 
   .row-gossip-feature {{
-    grid-template-columns: 3fr 1.1fr;
+    grid-template-columns: 2.35fr 0.95fr;
   }}
 
   .front-feature-row {{
@@ -2653,6 +3036,27 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
   .row-bottom {{
     grid-template-columns: 1fr 1.2fr;
     border-bottom: none;
+  }}
+
+  .row-support-faculty {{
+    grid-template-columns: 1fr 1fr 1fr;
+    border-bottom: 1.5px solid #111;
+    margin-bottom: 8pt;
+  }}
+
+  .support-column {{
+    font-size: 8.8pt;
+    line-height: 1.62;
+  }}
+
+  .support-column p {{
+    margin-bottom: 0.62em;
+  }}
+
+  .row-exchange {{
+    grid-template-columns: 1.55fr 1fr;
+    border-bottom: 1.5px solid #111;
+    margin-bottom: 8pt;
   }}
 
   .col {{
@@ -2700,7 +3104,7 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
     background: #efe7d8;
   }}
 
-  /* ── RIGHT RAIL (barometer + exchange stacked) ── */
+  /* ── RIGHT RAIL (light stack only) ── */
   .rail-section {{
     margin-bottom: 10pt;
     padding-bottom: 10pt;
@@ -2958,7 +3362,7 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
   <!-- FRONT PAGE FEATURE -->
   {'<section class="front-feature-block content-row ' + ('front-feature-row' if feature_image_html else 'front-feature-row-full') + '"><div class="col"><div class="col-head">Feature</div>' + ('<div class="feature-title">' + feature_title + '</div>' if feature_title else '') + ('<div class="byline">' + feature_byline + '</div>' if feature_byline else '') + paragraphs(feature_body) + '</div>' + ('<div class="col" style="padding-right:0;">' + feature_image_html + '</div>' if feature_image_html else '') + '</section>' if (feature_title or feature_body) else ''}
 
-  <!-- ROW 1: Gossip (wide left) + right rail -->
+  <!-- ROW 1: Gossip (wide left) + light daily rail -->
   <div class="content-row row-gossip-feature">
 
     <div class="col gossip-body">
@@ -2969,28 +3373,43 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
 
     <div class="col" style="padding-right:0;">
       <div class="rail-section">
-        <div class="col-head">The Barometer</div>
-        <div class="rail-body">{paragraphs(barometer)}</div>
-      </div>
-      {'<div class="rail-section"><div class="col-head">The Provisions Log</div><div class="rail-body" style="font-size:8.5pt; line-height:1.6; font-style:italic;">' + paragraphs(fuel) + '</div></div>' if fuel else ''}
-      <div class="rail-section">
-        <div class="col-head">The Exchange</div>
-        <div class="rail-body">{exchange_html(exchange)}{goblin_exchange_html(goblin_exchange)}</div>
-      </div>
-      <div class="rail-section">
         <div class="col-head">Today at the Academy</div>
         <div class="rail-body" style="font-size:8pt; line-height:1.65;">{timetable}</div>
+      </div>
+      <div class="rail-section">
+        <div class="col-head">The Correspondent</div>
+        <div class="rail-body">{paragraphs(player_box) if player_box else "<p><em>(no student activity reported today)</em></p>"}</div>
       </div>
     </div>
 
   </div>
 
-  <!-- ROW 2: Player Correspondent (left) | Chapter War Report (right) -->
-  <div class="content-row row-player-war">
+  <!-- ROW 2: Support Faculty -->
+  <div class="content-row row-support-faculty">
+
+    <div class="col support-column">
+      <div class="col-head">Dr. Vellum's Desk</div>
+      {paragraphs(fuel) if fuel else "<p><em>(no longevity column filed)</em></p>"}
+    </div>
+
+    <div class="col support-column">
+      <div class="col-head">Gimble's Ledger Office</div>
+      {paragraphs(gimble) if gimble else "<p><em>(the ledger drawer did not open before press time)</em></p>"}
+    </div>
+
+    <div class="col support-column" style="padding-right:0;">
+      <div class="col-head">Dr. Inkrest's Reauthoring Desk</div>
+      {paragraphs(inkrest) if inkrest else "<p><em>(no reauthoring note was filed)</em></p>"}
+    </div>
+
+  </div>
+
+  <!-- ROW 3: Exchange + Chapter War Report -->
+  <div class="content-row row-exchange">
 
     <div class="col">
-      <div class="col-head">The Correspondent</div>
-      <div class="player-box">{paragraphs(player_box) if player_box else "<p><em>(no student activity reported today)</em></p>"}</div>
+      <div class="col-head">The Exchange</div>
+      <div class="rail-body">{exchange_html(exchange)}{goblin_exchange_html(goblin_exchange)}</div>
     </div>
 
     <div class="col" style="padding-right:0;">
@@ -3000,12 +3419,12 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
 
   </div>
 
-  <!-- ROW 2b: The Ascendant — leading chapter talisman column -->
+  <!-- ROW 3b: The Ascendant — leading chapter talisman column -->
   {'<div class="content-row row-talisman"><div class="col" style="padding-right:0;"><div class="col-head">The Ascendant &mdash; ' + (meta.get("talisman_name","") or "Chapter Talisman") + '</div><div class="talisman-body">' + paragraphs(talisman) + '</div></div></div>' if talisman else ''}
 
   {'<section id="section-outerstacks" class="content-row row-talisman"><div class="col outerstacks" style="padding-right:0;"><div class="col-head">Outer Stacks &mdash; Frontier Desk</div><div class="war-report-body">' + paragraphs(outerstacks) + '</div></div></section>' if outerstacks else ''}
 
-  <!-- ROW 3: Weather | Story Forecast | Predictions Market -->
+  <!-- ROW 4: Weather | Story Forecast | Predictions Market -->
   <div class="content-row row-forecasts">
 
     <div class="col">
@@ -3025,7 +3444,7 @@ def build_html(sections: dict, sparky: str, meta: dict) -> str:
 
   </div>
 
-  <!-- ROW 4: Classifieds + right stack -->
+  <!-- ROW 5: Classifieds + right stack -->
   <div class="content-row row-bottom">
 
     <div class="col">
@@ -3094,13 +3513,17 @@ def build_telegram_text(sections: dict, sparky: str, meta: dict) -> str:
         body  = "\n".join(lines[1:]).strip()[:600]
         parts += [f"<b>— {esc(title)} —</b>", esc(body) + "…", ""]
 
-    barometer = sections.get("BAROMETER", "")
-    if barometer:
-        parts += [f"<b>Barometer</b>", esc(barometer), ""]
-
     fuel_col = sections.get("FUEL", "")
     if fuel_col:
-        parts += [f"<b>The Provisions Log</b>", f"<i>{esc(fuel_col)}</i>", ""]
+        parts += [f"<b>Dr. Vellum's Desk</b>", f"<i>{esc(fuel_col)}</i>", ""]
+
+    gimble_col = sections.get("GIMBLE", "")
+    if gimble_col:
+        parts += [f"<b>Gimble's Ledger Office</b>", esc(gimble_col[:800] + ("…" if len(gimble_col) > 800 else "")), ""]
+
+    inkrest_col = sections.get("INKREST", "")
+    if inkrest_col:
+        parts += [f"<b>Dr. Inkrest's Reauthoring Desk</b>", f"<i>{esc(inkrest_col[:800] + ('…' if len(inkrest_col) > 800 else ''))}</i>", ""]
 
     exchange = sections.get("EXCHANGE", "")
     if exchange:
@@ -3436,6 +3859,10 @@ def main():
             player_recap     = get_player_recap_data(cfg)
             leading_talisman = get_leading_talisman()
             fuel_data        = get_fuel_data()
+            vellum_chart      = get_vellum_chart(player_data.get("name", "bj"))
+            vellum_column_data = build_vellum_longevity_brief(fuel_data, health, pulse, vellum_chart)
+            gimble_column_data = build_gimble_ledger_brief(player_data.get("name", "bj"))
+            inkrest_column_data = build_inkrest_column_brief(player_data.get("name", "bj"))
             talisman_npcs    = get_chapter_npcs(leading_talisman.get("chapter", "")) if leading_talisman else ""
 
             # Format market odds for prompt injection
@@ -3480,6 +3907,9 @@ def main():
                 "talisman_data":         talisman_data_str,
                 "talisman_npcs":         talisman_npcs or "(no chapter NPCs found)",
                 "fuel_data":             fuel_data,
+                "vellum_column_data":    vellum_column_data,
+                "gimble_column_data":    gimble_column_data,
+                "inkrest_column_data":   inkrest_column_data,
                 "previous_coverage":     previous_coverage,
             }
 
@@ -3556,6 +3986,7 @@ def main():
 
         classifieds_text = sections.get("CLASSIFIEDS", "")
         record_classifieds_hooks(date_str, meta["issue_number"], classifieds_text)
+        ripples = record_bleed_ripples(date_str, meta["issue_number"], sections, meta)
         ensure_scene_ledger_seed(date_str, meta["issue_number"], sections, meta)
 
         # ── Mark delivered ───────────────────────────────────────────────────
@@ -3566,6 +3997,7 @@ def main():
             scope=date_str,
             issue_number=meta["issue_number"],
             html=str(issue_path),
+            bleed_ripples=len(ripples),
         )
 
         print(f"  ✓ The Bleed #{meta['issue_number']} published.")

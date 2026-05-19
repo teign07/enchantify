@@ -6,7 +6,7 @@ in HEARTBEAT.md, preserving the permanent standing orders below.
 Belfast M4 Build — March 2026
 """
 
-import os, sys, json, subprocess, requests, imaplib, email, time, shutil, math
+import os, sys, json, subprocess, requests, imaplib, email, time, shutil, math, signal
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -46,7 +46,7 @@ ENCHANTIFY_WORKSPACE = os.path.join(WORKSPACE, "enchantify")
 HEARTBEAT_FILE = os.path.join(ENCHANTIFY_WORKSPACE, "HEARTBEAT.md")
 PREVIOUS_PULSE_FILE = os.path.join(ENCHANTIFY_WORKSPACE, "PREVIOUS_PULSE.md")
 SILVIE_HEARTBEAT_FILE = os.path.join(WORKSPACE, "HEARTBEAT.md")
-STATS_CACHE = os.path.join(WORKSPACE, "stats_cache.json")
+STATS_CACHE = os.path.join(ENCHANTIFY_WORKSPACE, "config", "pulse-cache.json")
 HEALTH_CACHE = os.path.join(ENCHANTIFY_WORKSPACE, "config", "health-cache.json")
 HEALTH_LOG = os.path.join(ENCHANTIFY_WORKSPACE, "logs", "health.log")
 
@@ -92,6 +92,7 @@ def set_cache_val(key, val):
                 data = json.load(f)
         except: pass
     data[key], data[f"{key}_ts"] = val, time.time()
+    os.makedirs(os.path.dirname(STATS_CACHE), exist_ok=True)
     with open(STATS_CACHE, 'w') as f: 
         json.dump(data, f)
 
@@ -466,7 +467,7 @@ def get_calendar():
     except: return "Calendar unreachable."
 
 def get_frontmost_app():
-    cmd = """osascript -e 'tell application "System Events"
+    script = """tell application "System Events"
         set frontApp to name of first application process whose frontmost is true
         try
             set windowTitle to name of front window of process frontApp
@@ -474,8 +475,13 @@ def get_frontmost_app():
         on error
             return frontApp
         end try
-    end tell'"""
-    try: return subprocess.getoutput(cmd).strip()
+    end tell"""
+    try:
+        proc = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=3)
+        out = (proc.stdout or proc.stderr).strip()
+        if not out or "execution error" in out.lower() or "error of type" in out.lower():
+            return "Unavailable"
+        return out
     except: return "Unknown"
 
 def get_presence():
@@ -491,13 +497,30 @@ def get_presence():
 
 def get_location_context():
     try:
+        def clean_wifi(value: str) -> str:
+            value = (value or "").strip()
+            bad_markers = (
+                "error",
+                "not associated",
+                "no such file",
+                "command not found",
+                "permission denied",
+            )
+            if (
+                not value
+                or any(marker in value.lower() for marker in bad_markers)
+                or (value.startswith("-") and value[1:].isdigit())
+            ):
+                return ""
+            return value
+
         cmd = "networksetup -getairportnetwork en0 | cut -d ':' -f 2"
-        wifi = subprocess.getoutput(cmd).strip()
-        if not wifi or "Error" in wifi or "not associated" in wifi:
+        wifi = clean_wifi(subprocess.getoutput(cmd))
+        if not wifi:
             cmd_fallback = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I | awk '/ SSID/ {print substr($0, index($0, $2))}'"
-            wifi = subprocess.getoutput(cmd_fallback).strip()
+            wifi = clean_wifi(subprocess.getoutput(cmd_fallback))
         if wifi == HOME_WIFI: return "At Home (Belfast)"
-        return f"Mobile ({wifi})" if wifi else "Offline/Woods"
+        return f"Mobile ({wifi})" if wifi else "Wi-Fi Unknown"
     except: return "Location Unknown"
 
 def get_focus_status():
@@ -508,9 +531,10 @@ def get_focus_status():
     except: return "Available"
 
 def get_spotify():
-    cmd = """osascript -e 'tell application "System Events" to if (get name of every process) contains "Spotify" then tell application "Spotify" to return name of current track & " by " & artist of current track'"""
+    script = 'tell application "System Events" to if (get name of every process) contains "Spotify" then tell application "Spotify" to return name of current track & " by " & artist of current track'
     try:
-        out = subprocess.getoutput(cmd)
+        proc = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=3)
+        out = (proc.stdout or proc.stderr).strip()
         return out if out and "error" not in out.lower() else "The house is quiet."
     except: return "The house is quiet."
 
@@ -571,8 +595,71 @@ def get_biz_stats():
     return stats
 
 def get_finances():
-    cached = get_cache_val("bank_data", 43200)
-    if cached: return cached
+    cached = get_cache_val("bank_data", 3600)
+    if cached and "Bank sync pending" not in str(cached):
+        return cached
+    actual_api = os.path.join(ENCHANTIFY_WORKSPACE, "scripts", "actual-api.mjs")
+    if os.path.exists(actual_api):
+        for attempt in range(2):
+            try:
+                proc = subprocess.run(
+                    ["node", actual_api, "summary"],
+                    cwd=ENCHANTIFY_WORKSPACE,
+                    capture_output=True,
+                    text=True,
+                    timeout=90,
+                )
+                if proc.returncode == 0:
+                    output = proc.stdout
+                    marker = "__ACTUAL_JSON_START__"
+                    end_marker = "__ACTUAL_JSON_END__"
+                    if marker in output and end_marker in output:
+                        output = output.split(marker, 1)[1].split(end_marker, 1)[0]
+                    data = json.loads(output)
+                    accounts = [
+                        a for a in data.get("accounts", [])
+                        if not a.get("closed") and not a.get("offbudget")
+                    ]
+                    total = sum(float(a.get("balance") or 0) for a in accounts)
+                    account_lines = [
+                        f"- {a.get('name', 'Account')}: ${float(a.get('balance') or 0):,.2f}"
+                        for a in accounts[:6]
+                    ]
+                    recent_lines = []
+                    for tx in data.get("recent", [])[:7]:
+                        amount = float(tx.get("amount") or 0)
+                        category = tx.get("category") or "Uncategorized"
+                        recent_lines.append(
+                            f"- {tx.get('date', '?')} — {tx.get('payee') or 'Unknown'}: ${amount:,.2f} ({category})"
+                        )
+                    uncategorized = int(data.get("uncategorized_count") or 0)
+                    month = data.get("month") or {}
+                    month_line = ""
+                    if month:
+                        spent = month.get("total_spent")
+                        to_budget = month.get("to_budget")
+                        parts = []
+                        if spent is not None:
+                            parts.append(f"month spending ${float(spent):,.2f}")
+                        if to_budget is not None:
+                            parts.append(f"to budget ${float(to_budget):,.2f}")
+                        if parts:
+                            month_line = f"\nMonthly: {', '.join(parts)}"
+                    info = (
+                        f"Actual/SimpleFIN fresh at {datetime.now().strftime('%-I:%M %p')}.\n"
+                        f"On-budget balance: ${total:,.2f}{month_line}\n"
+                        f"Unbound Echoes: {uncategorized}\n"
+                        f"Accounts:\n" + ("\n".join(account_lines) if account_lines else "- No on-budget accounts found.") +
+                        "\nRecent Kinetic Ink:\n" + ("\n".join(recent_lines) if recent_lines else "- No recent transactions found.")
+                    )
+                    info = info.replace("\n", "\n  ")
+                    set_cache_val("bank_data", info)
+                    return info
+            except Exception:
+                pass
+            time.sleep(2)
+    if not (TELLER_TOKEN and TELLER_ACCOUNT_ID):
+        return "Actual/SimpleFIN unavailable; Gimble could not read the ledger on this pulse."
     try:
         cert = (os.path.expanduser("~/.teller/cert.pem"), os.path.expanduser("~/.teller/key.pem"))
         b_res = requests.get(f"https://api.teller.io/accounts/{TELLER_ACCOUNT_ID}/balances", auth=(TELLER_TOKEN, ''), cert=cert, timeout=5).json()
@@ -955,16 +1042,29 @@ def pulse():
     # Write pulse to enchantify HEARTBEAT.md and save previous pulse for change detection
     write_pulse_to_heartbeat(pulse_content, HEARTBEAT_FILE, save_previous=True)
 
-    # Mirror pulse to Silvie's main workspace HEARTBEAT.md only when that
-    # sibling agent has already created the file. New Enchantify installs
-    # should not create cross-agent state by default.
-    if os.path.exists(SILVIE_HEARTBEAT_FILE):
+    # Mirror pulse to Silvie's main workspace HEARTBEAT.md only when explicitly
+    # enabled. Keeping the default inside Enchantify prevents root workspace
+    # files from being rewritten and pulled into unrelated agent context.
+    if _cfg_get("PULSE_MIRROR_SILVIE", "0") == "1" and os.path.exists(SILVIE_HEARTBEAT_FILE):
         write_pulse_to_heartbeat(pulse_content, SILVIE_HEARTBEAT_FILE, save_previous=False)
 
-    # Regenerate mission control dashboard after every pulse
+    # Regenerate mission control dashboard after every pulse. This is useful, but
+    # Heartbeat must never hang if the dashboard renderer is busy.
     mc = os.path.join(ENCHANTIFY_WORKSPACE, "scripts", "mission-control.py")
     if os.path.exists(mc):
-        subprocess.run([sys.executable, mc], capture_output=True, timeout=30)
+        proc = subprocess.Popen(
+            [sys.executable, mc],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        try:
+            proc.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(proc.pid, signal.SIGTERM)
+            except Exception:
+                proc.kill()
 
 if __name__ == "__main__":
     pulse()

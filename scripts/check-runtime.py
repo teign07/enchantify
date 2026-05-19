@@ -9,12 +9,14 @@ under /tmp or tmp/scene-outbox.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 
@@ -64,6 +66,11 @@ def check_required_files() -> Check:
         "scripts/fae-ledger.py",
         "scripts/enchantment.py",
         "scripts/food_log.py",
+        "scripts/therapy-chart.py",
+        "scripts/vellum-chart.py",
+        "scripts/support-faculty.py",
+        "scripts/housekeeping.py",
+        "scripts/drawthings-keepalive.py",
         "scripts/check-health.py",
         "scripts/scene-contract.py",
         "scripts/page-contract.py",
@@ -74,6 +81,7 @@ def check_required_files() -> Check:
         "scripts/narrative-health.py",
         "scripts/narrative-steward.py",
         "scripts/thread-steward.py",
+        "scripts/write-thread-row.py",
         "scripts/cron_steward.py",
         "scripts/class-lecture.py",
         "scripts/widget-state.py",
@@ -169,6 +177,48 @@ def check_scene_choices() -> Check:
             pass
 
 
+def substantial_scene(location: str = "the Academy threshold") -> str:
+    return (
+        f"You are still at {location}. The first thing the page does is keep faith with the room: "
+        "the cup nearest your hand is cooling, the nearest chair keeps its angle, and the last thing said has not been swept away for the convenience of the next beat.\n\n"
+        "Zara notices the pause before anyone names it. She does not fill it immediately. She turns her mug by a quarter inch, watches the tea answer with one small ring of steam, and lets the silence become social instead of empty.\n\n"
+        "\"If the Book is going to ask us for courage,\" she says, \"it can at least let us know which kind.\" The line lands lightly, but not lazily. It gives the scene a hinge: ordinary enough to stay human, strange enough to belong here.\n\n"
+        "The weather presses its gray forehead to the window. Somewhere beyond the door, another student laughs and then lowers their voice, as if laughter has rules in this part of the hall. The details become more accountable because the page is refusing to rush: the table grain, the sleeve cuff, the way everyone waits to see whether this becomes comfort or investigation.\n\n"
+        "A folded note waits near the candle, but no one grabs it. Zara sees you see it and smiles with one side of her mouth, the expression she uses when she is not sure whether curiosity is kindness yet. She taps the table once. The note does not move. The candle leans as if listening.\n\n"
+        "For a moment the Academy feels less like a machine for plot and more like a place where people have to decide what kind of attention they are offering each other. A passing student carries a tray of cups toward the far benches. The sound is practical, ceramic, human. It keeps the scene from turning into a bulletin board of clues.\n\n"
+        "Zara finally says, \"We could be careful without being solemn.\" That is the invitation under the whole page. Careful could mean tea. Careful could mean evidence. Careful could mean following the one detail that has chosen to be odd in public.\n\n"
+        "You have enough time to notice her properly: ink on the side of her thumb, the small tension at the corner of her jaw, the way she keeps looking at the note and then back to you as if asking whether the two of you are allowed to be ordinary first. This is the part short scenes usually skip, and it matters. Relationship is not a caption under an event. It is the event taking its time.\n\n"
+        "The room gives you supporting evidence. The candle gutters once, recovers, and leaves a bead of wax shaped like a comma. The benches farther away are scuffed from years of knees and satchels. Someone has carved a tiny star into the table edge, then tried to sand it out and failed. The page keeps these things because they make the choice feel inhabited rather than assigned.\n\n"
+        "If real risk enters, it will need a Belief roll before the page pretends to know the outcome. For now, the choice is smaller and therefore sharper: stay with care, turn toward the marked clue, or follow the one detail that does not belong. The scene has earned the handoff, and the handoff has enough life in it to be chosen. Even the pause before choosing feels playable, which is the whole point of this smoke scene today, here, now.\n\n"
+        "What do you do?\n"
+        "1. [LIFE] Ask whether anyone wants tea before the next strange thing happens, giving the room one ordinary kindness to gather around.\n"
+        "2. [ARC] Try a Belief roll to investigate the marked drawer and read the clue inside, letting the current thread answer through evidence instead of panic.\n"
+        "3. [SURPRISE] Follow the draft under the side door no one mentioned, because the page may be asking a better sideways question.\n"
+    )
+
+
+def check_housekeeping() -> Check:
+    result = run(
+        [sys.executable, str(SCRIPTS / "housekeeping.py"), "--dry-run", "--json"],
+        name="housekeeping",
+        timeout=120,
+    )
+    if not result.ok:
+        return result
+    return Check("housekeeping", True, "dry-run storage cleanup reports safely")
+
+
+def check_drawthings_keepalive() -> Check:
+    result = run(
+        [sys.executable, str(SCRIPTS / "drawthings-keepalive.py"), "--dry-run", "--generate", "--json"],
+        name="drawthings keepalive",
+        timeout=60,
+    )
+    if not result.ok:
+        return result
+    return Check("drawthings keepalive", True, "dry-run app/API poke and image prompt works")
+
+
 def check_scene_contract(player: str) -> Check:
     proc = subprocess.run(
         [sys.executable, str(SCRIPTS / "scene-contract.py"), player, "--mode", "slice", "--json"],
@@ -184,16 +234,10 @@ def check_scene_contract(player: str) -> Check:
         contract_data = json.loads(proc.stdout)
     except Exception as exc:
         return Check("scene contract", False, f"invalid JSON: {exc}")
+    if not (contract_data.get("tool_packet_suggestion") or {}).get("sequence"):
+        return Check("scene contract", False, "missing page-aware tool packet suggestion")
     location = contract_data.get("current_location") or "Academy room"
-    scene = (
-        f"You are still at {location}. The cups, the long benches, "
-        "and the ordinary scrape of chairs remain where the last page left them. If the draft under the "
-        "side door feels risky, the Book will call for a Belief roll before resolving it.\n\n"
-        "What do you do?\n"
-        "1. [LIFE] Ask whether anyone wants tea before the next strange thing happens.\n"
-        "2. [ARC] Try a Belief roll to investigate the marked drawer and read the clue inside.\n"
-        "3. [SURPRISE] Follow the draft under the side door no one mentioned.\n"
-    )
+    scene = substantial_scene(location)
     with tempfile.NamedTemporaryFile("w", suffix=".txt", prefix="enchantify-contract-", delete=False) as f:
         f.write(scene)
         path = Path(f.name)
@@ -226,6 +270,131 @@ def check_scene_contract(player: str) -> Check:
             pass
 
 
+def check_live_scene_repair_retry(player: str) -> Check:
+    bad_scene = (
+        "The Nothing screams through the dormitory window and Wicker's threat shatters the room before you can breathe.\n\n"
+        + substantial_scene("the dormitory table").split("What do you do?")[0]
+        +
+        "What do you do?\n"
+        "1. [LIFE] Investigate the Duskthorn clue in the marked drawer.\n"
+        "2. [ARC] Sit quietly for tea and wait.\n"
+        "3. [SURPRISE] Think about the situation."
+    )
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", prefix="enchantify-repair-", delete=False) as f:
+        f.write(bad_scene)
+        path = Path(f.name)
+    try:
+        result = run(
+            [
+                sys.executable,
+                str(SCRIPTS / "run-live-scene.py"),
+                player,
+                "--text-file",
+                str(path),
+                "--scene-mode",
+                "slice",
+                "--dry-run",
+                "--bypass-mechanics-preflight",
+            ],
+            name="live scene repair",
+            timeout=120,
+        )
+        if not result.ok:
+            return result
+        repaired = path.read_text(encoding="utf-8")
+        required = ["tea", "clue", "Follow the odd draft"]
+        missing = [item for item in required if item not in repaired]
+        if missing:
+            return Check("live scene repair", False, "repair missing: " + ", ".join(missing))
+        if any(tag in repaired for tag in ("[LIFE]", "[ARC]", "[SURPRISE]")):
+            return Check("live scene repair", False, "choice tags were not stripped after repair")
+        return Check("live scene repair", True, "contract/choice failures repair once before delivery")
+    finally:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def check_page_tool_packet_builder(player: str) -> Check:
+    scene = substantial_scene("the Academy threshold")
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", prefix="enchantify-packet-", delete=False) as f:
+        f.write(scene)
+        scene_path = Path(f.name)
+    out_path = Path(tempfile.gettempdir()) / "enchantify-page-tool-packet.json"
+    try:
+        state_path = Path(tempfile.gettempdir()) / "enchantify-page-tool-state.json"
+        try:
+            state_path.unlink()
+        except FileNotFoundError:
+            pass
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS / "scene_packet_builder.py"),
+                player,
+                "--text-file",
+                str(scene_path),
+                "--scene-mode",
+                "arc",
+                "--out",
+                str(out_path),
+            ],
+            cwd=BASE,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env={**os.environ, "ENCHANTIFY_TOOL_STATE": str(state_path)},
+        )
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+            return Check("page tool packet", False, detail[0] if detail else "packet build failed")
+        packet = json.loads(out_path.read_text(encoding="utf-8"))
+        metadata = packet.get("metadata") or {}
+        if metadata.get("tool_authority") != "page-tool-posture":
+            return Check("page tool packet", False, "packet did not use Page tool posture")
+        expected = ["text", "lights", "image", "voice", "music", "spotify", "wallpaper", "app_actions"]
+        if packet.get("sequence") != expected:
+            return Check("page tool packet", False, "conflict page sequence not applied")
+        if "lights" not in packet or "music" not in packet or "wallpaper" not in packet or "app_actions" not in packet:
+            return Check("page tool packet", False, "page-native high-intrusion cues missing")
+        return Check("page tool packet", True, "Page tool posture overrides legacy intensity with intrusion rails")
+    finally:
+        for path in (scene_path, out_path, Path(tempfile.gettempdir()) / "enchantify-page-tool-state.json"):
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+
+
+def check_character_image_prompt() -> Check:
+    sync = run([sys.executable, str(SCRIPTS / "character-visuals.py"), "sync"], name="character visuals", timeout=60)
+    if not sync.ok:
+        return sync
+    spec = importlib.util.spec_from_file_location("scene_packet_builder", SCRIPTS / "scene_packet_builder.py")
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+    prompt = module.build_image_prompt(
+        "Wicker waits by the wrong door",
+        "tense invitation",
+        "lamps burn too gold",
+        "Wicker Eddies; Zara Finch",
+        "Wicker Eddies tilts his head and holds up a brass key. Zara Finch watches from the stair.",
+    )
+    lowered = prompt.lower()
+    required = ["character-focused", "face", "posture", "hands", "meaningful object"]
+    missing = [item for item in required if item not in lowered]
+    if missing:
+        return Check("character image prompt", False, "missing: " + ", ".join(missing))
+    for item in ("canonical visual identity", "wrong-door brass key", "chaos sigils"):
+        if item not in lowered:
+            return Check("character image prompt", False, f"missing Wicker visual canon: {item}")
+    if "scene frame" in lowered:
+        return Check("character image prompt", False, "room-first Scene frame language returned")
+    return Check("character image prompt", True, "image prompts prefer character canon over rooms")
+
+
 def check_page_contract(player: str) -> Check:
     proc = subprocess.run(
         [sys.executable, str(SCRIPTS / "page-contract.py"), player, "--json"],
@@ -245,6 +414,9 @@ def check_page_contract(player: str) -> Check:
     missing = [key for key in required if not data.get(key)]
     if missing:
         return Check("page contract", False, "missing: " + ", ".join(missing))
+    posture = data.get("tool_posture") or {}
+    if not posture.get("preferred_tools") or not posture.get("triggers"):
+        return Check("page contract", False, "missing page tool posture")
     enchantment = run(
         [sys.executable, str(SCRIPTS / "page-contract.py"), player, "--page-type", "enchantment"],
         name="page contract enchantment",
@@ -252,6 +424,13 @@ def check_page_contract(player: str) -> Check:
     )
     if not enchantment.ok:
         return Check("page contract", False, enchantment.detail)
+    difficult = run(
+        [sys.executable, str(SCRIPTS / "page-contract.py"), player, "--page-type", "difficult", "--json"],
+        name="page contract difficult",
+        timeout=60,
+    )
+    if not difficult.ok:
+        return Check("page contract", False, difficult.detail)
     return Check("page contract", True, f"{data.get('page_label')} selected; explicit pages work")
 
 
@@ -295,7 +474,57 @@ def check_class_lecture(player: str) -> Check:
         return result
     if result.detail != "CLASS LECTURE DIRECTIVE":
         return Check("class lecture", False, "unexpected output")
-    return Check("class lecture", True, "non-mutating lecture directive builds")
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS / "class-lecture.py"),
+            player,
+            "--class-id",
+            "basic-enchantments",
+            "--status",
+        ],
+        cwd=BASE,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if "Render only this segment" not in proc.stdout or "Forbidden compression phrases" not in proc.stdout:
+        return Check("class lecture", False, "directive missing anti-compression rules")
+    return Check("class lecture", True, "non-mutating lecture directive builds with segment rails")
+
+
+def check_classroom_contract_validation() -> Check:
+    spec = importlib.util.spec_from_file_location("scene_contract", SCRIPTS / "scene-contract.py")
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+    contract = {
+        "scene_mode": "school-life",
+        "current_location": "The Quillquarium",
+        "mechanics": {},
+        "page_contract": {"page_type": "slice_of_life", "page_label": "Slice of Life Page"},
+        "story_context": {},
+        "classroom_contract": {
+            "active": True,
+            "professor": "Professor Luna Wispwood",
+            "room": "The Quillquarium",
+            "classmates": ["Serenity Brown", "Zara Finch"],
+            "lesson_title": "Object Address",
+            "segment_index": 0,
+            "segment": "professor demonstration",
+        },
+    }
+    compressed_scene = (
+        "In the Quillquarium, class passes quickly. Professor Luna Wispwood covers Object Address while everyone listens.\n\n"
+        "What do you do?\n"
+        "1. [LIFE] Ask whether Serenity wants tea after the classroom quiets.\n"
+        "2. [ARC] Continue the lesson by asking Luna to demonstrate the next concept.\n"
+        "3. [SURPRISE] Follow the draft under the side door no one mentioned.\n"
+    )
+    failures = module.validate_scene(compressed_scene, contract)
+    if not any("compressed" in failure for failure in failures):
+        return Check("classroom validation", False, "compressed class scene was not rejected")
+    return Check("classroom validation", True, "compressed class summaries are rejected")
 
 
 def check_widget_state(player: str) -> Check:
@@ -472,6 +701,238 @@ def check_bleed_fallback() -> Check:
     return result
 
 
+def check_bleed_vellum_column() -> Check:
+    text = (SCRIPTS / "bleed.py").read_text(encoding="utf-8")
+    required = [
+        "Dr. Vellum's Desk",
+        "DR. VELLUM LONGEVITY BRIEF",
+        "VELLUM CHART / KNOWN PERSONAL CONTEXT",
+        "Department of Applied Longevity physician",
+        "resistance training",
+        "doctor/pharmacist question",
+        "Do not invent meals",
+    ]
+    missing = [item for item in required if item not in text]
+    if missing:
+        return Check("bleed vellum column", False, "missing: " + ", ".join(missing))
+    return Check("bleed vellum column", True, "Provisions Log is now Vellum longevity desk")
+
+
+def check_vellum_chart() -> Check:
+    path = BASE / "players" / "bj-vellum-chart.md"
+    if not path.exists():
+        return Check("vellum chart", False, "players/bj-vellum-chart.md missing")
+    text = path.read_text(encoding="utf-8")
+    required = [
+        "Vellum Rules",
+        "Latest Labs",
+        "Blood Pressure",
+        "Current Supplements",
+        "Current Experiments",
+        "Doctor / Pharmacist Questions",
+    ]
+    missing = [item for item in required if item not in text]
+    if missing:
+        return Check("vellum chart", False, "missing sections: " + ", ".join(missing))
+    return Check("vellum chart", True, "personal longevity context scaffold present")
+
+
+def check_vellum_chart_helper() -> Check:
+    tmp_chart = Path(tempfile.gettempdir()) / "enchantify-vellum-chart-check.md"
+    try:
+        try:
+            tmp_chart.unlink()
+        except FileNotFoundError:
+            pass
+        commands = [
+            [sys.executable, str(SCRIPTS / "vellum-chart.py"), "--chart", str(tmp_chart), "init"],
+            [sys.executable, str(SCRIPTS / "vellum-chart.py"), "--chart", str(tmp_chart), "bp", "128", "82", "--pulse", "74", "--context", "after coffee"],
+            [sys.executable, str(SCRIPTS / "vellum-chart.py"), "--chart", str(tmp_chart), "lab", "A1C", "5.4", "--unit", "%", "--date", "2026-05-10"],
+            [sys.executable, str(SCRIPTS / "vellum-chart.py"), "--chart", str(tmp_chart), "supplement", "creatine monohydrate", "--dose", "5g", "--frequency", "daily", "--why", "strength experiment"],
+            [sys.executable, str(SCRIPTS / "vellum-chart.py"), "--chart", str(tmp_chart), "experiment", "Lunch protein floor", "--metric", "3 PM hunger"],
+            [sys.executable, str(SCRIPTS / "vellum-chart.py"), "--chart", str(tmp_chart), "question", "Is creatine appropriate with my kidney markers?"],
+        ]
+        for cmd in commands:
+            result = run(cmd, name="vellum chart helper", timeout=60)
+            if not result.ok:
+                return result
+        text = tmp_chart.read_text(encoding="utf-8")
+        required = ["128 | 82", "| A1C | 5.4", "creatine monohydrate", "Lunch protein floor", "kidney markers"]
+        missing = [item for item in required if item not in text]
+        if missing:
+            return Check("vellum chart helper", False, "missing writes: " + ", ".join(missing))
+        return Check("vellum chart helper", True, "structured BP/lab/supplement/experiment/question writes work")
+    finally:
+        try:
+            tmp_chart.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def check_therapy_chart_helper() -> Check:
+    tmp_chart = Path(tempfile.gettempdir()) / "enchantify-therapy-chart-check.md"
+    try:
+        try:
+            tmp_chart.unlink()
+        except FileNotFoundError:
+            pass
+        commands = [
+            [sys.executable, str(SCRIPTS / "therapy-chart.py"), "--chart", str(tmp_chart), "init"],
+            [sys.executable, str(SCRIPTS / "therapy-chart.py"), "--chart", str(tmp_chart), "checkin", "--mood", "tight chest", "--problem", "The Fog", "--preferred", "BJ who takes one small step", "--action", "drink water"],
+            [sys.executable, str(SCRIPTS / "therapy-chart.py"), "--chart", str(tmp_chart), "daydream", "a locked reading room", "--feeling", "curious", "--meaning", "privacy with a door", "--action", "write one sentence"],
+            [sys.executable, str(SCRIPTS / "therapy-chart.py"), "--chart", str(tmp_chart), "reauthor", "--old-story", "I always stall", "--unique-outcome", "I asked for help", "--preferred-identity", "someone who returns", "--proof", "the chart exists"],
+            [sys.executable, str(SCRIPTS / "therapy-chart.py"), "--chart", str(tmp_chart), "question", "What pattern should I bring to a therapist?"],
+        ]
+        for cmd in commands:
+            result = run(cmd, name="therapy chart helper", timeout=60)
+            if not result.ok:
+                return result
+        text = tmp_chart.read_text(encoding="utf-8")
+        required = ["The Fog", "locked reading room", "I always stall", "bring to a therapist"]
+        missing = [item for item in required if item not in text]
+        if missing:
+            return Check("therapy chart helper", False, "missing writes: " + ", ".join(missing))
+        return Check("therapy chart helper", True, "structured check-in/daydream/reauthor/question writes work")
+    finally:
+        try:
+            tmp_chart.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def check_support_faculty_helper() -> Check:
+    tmp_home = Path(tempfile.gettempdir()) / "enchantify-support-faculty-check"
+    pending = BASE / "players" / "bj-inkrest-pending.json"
+    ink_log = BASE / "players" / "bj-inkrest-log.jsonl"
+    pending_before = pending.read_text(encoding="utf-8") if pending.exists() else None
+    ink_before = ink_log.read_text(encoding="utf-8") if ink_log.exists() else None
+    try:
+        result = run(
+            [sys.executable, str(SCRIPTS / "support-faculty.py"), "inkrest-checkin", "--slot", "midday", "--dry-run"],
+            name="support faculty",
+            timeout=60,
+        )
+        if not result.ok:
+            return result
+        if "one word" not in result.detail.lower() or "weather in you" not in result.detail.lower():
+            return Check("support faculty", False, "Inkrest check-in prompt missing")
+        vellum = run(
+            [sys.executable, str(SCRIPTS / "support-faculty.py"), "vellum-brief", "--dry-run"],
+            name="support faculty vellum",
+            timeout=60,
+        )
+        if not vellum.ok:
+            return vellum
+        if "Dr. Vellum" not in vellum.detail or "small hinge" not in vellum.detail:
+            return Check("support faculty", False, "Vellum brief missing body/fuel read")
+        research = run(
+            [sys.executable, str(SCRIPTS / "support-faculty.py"), "research", "--doctor", "inkrest", "--dry-run"],
+            name="support faculty research",
+            timeout=60,
+        )
+        if not research.ok:
+            return research
+        if "Independent Brief" not in research.detail:
+            return Check("support faculty", False, "support research brief missing experiment")
+        pending.write_text(
+            json.dumps({
+                "kind": "inkrest-checkin",
+                "slot": "midday",
+                "sent_at": datetime.now().isoformat(timespec="seconds"),
+                "message": "runtime test",
+                "status": "awaiting-reply",
+            }),
+            encoding="utf-8",
+        )
+        routed = run(
+            [sys.executable, str(SCRIPTS / "support-faculty.py"), "inkrest-route", "tired", "--context", "runtime-test"],
+            name="support faculty route",
+            timeout=60,
+        )
+        if not routed.ok:
+            return routed
+        if pending.exists():
+            return Check("support faculty", False, "Inkrest pending marker was not cleared")
+        return Check("support faculty", True, "Inkrest/Vellum check-ins, routing, briefs, and research dry-run")
+    finally:
+        if pending_before is None:
+            try:
+                pending.unlink()
+            except FileNotFoundError:
+                pass
+        else:
+            pending.write_text(pending_before, encoding="utf-8")
+        if ink_before is None:
+            try:
+                ink_log.unlink()
+            except FileNotFoundError:
+                pass
+        else:
+            ink_log.write_text(ink_before, encoding="utf-8")
+        try:
+            tmp_home.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def check_inkrest_calendar() -> Check:
+    result = run([sys.executable, str(SCRIPTS / "build-academy-calendar.py")], name="academy calendar", timeout=60)
+    if not result.ok:
+        return result
+    ics = (BASE / "hooks" / "enchantify_schedule.ics").read_text(encoding="utf-8", errors="replace")
+    required = ["Dr. Inkrest Office Hours", "RRULE:FREQ=WEEKLY;BYDAY=TU", "RRULE:FREQ=WEEKLY;BYDAY=TH", "Reauthoring Rooms"]
+    missing = [item for item in required if item not in ics]
+    if missing:
+        return Check("inkrest calendar", False, "missing: " + ", ".join(missing))
+    return Check("inkrest calendar", True, "recurring Tuesday/Thursday office hours in Academy calendar")
+
+
+def check_mission_control_vellum() -> Check:
+    out_path = Path(tempfile.gettempdir()) / "enchantify-mission-control-vellum-check.html"
+    try:
+        result = run(
+            [sys.executable, str(SCRIPTS / "mission-control.py"), "--out", str(out_path)],
+            name="mission control vellum",
+            timeout=120,
+        )
+        if not result.ok:
+            return result
+        html = out_path.read_text(encoding="utf-8", errors="replace")
+        required = ['id="vellum"', "Dr. Vellum's Desk", "Latest Health Signals", "Recent Fuel Log", "Vellum Chart"]
+        missing = [item for item in required if item not in html]
+        if missing:
+            return Check("mission control vellum", False, "missing: " + ", ".join(missing))
+        return Check("mission control vellum", True, "Story-Field Journal exposes Vellum health/fuel/chart context")
+    finally:
+        try:
+            out_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def check_bleed_ripples() -> Check:
+    inline = (
+        "import sys, pathlib; sys.path.insert(0, 'scripts'); import bleed; "
+        "bleed.BLEED_RIPPLES_LOG = pathlib.Path('/private/tmp/enchantify-bleed-ripples-check.jsonl'); "
+        "sections={"
+        "'HEADLINE':'TITLE: Library Rumor Finds a Door\\nSUMMARY: Students now believe the stacks are listening.',"
+        "'FEATURE':'Zara Finch pinned a correction to the noticeboard before breakfast.',"
+        "'GOSSIP':'Mira Wending says the corridor heard its name.',"
+        "'WARREPORT':'Duskthorn pressure rose around X / Twitter.',"
+        "'TALISMAN':'Tide Glass keeps asking what the hour wants.',"
+        "'FUEL':'Dr. Vellum recommends protein before the evening walk.',"
+        "'GOBLINEXCHANGE':'Offering: one brass bookmark. Wanted: a true errand.',"
+        "'CLASSIFIEDS':'NOTICE: A folded map seeks its owner.'}; "
+        "ripples=bleed.record_bleed_ripples('2099-01-01', 1, sections, {}); "
+        "print(len(ripples)); "
+        "raise SystemExit(0 if len(ripples) >= 6 and any(r.get('effect_type')=='rumor_pressure' for r in ripples) else 1)"
+    )
+    result = run([sys.executable, "-c", inline], name="bleed ripples")
+    if result.ok:
+        return Check("bleed ripples", True, "published articles create public-pressure records")
+    return result
+
+
 def check_npc_research_path(player: str) -> Check:
     source = (SCRIPTS / "npc-research.py").read_text(encoding="utf-8")
     blocked = ('"openclaw", "agent"', "'openclaw', 'agent'")
@@ -634,15 +1095,66 @@ print('OK')
     return result
 
 
+def check_narrative_sim_variety() -> Check:
+    inline = """
+import sys
+sys.path.insert(0, 'scripts')
+import narrative_sim
+
+profile = narrative_sim.ActorProfile(name='Runtime Watcher', chapter='Mossbloom')
+state = {
+    'pulse_index': 8,
+    'recent_actions': [{
+        'npc': 'Someone Else',
+        'thread_id': 'academy-daily',
+        'action': 'reposition',
+        'visible_trace': 'Someone acted in courtyard path: held the gate open long enough for the wet-footed students to cross without slipping.',
+        'hidden_effect': 'Concrete daily-life action: courtyard path / held the gate open long enough for the wet-footed students to cross without slipping / result: the afternoon route bent around care instead of impatience.',
+        'trace_signature': narrative_sim.normalize_trace_signature('held the gate open long enough for the wet-footed students to cross without slipping'),
+    }],
+}
+visible, hidden = narrative_sim.build_daily_life_trace(profile, 'reposition', [], state)
+print(visible)
+blocked = ['held the gate open', 'moved the noisy first-years', 'changed the order of the return crates']
+raise SystemExit(1 if any(item in visible.lower() for item in blocked) or 'Runtime Watcher' not in visible else 0)
+"""
+    result = run([sys.executable, "-c", inline], name="simulation variety")
+    if result.ok:
+        return Check("simulation variety", True, "daily-life traces are actor-composed, not bank boilerplate")
+    return result
+
+
+def check_narrative_sim_character_lore() -> Check:
+    inline = """
+import sys
+sys.path.insert(0, 'scripts')
+import narrative_sim
+
+register = '''
+| Entity | Type | Belief | Notes |
+| Dr. Selene Inkrest | NPC | 31 | [thread:academy-daily,inkrest-difficult-pages] Book Fae; Academy Narrative Therapist; Unwritten Interest: consciousness and brain studies as they relate to BJ |
+'''
+entities, talismans, anchors = narrative_sim.parse_world_register(register)
+profile = narrative_sim.derive_actor_profile(entities['Dr. Selene Inkrest'], {'Dr. Selene Inkrest'})
+visible, hidden = narrative_sim.build_daily_life_trace(profile, 'research', [], {'pulse_index': 1, 'recent_actions': []})
+print(profile.lore_summary)
+print(visible)
+ok = (
+    'consciousness' in profile.lore_summary.lower()
+    and 'narrative therapy' in profile.lore_summary.lower()
+    and 'reauthoring card' in visible.lower()
+    and 'feeling' in visible.lower()
+)
+raise SystemExit(0 if ok else 1)
+"""
+    result = run([sys.executable, "-c", inline], name="simulation character lore")
+    if result.ok:
+        return Check("simulation character lore", True, "actor profiles use rich character lore")
+    return result
+
+
 def check_live_scene_dry_run(player: str) -> Check:
-    scene_text = (
-        "You are still outside Corin's marked room, close enough to hear the door handle move. "
-        "The card with the two red titles remains on the door, and no one has stepped away yet.\n\n"
-        "What do you do?\n"
-        "1. [LIFE] Ask whether anyone wants tea before the next strange thing happens.\n"
-        "2. [ARC] Try a Belief roll to investigate the marked drawer and read the clue inside.\n"
-        "3. [SURPRISE] Follow the draft under the side door no one mentioned.\n"
-    )
+    scene_text = substantial_scene("Corin's marked room")
     voice_text = "[bm_lewis] " + scene_text
     with tempfile.NamedTemporaryFile("w", suffix=".txt", prefix="enchantify-scene-", delete=False) as scene_file:
         scene_file.write(scene_text)
@@ -688,6 +1200,8 @@ def main() -> int:
         check_root_stays_lean(),
         check_agents_size(),
         check_compile(),
+        check_housekeeping(),
+        check_drawthings_keepalive(),
         run(
             [sys.executable, str(SCRIPTS / "mechanics-preflight.py"), args.player, "--check-only"],
             name="mechanics preflight",
@@ -700,20 +1214,34 @@ def main() -> int:
         check_story_progress(args.player),
         check_page_contract(args.player),
         check_class_lecture(args.player),
+        check_classroom_contract_validation(),
         check_widget_state(args.player),
         check_narrative_health(args.player),
         check_narrative_steward(args.player),
         check_scene_contract(args.player),
+        check_page_tool_packet_builder(args.player),
+        check_character_image_prompt(),
         check_scene_choices(),
         check_closeout_events_validator(),
         check_health_reader(),
         check_bleed_fallback(),
+        check_bleed_vellum_column(),
+        check_vellum_chart(),
+        check_vellum_chart_helper(),
+        check_therapy_chart_helper(),
+        check_support_faculty_helper(),
+        check_inkrest_calendar(),
+        check_mission_control_vellum(),
+        check_bleed_ripples(),
         check_cron_steward(),
         check_fae_ledger(args.player),
         check_thread_steward(),
         check_thread_closure_path(),
+        check_narrative_sim_variety(),
+        check_narrative_sim_character_lore(),
         check_npc_research_path(args.player),
         check_outreach_path(),
+        check_live_scene_repair_retry(args.player),
         check_live_scene_dry_run(args.player),
     ]
 

@@ -106,6 +106,8 @@
 ## Library & Staff
 
 - **Dr. Elowen Vellum:** `af_v0nicole(2)+af_kore(1)` — Crisp, feminine, precise; Nicole's clear intimacy sharpened by Kore's ancient composure. The voice of a margin note that has read the clinical trial.
+- **Dr. Selene Inkrest:** `af_aoede(2)+af_v0nicole(1)` — Low, intimate, steady; Aoede's softness grounded by Nicole's close clarity. The voice of a difficult page being held open without hurry.
+- **Gimble of the Errata Registry:** `am_liam(2)+am_fenrir(1)` — Brisk, clipped, goblin-ledger precise; dryly kind, never shaming. The voice of a brass stamp that has decided panic is not valid currency.
 - **Archibald Evergreen (Head Librarian):** `bm_v0lewis(2)+bm_george(1)` — Venerable, vast, a chorus of ancient scholars. The blend gives him his own shelf.
 - **Evelyn Riad (Researcher):** `af_kore` — Dedicated, uncovering clues in the digital deep.
 - **Quentin Pagester (they/them, Archivist):** `bm_fable(1)+af_aoede(1)` — Meticulous, precise. An equal blend for a non-binary archivist — Fable's storytelling warmth merged with Aoede's clarity.

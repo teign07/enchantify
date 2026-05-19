@@ -95,8 +95,8 @@ The Labyrinth turns the subject into a Renaissance painting and writes a sonnet 
 - **In-game effect:** Imbues a scene with high drama and historical weight.
 
 ### Everything’s Archive
-The Labyrinth turns the photo into a magical field-journal manuscript page: sparse pen-and-ink linework, loose watercolor washes on textured aged parchment, visible paper grain, soft ink bleed, watercolor blooms, layered page composition, handwritten marginalia, and selective pops of color.
-- **In-game effect:** Embeds the subject in an airy, literary, slightly unfinished archive page, with notes, labels, sketches, margin writing, and restrained magical color where wonder gathers.
+The Labyrinth turns the photo into a magical field-journal manuscript page: sparse pen-and-ink linework, lush watercolor washes on textured aged parchment, visible paper grain, soft ink bleed, watercolor blooms, layered page composition, lush handwritten marginalia, library stamps, wax seals, labels, tabs, arrows, archival overlays, and selective pops of color.
+- **In-game effect:** Embeds the subject in an airy, literary, slightly unfinished archive page, with abundant page furniture — notes, labels, sketches, margin writing, stamps, seals, overlays, and restrained magical color where wonder gathers.
 
 ### Everything’s Nice
 The Labyrinth responds with compliments and "nice surprises" like haikus or illustrations based on a selfie or object.

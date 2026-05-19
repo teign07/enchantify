@@ -15,6 +15,7 @@ Usage:
 """
 
 import argparse
+import importlib.util
 import json
 import os
 import random
@@ -31,6 +32,14 @@ from typing import Dict, List, Optional, Tuple
 BASE_DIR          = Path(__file__).parent.parent
 sys.path.insert(0, str(BASE_DIR / "scripts"))
 import cron_steward
+
+_OUTREACH_MEMORY_SPEC = importlib.util.spec_from_file_location(
+    "outreach_memory",
+    BASE_DIR / "scripts" / "outreach-memory.py",
+)
+outreach_memory = importlib.util.module_from_spec(_OUTREACH_MEMORY_SPEC)
+assert _OUTREACH_MEMORY_SPEC.loader is not None
+_OUTREACH_MEMORY_SPEC.loader.exec_module(outreach_memory)
 
 CONFIG_DIR        = BASE_DIR / "config"
 LOG_FILE          = CONFIG_DIR / "reach-out-log.json"
@@ -529,6 +538,24 @@ def send_voice(message: str, voice: str, chat_id: str, dry_run: bool) -> bool:
         return False
 
 
+def record_outreach_memory(entity: dict, message: str, voice: str, text_ok: bool, voice_ok: bool) -> None:
+    try:
+        args = argparse.Namespace(
+            player="bj",
+            sender=entity.get("name", ""),
+            entity_type=entity.get("type", ""),
+            belief=int(entity.get("belief") or 0),
+            voice=voice,
+            message=message,
+            text_ok=text_ok,
+            voice_ok=voice_ok,
+            source="reach-out",
+        )
+        outreach_memory.record_sent(args)
+    except Exception as exc:
+        print(f"  [outreach memory error: {exc}]", file=sys.stderr)
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
@@ -602,6 +629,7 @@ def main():
 
         if not args.dry_run:
             if text_ok or voice_ok:
+                record_outreach_memory(entity, message, voice, text_ok, voice_ok)
                 record_contact(name, log)
                 save_log(log)
                 cron_steward.mark_delivered(

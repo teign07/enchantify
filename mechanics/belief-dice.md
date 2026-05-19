@@ -1,6 +1,6 @@
 # mechanics/belief-dice.md — Belief & Dice
 
-*Read this file when: a player gains/loses Belief, a risky action is attempted, or a dice roll is needed.*
+*Read this file when: a player gains/loses Belief, a risky action is attempted, a wild/impossible Reality Wager is attempted, or a dice roll is needed.*
 
 ---
 
@@ -31,6 +31,10 @@ Belief is the core stat. Ranges 0–100. It is the player's currency, power leve
 | Non-Enchantment magic | 2 |
 | Influencing the narrative directly | 3 |
 | Major story-altering choice | 5 |
+| Reality Wager — wild physical stunt | 1 |
+| Reality Wager — non-Enchantment impossibility | 2 |
+| Reality Wager — direct narrative edit | 3 |
+| Reality Wager — major reality rewrite | 5 |
 | Rerolling a failed dice roll | 5 |
 
 ### Losing Belief
@@ -57,7 +61,7 @@ Crit fail cost is the same regardless of difficulty — a catastrophic failure i
 
 **Enchantment failure:** Costs 3 to attempt. On failure: an additional −3. Total loss: **−6**. On success: +9 (net +6). This makes an Enchantment a real bet on yourself — appropriate, because that's what it is.
 
-**Session gap decay:** After 2 consecutive days without opening the book, Belief drifts: −1 per day, capped at −7 total. Reset on return. Apply at session start — narrate it as the corridors feeling slightly dimmer, the ink slower to warm. Never announce the number.
+**Return grace:** Do not reduce player Belief simply because they have not opened the book for a while. Absence is life happening, not failure. On return, the Academy may show that the world moved — changed objects, waiting letters, softened rooms, threads with new pressure — but the first emotional fact is welcome. For longer gaps, invite a tiny Compass Run or Enchantment as a warm re-entry, never as debt.
 
 **Declining repeatedly:** If the player declines an offered Enchantment or Compass Run three times in a row within a session, the next decline costs −2 Belief. Track this in context; deduct with `update-player.py [name] belief -2`. The Nothing notices avoidance before the player does.
 
@@ -120,6 +124,7 @@ High Belief earns better odds but never removes meaningful failure. No action is
 - Social encounters with uncertain NPCs
 - Magical actions beyond standard Enchantments
 - Risky narrative choices
+- Reality Wagers: wild, impossible, scene-breaking, or reality-rewriting actions
 - Any situation where both success and failure would be interesting
 
 ### When NOT to Roll
@@ -128,3 +133,62 @@ High Belief earns better odds but never removes meaningful failure. No action is
 - Compass Runs (always succeed if completed)
 - Standard dialogue and exploration
 - Choices about direction, not outcome
+
+---
+
+## Reality Wagers
+
+The Labyrinth almost never says "you cannot." It says: **what are you willing to spend, and what happens if the page answers strangely?**
+
+Use this when a player tries something wild, impossible, genre-breaking, or reality-rewriting: flying without established means, punching through a wall, declaring themself headmaster, opening a door to Mars, rewriting the scene, brute-forcing a mystery, or trying to defeat the Nothing with pure assertion.
+
+**Core principle:** Playful wildness feeds wonder. Arbitrary reality-breaking feeds the Nothing.
+
+### Procedure
+
+1. Classify the action.
+2. Spend Belief up front with `python3 scripts/update-player.py [name] belief -N`.
+3. Roll with `python3 scripts/roll-dice.py [belief_after_spend] [difficulty]`.
+4. Narrate the result through Enchantify logic.
+5. Apply any additional failure cost from the dice table if the stakes call for it.
+
+### Wager Types
+
+| Type | Cost | Typical difficulty | Examples |
+|---|---:|---|---|
+| Wild physical stunt | 1 | standard/dramatic | leap from balcony, climb impossible shelves, sprint through moving stairs |
+| Non-Enchantment impossibility | 2 | dramatic | try to fly, hold a door shut with raw Belief, bend a small rule of the room |
+| Direct narrative edit | 3 | dramatic/desperate | declare a clue appears, force an NPC to agree, rewrite a scene detail |
+| Major reality rewrite | 5 | desperate | become headmaster, open a door to Mars, erase an enemy, skip the arc |
+| Brute-force the Nothing | 5 | desperate | attack the Nothing directly without proof, attention, or a Compass Run |
+
+### Results
+
+**Critical success:** Let the impossible happen in a spectacular but specific way. Award the normal +2 critical Belief bonus. The outcome should create new story obligations, witnesses, or consequences.
+
+**Success:** The world bends, but not as a blank check. "I try to fly" might become twelve seconds of gravity forgetting the player, a paper-winged lift from the Library, or a controlled fall into a better position.
+
+**Near miss:** Give partial magic with a complication. The player almost flies, but leaves one shoe hovering; the door opens to the right room at the wrong time; the wall cracks and reveals a listening pipe.
+
+**Failure:** Do not just say no. The attempt reveals information, creates a cost, embarrasses the character, attracts attention, shifts location, or opens a stranger path.
+
+**Critical failure:** Create story, not punishment. The action backfires into a revelation, social consequence, damaged object, thread complication, or Nothing trace.
+
+### The Nothing And Reality-Breaking
+
+The Nothing is not "the referee." It does not punish imagination. It notices when the player treats the world as arbitrary.
+
+Use Nothing pressure when:
+- the player repeatedly tries to override scenes instead of engaging them
+- the action would erase consequence, relationship, memory, or attention
+- the player tries to defeat the Nothing without Enchantment proof, Compass work, or a true sacrifice of Belief
+- the same kind of reality rewrite is attempted repeatedly after failure
+
+Show this as coherence loss: colors thinning, names becoming harder to remember, choices flattening into summary, rooms losing detail, NPC voices going generic. Offer a way back through Enchantment, Compass Run, apology/repair, or a smaller Reality Wager that engages the scene instead of erasing it.
+
+### Boundaries
+
+- Never use a Reality Wager to resolve an Enchantment or Compass Run. Those have their own proof-gated systems.
+- Never let a Reality Wager permanently defeat the Nothing. It can buy time, reveal a weakness, protect someone briefly, or make a path toward the formal ritual.
+- Never let a direct narrative edit force an NPC's inner life. It may pressure, persuade, confuse, or reveal; it cannot overwrite consent.
+- Do not shame the player for chaos. Make the world answer with style.

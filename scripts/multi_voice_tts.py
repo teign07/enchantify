@@ -61,11 +61,39 @@ def generate_audio(text, voice, index, temp_dir):
 
 def parse_dialogue_and_narration(text, speaker_voice, narrator_voice=DEFAULT_VOICE):
     """
-    Honor explicit [voice] blocks literally.
-    If a block is tagged [af_nicole], the whole block is spoken by af_nicole.
-    Narration must therefore be placed in its own [bm_lewis] block by the caller.
+    Keep character voices inside dialogue only.
+
+    The LLM sometimes emits blocks like:
+      [af_nicole] Zara looks down. "I heard it too."
+
+    For audio, Zara's voice should read only the quoted sentence; the narrator
+    should read the surrounding prose. Narrator/default blocks stay intact.
     """
-    return [(speaker_voice, text)]
+    if speaker_voice == narrator_voice:
+        return [(narrator_voice, text)]
+
+    quote_re = re.compile(r'(".*?"|“.*?”)', re.DOTALL)
+    segments = []
+    cursor = 0
+    for match in quote_re.finditer(text):
+        before = text[cursor:match.start()].strip()
+        quoted = match.group(0).strip()
+        if before:
+            segments.append((narrator_voice, before))
+        if quoted:
+            segments.append((speaker_voice, quoted))
+        cursor = match.end()
+
+    after = text[cursor:].strip()
+    if after:
+        segments.append((narrator_voice, after))
+
+    if segments:
+        return segments
+
+    # A character-tagged block with no quote marks is almost always narration
+    # that leaked into the wrong tag. Keep it in the Book's voice.
+    return [(narrator_voice, text)]
 
 def main():
     import argparse

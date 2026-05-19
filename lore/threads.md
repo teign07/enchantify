@@ -119,9 +119,9 @@ Two endings:
 **entities:** Zara Finch
 **Nothing pressure:** medium — the Nothing would love to make her doubt the portfolio is good enough. Self-erasure before the deadline.
 
-**Next beat:** The tidal ring on Zara's portfolio cover has deepened overnight — the salt smell is stronger now, and the ring itself has taken on a faint iridescence, like the inside of a shell. Anyone who handles the portfolio will feel a faint dampness at their fingertips, real as tide-wet stone, though the pages themselves are dry.
+**Next beat:** By morning, Zara has added a second notation beside the first — a small drawing of a tide chart, rough and quick, the kind made when a thought arrives faster than certainty. The sea glass remains, but she has slid a folded scrap of paper halfway beneath the vessel's hull, its edge just visible.
 
-**Last advanced:** 2026-05-10
+**Last advanced:** 2026-05-18
 **born:** 2026-04-12
 **closed:** —
 
@@ -138,9 +138,9 @@ Two endings:
 **entities:** Wicker Eddies
 **Nothing pressure:** high — Wicker is adjacent to the Nothing. His schemes drain Belief from others as a feature, not a side effect. The Nothing doesn't control him; they simply have similar tastes.
 
-**Next beat:** Offscreen, Wicker's Campaign has acquired a concrete trace: Wicker Eddies protected Wicker's Campaign: locked the vulnerable record in a drawer with two names on the key-tag. As a result, the Nothing cannot erase that detail casually. Pressure source: Dusk Thorn (talisman 98). Offscreen reason: Wick… The next visible scene should surface that trace in the room, rumor, object, or NPC behavior before asking the player what to do.
+**Next beat:** The intake tray now holds a fourth folded page — but this one is blank except for the thumb-sigil, pressed so deliberately it left a faint crease-shadow like a door hinge. The errand-runner who left it no longer lingers at the threshold; they simply do not return, as if the delivery itself closed an account.
 
-**Last advanced:** 2026-05-12
+**Last advanced:** 2026-05-18
 **born:** 2026-04-01
 **closed:** —
 
@@ -159,13 +159,13 @@ Two endings:
 **entities:** Headmistress Thorne, Dusk Thorn Talisman, Victor Ebonheart
 **Nothing pressure:** high — something in Duskthorn is already adjacent to absence. The sealed corridor smells of it.
 
-**Next beat:** The frost seam around the locked drawer has thickened overnight into a visible rime — scholars passing the West Corridor door at the right angle will see it catching lantern-light like a held breath. Thorne has begun taking a longer route through the commons, avoiding the corridor entirely, though she pauses each time near the Duskthorn noticeboard as if checking whether something has been removed.
+**Next beat:** The blotter has been removed from the desk entirely — replaced with a clean one, faint scorch-smell still in the air where the old one rested. The drawer that was latched from the inside now opens freely and holds nothing at all, not even dust, as though the space itself has been renegotiated.
 
-**Last advanced:** 2026-05-12
+**Last advanced:** 2026-05-18
 **born:** 2026-04-01
 **closed:** —
 
-**Notes:** This thread runs whether or not the player engages. The Duskthorn investigation has stages the player can reach by proximity, investigation, or accident — not by being handed the story. When the tick stirs Thorne or the Dusk Thorn talisman, this thread surfaces as ambient texture: something slightly wrong about a space, a conversation that stops when the player enters, a corridor that is simply not open.
+**Notes:** This thread runs whether or not the player engages. The Duskthorn investigation has stages the player can reach by proximity, investigation, or accident — not by being handed the story. When the tick stirs Thorne or the Dusk Thorn talisman, this thread surfaces as ambient texture: something slightly wrong about a space, a conversation that stops when the player enters, a corridor that is simply not open. **Session 2026-05-15:** Inkwell documented three alcove entries — chair appeared same week as Chronograph registry removal six months ago. Connection named aloud. Notice posted by someone with formal Board classification knowledge. The registry office in the admin wing holds the authorization record. Two threads touching: the alcove and the Chronograph.
 
 ---
 
@@ -223,10 +223,28 @@ When a new subplot, mystery, or character goal emerges with enough Belief to sus
 **entities:** Dr. Elowen Vellum
 **Nothing pressure:** medium - the Nothing can flatten this into mere trivia instead of lived story
 
-**Next beat:** A precise refectory note appears with one useful experiment for the day, one measurement Elowen refuses to moralize, and one comfort she insists must remain part of the binding.
+**Next beat:** A precise longevity note appears with one useful experiment for the day, one measurement Elowen refuses to moralize, one recovery or training nudge, and one comfort she insists must remain part of the binding.
 
 **Last advanced:** 2026-05-08
 **born:** 2026-05-08
+**closed:** —
+
+
+## Thread: Inkrest's Difficult Pages
+
+**id:** `inkrest-difficult-pages`
+**type:** npc-support-subplot
+**phase:** setup
+**pressure:** low
+**npc_anchor:** Dr. Selene Inkrest
+**locations:** Reauthoring Rooms, dormitory margins, quiet halls, and wherever BJ brings a difficult page
+**entities:** Dr. Selene Inkrest
+**Nothing pressure:** medium - the Nothing can turn therapy into vague self-improvement copy, avoidance, diagnosis theater, or endless interpretation without a next-hour action
+
+**Next beat:** Dr. Inkrest opens a scheduled office hour or gentle invitation that externalizes one problem, checks Vellum/fuel/heartbeat context, and translates one consciousness/brain-study insight into a preferred-story sentence or grounding action BJ can actually use.
+
+**Last advanced:** 2026-05-14
+**born:** 2026-05-12
 **closed:** —
 
 

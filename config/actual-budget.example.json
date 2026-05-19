@@ -1,0 +1,6 @@
+{
+  "server_url": "http://127.0.0.1:5006",
+  "budget_id": "your-budget-id-or-sync-id",
+  "data_dir": "data/actual-budget",
+  "notes": "Copy to config/actual-budget.json after Actual is installed. Store password in ACTUAL_PASSWORD when possible."
+}

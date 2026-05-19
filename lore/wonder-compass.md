@@ -90,23 +90,20 @@ Between adventures: sleep, a nap with no alarm, lying in the yard, sitting with 
 **Cooldown:** Once per real calendar day
 
 **Step 1 — Check the cooldown.**
-Read `players/[name].md` → `## Compass Run History` → `Last run:` field.
-- If `Last run: never` or a date before today → proceed.
-- If `Last run:` is today's date → decline warmly, in character. The Compass is resting. It will be ready again tomorrow. Do not generate a run.
+Run `python3 scripts/compass-run.py start [name] --mood ready|tired|low|restless`.
+- If it emits `COMPASS_DIRECTIVE: NORTH_NOTICE`, proceed.
+- If it emits `COMPASS_DIRECTIVE: RESTING`, decline warmly in character. The Compass is resting. It will be ready again tomorrow. Do not generate a run.
 
 **Step 2 — Calibrate to the real world.**
 Read `HEARTBEAT.md`. What is the actual weather, time of day, location, mood signals? The run is built from the real context. Then follow `lore/compass-run.md` for the full generation protocol.
 
 **Step 3 — Run the Compass (N → E → S → W).**
-See `lore/compass-run.md`. Generate each step personally. Do not be generic.
+See `lore/compass-run.md`. Use `scripts/compass-run.py answer [name] "[player report]"` to advance North, East, and South. Generate living prose around the directives, but do not change the mechanical step or skip ahead.
 
 **Step 4 — When the player returns with their West (souvenir):**
-- Write the souvenir: `python3 scripts/write-souvenir.py [name] "[souvenir text]"`
-- Award +9 Belief to the player
-- Increment **Total runs** and update **Last run** to today's date in `players/[name].md`
-- Increase the Wonder Compass Belief by 1 in `lore/world-register.md`
+- Complete the run: `python3 scripts/compass-run.py complete-west [name] "[souvenir text]"`
+- The script writes the souvenir, prints the physical card, awards +9 Belief, increments **Total runs**, updates **Last run**, increases Wonder Compass Belief, and records mechanics completion.
 - Fire completion effects:
-  - `bash scripts/print-souvenir.sh` — physical card (silent)
   - `python3 scripts/lights.py scene compass-complete`
   - Spotify pause for deliberate quiet
 

@@ -41,6 +41,8 @@ PENDING_CONSENT_LOG = BASE_DIR / "logs" / "pending-consents.jsonl"
 TELEGRAM_TARGET  = "8729557865"
 TELEGRAM_CHANNEL = "telegram"
 TELEGRAM_ACCOUNT = "enchantify"
+PACT_TELEGRAM_EVENTS = {"executed", "failed"}
+PACT_TELEGRAM_ACTION_TYPES = {"pact_war", "reality_bleed"}
 
 # Import world_context for CHAPTER_MAP (NPC → chapter alignment)
 import sys as _sys
@@ -413,19 +415,11 @@ _CHAPTER_PRIORITIES = {
 # (3 = raids when within 3 points). Mossbloom is almost never the aggressor.
 
 
-def _log_pact_action(event: str, **fields) -> None:
-    """Append a machine-readable Pact action event. Logging must never block play."""
-    try:
-        PACT_ACTION_LOG.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "timestamp": datetime.now().isoformat(timespec="seconds"),
-            "event": event,
-            **fields,
-        }
-        with PACT_ACTION_LOG.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(payload, ensure_ascii=False, default=str) + "\n")
-    except Exception:
-        pass
+def _compact(text: str, limit: int = 700) -> str:
+    text = re.sub(r"\s+", " ", str(text or "")).strip()
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 1)].rstrip() + "…"
 
 
 def _send_telegram_notice(text: str) -> bool:
@@ -446,6 +440,66 @@ def _send_telegram_notice(text: str) -> bool:
     except Exception:
         return False
 
+
+def _format_pact_telegram_notice(event: str, fields: dict) -> str:
+    chapter = fields.get("chapter", "Unknown faction")
+    app = fields.get("app") or "unknown app"
+    tier = fields.get("tier") or "unknown tier"
+    action_type = str(fields.get("action_type") or "").replace("_", " ")
+    war_subtype = str(fields.get("war_subtype") or "").replace("_", " ")
+    result = fields.get("result") or fields.get("proposal") or fields.get("reason") or fields.get("error") or ""
+    driver = fields.get("driver") or ""
+    before = fields.get("before")
+    after = fields.get("after")
+    lines = [
+        "🜁 App talisman action",
+        "",
+        f"Faction: {chapter}",
+        f"App: {app} ({tier})",
+    ]
+    if action_type:
+        label = action_type if not war_subtype else f"{action_type} / {war_subtype}"
+        lines.append(f"Action: {label}")
+    if before is not None and after is not None:
+        lines.append(f"Belief/control: {before} → {after}")
+    if driver:
+        lines.append(f"Driver: {driver}")
+    if fields.get("silent"):
+        lines.append("Delivery: silent in-app action; Telegram notice added for visibility.")
+    if event == "failed":
+        lines.append("Status: failed")
+    else:
+        lines.append("Status: completed")
+    if result:
+        lines.extend(["", _compact(result, 900)])
+    return "\n".join(lines)
+
+
+def _should_notify_pact_action(event: str, fields: dict) -> bool:
+    if fields.get("dry_run"):
+        return False
+    if event not in PACT_TELEGRAM_EVENTS:
+        return False
+    return fields.get("action_type") in PACT_TELEGRAM_ACTION_TYPES
+
+
+def _log_pact_action(event: str, **fields) -> None:
+    """Append a machine-readable Pact action event. Logging must never block play."""
+    try:
+        telegram_sent = fields.get("telegram_sent")
+        if telegram_sent is None and _should_notify_pact_action(event, fields):
+            telegram_sent = _send_telegram_notice(_format_pact_telegram_notice(event, fields))
+            fields["telegram_sent"] = telegram_sent
+        PACT_ACTION_LOG.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "timestamp": datetime.now().isoformat(timespec="seconds"),
+            "event": event,
+            **fields,
+        }
+        with PACT_ACTION_LOG.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False, default=str) + "\n")
+    except Exception:
+        pass
 
 def _record_pending_consent(
     *,
@@ -497,7 +551,7 @@ def _record_pending_consent(
             except json.JSONDecodeError:
                 continue
             if obj.get("id") == consent_id and obj.get("status") == "pending" and obj.get("telegram_sent"):
-                return consent_id, False
+                return consent_id, True
 
         text = (
             "🜂 App consent needed\n\n"

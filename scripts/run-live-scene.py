@@ -35,6 +35,47 @@ import mechanics_state  # type: ignore
 PREFLIGHT_MAX_AGE_MINUTES = 15
 
 
+def _run_scene_contract(args: argparse.Namespace) -> subprocess.CompletedProcess[str]:
+    contract_cmd = [
+        sys.executable,
+        str(SCRIPTS / "scene-contract.py"),
+        args.player,
+        "--validate-scene",
+        str(args.text_file),
+    ]
+    if args.scene_mode:
+        contract_cmd += ["--mode", args.scene_mode]
+    if args.drama_budget:
+        contract_cmd += ["--drama-budget", args.drama_budget]
+    return subprocess.run(contract_cmd, capture_output=True, text=True)
+
+
+def _repair_scene_contract(args: argparse.Namespace) -> subprocess.CompletedProcess[str]:
+    repair_cmd = [
+        sys.executable,
+        str(SCRIPTS / "scene-contract.py"),
+        args.player,
+        "--repair-scene",
+        str(args.text_file),
+    ]
+    if args.scene_mode:
+        repair_cmd += ["--mode", args.scene_mode]
+    if args.drama_budget:
+        repair_cmd += ["--drama-budget", args.drama_budget]
+    return subprocess.run(repair_cmd, capture_output=True, text=True)
+
+
+def _run_scene_choices(args: argparse.Namespace) -> subprocess.CompletedProcess[str]:
+    choices_cmd = [
+        sys.executable,
+        str(SCRIPTS / "scene-choices.py"),
+        "--scene-file",
+        str(args.text_file),
+        "--strict-balance",
+    ]
+    return subprocess.run(choices_cmd, capture_output=True, text=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Canonical live scene runner. Requires mechanics-preflight within the last 15 minutes before delivery."
@@ -75,35 +116,28 @@ def main() -> int:
         )
         return 2
 
-    contract_cmd = [
-        sys.executable,
-        str(SCRIPTS / "scene-contract.py"),
-        args.player,
-        "--validate-scene",
-        str(args.text_file),
-    ]
-    if args.scene_mode:
-        contract_cmd += ["--mode", args.scene_mode]
-    if args.drama_budget:
-        contract_cmd += ["--drama-budget", args.drama_budget]
-    contract = subprocess.run(contract_cmd, capture_output=True, text=True)
+    contract = _run_scene_contract(args)
     if contract.returncode != 0:
-        sys.stderr.write("run-live-scene refused delivery: scene contract failed.\n")
-        sys.stderr.write((contract.stderr or contract.stdout or "").strip()[:1600] + "\n")
-        return contract.returncode or 1
+        repair = _repair_scene_contract(args)
+        if repair.returncode == 0:
+            contract = _run_scene_contract(args)
+        if contract.returncode != 0:
+            sys.stderr.write("run-live-scene refused delivery after one scene-contract repair attempt.\n")
+            detail = (contract.stderr or contract.stdout or repair.stderr or repair.stdout or "").strip()
+            sys.stderr.write(detail[:1600] + "\n")
+            return contract.returncode or 1
 
-    choices_cmd = [
-        sys.executable,
-        str(SCRIPTS / "scene-choices.py"),
-        "--scene-file",
-        str(args.text_file),
-        "--strict-balance",
-    ]
-    choices = subprocess.run(choices_cmd, capture_output=True, text=True)
+    choices = _run_scene_choices(args)
     if choices.returncode != 0:
-        sys.stderr.write("run-live-scene refused delivery: Rule of Three failed.\n")
-        sys.stderr.write((choices.stderr or choices.stdout or "").strip()[:1600] + "\n")
-        return choices.returncode or 1
+        repair = _repair_scene_contract(args)
+        if repair.returncode == 0:
+            contract = _run_scene_contract(args)
+            choices = _run_scene_choices(args) if contract.returncode == 0 else choices
+        if choices.returncode != 0:
+            sys.stderr.write("run-live-scene refused delivery after one Rule of Three repair attempt.\n")
+            detail = (choices.stderr or choices.stdout or repair.stderr or repair.stdout or "").strip()
+            sys.stderr.write(detail[:1600] + "\n")
+            return choices.returncode or 1
 
     cmd = [
         sys.executable,

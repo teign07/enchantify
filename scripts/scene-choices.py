@@ -37,12 +37,13 @@ PLOT_WORDS = {
     "investigate", "investigation", "nothing", "duskthorn", "wicker", "threat",
     "attack", "clue", "reveal", "accuse", "confront", "quest", "mission",
     "shadow", "danger", "restricted", "solve", "mystery", "drawer", "letter",
-    "note", "marked",
+    "note", "mark", "marked", "symbol", "seam",
 }
 LIFE_WORDS = {
     "tea", "snack", "breakfast", "lunch", "dinner", "sleep", "rest", "laundry",
     "desk", "window", "weather", "blanket", "chair", "mug", "homework", "class",
-    "walk", "breathe", "tired", "hungry", "okay", "alright", "room",
+    "walk", "breathe", "tired", "hungry", "okay", "alright", "room", "table",
+    "slow", "slower", "pause", "explain", "listen", "gathered", "stay", "sit",
 }
 SURPRISE_WORDS = {
     "follow", "sound", "draft", "door", "corridor", "outside", "unexpected",

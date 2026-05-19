@@ -41,6 +41,25 @@ LOW_INFO_PATTERNS = (
     'students slog',
     'boggle forces laughter',
     'the halls hold their weather quietly',
+    'npc decisions',
+    'story threads',
+    'one-liner',
+    'used protect',
+    'protected ',
+    'invested belief',
+    'attacked ',
+    'offscreen reason',
+    'pressure source',
+    'left a trace',
+    'making tide glass feel more real',
+    'making ',
+    'feel more real',
+    'method fit',
+    'future choice will inherit',
+    'object everyone had been stepping around',
+    'invest belief ->',
+    'take action ->',
+    'attack belief ->',
 )
 
 
@@ -135,9 +154,6 @@ def first_active_thread(text: str) -> tuple[str, str]:
 
 def clean_note(text: str, limit: int = 360) -> str:
     text = re.sub(r'\[[^\]]+\]\s*', '', text or '')
-    text = re.sub(r'\b(.+?) used protect on ([^:]+?) through \2:', r'\1 protected \2:', text)
-    text = re.sub(r'\b(.+?) used invest belief on ([^:]+?) through \2:', r'\1 invested belief in \2:', text)
-    text = re.sub(r'\b(.+?) used attack belief on ([^:]+?) through \2:', r'\1 attacked \2\'s Belief:', text)
     text = re.sub(r'\s+', ' ', text).strip()
     if len(text) > limit:
         return text[:limit - 1].rstrip() + '…'
@@ -147,6 +163,21 @@ def clean_note(text: str, limit: int = 360) -> str:
 def is_low_info(text: str) -> bool:
     lowered = (text or '').lower()
     return any(pattern in lowered for pattern in LOW_INFO_PATTERNS)
+
+
+def has_old_simulation_frame(text: str) -> bool:
+    lowered = (text or '').lower()
+    old_bits = (
+        'spent 1 belief making',
+        'spent 1 belief and left a trace',
+        'by the next bell, one future choice',
+        'later, someone will find the evidence',
+        'the method fit ',
+        'left the investigation marked object',
+        'repeated the application public vow',
+        'the object everyone had been stepping around',
+    )
+    return any(bit in lowered for bit in old_bits)
 
 
 def parse_active_threads(text: str) -> list[dict]:
@@ -279,13 +310,10 @@ def compact_action_text(text: str, limit: int = 210) -> str:
 def format_action_list(events: list[dict], register: str = '') -> str:
     lines = []
     for event in events[:3]:
-        actor = clean_note(event.get('actor') or 'Someone')
-        narrative = compact_action_text(format_simulation_event(event, register))
-        if narrative.startswith(actor):
-            lines.append(f"- {narrative}")
-        else:
-            lines.append(f"- {actor}: {narrative}")
-    return " ".join(lines)
+        narrative = compact_action_text(format_simulation_event(event, register), limit=520)
+        if narrative:
+            lines.append(narrative)
+    return "\n\n".join(lines)
 
 
 def recent_simulation_events(hours: int = 9, since: Optional[datetime] = None) -> list[dict]:
@@ -379,7 +407,7 @@ def concrete_pressure_details(event: dict, register: str, limit: int = 2) -> str
         name = re.sub(r'\s*\([^)]*\)\s*$', '', item).strip()
         note = registry_note_for(name, register)
         if note and not is_low_info(note):
-            details.append(f"{name}: {note}")
+            details.append(f"{name}: {note.rstrip('.')}")
         if len(details) >= limit:
             break
     return '; '.join(details)
@@ -389,22 +417,96 @@ def action_phrase(action: str, thread: str) -> str:
     action = (action or '').replace('_', ' ').strip()
     if thread == 'Academy Daily Life':
         return {
-            'reposition': 'changed the shape of the ordinary school day',
-            'prepare': 'set up a concrete daily-life beat',
-            'research': 'checked a practical campus question',
-            'reveal': 'made a small campus detail easier to notice',
-            'protect': 'kept one ordinary support from thinning',
-            'invest belief': 'fed chapter pressure through daily routines',
+            'take action': 'changed an ordinary hour',
+            'invest belief': 'gave weight to an ordinary habit',
+            'attack belief': 'weakened an ordinary certainty',
+            'protect': 'kept one ordinary thing intact',
+            'reposition': 'changed an ordinary hour',
+            'prepare': 'prepared an ordinary proof',
+            'research': 'gathered an ordinary proof',
+            'reveal': 'surfaced an ordinary proof',
+            'recruit': 'drew witnesses into the ordinary day',
+            'sabotage': 'weakened an ordinary certainty',
         }.get(action, f'moved through {action or "the ordinary day"}')
     return {
-        'reposition': 'shifted the live situation',
-        'prepare': 'prepared the next beat',
-        'research': 'found a sharper answer',
-        'reveal': 'surfaced a clue',
-        'protect': 'held a vulnerable edge',
-        'invest belief': 'fed belief into the pressure',
-        'attack belief': 'eroded an opposing position',
+        'take action': 'changed the conditions',
+        'invest belief': 'gave weight to something specific',
+        'attack belief': 'made a certainty harder to trust',
+        'protect': 'kept one detail intact',
+        'reposition': 'changed the conditions',
+        'prepare': 'prepared a proof',
+        'research': 'gathered a proof',
+        'reveal': 'surfaced a proof',
+        'recruit': 'drew in a witness',
+        'sabotage': 'made a certainty harder to trust',
     }.get(action, action or 'acted')
+
+
+def actor_method_words(event: dict) -> str:
+    chunks = []
+    for key in ('narrative', 'hidden_effect', 'reason', 'raw'):
+        value = event.get(key)
+        if value:
+            chunks.append(str(value))
+    chunks.extend(event.get('influence_snapshot') or [])
+    actor_words = {
+        word.lower()
+        for word in re.findall(r"[A-Za-z][A-Za-z'-]{2,}", event.get('actor') or '')
+    }
+    focus_words = {
+        word.lower()
+        for word in re.findall(
+            r"[A-Za-z][A-Za-z'-]{2,}",
+            " ".join(str(event.get(key) or '') for key in ('thread_name', 'name', 'target')),
+        )
+    }
+    words = []
+    stop = {
+        'the', 'and', 'with', 'that', 'this', 'from', 'into', 'their', 'they',
+        'them', 'belief', 'spent', 'action', 'trace', 'thread', 'method', 'cost',
+        'npc', 'mechanic', 'target', 'result', 'visible', 'inside', 'later',
+        'making', 'harder', 'trust', 'future', 'choice', 'inherit', 'small',
+        'deliberate', 'change', 'feels', 'around',
+    }
+    for word in re.findall(r"[A-Za-z][A-Za-z'-]{4,}", ' '.join(chunks).lower()):
+        word = word.strip("-'")
+        if word in stop or word in actor_words or word in focus_words or word in words:
+            continue
+        words.append(word)
+        if len(words) >= 3:
+            break
+    return ', '.join(words)
+
+
+def recast_simulation_event(event: dict, register: str = '') -> str:
+    actor = clean_note(event.get('actor') or 'Someone', 60)
+    thread = clean_note(event.get('thread_name') or event.get('name') or 'the Academy', 90)
+    target = clean_note(event.get('target') or '', 70)
+    action = (event.get('action') or '').replace('_', ' ')
+    pressure = concrete_pressure_details(event, register, limit=1)
+    methods = actor_method_words(event)
+
+    if action == 'invest belief':
+        verb = 'gave public weight to'
+        consequence = 'By evening, the room was behaving as if that choice had always been possible.'
+    elif action == 'attack belief':
+        verb = 'made it harder to take'
+        consequence = 'By evening, the certainty around it had acquired a visible crack.'
+    else:
+        verb = 'changed the conditions around'
+        consequence = 'By evening, someone else had to move differently because of it.'
+
+    focus = target or thread
+    material = ''
+    if methods:
+        material = f" The move carried the fingerprints of {methods}."
+    if pressure:
+        material += f" The nearest pressure was specific: {pressure}."
+    if action == 'attack belief':
+        return clean_note(f"{actor} {verb} {focus} for granted in {thread}.{material} {consequence}", limit=520)
+    if focus == thread:
+        return clean_note(f"{actor} {verb} {focus}.{material} {consequence}", limit=520)
+    return clean_note(f"{actor} {verb} {focus} in {thread}.{material} {consequence}", limit=520)
 
 
 def concrete_event_summary(event: dict, register: str = '') -> str:
@@ -430,7 +532,7 @@ def concrete_event_summary(event: dict, register: str = '') -> str:
     if status and not is_low_info(status):
         tail_bits.append(f"registry: {status}")
     tail = f" ({'; '.join(tail_bits)})" if tail_bits else ''
-    return clean_note(f"{actor} {action} around {thread}{tail}")
+    return recast_simulation_event(event, register) or clean_note(f"{actor} moved around {thread}{tail}")
 
 
 def format_simulation_event(event: Optional[dict], register: str = '') -> str:
@@ -440,10 +542,7 @@ def format_simulation_event(event: Optional[dict], register: str = '') -> str:
     narrative = clean_note(event.get('narrative') or event.get('reason') or event.get('raw') or '')
 
     if kind == 'action':
-        actor = event.get('actor', 'Someone')
-        action = event.get('action', 'acted').replace('_', ' ')
-        thread = event.get('thread_name') or 'the Academy'
-        if is_low_info(narrative):
+        if is_low_info(narrative) or has_old_simulation_frame(narrative):
             return concrete_event_summary(event, register)
         return narrative
 
@@ -642,13 +741,9 @@ def build_dispatch() -> str:
     tick_actions = tick_action_events(tick_queue, since=last_sent_at)
     reference_event = best_event or latest_event
     npc_name, npc_note = npc_focus(reference_event, register, state)
-    npc_decisions = format_action_list(tick_actions, register) if tick_actions else f"- {npc_name}: {npc_note}"
-    if reference_event and reference_event.get('thread_name'):
-        thread_name = reference_event.get('thread_name')
-        thread_note = concrete_event_summary(reference_event, register)
-    else:
-        thread_name, thread_note = first_active_thread(register)
-    env_name, env_note = first_environment(state)
+    vignette = format_action_list(tick_actions, register)
+    if not vignette:
+        vignette = format_simulation_event(reference_event, register) or f"{npc_name}: {npc_note}"
     pulse_note = latest_useful_tick_seed(tick_queue, since=last_sent_at) or ('' if last_sent_at else latest_useful_tick_seed(tick_queue))
     simulation_note = format_simulation_event(best_event, register)
     latest_note = format_simulation_event(latest_event, register)
@@ -659,23 +754,25 @@ def build_dispatch() -> str:
             pulse_note
             or simulation_note
             or (f"Latest ledger movement: {latest_note}" if latest_note else '')
-            or f"Current registry focus: {thread_name} — {thread_note}"
+            or f"Current registry focus: {first_active_thread(register)[0]} — {first_active_thread(register)[1]}"
         )
     if tick_actions:
-        actors = ', '.join(clean_note(e.get('actor') or 'Someone', 40) for e in tick_actions[:3])
-        one_liner = f"Latest registry actors: {actors}. Their concrete actions are listed above."
+        ledger_bits = []
+        for e in tick_actions[:3]:
+            actor = clean_note(e.get('actor') or 'Someone', 40)
+            target = clean_note(e.get('target') or e.get('thread_name') or 'the Academy', 60)
+            ledger_bits.append(f"{actor} spent Belief around {target}")
+        one_liner = "; ".join(ledger_bits)
     one_liner = one_liner.rstrip('. ')
 
     dispatch = (
         f"### {updated}\n"
         f"**Arc:** {arc_title} | **Phase:** {phase} | **Day:** {day}\n"
         f"**Mode:** {mode}\n\n"
-        f"**NPC Decisions:** {npc_decisions}\n"
-        f"**Story Threads:** - {thread_name}: {thread_note}\n"
-        f"**Environment:** - {env_name}: {env_note}\n"
-        f"**One-Liner:** 📖 Academy: {one_liner}."
+        f"**Between Bells:**\n{vignette}\n\n"
+        f"**Ledger:** {one_liner}."
     )
-    return dispatch[:1500]
+    return dispatch[:1800]
 
 
 def main():

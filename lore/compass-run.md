@@ -110,9 +110,9 @@ The Compass isn't a mandate for frantic adventuring. That's just the Rut in disg
 
 ## How the Labyrinth Runs a Compass Run
 
-When the player triggers a Compass Run (via the Wonder Compass item, a professor assignment, or their own will):
+When the player triggers a Compass Run (via the Wonder Compass item, a professor assignment, or their own will), use `scripts/compass-run.py` as the state machine. The Labyrinth may speak beautifully around its directives, but the script owns the current step, cooldown, Belief cost/reward, souvenir file, printing, and history updates.
 
-1. **Calibrate to the real world.** Read `HEARTBEAT.md`. What is the actual weather? Actual time of day? Actual location? Actual mood signals? The run is generated from the real context — Belfast in April rain is different from Belfast in August sun.
+1. **Calibrate to the real world.** `scripts/compass-run.py` reads `HEARTBEAT.md` and, when available, the fuel log. It considers weather, time, location, steps, focus/work pressure, schedule, mood, and whether fuel looks thin or unknown. The run is generated from the real context — Belfast in April rain is different from Belfast in August sun; a low-fuel night is different from a rested morning.
 
 2. **Generate the North (Spark).** Based on context, offer an "I wonder…?" that is specific to today. Not generic. If the step tracker shows low movement, the Spark might point toward a short walk. If Spotify shows heavy music, maybe something quieter. If it's a Hinge Day, the Spark might be stranger.
 
@@ -122,7 +122,7 @@ When the player triggers a Compass Run (via the Wonder Compass item, a professor
 
 5. **When the player returns:** Ask for the West. One sentence. Don't accept "it was nice." Prompt for the specific sensory detail — what they saw, smelled, heard, touched, tasted.
 
-6. **Write the Souvenir** to `scripts/write-souvenir.py`. This is mandatory. The souvenir is canon.
+6. **Complete West** with `python3 scripts/compass-run.py complete-west [name] "[souvenir sentence]"`. This writes the souvenir through `scripts/write-souvenir.py`. The souvenir is canon.
 
 7. **Award Belief.** +9 Belief on completion. Deduct 3 from the Wonder Compass item on activation.
 

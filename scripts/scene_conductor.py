@@ -42,6 +42,7 @@ DEFAULT_ROUTING_MODEL = "claude-cli/claude-haiku-4-5"
 ESSENTIAL = "essential"
 ENRICHING = "enriching"
 ORNAMENTAL = "ornamental"
+TELEGRAM_TEXT_LIMIT = 3900
 
 BASE = Path(__file__).resolve().parent.parent
 TMP = BASE / "tmp"
@@ -50,9 +51,11 @@ ARTIFACT_OUTBOX = TEXT_OUTBOX / "artifacts"
 ARCHIVE_ART_STYLE = (
     "illustrated in sparse pen-and-ink linework with loose watercolor washes on textured aged parchment, "
     "with visible paper grain, soft ink bleed, watercolor blooms, layered manuscript-page composition, "
-    "handwritten marginalia, and selective pops of color. Keep the image airy, literary, sketch-like, "
+    "lush handwritten marginalia, lush watercolor washes, visible library stamps, wax seals, labels, tabs, arrows, "
+    "annotations, archival overlays, and selective pops of color. Make the page furniture abundant and integral, "
+    "not timid decoration. Keep the image airy, literary, sketch-like, "
     "and slightly unfinished, like a page from a magical field journal rather than a polished digital illustration. "
-    "Include subtle page layout elements such as notes, labels, sketches, margin writing, or archival overlays so "
+    "Include generous page layout elements such as notes, labels, sketches, margin writing, stamps, seals, and overlays so "
     "the image feels embedded in a manuscript page"
 )
 
@@ -68,6 +71,11 @@ def resolve_sequence(data: dict[str, Any]) -> list[str]:
     if explicit:
         return explicit
 
+    metadata = data.setdefault("metadata", {})
+    metadata["tool_authority"] = metadata.get("tool_authority") or "global-intensity-fallback"
+    metadata["tool_warning"] = metadata.get("tool_warning") or (
+        "No explicit Page tool sequence was provided; legacy intensity sequence was used."
+    )
     intensity = data.get("intensity", "cinematic")
     channel = data.get("channel", "telegram")
     base = list(INTENSITY_SEQUENCES.get(intensity, INTENSITY_SEQUENCES["cinematic"]))
@@ -155,6 +163,25 @@ class PrinterCue:
 
 
 @dataclass
+class WallpaperCue:
+    action: str = "brief"
+    player: str = "bj"
+    reason: str = ""
+    command_hint: Optional[str] = None
+    policy: CuePolicy = field(default_factory=lambda: CuePolicy(importance=ORNAMENTAL, fallback="queue_artifact", cost_tier="medium", async_ok=True))
+
+
+@dataclass
+class AppActionsCue:
+    mode: str = "brief"
+    allowed_private_apps: list[str] = field(default_factory=list)
+    public_apps_require_consent: bool = True
+    content_hint: str = ""
+    actions: list[dict[str, Any]] = field(default_factory=list)
+    policy: CuePolicy = field(default_factory=lambda: CuePolicy(importance=ORNAMENTAL, fallback="queue_artifact", cost_tier="low", async_ok=True))
+
+
+@dataclass
 class ScenePacket:
     scene_id: str
     title: str
@@ -172,6 +199,8 @@ class ScenePacket:
     music: Optional[MusicCue] = None
     spotify: Optional[SpotifyCue] = None
     printer: Optional[PrinterCue] = None
+    wallpaper: Optional[WallpaperCue] = None
+    app_actions: Optional[AppActionsCue] = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -193,6 +222,8 @@ class ScenePacket:
             music=_build_dataclass(MusicCue, data.get("music")),
             spotify=_build_dataclass(SpotifyCue, data.get("spotify")),
             printer=_build_dataclass(PrinterCue, data.get("printer")),
+            wallpaper=_build_dataclass(WallpaperCue, data.get("wallpaper")),
+            app_actions=_build_dataclass(AppActionsCue, data.get("app_actions")),
             metadata=data.get("metadata", {}),
         )
 
@@ -242,7 +273,35 @@ class Conductor:
         m = re.search(r"^MEDIA:\s*(.+)$", text or "", re.MULTILINE)
         return m.group(1).strip() if m else None
 
-    def _send_text_message(self, text: str) -> tuple[bool, str]:
+    def _split_telegram_text(self, text: str, limit: int = TELEGRAM_TEXT_LIMIT) -> list[str]:
+        text = (text or "").strip()
+        if len(text) <= limit:
+            return [text]
+
+        chunks: list[str] = []
+        current = ""
+        for para in re.split(r"\n{2,}", text):
+            para = para.strip()
+            if not para:
+                continue
+            if len(para) > limit:
+                if current:
+                    chunks.append(current.strip())
+                    current = ""
+                for i in range(0, len(para), limit):
+                    chunks.append(para[i:i + limit].strip())
+                continue
+            candidate = f"{current}\n\n{para}".strip() if current else para
+            if len(candidate) > limit:
+                chunks.append(current.strip())
+                current = para
+            else:
+                current = candidate
+        if current:
+            chunks.append(current.strip())
+        return chunks or [text[:limit]]
+
+    def _send_text_message_once(self, text: str) -> tuple[bool, str]:
         if not self.packet.target:
             return True, "no target for text send"
         args = [
@@ -258,6 +317,22 @@ class Conductor:
             args += ["--account", self.packet.account]
         args += ["--message", text]
         return self._run(args, timeout=60)
+
+    def _send_text_message(self, text: str) -> tuple[bool, str]:
+        if self.packet.channel != "telegram" or len(text or "") <= TELEGRAM_TEXT_LIMIT:
+            return self._send_text_message_once(text)
+
+        chunks = self._split_telegram_text(text)
+        details: list[str] = []
+        ok_all = True
+        for idx, chunk in enumerate(chunks, start=1):
+            header = f"({idx}/{len(chunks)})\n" if len(chunks) > 1 else ""
+            ok, detail = self._send_text_message_once(header + chunk)
+            ok_all = ok_all and ok
+            details.append(detail or f"chunk {idx} sent")
+            if not ok:
+                break
+        return ok_all, "\n".join(details)
 
     def _send_media(self, media_path: str) -> tuple[bool, str]:
         if not self.packet.target:
@@ -275,6 +350,34 @@ class Conductor:
             args += ["--account", self.packet.account]
         args += ["--media", media_path]
         return self._run(args, timeout=120)
+
+    def _policy_for_step(self, step: str) -> CuePolicy:
+        cue = getattr(self.packet, step, None)
+        policy = getattr(cue, "policy", None)
+        return policy or CuePolicy()
+
+    def _step_is_essential(self, step: str) -> bool:
+        return step in ("text", "voice") or self._policy_for_step(step).importance == ESSENTIAL
+
+    def _timeout_for_step(self, step: str, default: int) -> int:
+        policy = self._policy_for_step(step)
+        if policy.importance == ESSENTIAL or not policy.async_ok:
+            return default
+        if step == "image":
+            return 180
+        if step == "music":
+            return 120
+        if step == "wallpaper":
+            return 180
+        return default
+
+    def _degrade_nonessential(self, step: str, result: dict[str, Any]) -> dict[str, Any]:
+        if result.get("ok") or self._step_is_essential(step):
+            return result
+        result["ok"] = True
+        result["degraded"] = True
+        result["summary"] = f"{step} skipped/degraded"
+        return result
 
     def _normalize_result(self, step: str, ok: bool, detail: str) -> dict[str, Any]:
         raw = detail or ""
@@ -307,6 +410,16 @@ class Conductor:
                 result["artifact_path"] = path
         elif step == "printer" and ok:
             result["summary"] = "printer artifact queued"
+            path = self._extract_path(raw)
+            if path:
+                result["artifact_path"] = path
+        elif step == "wallpaper" and ok:
+            result["summary"] = "wallpaper generated" if "wallpaper generated" in raw else "wallpaper brief queued"
+            path = self._extract_path(raw)
+            if path:
+                result["artifact_path"] = path
+        elif step == "app_actions" and ok:
+            result["summary"] = "app actions executed" if "app actions executed" in raw else "app action brief queued"
             path = self._extract_path(raw)
             if path:
                 result["artifact_path"] = path
@@ -415,10 +528,10 @@ class Conductor:
             "--output",
             str(image_path),
         ]
-        ok, detail = self._run(args, timeout=300)
+        ok, detail = self._run(args, timeout=self._timeout_for_step("image", 300))
         if not ok:
             message = f"drawthings unavailable, image brief written to {out} | fallback: {detail}"
-            if self.packet.image.deliver:
+            if self.packet.image.deliver and self._step_is_essential("image"):
                 return False, message
             return True, message
 
@@ -465,9 +578,12 @@ class Conductor:
             "--duration",
             str(self.packet.music.duration_seconds),
         ]
-        ok, detail = self._run(args, timeout=420)
+        ok, detail = self._run(args, timeout=self._timeout_for_step("music", 420))
         if not ok:
-            return False, f"music generation failed | brief written to {out} | {detail}"
+            message = f"music generation failed | brief written to {out} | {detail}"
+            if self._step_is_essential("music"):
+                return False, message
+            return True, message
 
         if self.packet.music.deliver and self.packet.target:
             send_args = [
@@ -529,6 +645,112 @@ class Conductor:
         out.write_text(json.dumps(artifact, indent=2), encoding="utf-8")
         return True, f"printer artifact queued at {out}"
 
+    def export_wallpaper_brief(self) -> tuple[bool, str]:
+        if not self.packet.wallpaper:
+            return True, "no wallpaper cue"
+        artifact = asdict(self.packet.wallpaper) | {
+            "scene_id": self.packet.scene_id,
+            "title": self.packet.title,
+            "page_type": self.packet.metadata.get("page_type"),
+            "intrusion_level": self.packet.metadata.get("intrusion_level"),
+            "queued_at": datetime.now().isoformat(),
+        }
+        out = ARTIFACT_OUTBOX / f"{self.packet.scene_id}-wallpaper.json"
+        out.write_text(json.dumps(artifact, indent=2), encoding="utf-8")
+        if self.packet.wallpaper.action == "generate":
+            args = [
+                sys.executable,
+                str(BASE / "scripts" / "wallpaper.py"),
+                "--generate",
+                self.packet.wallpaper.player,
+            ]
+            ok, detail = self._run(args, timeout=self._timeout_for_step("wallpaper", 900))
+            if ok:
+                return True, f"wallpaper generated | brief written to {out} | {detail}"
+            message = f"wallpaper generation failed | brief written to {out} | {detail}"
+            if self._step_is_essential("wallpaper"):
+                return False, message
+            return True, message
+        if self.packet.wallpaper.action == "brief":
+            args = [
+                sys.executable,
+                str(BASE / "scripts" / "wallpaper.py"),
+                "--generate",
+                self.packet.wallpaper.player,
+            ]
+            ok, detail = self._run(args, timeout=self._timeout_for_step("wallpaper", 900))
+            if ok:
+                return True, f"wallpaper generated | brief written to {out} | {detail}"
+            message = f"wallpaper generation failed | brief written to {out} | {detail}"
+            if self._step_is_essential("wallpaper"):
+                return False, message
+            return True, message
+        return True, f"wallpaper brief queued at {out}"
+
+    def _execute_private_app_action(self, spec: dict) -> tuple[bool, str]:
+        driver_map = {
+            "apple_reminders": ("apple_reminders.py", "AppleRemindersDriver"),
+            "apple_notes": ("apple_notes.py", "AppleNotesDriver"),
+            "obsidian": ("obsidian.py", "ObsidianDriver"),
+        }
+        driver_key = spec.get("driver")
+        if driver_key not in driver_map:
+            return False, f"unsupported private app action driver: {driver_key}"
+        driver_file, class_name = driver_map[driver_key]
+        payload = dict(spec)
+        payload.setdefault("tier", "Controlled")
+        payload.setdefault("context", {
+            "scene_id": self.packet.scene_id,
+            "title": self.packet.title,
+            "page_type": self.packet.metadata.get("page_type"),
+            "intrusion_level": self.packet.metadata.get("intrusion_level"),
+        })
+        payload_json = json.dumps(payload)
+        script = (
+            "from pathlib import Path\n"
+            "import importlib.util, json, sys\n"
+            f"base_dir = Path({str(BASE)!r})\n"
+            "driver_dir = base_dir / 'scripts' / 'pact-drivers'\n"
+            "base_spec = importlib.util.spec_from_file_location('pact_drivers.base', driver_dir / 'base.py')\n"
+            "base_mod = importlib.util.module_from_spec(base_spec)\n"
+            "sys.modules['pact_drivers.base'] = base_mod\n"
+            "base_spec.loader.exec_module(base_mod)\n"
+            f"spec = importlib.util.spec_from_file_location('pact_drivers.driver', driver_dir / {driver_file!r})\n"
+            "mod = importlib.util.module_from_spec(spec)\n"
+            "sys.modules['pact_drivers.driver'] = mod\n"
+            "spec.loader.exec_module(mod)\n"
+            f"driver = getattr(mod, {class_name!r})()\n"
+            f"payload = json.loads({payload_json!r})\n"
+            f"print(driver.execute_spec(payload, dry_run={self.dry_run!r}))\n"
+        )
+        return self._run([sys.executable, "-c", script], timeout=60)
+
+    def export_app_actions_brief(self) -> tuple[bool, str]:
+        if not self.packet.app_actions:
+            return True, "no app action cue"
+        artifact = asdict(self.packet.app_actions) | {
+            "scene_id": self.packet.scene_id,
+            "title": self.packet.title,
+            "page_type": self.packet.metadata.get("page_type"),
+            "intrusion_level": self.packet.metadata.get("intrusion_level"),
+            "queued_at": datetime.now().isoformat(),
+        }
+        out = ARTIFACT_OUTBOX / f"{self.packet.scene_id}-app-actions.json"
+        out.write_text(json.dumps(artifact, indent=2), encoding="utf-8")
+        summaries: list[str] = []
+        ok_all = True
+        for spec in self.packet.app_actions.actions:
+            if spec.get("driver") not in self.packet.app_actions.allowed_private_apps:
+                ok_all = False
+                summaries.append(f"blocked unsupported app action: {spec.get('driver')}")
+                continue
+            ok, detail = self._execute_private_app_action(spec)
+            ok_all = ok_all and ok
+            summaries.append(detail or ("ok" if ok else "failed"))
+        if summaries:
+            return ok_all, f"app actions executed | brief written to {out} | " + " | ".join(summaries)
+        return True, f"app action brief queued at {out}"
+
     def _handlers(self) -> dict[str, Callable[[], tuple[bool, str]]]:
         return {
             "text": self.deliver_text,
@@ -538,6 +760,8 @@ class Conductor:
             "music": self.export_music_brief,
             "spotify": self.export_spotify_brief,
             "printer": self.export_printer_brief,
+            "wallpaper": self.export_wallpaper_brief,
+            "app_actions": self.export_app_actions_brief,
         }
 
     def _write_run_record(self, results: dict[str, dict[str, Any]]) -> None:
@@ -551,6 +775,8 @@ class Conductor:
             "sequence": self.packet.sequence,
             "routing_model": self.packet.routing_model,
             "dry_run": self.dry_run,
+            "tool_authority": self.packet.metadata.get("tool_authority"),
+            "tool_warning": self.packet.metadata.get("tool_warning"),
             "ran_at": datetime.now().isoformat(),
             "essential_steps": essential_steps,
             "essential_ok": essential_ok,
@@ -583,8 +809,14 @@ class Conductor:
                 if msg_ids:
                     current["message_ids"] = msg_ids
             else:
-                current["ok"] = False
-                current["summary"] = f"{step} delivery failed"
+                current["delivered"] = False
+                if self._step_is_essential(step):
+                    current["ok"] = False
+                    current["summary"] = f"{step} delivery failed"
+                else:
+                    current["ok"] = True
+                    current["degraded"] = True
+                    current["summary"] = f"{step} delivery skipped/degraded"
 
     def run(self) -> dict[str, dict[str, Any]]:
         handlers = self._handlers()
@@ -602,7 +834,7 @@ class Conductor:
             started_at = datetime.now().isoformat()
             ok, detail = handler()
             finished_at = datetime.now().isoformat()
-            results[step] = self._normalize_result(step, ok, detail)
+            results[step] = self._degrade_nonessential(step, self._normalize_result(step, ok, detail))
             results[step]["started_at"] = started_at
             results[step]["finished_at"] = finished_at
         if self.buffered_delivery:
@@ -636,7 +868,7 @@ def example_packet() -> dict[str, Any]:
             "scene": "tension"
         },
         "image": {
-            "prompt": f"Wicker Eddies in a haunted library corridor, warm lampglow against deep shadow, {ARCHIVE_ART_STYLE}",
+            "prompt": f"Character-focused field-journal portrait of Wicker Eddies, face and posture sharp with invitation, one hand near a wrong door key, haunted library corridor only as a faint background wash, {ARCHIVE_ART_STYLE}",
             "filename_hint": "wicker-corridor.png",
             "backend": "drawthings"
         },

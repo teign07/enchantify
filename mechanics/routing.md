@@ -13,7 +13,7 @@ Read the corresponding file when triggered. Do not guess.
 | Wonder Compass activation (rub it / hold it / "I want to run the Compass" / "what should I do today") | `lore/wonder-compass.md` → check cooldown first, then `lore/compass-run.md` |
 | Wonder Compass item / N-E-S-W questions | `lore/wonder-compass.md` + `lore/wonder-compass-book/chapter5.md` |
 | The Nothing | `mechanics/core-rules.md` + `lore/nothing.md` |
-| Book Jump | `mechanics/core-rules.md` + `lore/books.md` |
+| Book Jump | `scripts/book-jump.py` + `mechanics/core-rules.md` + `lore/books.md` |
 | Book Jump into The Wonder Compass | `lore/books.md` (Founding Text section) + relevant chapter in `lore/wonder-compass-book/` |
 | Professor quotes / class scenes | `lore/school-life.md` (Professor Teaching Voices section) |
 | T5 (Synesthetic Fall) | `SPAWN-TEMPLATE.md` |

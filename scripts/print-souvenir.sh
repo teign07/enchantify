@@ -51,8 +51,20 @@ BELIEF=$(echo "$CONTENT" | grep -m1 "^\*\*Belief before:\*\*" | sed 's/\*\*Belie
 
 # If no souvenir line extracted, try the West section
 if [ -z "$SOUVENIR" ]; then
-    SOUVENIR=$(echo "$CONTENT" | awk '/### West — Write/,/###/' | grep -m1 '^\- \*\*Souvenir:\*\*' | sed 's/- \*\*Souvenir:\*\* //' | tr -d '"')
+    SOUVENIR=$(echo "$CONTENT" | grep -m1 '^\- \*\*Souvenir:\*\*' | sed 's/- \*\*Souvenir:\*\* //' | tr -d '"')
 fi
+
+# Escape dynamic values before putting them into HTML.
+html_escape() {
+    sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
+}
+PLAYER_ESC=$(printf '%s' "${PLAYER:-The Reader}" | html_escape)
+DATE_ESC=$(printf '%s' "${DATE:-Today}" | html_escape)
+CHAPTER_ESC=$(printf '%s' "${CHAPTER:-Tidecrest}" | html_escape)
+WEATHER_ESC=$(printf '%s' "${WEATHER:-—}" | html_escape)
+SEASON_ESC=$(printf '%s' "${SEASON:-—}" | html_escape)
+MOON_ESC=$(printf '%s' "${MOON:-—}" | html_escape)
+SOUVENIR_ESC=$(printf '%s' "${SOUVENIR:-A moment worth keeping.}" | html_escape)
 
 # Generate a clean HTML card for printing
 cat > "$TEMP_HTML" << HTMLEOF
@@ -165,20 +177,20 @@ cat > "$TEMP_HTML" << HTMLEOF
   </div>
 
   <div>
-    <span class="player-info">${PLAYER:-The Reader}</span>
+    <span class="player-info">$PLAYER_ESC</span>
     <span class="belief-badge">+9 Belief</span>
     <div style="clear:both"></div>
     <div style="font-size:9pt; color:#888; margin-top:2px;">
-      ${CHAPTER:-Tidecrest} &nbsp;·&nbsp; ${DATE:-Today}
+      $CHAPTER_ESC &nbsp;·&nbsp; $DATE_ESC
     </div>
   </div>
 
   <div class="meta" style="margin-top:10px;">
-    🌤 ${WEATHER:-—} &nbsp;·&nbsp; 🌙 ${MOON:-—} &nbsp;·&nbsp; 🌿 ${SEASON:-—}
+    🌤 $WEATHER_ESC &nbsp;·&nbsp; 🌙 $MOON_ESC &nbsp;·&nbsp; 🌿 $SEASON_ESC
   </div>
 
   <div class="souvenir-box">
-    <div class="souvenir-text">"${SOUVENIR:-A moment worth keeping.}"</div>
+    <div class="souvenir-text">"$SOUVENIR_ESC"</div>
   </div>
 
   <div class="compass">N ↑ E → S ↓ W ←</div>

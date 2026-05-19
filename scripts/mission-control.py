@@ -41,6 +41,7 @@ NOTHING_F   = BASE / "lore" / "nothing-intelligence.md"
 ARC_SPINE_F = BASE / "memory" / "arc-spine.md"
 SCENE_LEDGER_DIR = BASE / "logs" / "scene-ledger"
 SCENE_OUTBOX_DIR = BASE / "tmp" / "scene-outbox"
+BOOK_JUMP_DIR = BASE / "memory" / "book-jumps"
 
 _OPENCLAW = shutil.which("openclaw") or "/opt/homebrew/bin/openclaw"
 
@@ -86,6 +87,11 @@ ACADEMY_WEEKLY = {
     "Thursday":  {"morning": ("Wayfinding & Kineticism", "Momort"),  "afternoon": ("Ink-Binding",       "Villanelle"), "club": "Marginalia Guild"},
     "Friday":    {"morning": ("Synesthetic Resonance",   "Euphony"), "afternoon": ("Basic Enchantments", "Wispwood"), "club": "Book Jumpers"},
     "Saturday":  {"morning": ("Compass Running",         "Stonebrook"), "afternoon": None,                            "club": None},
+}
+
+SUPPORT_HOURS_FALLBACK = {
+    "Tuesday":  [("Dr. Inkrest Office Hours", "Dr. Selene Inkrest", "Reauthoring Rooms", "21:30", "22:00")],
+    "Thursday": [("Dr. Inkrest Office Hours", "Dr. Selene Inkrest", "Reauthoring Rooms", "21:30", "22:00")],
 }
 
 CLASS_INFO = {
@@ -185,6 +191,21 @@ def read(path: Path) -> str:
     return path.read_text(errors="replace") if path.exists() else ""
 
 
+def read_json(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def first_match(pattern: str, text: str, flags=0, group=1, default="") -> str:
+    m = re.search(pattern, text or "", flags)
+    return m.group(group).strip() if m else default
+
+
 PHASE_ALIASES = {
     "escalating": "rising",
     "quiet":      "permanent",
@@ -220,6 +241,18 @@ def is_low_info_live_text(text: str) -> bool:
         "students slog",
         "boggle forces laughter",
         "the halls hold their weather quietly",
+        "used protect",
+        "protected ",
+        "invested belief",
+        "attacked ",
+        "offscreen reason",
+        "pressure source",
+        "left a trace",
+        "method fit",
+        "future choice will inherit",
+        "object everyone had been stepping around",
+        "spent 1 belief making",
+        "spent 1 belief and left a trace",
     )
     return any(bit in lower for bit in generic_bits)
 
@@ -236,7 +269,19 @@ def is_low_info_effect(text: str) -> bool:
         "protect intensified",
         "research intensified",
         "invested offscreen via",
+        "used protect",
+        "protected ",
+        "invested belief",
+        "attacked ",
+        "offscreen reason",
+        "pressure source",
         "made academy daily life more specific",
+        "left a trace",
+        "method fit",
+        "future choice will inherit",
+        "object everyone had been stepping around",
+        "spent 1 belief making",
+        "spent 1 belief and left a trace",
     )
     return any(bit in lower for bit in generic_bits)
 
@@ -307,14 +352,18 @@ def simulation_context_lookup() -> dict[str, dict]:
 
 def action_verb(action: str) -> str:
     return {
-        "protect": "protected",
-        "prepare": "prepared",
-        "reposition": "nudged",
-        "reveal": "surfaced a clue",
-        "invest_belief": "fed belief",
-        "research": "researched",
-        "pressure": "pressured",
-        "world_investment": "invested in",
+        "take_action": "changed conditions",
+        "invest_belief": "gave weight",
+        "attack_belief": "challenged certainty",
+        "protect": "changed conditions",
+        "prepare": "prepared evidence",
+        "reposition": "changed conditions",
+        "reveal": "surfaced evidence",
+        "research": "gathered proof",
+        "recruit": "gathered witnesses",
+        "sabotage": "challenged certainty",
+        "pressure": "left pressure",
+        "world_investment": "gave weight",
     }.get((action or "").lower(), (action or "moved").replace("_", " "))
 
 
@@ -322,25 +371,28 @@ def action_story_phrase(action: str, thread_name: str) -> str:
     action = (action or "").replace("_", " ").strip()
     if thread_name == "Academy Daily Life":
         return {
-            "reposition": "changed the shape of the ordinary school day",
-            "prepare": "set up a concrete daily-life beat",
-            "research": "checked a practical campus question",
-            "reveal": "made a small campus detail easier to notice",
-            "protect": "kept one ordinary support from thinning",
-            "invest belief": "fed chapter pressure through daily routines",
-            "recruit": "pulled another student into the ordinary current",
-            "sabotage": "made one ordinary support less reliable",
+            "take action": "changed an ordinary hour",
+            "invest belief": "made an ordinary habit harder to ignore",
+            "attack belief": "weakened an ordinary certainty",
+            "reposition": "changed an ordinary hour",
+            "prepare": "prepared an ordinary proof",
+            "research": "gathered an ordinary proof",
+            "reveal": "surfaced an ordinary proof",
+            "protect": "kept one ordinary thing intact",
+            "recruit": "drew witnesses into the ordinary day",
+            "sabotage": "weakened an ordinary certainty",
         }.get(action, f"moved through {action or 'the ordinary day'}")
     return {
-        "reposition": "shifted the live situation",
-        "prepare": "prepared the next beat",
-        "research": "found a sharper answer",
-        "reveal": "surfaced a clue",
-        "protect": "held a vulnerable edge",
-        "invest belief": "fed belief into the pressure",
-        "attack belief": "eroded an opposing position",
-        "recruit": "recruited soft support",
-        "sabotage": "made a support less reliable",
+        "take action": "changed the conditions",
+        "invest belief": "gave weight to something specific",
+        "attack belief": "made a certainty harder to trust",
+        "reposition": "changed the conditions",
+        "prepare": "prepared a proof",
+        "research": "gathered a proof",
+        "reveal": "surfaced a proof",
+        "protect": "kept one detail intact",
+        "recruit": "drew in a witness",
+        "sabotage": "made a certainty harder to trust",
     }.get(action, action or "acted")
 
 
@@ -1287,6 +1339,331 @@ def parse_current_heartbeat() -> dict:
     }
 
 
+def parse_recent_fuel_entries(limit: int = 8) -> list[dict[str, str]]:
+    path = BASE / "scripts" / "fuel-log.txt"
+    if not path.exists():
+        return []
+    entries = []
+    for line in reversed(path.read_text(encoding="utf-8", errors="replace").splitlines()):
+        parts = line.split("|")
+        if len(parts) < 5:
+            continue
+        while len(parts) < 12:
+            parts.append("")
+        date_s, time_s, desc, cal, protein, carbs, fat, fiber, sugar, sodium, source, confidence = parts[:12]
+        entries.append({
+            "date": clean_context(date_s),
+            "time": clean_context(time_s),
+            "desc": clean_context(desc),
+            "calories": clean_context(cal),
+            "protein": clean_context(protein),
+            "carbs": clean_context(carbs),
+            "fat": clean_context(fat),
+            "fiber": clean_context(fiber),
+            "sodium": clean_context(sodium),
+            "source": clean_context(source),
+            "confidence": clean_context(confidence),
+        })
+        if len(entries) >= limit:
+            break
+    return entries
+
+
+def parse_vellum_chart_summary(player_name: str = "bj") -> str:
+    cmd = [sys.executable, str(BASE / "scripts" / "vellum-chart.py"), "--player", player_name, "show"]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10, cwd=BASE)
+    except Exception:
+        return ""
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def parse_actual_summary(timeout: int = 20) -> dict:
+    cmd = ["node", str(BASE / "scripts" / "actual-api.mjs"), "summary"]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=BASE)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+    text = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    match = re.search(r"__ACTUAL_JSON_START__\s*(\{.*?\})\s*__ACTUAL_JSON_END__", text, re.DOTALL)
+    if not match:
+        return {"ok": False, "error": (text.strip() or f"Actual exited {proc.returncode}")[:500]}
+    try:
+        data = json.loads(match.group(1))
+    except Exception as exc:
+        return {"ok": False, "error": f"Actual JSON parse failed: {exc}"}
+    data["ok"] = proc.returncode == 0
+    if proc.returncode != 0:
+        data["error"] = (text.strip() or f"Actual exited {proc.returncode}")[:500]
+    return data
+
+
+def money(value) -> str:
+    try:
+        return f"${float(value):,.2f}"
+    except Exception:
+        return "—"
+
+
+def compact_account_name(name: str) -> str:
+    name = clean_context(name)
+    if not name:
+        return "Account"
+    if "CHECKING" in name.upper():
+        return "Checking"
+    if "SAVINGS" in name.upper():
+        return "Savings"
+    return re.sub(r"\s*\([^)]*\)\s*$", "", name)[:42]
+
+
+def latest_gimble_note(rows: list[dict]) -> dict:
+    for row in reversed(rows):
+        text = row.get("message") or row.get("text") or row.get("advice") or row.get("reason") or ""
+        if text:
+            return {
+                "kind": row.get("kind", "note"),
+                "timestamp": row.get("timestamp", ""),
+                "text": clean_context(text),
+            }
+    return {}
+
+
+def parse_heartbeat_finance_summary() -> dict:
+    hb = read(HEARTBEAT_F)
+    match = re.search(r'- \*\*Financials:\*\*\s*\n(.*?)(?=\n-\s+\*\*|\n### |\Z)', hb, re.DOTALL)
+    if not match:
+        return {"ok": False, "error": "No heartbeat finance block."}
+    block = match.group(1)
+    summary: dict = {"ok": True, "source": "heartbeat", "accounts": [], "recent": []}
+    fresh = re.search(r'Actual/SimpleFIN fresh at ([^\n.]+)', block)
+    if fresh:
+        summary["generated_at"] = fresh.group(1).strip()
+    budget = re.search(r'On-budget balance:\s*\$?([-\d,]+\.\d+)', block)
+    if budget:
+        summary["account_total"] = float(budget.group(1).replace(",", ""))
+    month = re.search(r'Monthly:\s*month spending \$?([-\d,]+\.\d+),\s*to budget \$?([-\d,]+\.\d+)', block)
+    if month:
+        summary["month"] = {
+            "total_spent": float(month.group(1).replace(",", "")),
+            "to_budget": float(month.group(2).replace(",", "")),
+        }
+    unbound = re.search(r'Unbound Echoes:\s*(\d+)', block)
+    if unbound:
+        summary["uncategorized_count"] = int(unbound.group(1))
+    for line in block.splitlines():
+        line = line.strip()
+        acct = re.match(r'-\s+(.+?):\s*\$?([-\d,]+\.\d+)$', line)
+        if acct and "—" not in line:
+            summary["accounts"].append({
+                "name": acct.group(1).strip(),
+                "balance": float(acct.group(2).replace(",", "")),
+                "closed": False,
+                "offbudget": False,
+            })
+            continue
+        tx = re.match(r'-\s+(\d{4}-\d{2}-\d{2})\s+—\s+(.+?):\s*\$?([-\d,]+\.\d+)\s+\(([^)]+)\)', line)
+        if tx:
+            summary["recent"].append({
+                "date": tx.group(1),
+                "payee": tx.group(2).strip(),
+                "amount": float(tx.group(3).replace(",", "")),
+                "category": tx.group(4).strip(),
+            })
+    return summary
+
+
+def parse_vellum_status(player_name: str = "bj", heartbeat=None) -> dict:
+    heartbeat = heartbeat or parse_current_heartbeat()
+    founder = heartbeat.get("founder", [])
+    health_labels = re.compile(
+        r"steps|sleep|hrv|resting|heart|blood|fuel|calor|protein|movement|recovery|energy|weight",
+        re.IGNORECASE,
+    )
+    health_rows = [row for row in founder if health_labels.search(row.get("label", "") + " " + row.get("value", ""))]
+    if not health_rows:
+        health_rows = founder[:8]
+
+    chart_summary = parse_vellum_chart_summary(player_name)
+    chart_path = BASE / "players" / f"{player_name}-vellum-chart.md"
+    chart_mtime = ""
+    if chart_path.exists():
+        chart_mtime = datetime.fromtimestamp(chart_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+
+    return {
+        "chart_path": str(chart_path),
+        "chart_mtime": chart_mtime,
+        "chart_summary": chart_summary,
+        "health_rows": health_rows,
+        "fuel_entries": parse_recent_fuel_entries(8),
+        "pulse_ts": heartbeat.get("pulse_ts", ""),
+        "pulse_stale": heartbeat.get("stale", False),
+    }
+
+
+def parse_ledger_status(player_name: str = "bj") -> dict:
+    chart_path = BASE / "players" / f"{player_name}-ledger-chart.md"
+    log_path = BASE / "players" / f"{player_name}-ledger-log.jsonl"
+    actual_config = BASE / "config" / "actual-budget.json"
+    actual_example = BASE / "config" / "actual-budget.example.json"
+
+    chart_text = read(chart_path)
+    chart_mtime = datetime.fromtimestamp(chart_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M") if chart_path.exists() else ""
+
+    rows = []
+    if log_path.exists():
+        for line in log_path.read_text(encoding="utf-8", errors="replace").splitlines()[-20:]:
+            try:
+                rows.append(json.loads(line))
+            except Exception:
+                continue
+
+    cfg = {}
+    if actual_config.exists():
+        try:
+            cfg = json.loads(actual_config.read_text(encoding="utf-8"))
+        except Exception:
+            cfg = {}
+    missing = []
+    for key in ("server_url", "budget_id"):
+        if not cfg.get(key):
+            missing.append(key)
+    password_file = Path(os.path.expanduser(str(cfg.get("password_file", "")))) if cfg.get("password_file") else None
+    if not cfg.get("password") and not os.environ.get("ACTUAL_PASSWORD") and not (password_file and password_file.exists()):
+        missing.append("password")
+
+    actual_summary = parse_actual_summary() if not missing else {"ok": False, "error": f"Missing {', '.join(missing)}"}
+    actual_error = actual_summary.get("error", "")
+    if not actual_summary.get("ok"):
+        fallback_summary = parse_heartbeat_finance_summary()
+        if fallback_summary.get("ok"):
+            fallback_summary["fallback_error"] = actual_error
+            actual_summary = fallback_summary
+    accounts = [a for a in actual_summary.get("accounts", []) if not a.get("closed") and not a.get("offbudget")]
+    account_total = float(actual_summary.get("account_total")) if actual_summary.get("account_total") is not None else sum(float(a.get("balance") or 0) for a in accounts)
+    recent = actual_summary.get("recent", [])[:7] if isinstance(actual_summary.get("recent"), list) else []
+    note = latest_gimble_note(rows)
+
+    return {
+        "chart_path": str(chart_path),
+        "chart_mtime": chart_mtime,
+        "chart_text": chart_text,
+        "log_path": str(log_path),
+        "log_rows": rows,
+        "latest_note": note,
+        "actual_config": str(actual_config),
+        "actual_example": str(actual_example),
+        "actual_ready": not missing and actual_summary.get("ok", False),
+        "missing": missing,
+        "actual_summary": actual_summary,
+        "actual_error": actual_summary.get("error", ""),
+        "actual_fallback_error": actual_summary.get("fallback_error", ""),
+        "generated_at": actual_summary.get("generated_at", ""),
+        "budget_month": actual_summary.get("budget_month", ""),
+        "accounts": accounts,
+        "account_total": account_total,
+        "month": actual_summary.get("month", {}) if isinstance(actual_summary.get("month"), dict) else {},
+        "uncategorized_count": actual_summary.get("uncategorized_count", 0),
+        "recent_transactions": recent,
+    }
+
+
+def parse_inkrest_status(player_name: str = "bj", heartbeat=None) -> dict:
+    heartbeat = heartbeat or parse_current_heartbeat()
+    chart_path = BASE / "players" / f"{player_name}-therapy-chart.md"
+    log_path = BASE / "players" / f"{player_name}-inkrest-log.jsonl"
+    pending_path = BASE / "players" / f"{player_name}-inkrest-pending.json"
+    memory_path = BASE / "players" / f"{player_name}-support-memory.json"
+
+    chart_text = read(chart_path)
+    chart_mtime = datetime.fromtimestamp(chart_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M") if chart_path.exists() else ""
+
+    rows = []
+    if log_path.exists():
+        for line in log_path.read_text(encoding="utf-8", errors="replace").splitlines()[-40:]:
+            try:
+                rows.append(json.loads(line))
+            except Exception:
+                continue
+
+    pending = {}
+    if pending_path.exists():
+        try:
+            pending = json.loads(pending_path.read_text(encoding="utf-8"))
+        except Exception:
+            pending = {}
+    if isinstance(pending, dict) and pending.get("sent_at"):
+        try:
+            sent_at = datetime.fromisoformat(str(pending.get("sent_at", "")))
+            if sent_at.tzinfo is not None:
+                sent_at = sent_at.replace(tzinfo=None)
+            pending["age_hours"] = round((datetime.now() - sent_at).total_seconds() / 3600, 1)
+            if pending.get("status") == "awaiting-reply" and pending["age_hours"] > 6:
+                pending["status"] = "stale-awaiting-reply"
+        except Exception:
+            pass
+
+    support_memory = {}
+    if memory_path.exists():
+        try:
+            support_memory = json.loads(memory_path.read_text(encoding="utf-8"))
+        except Exception:
+            support_memory = {}
+
+    def section_lines(heading: str, limit: int = 8) -> list[str]:
+        m = re.search(rf"(?m)^##\s+{re.escape(heading)}\s*\n(.*?)(?=^##\s+|\Z)", chart_text, re.DOTALL)
+        if not m:
+            return []
+        out = []
+        for raw in m.group(1).splitlines():
+            line = raw.strip()
+            if not line or line.startswith("|---"):
+                continue
+            if line.startswith("|"):
+                cells = [c.strip() for c in line.strip("|").split("|")]
+                if not cells or cells[0].lower() in {"date", "day", "mood / weather"}:
+                    continue
+                text = " · ".join(c for c in cells if c and c.lower() != "unknown")
+            elif line.startswith("- "):
+                text = line[2:].strip()
+            else:
+                text = line
+            if text and "none logged" not in text.lower():
+                out.append(clean_context(text))
+            if len(out) >= limit:
+                break
+        return out
+
+    mood_rows = [r for r in rows if r.get("kind") == "mood-word"]
+    prompt_rows = [r for r in rows if r.get("kind") == "prompt"]
+    latest_mood = mood_rows[-1] if mood_rows else {}
+    latest_prompt = prompt_rows[-1] if prompt_rows else {}
+    daily = support_memory.get("daily", []) if isinstance(support_memory.get("daily"), list) else []
+    latest_daily = daily[-1] if daily else {}
+    experiments = support_memory.get("experiments", []) if isinstance(support_memory.get("experiments"), list) else []
+
+    return {
+        "chart_path": str(chart_path),
+        "chart_mtime": chart_mtime,
+        "chart_text": chart_text,
+        "log_path": str(log_path),
+        "log_rows": rows,
+        "mood_rows": mood_rows[-10:],
+        "latest_mood": latest_mood,
+        "latest_prompt": latest_prompt,
+        "pending": pending if isinstance(pending, dict) else {},
+        "memory_path": str(memory_path),
+        "latest_daily": latest_daily if isinstance(latest_daily, dict) else {},
+        "experiments": experiments[-4:],
+        "current_frame": section_lines("Current Frame", 10),
+        "care_context": section_lines("Care Context", 10),
+        "recent_checkins": section_lines("Recent Check-Ins", 6),
+        "grounding": section_lines("Grounding Practices", 6),
+        "therapy_questions": section_lines("Questions for Real Therapy", 6),
+        "pulse_ts": heartbeat.get("pulse_ts", ""),
+        "pulse_stale": heartbeat.get("stale", False),
+    }
+
+
 def parse_forecast(talismans: list) -> dict:
     hb      = read(HEARTBEAT_F)
     state   = read(BASE / "lore" / "academy-state.md")
@@ -1381,6 +1758,45 @@ def parse_forecast(talismans: list) -> dict:
                     notes.append(line.lstrip("- ").strip())
             if current:
                 env_rows.append(current | {"notes": " ".join(notes).strip()})
+    if not env_rows:
+        # Current academy-state.md uses "### Atmosphere" rather than the older
+        # "## Environment" / "## Academy Environment" headings. Treat those
+        # atmosphere bullets as live environment rows so Forecast never goes
+        # blank just because the state writer changed headings.
+        atmosphere_m = re.search(r'(?m)^###\s*Atmosphere\s*\n(.*?)(?=^#{2,3}\s|\Z)', state, re.DOTALL)
+        if atmosphere_m:
+            for raw_line in atmosphere_m.group(1).splitlines():
+                line = raw_line.strip()
+                if not line.startswith("-"):
+                    continue
+                text = clean_context(line.lstrip("- ").strip())
+                if not text:
+                    continue
+                if "=" in text:
+                    state_text, notes = [part.strip() for part in text.split("=", 1)]
+                elif " — " in text:
+                    state_text, notes = [part.strip() for part in text.split(" — ", 1)]
+                else:
+                    state_text, notes = text[:42], text
+                env_rows.append({
+                    "loc": "Atmosphere",
+                    "state": state_text,
+                    "notes": notes,
+                })
+    if not env_rows:
+        pulse_m = re.search(r'(?m)^###\s*Current World Pulse\s*\n(.*?)(?=^#{2,3}\s|\Z)', state, re.DOTALL)
+        if pulse_m:
+            for label in ("Weather", "Moon", "Tide", "Season"):
+                value = field(pulse_m.group(1), rf'- \*\*{label}:\*\*\s*(.+)')
+                if value:
+                    env_rows.append({"loc": label, "state": "current", "notes": value})
+    if not env_rows:
+        academics_m = re.search(r'(?m)^##\s*Academics\s*\n(.*?)(?=^## |\Z)', state, re.DOTALL)
+        if academics_m:
+            for label in ("Current Block", "In Session", "Up Next", "Club Tonight"):
+                value = field(academics_m.group(1), rf'\*\*{label}(?:\s*\([^)]*\))?:\*\*\s*(.+)')
+                if value:
+                    env_rows.append({"loc": "School Rhythm", "state": label, "notes": value})
 
     # ── Nothing ──
     nothing_pressure = field(nothing, r'Pressure level:\s*(.+)')
@@ -1524,10 +1940,12 @@ def _canonical_weekly_schedule() -> dict:
     for weekday, day_name in enumerate(module.WEEKDAY_NAMES):
         day = module.CLASSES.get(weekday, {})
         club = day.get("club")
+        support_hours = getattr(module, "SUPPORT_HOURS", {}).get(weekday, [])
         weekly[day_name] = {
             "morning": _mission_slot_from_canonical(day.get("morning")),
             "afternoon": _mission_slot_from_canonical(day.get("afternoon")),
             "club": club[0] if club else None,
+            "support": support_hours,
         }
     return weekly or ACADEMY_WEEKLY
 
@@ -1570,6 +1988,7 @@ def parse_schedule() -> dict:
         "block_hours": block_meta[2],
         "block_desc":  block_meta[3],
         "in_session":  in_session,
+        "support_hours": live.get("support_hours", []),
         "today":       weekly.get(today["name"], {}),
         "weekly":      weekly,
     }
@@ -1922,6 +2341,237 @@ def parse_narrative_health(player_name: str = "bj") -> dict:
         return {"status": "ERROR", "score": 0, "findings": [], "error": str(exc)}
 
 
+def parse_page_contract(player_name: str = "bj") -> dict:
+    """Read the current Living Book Page contract for the journal."""
+    try:
+        result = subprocess.run(
+            [sys.executable, str(BASE / "scripts" / "page-contract.py"), player_name, "--json"],
+            cwd=BASE,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode != 0:
+            return {"error": (result.stderr or result.stdout or "").strip()}
+        data = json.loads(result.stdout)
+        return data if isinstance(data, dict) else {}
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+def _safe_player_name(player_name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_-]", "", player_name or "bj") or "bj"
+
+
+def _state_age(path: Path) -> str:
+    if not path.exists():
+        return ""
+    try:
+        dt = datetime.fromtimestamp(path.stat().st_mtime)
+    except Exception:
+        return ""
+    delta = datetime.now() - dt
+    if delta.total_seconds() < 90:
+        return "just now"
+    if delta.total_seconds() < 3600:
+        return f"{int(delta.total_seconds() // 60)}m ago"
+    if delta.days < 2:
+        return f"{int(delta.total_seconds() // 3600)}h ago"
+    return f"{delta.days}d ago"
+
+
+def _compass_step_label(status: str) -> str:
+    return {
+        "idle": "Idle",
+        "north": "North · Notice",
+        "east": "East · Embark",
+        "south": "South · Sense",
+        "west": "West · Write",
+        "center": "Center · Rest",
+        "complete": "Complete",
+        "cancelled": "Cancelled",
+        "abandoned": "Abandoned",
+    }.get((status or "").lower(), status or "Idle")
+
+
+def _compass_player_task(state: dict) -> str:
+    status = (state.get("status") or "idle").lower()
+    if status == "north":
+        return "Answer the Spark, alter it, or say yes to carry it into East."
+    if status == "east":
+        return f"{state.get('east_destination') or 'Cross the threshold.'} Bring: {state.get('east_delight') or 'one small delight'}. Done when: {state.get('east_definition') or 'the definition is complete'}."
+    if status == "south":
+        return state.get("south_mission") or "Do one sensory mission and return with what you found."
+    if status == "west":
+        return "Write one sentence only: one specific sensory detail or feeling from the adventure."
+    if status == "complete":
+        return state.get("west_souvenir") or "The run has returned to Center."
+    if status in {"cancelled", "abandoned"}:
+        return state.get("cancel_reason") or "The run is not currently active."
+    return "No active Compass Run. The Compass is waiting quietly."
+
+
+def _latest_compass_history(player_text: str) -> list[dict]:
+    history = []
+    block_m = re.search(r"## Compass Run History\b(.*?)(?=\n##|\Z)", player_text, re.DOTALL)
+    if not block_m:
+        return history
+    for m in re.finditer(r"(?ms)^###\s+Run\s+([^\n]+)\n(.*?)(?=^### |\Z)", block_m.group(1)):
+        title = clean_context(m.group(1))
+        body = m.group(2)
+        history.append({
+            "title": title,
+            "scale": clean_context(first_match(r"- \*\*Scale:\*\*\s*([^\n]+)", body)),
+            "mood": clean_context(first_match(r"- \*\*Mood:\*\*\s*([^\n]+)", body)),
+            "north": clean_context(first_match(r"- \*\*North:\*\*\s*([^\n]+)", body)),
+            "east": clean_context(first_match(r"- \*\*East:\*\*\s*([^\n]+)", body)),
+            "south": clean_context(first_match(r"- \*\*South:\*\*\s*([^\n]+)", body)),
+            "souvenir": clean_context(first_match(r"- \*\*Souvenir:\*\*\s*(.+)", body)),
+            "belief": clean_context(first_match(r"- \*\*Belief change:\*\*\s*(.+)", body)),
+        })
+    return history[-5:]
+
+
+def parse_compass_status(player_name: str = "bj") -> dict:
+    safe = _safe_player_name(player_name)
+    state_path = PLAYERS_DIR / f"{safe}-compass-run.json"
+    state = read_json(state_path) or {"status": "idle"}
+    player_text = read(PLAYERS_DIR / f"{safe}.md")
+    last_run = first_match(r"- \*\*Last run:\*\*\s*([^\n]+)", player_text)
+    total = first_match(r"- \*\*Total runs:\*\*\s*(\d+)", player_text)
+    souvenirs = first_match(r"- \*\*Souvenirs:\*\*\s*(\d+)", player_text)
+    status = state.get("status") or "idle"
+    cal = state.get("calibration") if isinstance(state.get("calibration"), dict) else {}
+    calibration_detail = " | ".join(
+        item for item in [
+            f"steps {cal.get('steps')}" if cal.get("steps") is not None else "",
+            "; ".join(cal.get("pressure") or []),
+            ", ".join(cal.get("weather_flags") or []),
+            ", ".join(cal.get("fuel_flags") or []),
+        ] if item
+    )
+    return {
+        "player": safe,
+        "status": status,
+        "step_label": _compass_step_label(status),
+        "active": status not in {"idle", "complete", "cancelled", "abandoned", ""},
+        "state_age": _state_age(state_path),
+        "started_at": state.get("started_at", ""),
+        "completed_at": state.get("completed_at", ""),
+        "date": state.get("date", ""),
+        "mood": state.get("mood", ""),
+        "scale": state.get("scale", ""),
+        "calibration": clean_context(state.get("recipe_reason") or ""),
+        "calibration_detail": clean_context(calibration_detail),
+        "north": state.get("north_spark", ""),
+        "north_response": state.get("north_response", ""),
+        "east_destination": state.get("east_destination", ""),
+        "east_delight": state.get("east_delight", ""),
+        "east_definition": state.get("east_definition", ""),
+        "east_report": state.get("east_report", ""),
+        "south": state.get("south_mission", ""),
+        "south_response": state.get("south_response", ""),
+        "west": state.get("west_souvenir", ""),
+        "printed": state.get("printed", False),
+        "task": _compass_player_task(state),
+        "last_run": "" if (last_run or "").lower() in {"never", "—", "-"} else last_run,
+        "total": total or "0",
+        "souvenirs": souvenirs or "0",
+        "recent": _latest_compass_history(player_text),
+    }
+
+
+def parse_book_jump_status(player_name: str = "bj") -> dict:
+    safe = _safe_player_name(player_name)
+    state_path = PLAYERS_DIR / f"{safe}-book-jump.json"
+    state = read_json(state_path) or {"status": "idle"}
+    archives = []
+    if BOOK_JUMP_DIR.exists():
+        for path in sorted(BOOK_JUMP_DIR.glob("*.md"), key=lambda p: p.stat().st_mtime)[-6:]:
+            text = read(path)
+            archives.append({
+                "title": clean_context(first_match(r"^# Book Jump:\s*(.+)", text, flags=re.MULTILINE) or path.stem),
+                "returned": clean_context(first_match(r"- \*\*Returned:\*\*\s*([^\n]+)", text)),
+                "kind": clean_context(first_match(r"- \*\*Kind:\*\*\s*([^\n]+)", text)),
+                "anchor": clean_context(first_match(r"- \*\*Anchor:\*\*\s*([^\n]+)", text)),
+                "intention": clean_context(first_match(r"- \*\*Intention:\*\*\s*([^\n]+)", text)),
+                "outcome": clean_context(first_match(r"- \*\*Outcome:\*\*\s*([^\n]+)", text)),
+                "souvenir": clean_context(first_match(r"(?ms)^## Souvenir\s*\n(.+?)(?=\n##|\Z)", text)),
+                "file": str(path.relative_to(BASE)),
+            })
+    status = state.get("status") or "idle"
+    events = state.get("events") if isinstance(state.get("events"), list) else []
+    return {
+        "player": safe,
+        "status": status,
+        "active": status == "active",
+        "state_age": _state_age(state_path),
+        "title": state.get("title", ""),
+        "kind": state.get("kind", ""),
+        "world": state.get("world", ""),
+        "anchor": state.get("anchor", ""),
+        "intention": state.get("intention", ""),
+        "guide": state.get("guide", ""),
+        "depth": state.get("depth", 0),
+        "max_depth": 4,
+        "return_count": state.get("return_count", ""),
+        "degradation": state.get("degradation", 0),
+        "nothing": state.get("nothing", ""),
+        "souvenir_due": bool(state.get("souvenir_due")),
+        "arrival": state.get("arrival", ""),
+        "rules": state.get("rules", ""),
+        "started_at": state.get("started_at", ""),
+        "updated_at": state.get("updated_at", ""),
+        "events": events[-6:],
+        "archives": archives,
+    }
+
+
+def parse_scene_director(player_name: str = "bj") -> dict:
+    """Read the current Director's Slate and Scene Contract for the journal."""
+    out: dict = {"slate": {}, "contract": {}, "generated_at": datetime.now().isoformat(timespec="seconds")}
+
+    try:
+        slate_result = subprocess.run(
+            [sys.executable, str(BASE / "scripts" / "scene-director.py"), player_name, "--slate-only"],
+            cwd=BASE,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        if slate_result.returncode != 0:
+            out["slate_error"] = (slate_result.stderr or slate_result.stdout or "").strip()
+        else:
+            slate: dict[str, str] = {}
+            for raw_line in slate_result.stdout.splitlines():
+                line = raw_line.strip()
+                if not line or ":" not in line:
+                    continue
+                key, value = line.split(":", 1)
+                slate[key.strip()] = value.strip()
+            out["slate"] = slate
+    except Exception as exc:
+        out["slate_error"] = str(exc)
+
+    try:
+        contract_result = subprocess.run(
+            [sys.executable, str(BASE / "scripts" / "scene-contract.py"), player_name, "--json"],
+            cwd=BASE,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if contract_result.returncode != 0:
+            out["contract_error"] = (contract_result.stderr or contract_result.stdout or "").strip()
+        else:
+            contract = json.loads(contract_result.stdout)
+            out["contract"] = contract if isinstance(contract, dict) else {}
+    except Exception as exc:
+        out["contract_error"] = str(exc)
+
+    return out
+
+
 # ── HTML generation ───────────────────────────────────────────────────────────
 
 def phase_bar(phase: str, belief: int) -> str:
@@ -2099,7 +2749,7 @@ def render_thread_card(t: dict) -> str:
         target = live.get("latest_target", "")
         bits = [live.get("last_actor", "")]
         if action:
-            bits.append(action)
+            bits.append(action_verb(action))
         if intensity:
             bits.append(f'({intensity})')
         if target:
@@ -2694,6 +3344,379 @@ def render_heartbeat_tab(hb: dict) -> str:
     </div>'''
 
 
+def render_vellum_tab(vellum: dict) -> str:
+    if not vellum:
+        return '<div class="muted">No Vellum data.</div>'
+
+    status_color = "var(--rising)" if vellum.get("pulse_stale") else "var(--seed)"
+    status_label = "stale pulse" if vellum.get("pulse_stale") else "live pulse"
+    chart_summary = vellum.get("chart_summary") or "No chart summary available."
+    raw_md = modal_attr("Dr. Vellum Chart", [
+        ("Chart", vellum.get("chart_path", "")),
+        ("Updated", vellum.get("chart_mtime", "")),
+        ("Summary", chart_summary),
+    ])
+
+    health_rows = ""
+    for row in vellum.get("health_rows", []):
+        label = row.get("label", "")
+        value = row.get("value", "")
+        if value:
+            health_rows += f'<div class="hb-row"><span class="hb-label">{h(label)}</span><span class="hb-value">{h(value)}</span></div>'
+    if not health_rows:
+        health_rows = '<div class="muted">No health rows found in the current heartbeat.</div>'
+
+    fuel_rows = ""
+    for e in vellum.get("fuel_entries", []):
+        nutrients = []
+        if e.get("calories"):
+            nutrients.append(f'{e["calories"]} cal')
+        if e.get("protein"):
+            nutrients.append(f'{e["protein"]}g protein')
+        if e.get("fiber"):
+            nutrients.append(f'{e["fiber"]}g fiber')
+        if e.get("sodium"):
+            nutrients.append(f'{e["sodium"]}mg sodium')
+        source = e.get("source") or ""
+        confidence = e.get("confidence") or ""
+        source_tail = f' · {h(source)}' if source else ""
+        if confidence and confidence != source:
+            source_tail += f'/{h(confidence)}'
+        fuel_rows += f'''
+        <div class="vellum-fuel-row">
+          <div><span class="vellum-date">{h(e.get("date",""))} {h(e.get("time",""))}</span> <span>{h(e.get("desc",""))}</span></div>
+          <div class="muted">{h(", ".join(nutrients) or "nutrition unknown")}{source_tail}</div>
+        </div>'''
+    if not fuel_rows:
+        fuel_rows = '<div class="muted">No fuel log entries found.</div>'
+
+    chart_lines = []
+    for raw in chart_summary.splitlines():
+        line = raw.strip()
+        if not line or line == "VELLUM CHART SUMMARY":
+            continue
+        if line.startswith("## "):
+            chart_lines.append(f'<div class="section-label">{h(line[3:].strip())}</div>')
+            continue
+        if line.startswith("|---"):
+            continue
+        if line.startswith("|"):
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            if not cells or cells[0].lower() in {"marker", "date", "supplement", "experiment"}:
+                continue
+            text = " · ".join(c for c in cells if c and c.lower() != "unknown")
+            if text:
+                chart_lines.append(f'<div class="vellum-chart-line">{h(text)}</div>')
+        else:
+            chart_lines.append(f'<div class="vellum-chart-line">{h(line)}</div>')
+    chart_html = "".join(chart_lines[:80]) or '<div class="muted">Chart exists, but no summary lines were available.</div>'
+
+    return f'''
+    <div class="heartbeat-head clickable" onclick="openModal(this)" data-modal={raw_md}>
+      <div>
+        <div class="heartbeat-title">Dr. Vellum's Desk</div>
+        <div class="heartbeat-sub muted">Latest health, fuel, and longevity context available to the Academy physician.</div>
+      </div>
+      <div class="heartbeat-stamp" style="color:{status_color}">
+        <span>{h(status_label.upper())}</span>
+        <span class="muted">Chart {h(vellum.get("chart_mtime") or "—")}</span>
+      </div>
+    </div>
+    <div class="heartbeat-grid">
+      <div class="hb-block">
+        <div class="fc-block-title">Latest Health Signals</div>
+        {health_rows}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Recent Fuel Log</div>
+        {fuel_rows}
+      </div>
+      <div class="hb-block hb-block-wide">
+        <div class="fc-block-title">Vellum Chart</div>
+        <div class="vellum-chart">{chart_html}</div>
+      </div>
+    </div>'''
+
+
+def render_ledger_tab(ledger: dict) -> str:
+    if not ledger:
+        return '<div class="muted">No Gimble ledger data.</div>'
+
+    ready = ledger.get("actual_ready")
+    status_color = "var(--seed)" if ready else "var(--rising)"
+    source = (ledger.get("actual_summary") or {}).get("source", "actual")
+    status_label = "heartbeat ledger" if source == "heartbeat" else ("live ledger" if ready else "setup pending")
+    missing = ", ".join(ledger.get("missing", [])) or "none"
+    actual_error = ledger.get("actual_error") or ""
+    fallback_error = ledger.get("actual_fallback_error") or ""
+    month = ledger.get("month") or {}
+    generated_at = ledger.get("generated_at") or ""
+    generated_label = generated_at.replace("T", " ").replace("Z", " UTC")[:19] if generated_at else "—"
+    note = ledger.get("latest_note") or {}
+    chart_text = ledger.get("chart_text") or ""
+    raw_md = modal_attr("Gimble Ledger", [
+        ("Chart", ledger.get("chart_path", "")),
+        ("Updated", ledger.get("chart_mtime", "")),
+        ("Actual Config", ledger.get("actual_config", "")),
+        ("Missing", missing),
+        ("Actual Last Read", generated_label),
+        ("Actual Error", actual_error or fallback_error),
+        ("Latest Gimble Note", note.get("text", "")),
+        ("Chart Text", chart_text[:3500]),
+    ])
+
+    weather_rows = [
+        ("On-budget balance", money(ledger.get("account_total", 0))),
+        ("To budget", money(month.get("to_budget"))),
+        ("Spent this month", money(abs(float(month.get("total_spent") or 0))) if month else "—"),
+        ("Unbound Echoes", str(ledger.get("uncategorized_count", 0))),
+        ("Budget month", ledger.get("budget_month") or "—"),
+        ("Last Actual read", generated_label),
+    ]
+    weather_html = "".join(
+        f'<div class="hb-row"><span class="hb-label">{h(label)}</span><span class="hb-value">{h(value)}</span></div>'
+        for label, value in weather_rows
+    )
+    if actual_error:
+        weather_html += f'<div class="muted">{h(clean_context(actual_error)[:260])}</div>'
+    elif fallback_error:
+        weather_html += '<div class="muted">Actual API was fussy during render; using the latest heartbeat ledger snapshot.</div>'
+
+    accounts_html = ""
+    for acct in ledger.get("accounts", [])[:8]:
+        accounts_html += f'''
+        <div class="hb-row">
+          <span class="hb-label">{h(compact_account_name(acct.get("name", "")))}</span>
+          <span class="hb-value">{h(money(acct.get("balance")))}</span>
+        </div>'''
+    if not accounts_html:
+        accounts_html = '<div class="muted">No live account balances available.</div>'
+
+    tx_html = ""
+    for tx in ledger.get("recent_transactions", [])[:7]:
+        amount = float(tx.get("amount") or 0)
+        amt_color = "var(--seed)" if amount >= 0 else "var(--ink)"
+        payee = clean_context(tx.get("payee") or "Unknown payee")
+        category = clean_context(tx.get("category") or "Unbound")
+        tx_html += f'''
+        <div class="vellum-fuel-row">
+          <div><span class="vellum-date">{h(tx.get("date", ""))}</span> <span>{h(payee[:56])}</span></div>
+          <div><span class="muted">{h(category)}</span> <span style="float:right;color:{amt_color}">{h(money(amount))}</span></div>
+        </div>'''
+    if not tx_html:
+        tx_html = '<div class="muted">No recent transactions available.</div>'
+
+    if note:
+        note_html = f'''
+        <div class="vellum-fuel-row">
+          <div><span class="vellum-date">{h(note.get("timestamp", ""))}</span> <span>{h(note.get("kind", "note"))}</span></div>
+          <div class="muted">{h(note.get("text", "")[:700])}</div>
+        </div>'''
+    else:
+        note_html = '<div class="muted">No Gimble advice has been logged yet.</div>'
+
+    log_html = ""
+    for row in reversed(ledger.get("log_rows", [])[-8:]):
+        kind = row.get("kind", "note")
+        ts = row.get("timestamp", "")
+        text = row.get("message") or row.get("text") or row.get("reason") or ""
+        log_html += f'''
+        <div class="vellum-fuel-row">
+          <div><span class="vellum-date">{h(ts)}</span> <span>{h(kind)}</span></div>
+          <div class="muted">{h(clean_context(text)[:260])}</div>
+        </div>'''
+    if not log_html:
+        log_html = '<div class="muted">No ledger log entries yet.</div>'
+
+    chart_lines = []
+    for raw in chart_text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("# Gimble"):
+            continue
+        if line.startswith("## "):
+            chart_lines.append(f'<div class="section-label">{h(line[3:].strip())}</div>')
+            continue
+        if line.startswith("|---"):
+            continue
+        if line.startswith("|"):
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            if not cells or cells[0].lower() in {"finance term", "field", "actual category", "name", "pattern", "date"}:
+                continue
+            text = " · ".join(c for c in cells if c and c.lower() != "unknown")
+            if text:
+                chart_lines.append(f'<div class="vellum-chart-line">{h(text)}</div>')
+        elif not line.startswith("-"):
+            chart_lines.append(f'<div class="vellum-chart-line">{h(line)}</div>')
+    chart_html = "".join(chart_lines[:90]) or '<div class="muted">Ledger chart exists, but no summary lines were available.</div>'
+
+    return f'''
+    <div class="heartbeat-head clickable" onclick="openModal(this)" data-modal={raw_md}>
+      <div>
+        <div class="heartbeat-title">Gimble's Errata Ledger</div>
+        <div class="heartbeat-sub muted">Live balances, recent kinetic ink, and shame-free money weather.</div>
+      </div>
+      <div class="heartbeat-stamp" style="color:{status_color}">
+        <span>{h(status_label.upper())}</span>
+        <span class="muted">Actual {h(generated_label)}</span>
+      </div>
+    </div>
+    <div class="heartbeat-grid">
+      <div class="hb-block">
+        <div class="fc-block-title">Money Weather</div>
+        {weather_html}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Accounts</div>
+        {accounts_html}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Recent Kinetic Ink</div>
+        {tx_html}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Gimble's Latest Note</div>
+        {note_html}
+      </div>
+      <div class="hb-block hb-block-wide">
+        <div class="fc-block-title">Ledger Notes</div>
+        {log_html}
+      </div>
+      <div class="hb-block hb-block-wide">
+        <div class="fc-block-title">Ledger Chart</div>
+        <div class="vellum-chart">{chart_html}</div>
+      </div>
+    </div>'''
+
+
+def render_inkrest_tab(inkrest: dict) -> str:
+    if not inkrest:
+        return '<div class="muted">No Inkrest data.</div>'
+
+    pending = inkrest.get("pending") or {}
+    latest_mood = inkrest.get("latest_mood") or {}
+    latest_daily = inkrest.get("latest_daily") or {}
+    status = pending.get("status")
+    status_color = "var(--rising)" if status == "awaiting-reply" else ("var(--muted)" if status == "stale-awaiting-reply" else "var(--seed)")
+    status_label = "stale prompt" if status == "stale-awaiting-reply" else ("awaiting reply" if status == "awaiting-reply" else "listening")
+    raw_md = modal_attr("Dr. Inkrest Chart", [
+        ("Chart", inkrest.get("chart_path", "")),
+        ("Updated", inkrest.get("chart_mtime", "")),
+        ("Log", inkrest.get("log_path", "")),
+        ("Support Memory", inkrest.get("memory_path", "")),
+        ("Pending", json.dumps(pending, ensure_ascii=False, indent=2)[:1200] if pending else "none"),
+        ("Current Frame", "\n".join(inkrest.get("current_frame", []))),
+        ("Care Context", "\n".join(inkrest.get("care_context", []))),
+    ])
+
+    mood_html = ""
+    for row in reversed(inkrest.get("mood_rows", [])[-8:]):
+        fuel = row.get("fuel") or ""
+        meta = " · ".join(x for x in [row.get("context", ""), row.get("heartbeat_pacing", ""), f'{row.get("steps")} steps' if row.get("steps") is not None else ""] if x)
+        mood_html += f'''
+        <div class="vellum-fuel-row">
+          <div><span class="vellum-date">{h(row.get("timestamp", ""))}</span> <span>{h(row.get("word", ""))}</span></div>
+          <div class="muted">{h(clean_context(meta)[:180])}</div>
+          {f'<div class="muted">{h(clean_context(fuel)[:180])}</div>' if fuel else ''}
+        </div>'''
+    if not mood_html:
+        mood_html = '<div class="muted">No mood words logged yet.</div>'
+
+    pending_html = ""
+    if pending:
+        pending_html = f'''
+        <div class="hb-row"><span class="hb-label">Status</span><span class="hb-value">{h(pending.get("status", "pending"))}</span></div>
+        <div class="hb-row"><span class="hb-label">Slot</span><span class="hb-value">{h(pending.get("slot", "—"))}</span></div>
+        <div class="hb-row"><span class="hb-label">Sent</span><span class="hb-value">{h(pending.get("sent_at", "—"))}</span></div>
+        <div class="hb-row"><span class="hb-label">Age</span><span class="hb-value">{h(str(pending.get("age_hours", "—")))}h</span></div>
+        <div class="muted">{h(clean_context(pending.get("message", ""))[:260])}</div>'''
+    else:
+        pending_html = '<div class="muted">No pending one-word weather check-in.</div>'
+
+    daily_rows = []
+    mood_words = latest_daily.get("mood_words") or {}
+    if latest_mood:
+        daily_rows.append(("Latest mood", f'{latest_mood.get("word", "—")} · {latest_mood.get("timestamp", "")}'))
+    if mood_words:
+        daily_rows.append(("Week words", ", ".join(f"{k}×{v}" for k, v in list(mood_words.items())[:5])))
+    if latest_daily.get("latest_steps") is not None:
+        daily_rows.append(("Latest steps", str(latest_daily.get("latest_steps"))))
+    if latest_daily.get("latest_fuel"):
+        daily_rows.append(("Fuel context", clean_context(latest_daily.get("latest_fuel"))[:140]))
+    patterns_html = "".join(
+        f'<div class="hb-row"><span class="hb-label">{h(label)}</span><span class="hb-value">{h(value)}</span></div>'
+        for label, value in daily_rows
+    )
+    for obs in latest_daily.get("observations", [])[:5]:
+        patterns_html += f'<div class="vellum-chart-line">{h(obs)}</div>'
+    if not patterns_html:
+        patterns_html = '<div class="muted">No weekly synthesis yet.</div>'
+
+    frame_html = "".join(f'<div class="vellum-chart-line">{h(line)}</div>' for line in inkrest.get("current_frame", [])[:10])
+    if not frame_html:
+        frame_html = '<div class="muted">No current frame lines available.</div>'
+
+    checkin_html = "".join(f'<div class="vellum-chart-line">{h(line)}</div>' for line in inkrest.get("recent_checkins", [])[:6])
+    if not checkin_html:
+        checkin_html = '<div class="muted">No structured check-ins in the chart yet.</div>'
+
+    grounding_html = "".join(f'<div class="vellum-chart-line">{h(line)}</div>' for line in inkrest.get("grounding", [])[:6])
+    if not grounding_html:
+        grounding_html = '<div class="muted">No grounding practices listed.</div>'
+
+    experiment_html = ""
+    for exp in inkrest.get("experiments", [])[-4:]:
+        experiment_html += f'''
+        <div class="vellum-fuel-row">
+          <div><span class="vellum-date">{h(exp.get("date", ""))}</span> <span>{h(exp.get("owner", ""))}</span></div>
+          <div>{h(exp.get("experiment", ""))}</div>
+          <div class="muted">{h(exp.get("metric", ""))}</div>
+        </div>'''
+    if not experiment_html:
+        experiment_html = '<div class="muted">No active support experiments logged.</div>'
+
+    return f'''
+    <div class="heartbeat-head clickable" onclick="openModal(this)" data-modal={raw_md}>
+      <div>
+        <div class="heartbeat-title">Dr. Inkrest's Reauthoring Desk</div>
+        <div class="heartbeat-sub muted">Mood weather, narrative therapy frame, support memory, and gentle next-hour care.</div>
+      </div>
+      <div class="heartbeat-stamp" style="color:{status_color}">
+        <span>{h(status_label.upper())}</span>
+        <span class="muted">Chart {h(inkrest.get("chart_mtime") or "—")}</span>
+      </div>
+    </div>
+    <div class="heartbeat-grid">
+      <div class="hb-block">
+        <div class="fc-block-title">Pending Check-In</div>
+        {pending_html}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Recent One-Word Weather</div>
+        {mood_html}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Support Synthesis</div>
+        {patterns_html}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Grounding / Next Hour</div>
+        {grounding_html}
+      </div>
+      <div class="hb-block hb-block-wide">
+        <div class="fc-block-title">Current Frame</div>
+        <div class="vellum-chart">{frame_html}</div>
+      </div>
+      <div class="hb-block hb-block-wide">
+        <div class="fc-block-title">Recent Chart Check-Ins</div>
+        <div class="vellum-chart">{checkin_html}</div>
+      </div>
+      <div class="hb-block hb-block-wide">
+        <div class="fc-block-title">Active Support Experiments</div>
+        {experiment_html}
+      </div>
+    </div>'''
+
+
 def render_schedule_tab(sched: dict) -> str:
     block_color = BLOCK_COLORS.get(sched["block_id"], "#374151")
     session_txt = sched["in_session"] or "No mandatory class this block."
@@ -2739,6 +3762,26 @@ def render_schedule_tab(sched: dict) -> str:
         else:
             return f'<div class="sched-slot"><span class="sched-slot-time muted">{h(time_str)}</span><span class="sched-slot-name">{h(entry)}</span></div>'
 
+    def support_slot(item) -> str:
+        title, host, room, start, end = item
+        md = modal_attr(title, [
+            ("Host", host),
+            ("Room", room),
+            ("Time", f"{start}–{end}"),
+            ("Purpose", "Optional Difficult Page / narrative therapy check-in. Absence is never punished."),
+        ])
+        return f'''<div class="sched-slot clickable" style="border-color:#7c3aed44" onclick="openModal(this)" data-modal={md}>
+          <span class="sched-slot-time muted">{h(start)}–{h(end)}</span>
+          <span class="sched-slot-name" style="color:#7c3aed">{h(title)}</span>
+          <span class="sched-slot-prof muted">{h(host)}</span>
+          <span class="sched-slot-compass muted">{h(room)}</span>
+        </div>'''
+
+    support_today = sched.get("support_hours") or sched["today"].get("support") or []
+    support_html = "".join(support_slot(item) for item in support_today)
+    if support_html:
+        support_html = f'<div class="sched-section-label" style="margin:.55rem 0 .2rem">Support Hours</div>{support_html}'
+
     today_html = f'''<div class="sched-today-header">
       <span class="sched-section-label">Today — {h(sched["day_name"])}</span>
       <span class="sched-tone-badge">{h(sched["tone"])}</span>
@@ -2747,6 +3790,7 @@ def render_schedule_tab(sched: dict) -> str:
       {class_slot("Morning",   "morning",   "9–11 AM")}
       {class_slot("Afternoon", "afternoon", "1–3 PM")}
       {class_slot("Club",      "club",      "7 PM")}
+      {support_html}
     </div>'''
 
     # ── Weekly grid ──
@@ -2767,12 +3811,16 @@ def render_schedule_tab(sched: dict) -> str:
                 return f'<span class="sched-mini-class" style="color:{c}" title="{nm}">{h(nm[:18])}</span>'
             return f'<span class="sched-mini-class muted">{h(e)}</span>'
 
+        support = slots.get("support") or SUPPORT_HOURS_FALLBACK.get(dname, [])
+        support_label = "Inkrest 9:30" if support else "—"
+
         tone_md = modal_attr(f'{dname} · Day {day_data.get("num","?")}',[
             ("Tone",        day_data.get("tone", "")),
             ("Character",   day_data.get("desc", "")),
             ("Morning",     (slots.get("morning") or ("—",))[0] if slots.get("morning") else "—"),
             ("Afternoon",   (slots.get("afternoon") or ("—",))[0] if slots.get("afternoon") else "—"),
             ("Club",        slots.get("club") or "—"),
+            ("Support",     "; ".join(f"{item[0]} {item[3]}" for item in support) if support else "—"),
         ])
 
         col_cls      = "sched-day-col sched-day-today" if is_today else "sched-day-col"
@@ -2785,6 +3833,7 @@ def render_schedule_tab(sched: dict) -> str:
           <div class="sched-day-col-slot">{mini_class("morning")}</div>
           <div class="sched-day-col-slot">{mini_class("afternoon")}</div>
           <div class="sched-day-col-slot">{mini_class("club")}</div>
+          <div class="sched-day-col-slot"><span class="sched-mini-class muted">{h(support_label)}</span></div>
         </div>'''
 
     # ── Time blocks strip ──
@@ -2973,6 +4022,311 @@ def render_narrative_health(report: dict) -> str:
     return f'<div class="clickable" onclick="openModal(this)" data-modal={md}>{card_html}<div class="tick-feed" style="margin-top:.65rem">{"".join(rows)}</div></div>'
 
 
+def render_page_contract(page: dict) -> str:
+    if not page:
+        return '<div class="muted">No page contract available.</div>'
+    if page.get("error"):
+        return f'<div class="entry entry-priority">Page contract failed: {h(page.get("error"))}</div>'
+
+    label = page.get("page_label") or page.get("page_type") or "Current Page"
+    page_type = page.get("page_type") or "unknown"
+    flavor = page.get("secondary_flavor") or "none"
+    mode = page.get("recommended_scene_mode") or "?"
+    budget = page.get("recommended_drama_budget") or "?"
+    artifacts = page.get("artifact_due") or []
+    allowed = page.get("allowed_systems") or []
+    forbidden = page.get("forbidden_systems") or []
+    state = page.get("state_hints") or {}
+
+    modal_fields = [
+        ("Page type", f"{label} ({page_type})"),
+        ("Why this page", page.get("selection_reason", "")),
+        ("Secondary flavor", flavor),
+        ("Purpose", page.get("purpose", "")),
+        ("Player invitation", page.get("player_invitation", "")),
+        ("Closure", page.get("closure_condition", "")),
+        ("Artifact due", "\n".join(f"- {item}" for item in artifacts)),
+        ("Allowed systems", "\n".join(f"- {item}" for item in allowed)),
+        ("Forbidden systems", "\n".join(f"- {item}" for item in forbidden)),
+        ("Recommended scene", f"{mode} · {budget} drama"),
+        ("Story pressure", state.get("story_pressure", "")),
+        ("Schedule", state.get("schedule", "")),
+        ("Nothing", state.get("nothing", "")),
+        ("Small model rule", page.get("small_model_rule", "")),
+    ]
+    md = modal_attr(label, modal_fields)
+    proof = artifacts[0] if artifacts else "proof artifact"
+    allowed_preview = ", ".join(allowed[:3])
+    forbidden_preview = ", ".join(forbidden[:2])
+    return f'''<div class="page-card clickable" onclick="openModal(this)" data-modal={md}>
+      <div class="page-rubric">Current Page</div>
+      <div class="page-title">{h(label)}</div>
+      <div class="page-purpose">{h(page.get("purpose", ""))}</div>
+      <div class="page-meta">
+        <span>{h(mode)}</span>
+        <span>{h(budget)} drama</span>
+        <span>{h(flavor)}</span>
+      </div>
+      <div class="page-rule">{h(page.get("player_invitation", ""))}</div>
+      <div class="page-proof"><span>proof due</span>{h(proof)}</div>
+      <div class="page-mini"><strong>allowed</strong> {h(allowed_preview or "page-specific systems")}</div>
+      <div class="page-mini"><strong>quiet</strong> {h(forbidden_preview or "off-page systems")}</div>
+    </div>'''
+
+
+def _mini_stat(label: str, value: str, cls: str = "") -> str:
+    return f'<div class="auto-card {cls}"><div class="auto-label">{h(label)}</div><div class="auto-value">{h(value)}</div></div>'
+
+
+def render_compass_tab(compass: dict) -> str:
+    if not compass:
+        return '<div class="muted">No Compass Run data.</div>'
+    active = compass.get("active")
+    status_cls = "ok" if active else ""
+    cards = '<div class="auto-health">' + "".join([
+        _mini_stat("Current step", compass.get("step_label", "Idle"), status_cls),
+        _mini_stat("Total runs", str(compass.get("total", "0"))),
+        _mini_stat("Souvenirs", str(compass.get("souvenirs", "0"))),
+        _mini_stat("Last run", compass.get("last_run") or "none"),
+    ]) + '</div>'
+    details = [
+        ("Status", compass.get("step_label", "")),
+        ("State updated", compass.get("state_age", "")),
+        ("Started", compass.get("started_at", "")),
+        ("Mood / scale", f"{compass.get('mood') or 'unknown'} / {compass.get('scale') or 'unknown'}"),
+        ("Why this run", compass.get("calibration", "")),
+        ("Calibration", compass.get("calibration_detail", "")),
+        ("North", compass.get("north", "")),
+        ("North response", compass.get("north_response", "")),
+        ("East destination", compass.get("east_destination", "")),
+        ("East delight", compass.get("east_delight", "")),
+        ("East definition", compass.get("east_definition", "")),
+        ("East report", compass.get("east_report", "")),
+        ("South", compass.get("south", "")),
+        ("South response", compass.get("south_response", "")),
+        ("West souvenir", compass.get("west", "")),
+        ("Printed", "yes" if compass.get("printed") else "no"),
+    ]
+    md = modal_attr("Wonder Compass Run", details)
+    active_card = f'''
+    <div class="page-card clickable" onclick="openModal(this)" data-modal={md}>
+      <div class="page-rubric">Wonder Compass</div>
+      <div class="page-title">{h(compass.get("step_label", "Idle"))}</div>
+      <div class="page-purpose">{h(compass.get("task", ""))}</div>
+      <div class="page-meta">
+        <span>{h(compass.get("mood") or "no mood")}</span>
+        <span>{h(compass.get("scale") or "no scale")}</span>
+        <span>{h(compass.get("state_age") or "no active state")}</span>
+      </div>
+      <div class="page-rule">{h(compass.get("calibration") or "The Academy has no active Compass weather right now.")}</div>
+      <div class="page-proof"><span>proof due</span>{h("one-sentence souvenir" if active else "next real run")}</div>
+    </div>'''
+    recent_rows = []
+    for item in reversed(compass.get("recent", [])):
+        row_md = modal_attr(
+            item.get("title", "Compass Run"),
+            [
+                ("Scale / mood", f"{item.get('scale', '')} / {item.get('mood', '')}"),
+                ("North", item.get("north", "")),
+                ("East", item.get("east", "")),
+                ("South", item.get("south", "")),
+                ("Souvenir", item.get("souvenir", "")),
+                ("Belief", item.get("belief", "")),
+            ],
+        )
+        recent_rows.append(
+            f'<div class="entry entry-normal clickable" onclick="openModal(this)" data-modal={row_md}><strong>{h(item.get("title", "Run"))}</strong> {h(item.get("souvenir") or item.get("north") or "")}</div>'
+        )
+    recent_html = "".join(recent_rows) or '<div class="muted">No completed Compass Runs recorded yet.</div>'
+    return f'{cards}{active_card}<div class="section-label">Recent Souvenirs</div><div class="tick-feed">{recent_html}</div>'
+
+
+def render_book_jump_tab(book: dict) -> str:
+    if not book:
+        return '<div class="muted">No Book Jump data.</div>'
+    active = book.get("active")
+    depth = f'{book.get("depth", 0)}/{book.get("max_depth", 4)}'
+    cards = '<div class="auto-health">' + "".join([
+        _mini_stat("Status", "Active" if active else "Idle", "ok" if active else ""),
+        _mini_stat("Depth", depth),
+        _mini_stat("Degradation", str(book.get("degradation", 0)), "warn" if int(book.get("degradation") or 0) else ""),
+        _mini_stat("Archives", str(len(book.get("archives", [])))),
+    ]) + '</div>'
+    details = [
+        ("Status", book.get("status", "")),
+        ("State updated", book.get("state_age", "")),
+        ("Book", book.get("title", "")),
+        ("Kind", book.get("kind", "")),
+        ("World", book.get("world", "")),
+        ("Anchor", book.get("anchor", "")),
+        ("Intention", book.get("intention", "")),
+        ("Guide", book.get("guide", "")),
+        ("Depth", depth),
+        ("Return count", str(book.get("return_count", ""))),
+        ("Nothing", book.get("nothing", "")),
+        ("Arrival texture", book.get("arrival", "")),
+        ("Rules", book.get("rules", "")),
+        ("Souvenir due", "yes" if book.get("souvenir_due") else "no"),
+    ]
+    for event in book.get("events", []):
+        details.append((f"Beat {event.get('depth', '?')}", event.get("beat", "")))
+    md = modal_attr("Book Jump", details)
+    if active:
+        title = book.get("title") or "Active Book Jump"
+        purpose = book.get("intention") or book.get("world") or "A book is open."
+        proof = "souvenir sentence due" if book.get("souvenir_due") else "safe return tether"
+    else:
+        title = "No active Book Jump"
+        purpose = "The shelves are quiet; recent returned jumps remain archived."
+        proof = "next anchor + intention"
+    active_card = f'''
+    <div class="page-card clickable" onclick="openModal(this)" data-modal={md}>
+      <div class="page-rubric">Book Jumping</div>
+      <div class="page-title">{h(title)}</div>
+      <div class="page-purpose">{h(purpose)}</div>
+      <div class="page-meta">
+        <span>{h(book.get("kind") or "idle")}</span>
+        <span>depth {h(depth)}</span>
+        <span>degradation {h(book.get("degradation", 0))}</span>
+      </div>
+      <div class="page-rule">{h(book.get("world") or "No text-world currently holding BJ.")}</div>
+      <div class="page-proof"><span>proof due</span>{h(proof)}</div>
+    </div>'''
+    archive_rows = []
+    for item in reversed(book.get("archives", [])):
+        row_md = modal_attr(
+            item.get("title", "Returned Book Jump"),
+            [
+                ("Returned", item.get("returned", "")),
+                ("Kind", item.get("kind", "")),
+                ("Anchor", item.get("anchor", "")),
+                ("Intention", item.get("intention", "")),
+                ("Outcome", item.get("outcome", "")),
+                ("Souvenir", item.get("souvenir", "")),
+                ("File", item.get("file", "")),
+            ],
+        )
+        archive_rows.append(
+            f'<div class="entry entry-normal clickable" onclick="openModal(this)" data-modal={row_md}><strong>{h(item.get("title", "Book Jump"))}</strong> {h(item.get("souvenir") or item.get("outcome") or "")}</div>'
+        )
+    archives_html = "".join(archive_rows) or '<div class="muted">No returned Book Jumps archived yet.</div>'
+    return f'{cards}{active_card}<div class="section-label">Returned Pages</div><div class="tick-feed">{archives_html}</div>'
+
+
+def _director_chip(label: str, value: str) -> str:
+    return f'<span class="director-chip"><strong>{h(label)}</strong>{h(value)}</span>'
+
+
+def _director_list(items: list, limit: int = 4) -> str:
+    rows = []
+    for item in items[:limit]:
+        if isinstance(item, dict):
+            title = item.get("title") or item.get("actor") or item.get("kind") or item.get("id") or "item"
+            detail = item.get("scene_hook") or item.get("hook") or item.get("narrative") or item.get("satisfy_by") or ""
+            rows.append(f'<div class="director-note"><strong>{h(title)}</strong>{h(detail)}</div>')
+        else:
+            rows.append(f'<div class="director-note">{h(item)}</div>')
+    return "".join(rows) if rows else '<div class="muted">None currently surfaced.</div>'
+
+
+def render_scene_director(scene: dict) -> str:
+    if not scene:
+        return '<div class="muted">No scene director data available.</div>'
+
+    slate = scene.get("slate") or {}
+    contract = scene.get("contract") or {}
+    if scene.get("slate_error") and scene.get("contract_error"):
+        return (
+            f'<div class="entry entry-priority">Scene director failed: '
+            f'{h(scene.get("slate_error"))} {h(scene.get("contract_error"))}</div>'
+        )
+
+    page = contract.get("page_contract") or {}
+    story_context = contract.get("story_context") or {}
+    small_rules = contract.get("small_model_rules") or {}
+    tool_packet = contract.get("tool_packet_suggestion") or {}
+    packet_meta = tool_packet.get("metadata") or {}
+    mechanics = contract.get("mechanics") or {}
+    continuity = story_context.get("scene_continuity_anchor") or {}
+    obligations = story_context.get("narrative_obligations") or page.get("state_hints", {}).get("narrative_obligations") or []
+    sim_actions = story_context.get("open_simulation_actions") or page.get("state_hints", {}).get("open_simulation_actions") or []
+
+    title = page.get("page_label") or contract.get("scene_mode") or "Scene Director"
+    modal_fields = [
+        ("Mode", f'{contract.get("scene_mode", "")} · {contract.get("drama_budget", "")} drama'),
+        ("Location", contract.get("current_location", "")),
+        ("Player status", contract.get("player_status", "")),
+        ("Continuity anchor", f'{continuity.get("title", "")} @ {continuity.get("location", "")}\n{continuity.get("ending", "")}'),
+        ("Cast ground", slate.get("CAST_GROUND", "")),
+        ("Story pressure", contract.get("story_pressure", "")),
+        ("Nothing pressure", contract.get("nothing_pressure", "")),
+        ("Schedule", contract.get("schedule_texture", "")),
+        ("Suppress", contract.get("suppress", "")),
+        ("Must include", "\n".join(f"- {item}" for item in (small_rules.get("must_include") or [])[:10])),
+        ("Must not", "\n".join(f"- {item}" for item in (small_rules.get("must_not") or [])[:10])),
+        ("Tool sequence", ", ".join(tool_packet.get("sequence") or [])),
+        ("Tool posture", packet_meta.get("tool_posture", "")),
+    ]
+    md = modal_attr(f"Scene Director · {title}", modal_fields)
+
+    slate_rows = []
+    for key in ("SCENE_ANCHOR", "CAST_GROUND", "FEEL", "STORY", "MECHANICS", "SCHEDULE", "CLASSROOM", "SUPPRESS"):
+        value = slate.get(key)
+        if value:
+            slate_rows.append(f'<div class="director-line"><span>{h(key.replace("_", " ").title())}</span>{h(value)}</div>')
+    slate_html = "".join(slate_rows[:8]) or '<div class="muted">No slate lines available.</div>'
+
+    sequence = ", ".join(tool_packet.get("sequence") or [])
+    chips = "".join([
+        _director_chip("mode", contract.get("scene_mode") or "?"),
+        _director_chip("drama", contract.get("drama_budget") or "?"),
+        _director_chip("page", page.get("page_label") or "?"),
+        _director_chip("tools", sequence or "text"),
+        _director_chip("updated", scene.get("generated_at", "")[11:16] or "?"),
+    ])
+
+    must_include = small_rules.get("must_include") or []
+    must_not = small_rules.get("must_not") or []
+    include_html = _director_list(must_include, 4)
+    not_html = _director_list(must_not, 3)
+    sim_html = _director_list(sim_actions, 3)
+    obligation_html = _director_list(obligations, 3)
+
+    return f'''<div class="director-card clickable" onclick="openModal(this)" data-modal={md}>
+      <div class="page-rubric">Scene Director</div>
+      <div class="page-title">{h(title)}</div>
+      <div class="director-location">{h(contract.get("current_location", "Location unknown"))}</div>
+      <div class="director-chips">{chips}</div>
+      <div class="director-grid">
+        <div>
+          <div class="director-label">Latest Slate</div>
+          <div class="director-lines">{slate_html}</div>
+        </div>
+        <div>
+          <div class="director-label">Construction Rails</div>
+          <div class="director-subgrid">
+            <div>
+              <div class="director-small-label">must include</div>
+              {include_html}
+            </div>
+            <div>
+              <div class="director-small-label">must not</div>
+              {not_html}
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="director-label">Open Simulation Traces</div>
+          {sim_html}
+        </div>
+        <div>
+          <div class="director-label">Narrative Repair Duties</div>
+          {obligation_html}
+        </div>
+      </div>
+    </div>'''
+
+
 def _gallery_title(raw_title: str, scene_id: str, stem_fallback: str) -> str:
     """Return a clean display title. Falls back to a formatted timestamp when the
     stored title looks like a log/diary entry rather than a real scene name."""
@@ -3120,7 +4474,7 @@ def render_scene_gallery(entries: list[dict]) -> str:
 
 # ── Full page ─────────────────────────────────────────────────────────────────
 
-def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, anchors=None, sched=None, forecast=None, heartbeat=None, sim_feed=None, pact_actions=None, gallery_entries=None, narrative_health=None) -> str:
+def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, anchors=None, sched=None, forecast=None, heartbeat=None, vellum=None, inkrest=None, ledger=None, compass=None, book_jump=None, sim_feed=None, pact_actions=None, gallery_entries=None, narrative_health=None, page_contract=None, scene_director=None) -> str:
     generated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # Arc banner
@@ -3157,6 +4511,11 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
     # Forecast
     forecast_html = render_forecast_tab(forecast) if forecast else '<div class="muted">No forecast data.</div>'
     heartbeat_html = render_heartbeat_tab(heartbeat) if heartbeat else '<div class="muted">No heartbeat data.</div>'
+    vellum_html = render_vellum_tab(vellum or {})
+    inkrest_html = render_inkrest_tab(inkrest or {})
+    ledger_html = render_ledger_tab(ledger or {})
+    compass_html = render_compass_tab(compass or {})
+    book_jump_html = render_book_jump_tab(book_jump or {})
 
     # Gallery
     gallery_entries = gallery_entries or []
@@ -3199,6 +4558,10 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
     # Cron table
     automation_health_html = render_automation_health(crons)
     narrative_health_html = render_narrative_health(narrative_health or {})
+    page_contract = page_contract or {}
+    page_contract_html = render_page_contract(page_contract)
+    page_label = page_contract.get("page_label") or "Page unknown"
+    scene_director_html = render_scene_director(scene_director or {})
     cron_html = ""
     for j in crons:
         cron_html += render_cron_row(j)
@@ -3535,6 +4898,81 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .auto-label {{ color:var(--muted); font-size:.6rem; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
   .auto-value {{ color:var(--text); font-family:monospace; font-size:.78rem; margin-top:.15rem; }}
 
+  /* ── Current Page ── */
+  .page-card {{
+    background:
+      linear-gradient(100deg, rgba(255,251,238,.64), rgba(255,251,238,.38)),
+      rgba(255,251,238,.46);
+    border: 1px solid rgba(22,116,117,.34); border-radius: 3px;
+    padding: .75rem .85rem; margin-bottom: .75rem;
+    display: flex; flex-direction: column; gap: .36rem;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.38);
+  }}
+  .page-rubric {{
+    font-family: monospace; font-size: .6rem; color: var(--teal-ink);
+    text-transform: uppercase; letter-spacing: .12em;
+  }}
+  .page-title {{ font-size: 1rem; font-weight: bold; color: var(--text); }}
+  .page-purpose {{ font-size: .75rem; line-height: 1.5; color: var(--text); font-style: italic; }}
+  .page-meta {{ display: flex; flex-wrap: wrap; gap: .35rem; }}
+  .page-meta span {{
+    font-family: monospace; font-size: .6rem; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 2px; padding: .08rem .32rem;
+    background: rgba(108,72,36,.07);
+  }}
+  .page-rule {{
+    font-size: .72rem; line-height: 1.45; border-left: 2px solid var(--teal-ink);
+    padding-left: .5rem; color: var(--text);
+  }}
+  .page-proof {{
+    display: flex; gap: .45rem; align-items: baseline; font-size: .72rem;
+    padding: .25rem .4rem; background: rgba(22,116,117,.08); border-radius: 2px;
+  }}
+  .page-proof span {{
+    font-family: monospace; font-size: .58rem; color: var(--teal-ink);
+    text-transform: uppercase; letter-spacing: .06em; flex-shrink: 0;
+  }}
+  .page-mini {{ font-size: .66rem; line-height: 1.4; color: var(--muted); }}
+  .page-mini strong {{ color: var(--text); font-family: monospace; font-size: .6rem; text-transform: uppercase; }}
+  .director-card {{
+    background:
+      linear-gradient(115deg, rgba(255,251,238,.72), rgba(245,225,184,.42)),
+      rgba(255,251,238,.48);
+    border: 1px solid rgba(167,111,36,.34); border-radius: 3px;
+    padding: .75rem .85rem; margin-bottom: .75rem;
+    display: flex; flex-direction: column; gap: .48rem;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.38);
+  }}
+  .director-location {{
+    font-size: .78rem; color: var(--text); font-style: italic;
+    border-left: 2px solid var(--gold-ink); padding-left: .5rem;
+  }}
+  .director-chips {{ display:flex; flex-wrap:wrap; gap:.35rem; }}
+  .director-chip {{
+    font-family: monospace; font-size: .6rem; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 2px; padding: .1rem .34rem;
+    background: rgba(108,72,36,.07);
+  }}
+  .director-chip strong {{ color: var(--text); margin-right:.25rem; text-transform:uppercase; }}
+  .director-grid {{ display:grid; grid-template-columns: 1fr 1fr; gap:.65rem; }}
+  .director-label, .director-small-label {{
+    font-family: monospace; font-size:.58rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted);
+    margin-bottom:.25rem;
+  }}
+  .director-small-label {{ color:var(--gold-ink); }}
+  .director-lines, .director-subgrid {{ display:flex; flex-direction:column; gap:.28rem; }}
+  .director-line, .director-note {{
+    font-size:.68rem; line-height:1.45; color:var(--text);
+    background:rgba(255,251,238,.42); border:1px solid rgba(89,62,35,.16);
+    border-radius:2px; padding:.32rem .38rem;
+  }}
+  .director-line span {{
+    display:block; font-family:monospace; font-size:.56rem; text-transform:uppercase;
+    color:var(--muted); letter-spacing:.06em; margin-bottom:.08rem;
+  }}
+  .director-note strong {{ display:block; color:var(--text); margin-bottom:.08rem; }}
+  @media (max-width: 760px) {{ .director-grid {{ grid-template-columns:1fr; }} }}
+
   /* ── Image gallery ── */
   .gallery-shell {{ display:flex; flex-direction:column; gap:.75rem; }}
   .gallery-stage-wrap {{ background: rgba(80,51,24,.10); border:1px solid var(--border); border-radius:3px; overflow:hidden; min-height: 280px; display:flex; align-items:center; justify-content:flex-start; }}
@@ -3696,6 +5134,11 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .hb-note:first-of-type {{ margin-top:0; }}
   .hb-note-kind {{ display:inline-block; font-family:monospace; font-size:.62rem; text-transform:uppercase; letter-spacing:.05em; margin-right:.4rem; }}
   .hb-sparky {{ border-left-color:var(--fae); font-style:italic; }}
+  .vellum-fuel-row {{ padding:.42rem 0; border-bottom:1px solid var(--border); line-height:1.45; font-size:.72rem; }}
+  .vellum-fuel-row:last-child {{ border-bottom:none; }}
+  .vellum-date {{ font-family:monospace; font-size:.66rem; color:var(--muted); margin-right:.35rem; }}
+  .vellum-chart {{ columns:2; column-gap:1rem; font-size:.72rem; }}
+  .vellum-chart-line {{ break-inside:avoid; margin:0 0 .32rem; line-height:1.45; }}
 
   /* ── Schedule ── */
   .sched-now {{
@@ -3846,6 +5289,7 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
       <span class="folio-mark">Belief {h(player.get("belief","?"))}/100</span>
       <span class="folio-mark">{bleed_label} {bleed_issue}</span>
       <span class="folio-mark">Heartbeat {h((heartbeat or {}).get("pulse_ts","—"))}</span>
+      <span class="folio-mark">Page {h(page_label)}</span>
     </div>
   </div>
 </header>
@@ -3870,9 +5314,16 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
     <div class="panel">
       <div class="tab-bar">
         <button class="tab active" onclick="switchTab(this,'tick')">Simulation Feed</button>
+        <button class="tab" onclick="switchTab(this,'page')">Current Page</button>
+        <button class="tab" onclick="switchTab(this,'director')">Scene Director</button>
         <button class="tab" onclick="switchTab(this,'queue')">Session Queue</button>
         <button class="tab" onclick="switchTab(this,'forecast')">Forecast</button>
         <button class="tab" onclick="switchTab(this,'heartbeat')">Heartbeat</button>
+        <button class="tab" onclick="switchTab(this,'vellum')">Vellum</button>
+        <button class="tab" onclick="switchTab(this,'inkrest')">Inkrest</button>
+        <button class="tab" onclick="switchTab(this,'ledger')">Ledger</button>
+        <button class="tab" onclick="switchTab(this,'compass')">Compass</button>
+        <button class="tab" onclick="switchTab(this,'book-jumps')">Book Jumps</button>
         <button class="tab" onclick="switchTab(this,'entities')">Entities</button>
         <button class="tab" onclick="switchTab(this,'talismans')">Talisman War</button>
         <button class="tab" onclick="switchTab(this,'pact-actions')">App Actions</button>
@@ -3883,6 +5334,12 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
       </div>
       <div id="tick" class="tab-content active">
         <div class="tick-feed">{sim_html}</div>
+      </div>
+      <div id="page" class="tab-content">
+        {page_contract_html}
+      </div>
+      <div id="director" class="tab-content">
+        {scene_director_html}
       </div>
       <div id="queue" class="tab-content">
         <div class="tick-feed">{queue_html}</div>
@@ -3913,6 +5370,21 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
       </div>
       <div id="heartbeat" class="tab-content">
         {heartbeat_html}
+      </div>
+      <div id="vellum" class="tab-content">
+        {vellum_html}
+      </div>
+      <div id="inkrest" class="tab-content">
+        {inkrest_html}
+      </div>
+      <div id="ledger" class="tab-content">
+        {ledger_html}
+      </div>
+      <div id="compass" class="tab-content">
+        {compass_html}
+      </div>
+      <div id="book-jumps" class="tab-content">
+        {book_jump_html}
       </div>
     </div>
 
@@ -3946,6 +5418,10 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
     <div class="panel">
       <div class="panel-header">Narrative Stewardship</div>
       <div class="panel-body" id="data-narrative-health">
+        {page_contract_html}
+        {scene_director_html}
+        {compass_html}
+        {book_jump_html}
         {narrative_health_html}
       </div>
     </div>
@@ -4034,7 +5510,7 @@ document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(
 const REFRESH_MS = 3 * 60 * 1000;  // 3 minutes
 const DATA_REGIONS =[
   'data-topbar', 'data-thread-count', 'data-arc-threads',
-  'tick', 'entities', 'talismans', 'anchors', 'images', 'inventory', 'schedule', 'forecast',
+  'tick', 'page', 'director', 'entities', 'talismans', 'anchors', 'images', 'inventory', 'schedule', 'forecast', 'heartbeat', 'vellum', 'inkrest', 'ledger', 'compass', 'book-jumps',
   'data-player', 'data-narrative-health', 'data-automation',
 ];
 
@@ -4120,12 +5596,20 @@ def generate() -> str:
     sched    = parse_schedule()
     forecast = parse_forecast(talismans)
     heartbeat = parse_current_heartbeat()
+    vellum = parse_vellum_status(player.get("name", "bj"), heartbeat)
+    inkrest = parse_inkrest_status(player.get("name", "bj"), heartbeat)
+    ledger = parse_ledger_status(player.get("name", "bj"))
+    compass = parse_compass_status(player.get("name", "bj"))
+    book_jump = parse_book_jump_status(player.get("name", "bj"))
     gallery_entries = parse_scene_gallery()
     narrative_health = parse_narrative_health(player.get("name", "bj"))
+    page_contract = parse_page_contract(player.get("name", "bj"))
+    scene_director = parse_scene_director(player.get("name", "bj"))
     return build_html(threads, npcs, talismans, player, queue, bleed, crons,
-                      arc=arc, anchors=anchors, sched=sched, forecast=forecast, heartbeat=heartbeat,
+                      arc=arc, anchors=anchors, sched=sched, forecast=forecast, heartbeat=heartbeat, vellum=vellum, inkrest=inkrest, ledger=ledger,
+                      compass=compass, book_jump=book_jump,
                       sim_feed=sim_feed, pact_actions=pact_actions, gallery_entries=gallery_entries,
-                      narrative_health=narrative_health)
+                      narrative_health=narrative_health, page_contract=page_contract, scene_director=scene_director)
 
 
 def main():

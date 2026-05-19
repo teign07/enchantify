@@ -12,7 +12,7 @@ consequences, actively rewriting lore/threads.md and lore/world-register.md
 while the player is away.
 
 Run: python3 scripts/world-pulse.py
-Called by: 3-hour cron (after tick.py, before dispatching to player).
+Called by: 4-hour cron (after tick.py, before dispatching to player).
 """
 import json
 import hashlib
@@ -849,7 +849,7 @@ def run_living_world_simulation(events: list, ctx: Optional[dict] = None) -> Non
                 raw += f" → {action.target}"
             if influences:
                 raw += f" | pressure: {', '.join(influences)}"
-            seed = visible_trace + f" Offscreen reason: {reason}."
+            seed = visible_trace
             event_id = str(uuid.uuid4())
             events.append({
                 "raw": raw,
@@ -878,6 +878,7 @@ def run_living_world_simulation(events: list, ctx: Optional[dict] = None) -> Non
                 "reason": reason,
                 "hidden_effect": action.hidden_effect,
                 "belief_delta_hint": action.belief_delta_hint,
+                "belief_cost": action.belief_cost,
                 "influence_snapshot": influences,
             })
             action_lifecycle.record_open_action(ledger_entries[-1])

@@ -118,6 +118,14 @@ CLASSES = {
 }
 
 
+# Support-character office hours. These are optional care appointments, not
+# classes; they show up in the Academy calendar and current schedule context.
+SUPPORT_HOURS = {
+    1: [("Dr. Inkrest Office Hours", "Dr. Selene Inkrest", "Reauthoring Rooms", "21:30", "22:00")],
+    3: [("Dr. Inkrest Office Hours", "Dr. Selene Inkrest", "Reauthoring Rooms", "21:30", "22:00")],
+}
+
+
 # ── Practice prompts ──────────────────────────────────────────────────────────
 
 PRACTICES = {
@@ -436,6 +444,7 @@ def get_schedule_data(override_day: str = None, override_time: str = None) -> di
     class_now = get_class_for_block(weekday, block)
     next_cls, next_day_name, next_time = get_next_class(weekday, block)
     club      = CLASSES.get(weekday, {}).get("club")
+    support_hours = SUPPORT_HOURS.get(weekday, [])
     practice  = (get_practice(class_now[1], block) if class_now
                  else get_practice(next_cls[1], block) if next_cls else None)
     cue       = get_narrative_cue(weekday, block, class_now)
@@ -453,6 +462,7 @@ def get_schedule_data(override_day: str = None, override_time: str = None) -> di
         "class_next_day": next_day_name,
         "class_next_time": next_time,
         "club":          club,
+        "support_hours": support_hours,
         "practice":      practice,
         "narrative_cue": cue,
         "club_cue":      club_cue,
@@ -485,6 +495,9 @@ def print_directive(data: dict) -> None:
     else:
         print(f"CLASS_NEXT:     None this week")
     print(f"CLUB_TONIGHT:   {club_str}")
+    if data.get("support_hours"):
+        support_str = "; ".join(f"{title} — {host}, {room} ({start})" for title, host, room, start, _ in data["support_hours"])
+        print(f"SUPPORT_HOURS:  {support_str}")
     if practice:
         print(f"PRACTICE:       {practice['name']} — \"{practice['prompt']}\"  [{practice['belief']}]")
         examples = practice.get("examples", [])
@@ -529,6 +542,10 @@ def build_academics_section(data: dict) -> str:
         lines.append(f"**Club Tonight (7 PM):** {club[0]} — {club[1]}")
     else:
         lines.append("**Club Tonight:** None scheduled")
+
+    if data.get("support_hours"):
+        support_str = "; ".join(f"{title} — {host}, {room} ({start})" for title, host, room, start, _ in data["support_hours"])
+        lines.append(f"**Support Hours:** {support_str}")
 
     practice = data["practice"]
     if practice:

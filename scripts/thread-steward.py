@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import date, datetime
@@ -20,6 +21,9 @@ from typing import Any
 
 
 BASE = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BASE / "scripts"))
+from belief_caps import clamp_belief
+
 LORE = BASE / "lore"
 MEMORY = BASE / "memory"
 CONFIG = BASE / "config"
@@ -451,8 +455,9 @@ def add_thread_section(threads_text: str, payload: dict[str, Any]) -> str:
 
 
 def add_active_thread_row(register_text: str, payload: dict[str, Any]) -> str:
+    starting_belief = clamp_belief(payload["starting_belief"], "Thread", payload["name"])
     row = (
-        f"| {payload['name']} | Thread | {payload['starting_belief']} | "
+        f"| {payload['name']} | Thread | {starting_belief} | "
         f"[id:{payload['id']}] Phase: {payload['phase']} — {payload['status']} |"
     )
     table = re.search(

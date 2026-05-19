@@ -33,6 +33,11 @@ import argparse
 import shutil
 from pathlib import Path
 
+import sys
+
+sys.path.insert(0, str(Path(__file__).parent))
+from belief_caps import clamp_belief, cap_label
+
 BASE_DIR = Path(__file__).parent.parent
 REGISTER = BASE_DIR / "lore" / "world-register.md"
 
@@ -132,9 +137,11 @@ def main():
             print(f"❌ Thread '{args.name}' not found in ## Active Threads.")
             return
         current = int(m.group(2))
-        new_belief = current + args.belief if args.add else args.belief
+        raw_belief = current + args.belief if args.add else args.belief
+        new_belief = clamp_belief(raw_belief, "Thread", args.name)
+        cap_note = "" if raw_belief == new_belief else f" (capped at {cap_label('Thread', args.name)})"
         if args.dry_run:
-            print(f"[dry-run] Would update thread '{args.name}' belief {current} → {new_belief}")
+            print(f"[dry-run] Would update thread '{args.name}' belief {current} → {new_belief}{cap_note}")
             return
         updated = pattern.sub(lambda mo: mo.group(1) + str(new_belief) + mo.group(3), text, count=1)
         backup = REGISTER.with_suffix(".md.bak")
@@ -142,7 +149,7 @@ def main():
         tmp = REGISTER.with_suffix(".md.tmp")
         tmp.write_text(updated if updated.endswith("\n") else updated + "\n")
         tmp.rename(REGISTER)
-        print(f"✓ Thread updated: {args.name} Belief {current} → {new_belief}")
+        print(f"✓ Thread updated: {args.name} Belief {current} → {new_belief}{cap_note}")
         return
 
     text = REGISTER.read_text()
@@ -155,6 +162,10 @@ def main():
 
     if args.add:
         args.belief = existing_belief + args.belief
+
+    raw_belief = args.belief
+    args.belief = clamp_belief(args.belief, args.type, args.name, explicit_talisman=args.talisman)
+    cap_note = "" if raw_belief == args.belief else f" (capped at {cap_label(args.type, args.name, explicit_talisman=args.talisman)})"
 
     if args.talisman:
         row = f"| {args.name} | {args.type} | {args.belief} | {args.notes} |"
@@ -178,7 +189,7 @@ def main():
             else "Whisper"
         )
         lore_note = f" [skill-lore:{args.skill_lore}]" if args.skill_lore else ""
-        print(f"[dry-run] Would place '{args.name}' in {section} Presence (Belief {args.belief}){lore_note}")
+        print(f"[dry-run] Would place '{args.name}' in {section} Presence (Belief {args.belief}){cap_note}{lore_note}")
         return
 
     backup = REGISTER.with_suffix(".md.bak")
@@ -187,7 +198,7 @@ def main():
     tmp.write_text(updated if updated.endswith("\n") else updated + "\n")
     tmp.rename(REGISTER)
 
-    print(f"✓ World register updated: {args.name} (Belief {args.belief})")
+    print(f"✓ World register updated: {args.name} (Belief {args.belief}){cap_note}")
     print(f"  Backup: {backup.name}")
 
 

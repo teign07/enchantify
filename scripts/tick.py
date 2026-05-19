@@ -27,6 +27,7 @@ BASE_DIR   = Path(__file__).parent.parent
 _SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 import world_context
+from belief_caps import NPC_CAP, TALISMAN_CAP, THREAD_CAP, clamp_belief
 from tick_queue_utils import ensure_header, prune_tick_queue
 import importlib.util as _ilu
 try:
@@ -55,7 +56,7 @@ ANCHOR_FLOOR           = 5
 # The phase field in world-register.md is the *narrative* phase (may lag Belief by 1-2 sessions).
 # Escalation notes signal the Labyrinth to deliver the shift; it updates the register at session close.
 THREAD_STIR_GAIN    = 1    # Belief gained per stir (threads grow slower than NPCs)
-THREAD_BELIEF_CAP   = 65   # threads close narratively before reaching NPC cap
+THREAD_BELIEF_CAP   = THREAD_CAP   # threads close narratively before reaching NPC cap
 THREAD_SEED_BELIEF  = 20   # min NPC Belief to flag as a potential thread seed
 
 PHASE_BANDS = [
@@ -237,11 +238,12 @@ FREE_INVESTMENT_CHANCE = 0.12   # probability a stirred NPC makes a secondary in
 INVESTMENT_MIN         = 1      # minimum Belief invested per event
 INVESTMENT_MAX         = 3      # maximum Belief invested per event
 NPC_INVESTMENT_FLOOR   = 8      # NPCs never drop below this from investing
-TALISMAN_CAP           = 200    # Chapter Talismans can grow to 200
-
-NPC_BELIEF_CAP         = 100    # NPCs cap at 100 (same ceiling as players)
+NPC_BELIEF_CAP         = NPC_CAP    # NPCs cap at 100 (same ceiling as players)
 NPC_STIR_GAIN_MIN      = 1      # Belief gained from being stirred (min)
 NPC_STIR_GAIN_MAX      = 2      # Belief gained from being stirred (max)
+NPC_UPKEEP_THRESHOLD   = 85     # high Narrative Weight costs energy to sustain
+NPC_UPKEEP_CHANCE      = 0.35
+NPC_UPKEEP_AMOUNT      = 1
 
 
 # ── Fae Bargains ─────────────────────────────────────────────────────────────
@@ -530,11 +532,52 @@ def get_belief_in_text(text, name):
 def set_belief_in_text(text, name, new_belief):
     """Return (new_text, changed) with updated Belief for the named entity row."""
     row_re = re.compile(
-        r"^(\|\s*" + re.escape(name) + r"\s*\|\s*[^|]+\s*\|\s*)\d+(\s*\|)",
+        r"^(\|\s*" + re.escape(name) + r"\s*\|\s*([^|]+?)\s*\|\s*)\d+(\s*\|)",
         re.MULTILINE
     )
-    new_text, n = row_re.subn(rf"\g<1>{new_belief}\g<2>", text, count=1)
+
+    def repl(match):
+        entity_type = match.group(2).strip()
+        clamped = clamp_belief(new_belief, entity_type, name)
+        return f"{match.group(1)}{clamped}{match.group(3)}"
+
+    new_text, n = row_re.subn(repl, text, count=1)
     return new_text, n > 0
+
+
+def run_npc_upkeep(selected, register_text, dry_run=False):
+    """High-Belief NPCs spend a little energy sustaining their narrative weight."""
+    text = register_text
+    seeds = []
+    count = 0
+
+    for e in selected:
+        if e["type"].lower() not in ("npc", "creature"):
+            continue
+        current = get_belief_in_text(text, e["name"])
+        if current is None or current < NPC_UPKEEP_THRESHOLD or current <= NPC_INVESTMENT_FLOOR:
+            continue
+        if random.random() > NPC_UPKEEP_CHANCE:
+            continue
+        amount = min(NPC_UPKEEP_AMOUNT + (1 if current >= 95 else 0), current - NPC_INVESTMENT_FLOOR)
+        new_b = current - amount
+        if dry_run:
+            print(f"  [dry-run] High-Belief upkeep: {e['name']} {current} → {new_b}")
+        else:
+            text, changed = set_belief_in_text(text, e["name"], new_b)
+            if changed:
+                count += 1
+                if _HAS_NPC_LOG:
+                    _npc_log.append(
+                        e["name"], "belief_upkeep",
+                        f"Spent {amount} Belief sustaining high narrative weight"
+                    )
+        seeds.append(
+            f"- *[Belief Upkeep]* **{e['name']}** spends {amount} Belief keeping their influence coherent "
+            f"({current} → {new_b}). High Narrative Weight must be maintained, not merely possessed."
+        )
+
+    return seeds, text, count
 
 
 def run_npc_stir_gains(selected, register_text, dry_run=False):
@@ -662,11 +705,12 @@ def nudge_talismans_from_behavior(register_text, dry_run=False):
         nudges["Tide Glass"] = 1
         reasons["Tide Glass"] = f"unscripted day — no calendar events, {steps:,} steps"
 
-    # Duskthorn: conflict, neglect, pressure
-    #   Strong signal: extended absence (3+ days) OR very poor sleep AND no steps
-    if days_absent >= 3:
+    # Duskthorn: conflict, pressure, avoidance when it has truly hardened.
+    # Absence alone should not punish a returning player. Short gaps are
+    # welcome-back texture; only a long silence becomes pressure.
+    if days_absent >= 14:
         nudges["Dusk Thorn"] = 1
-        reasons["Dusk Thorn"] = f"{days_absent} days since last session — the Nothing moves in silence"
+        reasons["Dusk Thorn"] = f"{days_absent} days since last session — old pressures waited in the margins"
     elif sleep_h > 0 and sleep_h < 5.0 and steps < 1000:
         nudges["Dusk Thorn"] = 1
         reasons["Dusk Thorn"] = f"depleted day — {sleep_h}h sleep, {steps:,} steps"
@@ -1162,6 +1206,8 @@ def main():
     modified_register = register_text   # default; updated in 1b if selected
     stir_count  = 0
     invest_seeds = []
+    upkeep_count = 0
+    upkeep_seeds = []
     if selected:
         # Stir gain first — being noticed energizes NPCs before they invest
         modified_register, stir_count = run_npc_stir_gains(
@@ -1179,9 +1225,16 @@ def main():
         )
         invest_seeds.extend(free_seeds)
 
-        if invest_seeds:
+        # Saturated NPCs have carrying costs. This prevents high-Belief actors
+        # from sitting at the cap forever without spending influence.
+        upkeep_seeds, modified_register, upkeep_count = run_npc_upkeep(
+            selected, modified_register, dry_run=args.dry_run
+        )
+
+        if invest_seeds or upkeep_seeds:
             queue_lines.append("")
             queue_lines.extend(invest_seeds)
+            queue_lines.extend(upkeep_seeds)
 
         # Talisman costs and pact seeds computed in 1c (below) — they modify
         # modified_register in-place, so the atomic write happens after 1c.
@@ -1248,7 +1301,7 @@ def main():
 
     # ── 1d. Atomic write — NPC gains + investments + talisman war costs ──────
     if selected and not args.dry_run:
-        needs_write = stir_count > 0 or invest_seeds or talisman_costs
+        needs_write = stir_count > 0 or invest_seeds or upkeep_count > 0 or talisman_costs
         if needs_write:
             backup = REGISTER.with_suffix(".md.bak")
             shutil.copy2(REGISTER, backup)
@@ -1267,6 +1320,8 @@ def main():
             if tally: parts.append(f"{tally} talisman")
             if free:  parts.append(f"{free} free")
             print(f"✓ NPC investments: {', '.join(parts)} ({len(invest_seeds)} total).")
+        if upkeep_count > 0:
+            print(f"✓ NPC upkeep: {upkeep_count} high-Belief NPC(s) spent Belief.")
 
     # ── 1e. Behavior → Talisman nudge ────────────────────────────────────────
     print("Checking behavior signals...")

@@ -98,6 +98,55 @@ def truncate(s: str, n: int = 120) -> str:
     return s[:n] + "…" if len(s) > n else s
 
 
+def latest_delivered_scene_anchor(limit_days: int = 10) -> str:
+    """Return a fresh physical continuity anchor from the scene ledger."""
+    ledger_dir = WORKSPACE / "logs" / "scene-ledger"
+    if not ledger_dir.exists():
+        return ""
+
+    entries: list[dict] = []
+    for path in sorted(ledger_dir.glob("*.jsonl"))[-limit_days:]:
+        try:
+            entries.extend(load_scene_ledger_entries(path.stem))
+        except Exception:
+            continue
+
+    for entry in reversed(entries):
+        if entry.get("delivery_ok") is False:
+            continue
+        text = (entry.get("text") or entry.get("voice") or "").strip()
+        if not text:
+            continue
+
+        lines = [line.strip() for line in text.splitlines() if line.strip() and line.strip() != "---"]
+        opening = lines[0] if lines else ""
+        ending = ""
+        for line in reversed(lines):
+            if re.search(r"\[(LIFE|ARC|SURPRISE)\]", line, re.IGNORECASE):
+                continue
+            if re.match(r"^\*?\(?[123]\)?[.)]\s+", line):
+                continue
+            if line.lower().startswith(("what do you do", "three ways", "choices", "you could")):
+                continue
+            ending = line
+            break
+
+        contract = entry.get("scene_contract") if isinstance(entry.get("scene_contract"), dict) else {}
+        location = contract.get("current_location") or ""
+        recorded = str(entry.get("recorded_at") or "")[:16]
+        parts = []
+        if recorded:
+            parts.append(f"Latest delivered scene {recorded}")
+        if location:
+            parts.append(f"location: {location}")
+        if opening:
+            parts.append(f"open from: {truncate(opening, 160)}")
+        if ending and ending != opening:
+            parts.append(f"last visible beat: {truncate(ending, 180)}")
+        return " | ".join(parts)
+    return ""
+
+
 def parse_world_register_entities() -> list[dict]:
     text = read_safe(WORKSPACE / "lore" / "world-register.md")
     entities = []
@@ -413,7 +462,9 @@ def layer_nothing(player_name: str = "bj") -> str:
     if targets:
         result += f" | targets: {'; '.join(targets)}"
 
-    # Engagement gap — days since last Compass Run
+    # Return care — days since last Compass Run.
+    # This is a welcome-back signal, not a shame signal. It should invite
+    # real-world attention without making absence sound like failure.
     last_run_str = first_match(r'\*\*Last run:\*\*\s*([^\n]+)', player_text, default="never")
     gap_days = None
     if last_run_str.strip().lower() not in ("never", "", "n/a"):
@@ -423,13 +474,13 @@ def layer_nothing(player_name: str = "bj") -> str:
             pass
 
     if gap_days is None:
-        result += " | ENGAGEMENT GAP: no Compass Run on record — Nothing finds this delicious"
+        result += " | RETURN CARE: no Compass Run on record — offer the first one as an invitation, not a correction"
     elif gap_days >= 10:
-        result += f" | ENGAGEMENT GAP: {gap_days}d — critical; offer Compass Run directly"
+        result += f" | RETURN CARE: {gap_days}d since Compass Run — warmly offer a tiny Compass Run after welcoming them back"
     elif gap_days >= 6:
-        result += f" | ENGAGEMENT GAP: {gap_days}d — high; Nothing actively encroaching"
+        result += f" | RETURN CARE: {gap_days}d since Compass Run — outside-world magic is available when they want it"
     elif gap_days >= 3:
-        result += f" | ENGAGEMENT GAP: {gap_days}d — elevated; let the outside world bleed in"
+        result += f" | RETURN CARE: {gap_days}d since Compass Run — let the outside world glimmer gently"
     # 0–2 days: no note needed
 
     return result
@@ -656,6 +707,7 @@ def layer_classroom(player_name: str) -> str:
 def layer_bleed_hooks() -> str:
     """Recent open classifieds plus realized-scene bleed, surfaced as live pressure."""
     ledger_dir = WORKSPACE / "logs" / "classifieds-ledger"
+    ripples_log = WORKSPACE / "logs" / "bleed-ripples.jsonl"
     hook_parts = []
 
     if ledger_dir.exists():
@@ -687,6 +739,31 @@ def layer_bleed_hooks() -> str:
             weighted.sort(key=lambda item: item[0], reverse=True)
             hook_parts.extend(text for _w, text in weighted[:3])
 
+    ripple_parts = []
+    if ripples_log.exists():
+        try:
+            lines = ripples_log.read_text(encoding="utf-8", errors="replace").splitlines()
+        except Exception:
+            lines = []
+        weighted_ripples = []
+        for line in reversed(lines[-80:]):
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if obj.get("status") not in ("open", "", None):
+                continue
+            weight = int(obj.get("weight") or 1)
+            section = obj.get("section") or "BLEED"
+            pressure = obj.get("pressure") or obj.get("effect_type") or "public pressure"
+            detail = obj.get("detail") or ""
+            if detail:
+                weighted_ripples.append((weight, f"{section}: {truncate(pressure + ' — ' + detail, 110)}"))
+            if len(weighted_ripples) >= 6:
+                break
+        weighted_ripples.sort(key=lambda item: item[0], reverse=True)
+        ripple_parts.extend(text for _w, text in weighted_ripples[:3])
+
     scene_parts = []
     try:
         entries = load_scene_ledger_entries()
@@ -705,6 +782,8 @@ def layer_bleed_hooks() -> str:
     parts = []
     if hook_parts:
         parts.append("open hooks -> " + " | ".join(hook_parts))
+    if ripple_parts:
+        parts.append("public ripples -> " + " | ".join(ripple_parts))
     if scene_parts:
         parts.extend(scene_parts)
 
@@ -831,10 +910,13 @@ def layer_suppress(player_name: str) -> str:
 
 def layer_state() -> str:
     """
-    Read 'Open next session on:' from labyrinth-state.md Notes to Self.
-    Written at every session close — the mandatory narrative thread to the next scene.
-    Returns the anchor image, or empty string if not yet written.
+    Prefer the latest delivered scene as the physical continuity anchor.
+    Fall back to labyrinth-state.md Notes to Self when no scene has been delivered.
     """
+    fresh_anchor = latest_delivered_scene_anchor()
+    if fresh_anchor:
+        return fresh_anchor
+
     state_file = WORKSPACE / "memory" / "labyrinth-state.md"
     if not state_file.exists():
         return ""

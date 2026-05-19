@@ -259,5 +259,6 @@ For Telegram replies:
 - always use `scripts/multi_voice_tts.py`
 - use one `[bm_lewis]` block for normal replies
 - use multiple voice tags only when needed
+- character voice tags are for quoted dialogue only; narration, action beats, and attributions stay in `[bm_lewis]`
 - do not use inline `[[tts:...]]` tags
 - after sending through the script, final response must be exactly `NO_REPLY`

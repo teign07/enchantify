@@ -17,8 +17,9 @@ import os
 import re
 import sys
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pathlib import Path
+from typing import Optional
 
 _SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(_SCRIPT_DIR))
@@ -94,13 +95,12 @@ def load_heartbeat() -> dict:
     if "watch data offline" in tl or "watch offline" in tl:
         signals["watch_offline"] = True
 
-    # Location fixedness — "Mobile" / "Unknown" = no GPS anchor this session
+    # Mac/Wi-Fi location fixedness. This is not GPS movement; it is only a weak
+    # local signal and may fail when macOS changes private airport paths.
     m = re.search(r"\*\*Location:\*\*\s*(.+)", text)
     if m:
         loc = m.group(1).strip()
-        signals["location_fixed"] = not any(
-            k in loc.lower() for k in ["mobile", "unknown", "command not found", "offline"]
-        )
+        signals["mac_location_status"] = loc
 
     # Calories / fuel
     m = re.search(r"(\d{3,4})\s*(?:cal|kcal|calories)", tl)
@@ -132,6 +132,68 @@ def load_heartbeat() -> dict:
             signals["mood"] = "good"
 
     return signals
+
+
+def recent_location_activity(days_back: int = 14) -> dict:
+    """Read Enchantify's own GPS/anchor records.
+
+    HEARTBEAT's Location line can describe Mac network location, not the
+    player's actual GPS movement. Anchor visits and anchor creation/check-ins
+    are the authoritative game signal for real location activity.
+    """
+    cutoff_dt = datetime.now() - timedelta(days=days_back)
+    cutoff_date = date.today() - timedelta(days=days_back)
+    events: list[dict] = []
+
+    visit_log = BASE_DIR / "logs" / "anchor-visits.jsonl"
+    if visit_log.exists():
+        for line in visit_log.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+                ts = datetime.fromisoformat(str(row.get("timestamp", "")))
+            except Exception:
+                continue
+            if ts >= cutoff_dt:
+                events.append({
+                    "source": "anchor_visit",
+                    "timestamp": ts.isoformat(timespec="seconds"),
+                    "anchor": row.get("anchor", "unknown anchor"),
+                    "mode": row.get("mode", "visit"),
+                })
+
+    anchor_file = BASE_DIR / "players" / f"{PLAYER}-anchors.md"
+    if anchor_file.exists():
+        text = anchor_file.read_text(encoding="utf-8", errors="ignore")
+        sections = re.split(r"^##\s+(.+)$", text, flags=re.MULTILINE)
+        for i in range(1, len(sections), 2):
+            name = sections[i].strip()
+            body = sections[i + 1]
+            created_m = re.search(r"\*\*Created:\*\*\s*(\d{4}-\d{2}-\d{2})", body)
+            visited_m = re.search(r"\*\*Last Visited:\*\*\s*(\d{4}-\d{2}-\d{2})", body)
+            for label, match in (("anchor_created", created_m), ("anchor_last_visited", visited_m)):
+                if not match:
+                    continue
+                try:
+                    d = date.fromisoformat(match.group(1))
+                except ValueError:
+                    continue
+                if d >= cutoff_date:
+                    events.append({
+                        "source": label,
+                        "timestamp": d.isoformat(),
+                        "anchor": name,
+                        "mode": label,
+                    })
+
+    events.sort(key=lambda e: e["timestamp"], reverse=True)
+    return {
+        "recent": bool(events),
+        "count": len(events),
+        "events": events[:5],
+        "days_back": days_back,
+    }
 
 
 # ─── Load diary entries ──────────────────────────────────────────────────────
@@ -167,12 +229,17 @@ def load_diaries(days_back: int = 30) -> list[dict]:
 
         nothing_ctx = re.findall(r"[^.]*\bthe Nothing\b[^.]*\.", text, re.IGNORECASE)
 
+        alive = alive_m.group(1).strip() if alive_m else ""
+        flat = flat_m.group(1).strip() if flat_m else ""
+        if not alive:
+            alive = diary_body_summary(text)
+
         entries.append({
             "date":           path.stem,
             "text":           text,
             "belief_values":  belief_values,
-            "alive":          alive_m.group(1).strip() if alive_m else "",
-            "flat":           flat_m.group(1).strip() if flat_m else "",
+            "alive":          clean_fragment(alive, 220),
+            "flat":           clean_fragment(flat, 180),
             "nothing_count":  len(nothing_ctx),
             "nothing_context": nothing_ctx[:2],
         })
@@ -199,8 +266,37 @@ GAME_NOISE = {
     "belief", "nothing", "compass", "academy", "labyrinth", "enchantment",
     "session", "player", "narrative", "story", "ink", "pages", "book",
     "chapter", "today", "yesterday", "first", "last", "before", "after",
-    "current", "status", "vibe",
+    "current", "status", "vibe", "diary", "alive", "flat", "most",
+    "content", "closed", "close", "opened",
 }
+
+
+def clean_fragment(text: str, max_chars: int = 180) -> str:
+    """Return a readable one-line insight fragment from diary markdown."""
+    text = re.sub(r"<!--.*?-->", " ", text or "", flags=re.DOTALL)
+    text = re.sub(r"^#+\s*", "", text, flags=re.MULTILINE)
+    text = re.sub(r"^\*Player:[^\n]*$", " ", text, flags=re.MULTILINE)
+    text = re.sub(r"^\s*[-*]\s*", "", text, flags=re.MULTILINE)
+    text = text.replace("*", "").replace("_", "")
+    text = re.sub(r"\s+", " ", text).strip(" -–—:\n\t")
+    if len(text) > max_chars:
+        cut = text[:max_chars].rsplit(" ", 1)[0]
+        return cut.rstrip(".,;:") + "..."
+    return text
+
+
+def diary_body_summary(text: str, max_chars: int = 180) -> str:
+    lines = []
+    for line in (text or "").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("*Player:") or stripped == "---":
+            continue
+        if stripped.startswith("*") and stripped.endswith("*") and len(stripped) < 120:
+            continue
+        lines.append(stripped)
+        if len(" ".join(lines)) >= max_chars:
+            break
+    return clean_fragment(" ".join(lines), max_chars=max_chars)
 
 def extract_themes(diaries: list[dict]) -> list[str]:
     all_text = " ".join(d["text"] for d in diaries)
@@ -225,6 +321,10 @@ def belief_trend(player: dict, diaries: list[dict]) -> str:
     early = sum(values[:mid]) / max(mid, 1)
     late  = sum(values[mid:]) / max(len(values) - mid, 1)
 
+    if current > late + 5:
+        return f"recovered/rising (recent diary avg {late:.0f} → current {current})"
+    if current < late - 5:
+        return f"softening (recent diary avg {late:.0f} → current {current})"
     if late > early + 5:
         return f"rising (early avg {early:.0f} → recent avg {late:.0f}, current {current})"
     elif late < early - 5:
@@ -235,7 +335,7 @@ def belief_trend(player: dict, diaries: list[dict]) -> str:
 
 # ─── Nothing assessment ──────────────────────────────────────────────────────
 
-def nothing_assessment(player: dict, diaries: list[dict], heartbeat: dict = None) -> dict:
+def nothing_assessment(player: dict, diaries: list[dict], heartbeat: dict = None, location: Optional[dict] = None) -> dict:
     total    = sum(d["nothing_count"] for d in diaries)
     contexts = []
     for d in diaries:
@@ -269,9 +369,19 @@ def nothing_assessment(player: dict, diaries: list[dict], heartbeat: dict = None
         points.append("Biological entropy: fragmented or poor sleep detected")
         biometric_flags.append("poor_sleep")
 
-    if hb.get("location_fixed") is False:
-        points.append("Geographic isolation: no fixed GPS location recorded — the player has not left the radius")
-        biometric_flags.append("no_gps_movement")
+    loc = location or {}
+    if loc.get("recent"):
+        latest = (loc.get("events") or [{}])[0]
+        points.append(
+            "Recent location magic recorded: "
+            f"{latest.get('anchor', 'an anchor')} ({latest.get('mode', 'visit')})"
+        )
+    elif loc and not loc.get("recent"):
+        points.append(
+            f"No recent anchor visit/check-in recorded in the last {loc.get('days_back', 14)} days — "
+            "treat as an invitation to map or revisit a place, not proof the player has been isolated"
+        )
+        biometric_flags.append("location_stale")
 
     if hb.get("mood") == "low":
         points.append("Emotional signal: check-in or presence field registers low/flat/tired")
@@ -304,8 +414,8 @@ def nothing_assessment(player: dict, diaries: list[dict], heartbeat: dict = None
     elif n_bio >= 3:
         pressure = "elevated"
         strategy = (
-            "The player's biometric signals suggest accumulation: stillness, disrupted rest, "
-            "or geographic contraction. The Nothing moves into the gap between sessions. "
+            "The player's support signals suggest accumulation: stillness, disrupted rest, "
+            "or stale anchor contact. The Nothing moves into the gap between sessions. "
             "Strategy: patient encroachment. Let the corridors grow slightly longer. "
             "Let Zara seem distracted. The world should feel like it's waiting, not closing in — "
             "but the waiting should be noticeable."
@@ -315,7 +425,8 @@ def nothing_assessment(player: dict, diaries: list[dict], heartbeat: dict = None
         strategy = (
             "The player has engaged before and knows the mechanics. Strategy: targeted pressure. "
             "Identify the weakest invested thread — the entity with the lowest Belief — and "
-            "work there quietly. Watch for gap weeks. Move into the silence."
+            "work there quietly. Watch for places where attention has thinned, but treat the "
+            "player's return as protection, not failure."
         )
 
     return {
@@ -636,12 +747,6 @@ _INTERVENTIONS = {
         "Professor Stonebrook was seen at dawn standing very still in the Observatory doorway, "
         "watching the sky go pale. He didn't open the door. Some mornings are for standing still."
     ),
-    "no_gps_movement": (
-        "The Ley Line map has been very quiet. No new coordinates. The Academy notices — "
-        "not with judgment, but the way a harbor notices a ship that hasn't left port. "
-        "An Elective has appeared under the door: one of the NPCs needs something that "
-        "exists only in the Unwritten Chapter. Something that requires going there."
-    ),
     "low_mood": (
         "The Academy's light is soft today. No one is asking for anything. Zara is at her "
         "usual window seat but isn't reading — just watching the courtyard. The fire has a "
@@ -652,6 +757,11 @@ _INTERVENTIONS = {
         "Something smells like food in the common room — warm bread, or something close to it. "
         "Boggle left a small package near the dorm door. No note. Just the smell of something "
         "that would be good to eat before doing anything else today."
+    ),
+    "location_stale": (
+        "The Ley Line map has not received a fresh anchor visit lately. It does not accuse. "
+        "It simply leaves one blank fold visible, the kind of blankness that says a place could "
+        "be named when the player is ready."
     ),
 }
 
@@ -703,8 +813,8 @@ def write_tick_queue_interventions(nothing: dict, player: dict) -> None:
                 f"[PRIORITY: HIGH] [intelligence — {today}] {_INTERVENTIONS[flag]}"
             )
 
-    # Compound: geographic isolation + low steps → Compass Run nudge
-    if "no_gps_movement" in flags and "low_steps" in flags:
+    # Compound: stale location contact + low steps → gentle Compass Run nudge.
+    if "location_stale" in flags and "low_steps" in flags:
         entries.append(
             f"[PRIORITY: HIGH] [intelligence — {today}] {_COMPASS_NUDGE}"
         )
@@ -835,11 +945,12 @@ if __name__ == "__main__":
     try:
         player      = load_player()
         heartbeat   = load_heartbeat()
+        location    = recent_location_activity()
         diaries     = load_diaries(days_back=30)
         all_diaries = load_diaries(days_back=3650)   # full history for story-so-far
         themes      = extract_themes(diaries)
         trend       = belief_trend(player, diaries)
-        nothing     = nothing_assessment(player, diaries, heartbeat)
+        nothing     = nothing_assessment(player, diaries, heartbeat, location)
         readiness   = arc_readiness(player, diaries)
 
         write_patterns(player, diaries, themes, trend)

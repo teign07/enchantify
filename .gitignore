@@ -21,12 +21,14 @@ config/secrets.env.local
 config/session-active.lock
 config/world-pulse-cache.json
 config/health-cache.json
+config/pulse-cache.json
 config/cron-steward-state.json
 config/narrative-steward-state.json
 config/setup-state.md
 
 # ─── Personal config (replace with examples) ──────────────────────────────────
 config/consent.json
+config/actual-budget.json
 config/bj.md
 config/beej.md
 config/beej_tutorial_state.json
@@ -56,6 +58,14 @@ logs/academy-hourly.md
 logs/marginalia-whispers.md
 logs/unsent-messages.md
 logs/arc-generation.md
+logs/bleed-ripples.jsonl
+logs/character-outreach.jsonl
+logs/drawthings-keepalive.log
+logs/drawthings-keepalive/
+logs/housekeeping.log
+logs/housekeeping/
+logs/support-faculty.log
+logs/support-faculty/
 logs/steward/
 
 # ─── Souvenirs (personal) ─────────────────────────────────────────────────────
@@ -97,6 +107,8 @@ lore/**/*.md.bak
 
 # ─── Runtime state (auto-generated) ─────────────────────────────────────────
 config/narrative-sim-state.json
+memory/page-tool-state.json
+memory/support-faculty/
 memory/.dreams/
 tmp/
 ios/InsideCover/build/

@@ -129,7 +129,13 @@ def get_last_location(player_name: str) -> str:
     # Fall back: first non-header, non-blank, non-table line
     for line in state_text.splitlines():
         line = line.strip()
-        if line and not line.startswith('#') and not line.startswith('*') and not line.startswith('|'):
+        if (
+            line
+            and not line.startswith('#')
+            and not line.startswith('*')
+            and not line.startswith('|')
+            and not line.startswith('-')
+        ):
             return line[:80]
 
     return "somewhere in the Academy"
@@ -374,6 +380,7 @@ def main():
     print(f"PLAYER: {player_name}")
     print(f"AWAY_HOURS: {away_hours:.1f}")
     print(f"ENTRY_MODE: {entry_mode}")
+    print("RETURN_TONE: Welcome them back with relief, warmth, and curiosity. Do not imply failure, neglect, disappointment, debt, or guilt. Consequences may appear as changed objects, rumors, or waiting threads, but the emotional center is: the Book is glad they returned.")
     print()
     if mechanics_hint:
         print(f"MECHANICS: {mechanics_hint}")
@@ -383,21 +390,21 @@ def main():
         print(f"DIRECTIVE: Resume where they left off.")
         print(f"LAST_LOCATION: {last_location}")
         print(f"The scene is still warm. One small acknowledgment of the gap — "
-              f"nothing more. Do not move them to the dorm.")
+              f"nothing more. Do not move them to the dorm. Make the gap feel easy to re-enter.")
 
     elif entry_mode == "dorm_brief":
         print(f"DIRECTIVE: Land in the dorm. Brief arrival — one or two images.")
         print(f"They came from: {last_location}")
-        print(f"One specific thing to notice in the room. Then they move where they want.")
+        print(f"One specific thing to notice in the room. Then they move where they want. This is a soft return, not a reprimand.")
         if thread_texture:
             print(f"THREAD TEXTURE (felt, not announced): {thread_texture}")
 
     else:  # dorm_full
-        print(f"DIRECTIVE: Full dorm arrival. They've been away {away_hours:.0f} hours.")
+        print(f"DIRECTIVE: Full dorm arrival. They've been away {away_hours:.0f} hours, and the Book is glad they are back.")
         print(f"They came from: {last_location}")
         print(f"Read players/{player_name}.md → Dorm Room section for the static description.")
         print(f"The dynamic objects below have accumulated. Weave them into the room naturally —")
-        print(f"not as a list, but as things that are simply there when the player looks.")
+        print(f"not as a list, not as blame, but as things that are simply there when the player looks.")
         print()
         print("DYNAMIC OBJECTS:")
         for obj in get_dynamic_objects(player_name):

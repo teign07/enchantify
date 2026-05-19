@@ -249,6 +249,8 @@ You can enter books and live inside them. Public domain classics, original Encha
 
 Inside a book, you interact as yourself (Academy robes, your pen). Enchantments work but behave strangely — amplified by the denser narrative reality. If you stay too long, the Nothing starts eating the narrative from within.
 
+Book Jumps now have formal rails: a jump has a chosen book, an anchor, an intention, a guide, depth, return count, and a souvenir. The book can be strange, but the Labyrinth remembers exactly where you are inside it.
+
 **The "Real World" is a book.** In the deepest Labyrinth lore, the Chapter of the Unwritten — the world you live in — is the ultimate Book Jump. The most immersive story ever written. This is why Enchantments and Compass Runs work there: you're casting magic in the most magical place there is.
 
 ---

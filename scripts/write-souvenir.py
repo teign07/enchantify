@@ -27,6 +27,7 @@ import sys
 import os
 import re
 import argparse
+import subprocess
 from datetime import datetime
 
 PLAYERS_DIR = "players"
@@ -131,7 +132,20 @@ def load_player_data(name: str) -> dict:
 
 # ─── Writer ──────────────────────────────────────────────────────────────────
 
-def write_souvenir(player: str, sentence: str, north: str, east: str, south: str, mood: str):
+def print_souvenir(filename: str) -> bool:
+    """Print the newly written souvenir card through the local print script."""
+    cmd = ["bash", "scripts/print-souvenir.sh", filename]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    if result.stdout.strip():
+        print(result.stdout.strip())
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "print script failed").strip()
+        print(f"⚠ Souvenir print failed: {detail[:500]}")
+        return False
+    return True
+
+
+def write_souvenir(player: str, sentence: str, north: str, east: str, south: str, mood: str, should_print: bool = True):
     os.makedirs(SOUVENIRS_DIR, exist_ok=True)
 
     today = datetime.now()
@@ -222,7 +236,11 @@ def write_souvenir(player: str, sentence: str, north: str, east: str, south: str
     print(f"  Sentence: \"{sentence}\"")
     print(f"\n  Next steps:")
     print(f"    python3 scripts/update-player.py {player} belief +9")
-    print(f"    bash scripts/print-souvenir.sh {filename}")
+    if should_print:
+        print(f"    printing souvenir card now")
+        print_souvenir(filename)
+    else:
+        print(f"    bash scripts/print-souvenir.sh {filename}")
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -239,9 +257,11 @@ def main():
     parser.add_argument("--south", default="", help="South (Sense) response")
     parser.add_argument("--mood", default="", choices=["ready", "tired", "low", "restless", ""],
                         help="Pre-run mood check")
+    parser.add_argument("--no-print", action="store_true",
+                        help="Write the souvenir file but do not print the physical card")
 
     args = parser.parse_args()
-    write_souvenir(args.player, args.sentence, args.north, args.east, args.south, args.mood)
+    write_souvenir(args.player, args.sentence, args.north, args.east, args.south, args.mood, should_print=not args.no_print)
 
 
 if __name__ == "__main__":

@@ -62,6 +62,11 @@ UIDS = {
     (6, "morning"): "enchantify-event-16@academy",
 }
 
+SUPPORT_UIDS = {
+    (1, 0): "enchantify-support-inkrest-tuesday@academy",
+    (3, 0): "enchantify-support-inkrest-thursday@academy",
+}
+
 
 def escape_ics(value: str) -> str:
     value = str(value or "")
@@ -142,6 +147,31 @@ def build_calendar() -> str:
                 f"DESCRIPTION:{escape_ics(description)}",
                 "END:VEVENT",
             ])
+            for line in event_lines:
+                lines.extend(fold_line(line))
+
+        for idx, entry in enumerate(getattr(schedule, "SUPPORT_HOURS", {}).get(weekday, [])):
+            title, host, room, start_clock, end_clock = entry
+            start_date = WEEK_STARTS[weekday]
+            start_time = start_clock.replace(":", "") + "00"
+            end_time = end_clock.replace(":", "") + "00"
+            summary = f"{title} ({host})"
+            description = (
+                "Optional Enchantify support visit — Difficult Page / narrative therapy "
+                "check-in. Absence is never punished."
+            )
+            event_lines = [
+                "BEGIN:VEVENT",
+                f"UID:{SUPPORT_UIDS.get((weekday, idx), f'enchantify-support-{weekday}-{idx}@academy')}",
+                f"DTSTAMP:{stamp}",
+                f"DTSTART;TZID={TZID}:{start_date}T{start_time}",
+                f"DTEND;TZID={TZID}:{start_date}T{end_time}",
+                f"RRULE:FREQ=WEEKLY;BYDAY={BYDAY[weekday]}",
+                f"SUMMARY:{escape_ics(summary)}",
+                f"LOCATION:{escape_ics(room)}",
+                f"DESCRIPTION:{escape_ics(description)}",
+                "END:VEVENT",
+            ]
             for line in event_lines:
                 lines.extend(fold_line(line))
 

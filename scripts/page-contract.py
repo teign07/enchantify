@@ -15,6 +15,7 @@ import json
 import re
 import subprocess
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ from typing import Any
 BASE = Path(__file__).resolve().parent.parent
 SCRIPTS = BASE / "scripts"
 MECHANICS = BASE / "mechanics"
+SCENE_OUTBOX = BASE / "tmp" / "scene-outbox"
 
 _story_context_spec = importlib.util.spec_from_file_location("story_context", SCRIPTS / "story-context.py")
 _story_context = importlib.util.module_from_spec(_story_context_spec)
@@ -101,6 +103,36 @@ PAGE_TYPES: dict[str, dict[str, Any]] = {
         "artifact_due": ["diary note", "margin note", "care note", "continuity"],
         "emotional_intensity": "low",
     },
+    "body_marginalia": {
+        "label": "Dr. Vellum / Body Marginalia Page",
+        "purpose": "Translate body, fuel, movement, sleep, labs, blood pressure, and longevity research into one practical daily experiment.",
+        "allowed_systems": ["Dr. Vellum", "vellum-chart.py", "food_log.py", "fuel log", "health data", "blood pressure", "labs", "supplements", "exercise", "longevity research"],
+        "forbidden_systems": ["moralizing", "diet shame", "diagnosis", "prescription changes", "heroic protocols", "generic wellness copy", "ignoring medication/safety context"],
+        "player_invitation": "Choose one body-support action, ask a longevity question, log a data point, start/review an experiment, or decline without penalty.",
+        "closure_condition": "One BJ-sized action, experiment, metric, safety flag, or doctor/pharmacist question is named and recorded when useful.",
+        "artifact_due": ["Vellum chart update", "Body Marginalia note", "fuel/body observation", "experiment record", "doctor/pharmacist question"],
+        "emotional_intensity": "low",
+    },
+    "difficult": {
+        "label": "Dr. Inkrest / Difficult Page",
+        "purpose": "Hold emotional difficulty through narrative therapy, grounding, and reauthoring.",
+        "allowed_systems": ["Dr. Inkrest", "therapy-chart.py", "Vellum chart", "fuel log", "heartbeat", "daydream/image work", "grounding", "narrative therapy"],
+        "forbidden_systems": ["diagnosis", "forced catharsis", "trauma excavation without consent", "major plot escalation", "generic wellness copy"],
+        "player_invitation": "Choose reflection, grounding, reauthoring, daydream/image work, quiet company, or stopping.",
+        "closure_condition": "One feeling or problem is externalized, one preferred-story sentence or grounding step exists, and any artifact is saved only if useful.",
+        "artifact_due": ["therapy chart check-in", "Difficult Page note", "reauthoring note", "grounding card", "question for real therapy"],
+        "emotional_intensity": "low",
+    },
+    "ledger": {
+        "label": "Gimble / Ledger Page",
+        "purpose": "Turn money fog into one clear, shame-free next action.",
+        "allowed_systems": ["Gimble", "ledger-faculty.py", "Actual Budget", "SimpleFIN", "transaction review", "category balances", "upcoming bills", "safe-to-spend", "tiny adventure budget"],
+        "forbidden_systems": ["money shame", "moralizing debt", "moving money without explicit permission", "bank login handling", "tax/legal certainty", "risky investment advice", "transaction walls"],
+        "player_invitation": "Bind one transaction, ask for money weather, review one vessel, plan a tiny adventure, or stop before overwhelm.",
+        "closure_condition": "BJ knows one number, one risk, and one next action, or the ledger records what is still unknown.",
+        "artifact_due": ["Ledger chart update", "Money Weather Report", "Alchemical Audit", "Tiny Leak note", "Adventure Permission Slip"],
+        "emotional_intensity": "low",
+    },
     "archive": {
         "label": "Archive Page",
         "purpose": "Preserve what happened.",
@@ -135,6 +167,229 @@ MODE_TO_PAGE = {
 }
 
 
+PAGE_TOOL_POSTURES: dict[str, dict[str, Any]] = {
+    "slice_of_life": {
+        "posture": "gentle ambience, not spectacle",
+        "intrusion_level": "low",
+        "cooldowns": {"image": 0, "lights": 4, "spotify": 6, "music": 24, "printer": 24, "wallpaper": 12, "app_actions": 24},
+        "audio_roles": {"spotify": "human-world continuity and ordinary Academy mood", "musicgen": "rare magic glint only"},
+        "artifact_tools": ["image", "diary", "relationship note"],
+        "preferred_tools": ["image"],
+        "allowed_tools": ["voice", "lights", "spotify", "food_log"],
+        "rare_tools": ["musicgen", "printer"],
+        "forbidden_tools": ["web_search unless the player explicitly asks or an Unwritten detail enters"],
+        "triggers": [
+            "image: one manuscript-style scene artifact when the response has a concrete visual beat",
+            "lights: warm/academy only for arrival, class, evening, or ritual settling",
+            "spotify: mood_only when current music should tint the Academy softly",
+            "food_log: only when the player actually mentions food or drink",
+        ],
+        "default_sequence": ["text", "image", "voice"],
+    },
+    "conflict": {
+        "posture": "atmospheric pressure with mechanical clarity",
+        "intrusion_level": "high",
+        "cooldowns": {"image": 0, "lights": 3, "spotify": 4, "music": 12, "printer": 24, "wallpaper": 8, "app_actions": 24},
+        "audio_roles": {"spotify": "human-world tension support", "musicgen": "uncanny one-off leitmotif for the Nothing, fae, or ritual pressure"},
+        "artifact_tools": ["image", "musicgen", "wallpaper", "reminders", "thread log"],
+        "preferred_tools": ["dice", "image", "lights"],
+        "allowed_tools": ["voice", "spotify", "musicgen", "printer", "wallpaper", "app_actions"],
+        "rare_tools": ["web_search"],
+        "forbidden_tools": ["web_search unless conflict touches the Unwritten or real-world research"],
+        "triggers": [
+            "lights: Nothing pressure may dim the room into deep violet/blue with a slow transition",
+            "spotify: spooky, tense, or low instrumental mood when pressure enters the room",
+            "musicgen: generate a short leitmotif for major conflict, ritual threshold, or recurring antagonist beat",
+            "wallpaper: only for major breach, Nothing mark, or arc state change worth seeing after Telegram closes",
+            "app_actions: private reminder/note only when the scene leaves a concrete obligation or taunt; never social posting",
+            "image: field-journal artifact when a trace, wound, door, talisman, or confrontation becomes visually specific",
+            "dice: risky uncertain player action before resolution",
+        ],
+        "default_sequence": ["text", "lights", "image", "voice", "music", "spotify", "wallpaper", "app_actions"],
+    },
+    "enchantment": {
+        "posture": "real-world ritual, proof-gated",
+        "intrusion_level": "medium",
+        "cooldowns": {"image": 0, "lights": 2, "spotify": 6, "music": 12, "printer": 12, "wallpaper": 12, "app_actions": 24},
+        "audio_roles": {"spotify": "ground the player before/after ritual", "musicgen": "short impossible spell-tone after proof"},
+        "artifact_tools": ["image", "printer", "wallpaper", "spell ledger"],
+        "preferred_tools": ["enchantment_script", "image", "vision_or_photo"],
+        "allowed_tools": ["lights", "musicgen", "spotify", "printer", "voice", "wallpaper"],
+        "rare_tools": ["web_search"],
+        "forbidden_tools": ["prose-only spell completion", "tool fireworks before proof"],
+        "triggers": [
+            "lights: use a ritual color when the spell formally starts, not when it merely gets mentioned",
+            "image: after proof/completion, create an archive page or transformed object artifact",
+            "musicgen: short chime/texture only for completed or major spells",
+            "printer: spell card or archive proof for meaningful completed Enchantments",
+        ],
+        "default_sequence": ["text", "voice", "lights", "image", "music"],
+    },
+    "wonder_compass": {
+        "posture": "attention support, never homework",
+        "intrusion_level": "medium",
+        "cooldowns": {"image": 6, "lights": 2, "spotify": 6, "music": 18, "printer": 8, "wallpaper": 12, "app_actions": 24},
+        "audio_roles": {"spotify": "soft human-world attention support", "musicgen": "rare direction-tone after a completed run"},
+        "artifact_tools": ["printer", "souvenir file", "image"],
+        "preferred_tools": ["lights", "voice", "printer"],
+        "allowed_tools": ["image", "spotify", "musicgen", "weather", "location"],
+        "rare_tools": ["web_search"],
+        "forbidden_tools": ["pretended completion", "heavy conflict ambience"],
+        "triggers": [
+            "lights: match Compass direction when a real step begins",
+            "spotify: quiet instrumental support for Sense/Rest, silence or pause for Write when possible",
+            "printer: souvenir card only after the player gives a real souvenir sentence",
+            "image: optional archive artifact after completion, not before attention lands",
+        ],
+        "default_sequence": ["text", "voice", "lights"],
+    },
+    "letter": {
+        "posture": "the world reaches out with provenance",
+        "intrusion_level": "low",
+        "cooldowns": {"image": 6, "lights": 24, "spotify": 24, "music": 48, "printer": 12, "wallpaper": 24, "app_actions": 18},
+        "audio_roles": {"spotify": "rare reading atmosphere", "musicgen": "rare character motif for special letters"},
+        "artifact_tools": ["web_search", "printer", "image", "apple_notes", "obsidian", "silent_telegram"],
+        "preferred_tools": ["web_search", "printer", "image"],
+        "allowed_tools": ["voice", "telegram", "silent_telegram", "musicgen", "spotify", "app_actions"],
+        "rare_tools": ["lights"],
+        "forbidden_tools": ["generic thinking-of-you outreach", "unattributed messages"],
+        "triggers": [
+            "web_search: NPC research, Unwritten interests, books, local/library context, or timely real-world material",
+            "printer: actual letter, field note, or invitation when the message deserves a body",
+            "image: letterhead, marginalia, portrait seal, or manuscript artifact",
+            "musicgen: rare character motif for special letters only",
+        ],
+        "default_sequence": ["text", "image", "voice", "printer", "app_actions"],
+    },
+    "anchor": {
+        "posture": "place-binding and local specificity",
+        "intrusion_level": "medium",
+        "cooldowns": {"image": 4, "lights": 4, "spotify": 12, "music": 12, "printer": 12, "wallpaper": 12, "app_actions": 24},
+        "audio_roles": {"spotify": "human-world travel/return mood", "musicgen": "Outer Stacks threshold audio that has never existed before"},
+        "artifact_tools": ["gps_anchor", "image", "printer", "wallpaper"],
+        "preferred_tools": ["gps_anchor", "location", "image"],
+        "allowed_tools": ["lights", "weather", "printer", "voice", "spotify"],
+        "rare_tools": ["web_search", "musicgen"],
+        "forbidden_tools": ["generic rooms", "hallucinated Outer Stacks kinds"],
+        "triggers": [
+            "gps_anchor: always use anchor-check.py for real coordinates",
+            "web_search: only for place context when it would make the anchor more specific",
+            "lights: Outer Stacks threshold or return visit",
+            "printer: fold-out map or pocket anchor after creation/milestone",
+        ],
+        "default_sequence": ["text", "lights", "image", "voice"],
+    },
+    "rest": {
+        "posture": "protect attention and lower demand",
+        "intrusion_level": "low",
+        "cooldowns": {"image": 12, "lights": 4, "spotify": 8, "music": 24, "printer": 48, "wallpaper": 24, "app_actions": 24},
+        "audio_roles": {"spotify": "human-world softness and continuity", "musicgen": "rare lull texture, only when it lowers demand"},
+        "artifact_tools": ["diary", "obsidian", "silent_telegram"],
+        "preferred_tools": ["lights", "voice"],
+        "allowed_tools": ["spotify", "musicgen", "image", "silent_telegram", "app_actions"],
+        "rare_tools": ["printer"],
+        "forbidden_tools": ["web_search", "major conflict lights", "urgent notifications"],
+        "triggers": [
+            "lights: warm low brightness or no change; never spooky",
+            "spotify: soft/quiet support only if it reduces friction",
+            "musicgen: rare lull/rest texture, short and non-demanding",
+            "image: only if it soothes or preserves the page without adding pressure",
+        ],
+        "default_sequence": ["text", "voice", "lights"],
+    },
+    "difficult": {
+        "posture": "therapeutic presence, consent first",
+        "intrusion_level": "low",
+        "cooldowns": {"image": 24, "lights": 4, "spotify": 8, "music": 48, "printer": 48, "wallpaper": 48, "app_actions": 24},
+        "audio_roles": {"spotify": "soft grounding support only if invited", "musicgen": "almost never; therapy should not become spectacle"},
+        "artifact_tools": ["therapy-chart", "diary", "silent_telegram"],
+        "preferred_tools": ["voice", "therapy-chart"],
+        "allowed_tools": ["lights", "spotify", "image", "app_actions"],
+        "rare_tools": ["printer", "musicgen"],
+        "forbidden_tools": ["web_search unless the player explicitly asks for psychoeducation", "spooky ambience", "urgent notifications"],
+        "triggers": [
+            "therapy-chart: save check-in, daydream, reauthoring note, or real-therapy question only when the player shares material",
+            "lights: warm low brightness only for grounding; never theatrical distress lighting",
+            "spotify: soft support only if it reduces friction or the player asks",
+            "image: rare, gentle card or symbolic page after consent; never diagnostic",
+        ],
+        "default_sequence": ["text", "voice"],
+    },
+    "body_marginalia": {
+        "posture": "precise body support, evidence-aware and non-shaming",
+        "intrusion_level": "low",
+        "cooldowns": {"image": 24, "lights": 8, "spotify": 24, "music": 72, "printer": 24, "wallpaper": 48, "app_actions": 24},
+        "audio_roles": {"spotify": "rare steady support for a body experiment", "musicgen": "almost never; Vellum is precise, not theatrical"},
+        "artifact_tools": ["vellum-chart", "food_log", "health_reader", "silent_telegram"],
+        "preferred_tools": ["vellum-chart", "food_log"],
+        "allowed_tools": ["voice", "silent_telegram", "app_actions", "printer", "image"],
+        "rare_tools": ["web_search", "spotify"],
+        "forbidden_tools": ["spooky ambience", "urgent notifications", "medical certainty without data", "social/public posting"],
+        "triggers": [
+            "vellum-chart: save BP, lab, supplement, medication, question, or experiment data through the helper script",
+            "food_log: only when the player actually mentions food or drink; do not invent intake",
+            "web_search: only for explicit current-research questions, and summarize with safety/context caveats",
+            "printer: rare Body Marginalia card for a chosen experiment or doctor question",
+            "image: rare field-journal body-support card, not diagnostic imagery",
+        ],
+        "default_sequence": ["text", "voice"],
+    },
+    "ledger": {
+        "posture": "financial clarity without shame",
+        "intrusion_level": "low",
+        "cooldowns": {"image": 48, "lights": 24, "spotify": 48, "music": 72, "printer": 24, "wallpaper": 48, "app_actions": 12},
+        "audio_roles": {"spotify": "almost never; finance support should stay quiet", "musicgen": "never by default"},
+        "artifact_tools": ["ledger-faculty", "actual-budget", "telegram", "printer"],
+        "preferred_tools": ["ledger-faculty"],
+        "allowed_tools": ["voice", "silent_telegram", "printer", "app_actions"],
+        "rare_tools": ["image"],
+        "forbidden_tools": ["bank login handling", "autonomous money movement", "public/social posting", "spooky ambience"],
+        "triggers": [
+            "ledger-faculty: use status, money-weather, weekly-audit, adventure-permission, or question for finance support",
+            "Actual Budget: only after BJ has completed local setup and config exists",
+            "Telegram: useful for daily binding prompts or consent-needed finance questions",
+            "printer: rare Money Weather or Adventure Permission card",
+        ],
+        "default_sequence": ["text", "voice"],
+    },
+    "archive": {
+        "posture": "preserve proof",
+        "intrusion_level": "low",
+        "cooldowns": {"image": 4, "lights": 24, "spotify": 24, "music": 24, "printer": 8, "wallpaper": 12, "app_actions": 18},
+        "audio_roles": {"spotify": "rare closure mood", "musicgen": "chapter/arc completion motif"},
+        "artifact_tools": ["printer", "image", "apple_notes", "obsidian", "wallpaper"],
+        "preferred_tools": ["printer", "image"],
+        "allowed_tools": ["voice", "telegram", "musicgen", "wallpaper", "app_actions"],
+        "rare_tools": ["spotify", "lights"],
+        "forbidden_tools": ["web_search unless preserving cited research"],
+        "triggers": [
+            "image: field-journal/archive page for meaningful state changes",
+            "printer: cards, closeout artifacts, letters, or memory pages",
+            "musicgen: motif only for chapter/arc completion or major memory pages",
+        ],
+        "default_sequence": ["text", "image", "voice", "printer", "wallpaper", "app_actions"],
+    },
+    "bleed": {
+        "posture": "public interpretation and world digestion",
+        "intrusion_level": "medium",
+        "cooldowns": {"image": 6, "lights": 24, "spotify": 24, "music": 24, "printer": 8, "wallpaper": 24, "app_actions": 24},
+        "audio_roles": {"spotify": "rare ceremonial reading mood", "musicgen": "rare public-omen sting"},
+        "artifact_tools": ["web_search", "printer", "image", "silent_telegram"],
+        "preferred_tools": ["web_search", "printer", "image"],
+        "allowed_tools": ["voice", "telegram", "spotify", "musicgen"],
+        "rare_tools": ["lights"],
+        "forbidden_tools": ["generic news voice", "uncited web claims in real-world material"],
+        "triggers": [
+            "web_search: real-world news/reddit/Unwritten material when the section calls for current context",
+            "printer: the issue/clipping is the body of the page",
+            "image: masthead, marginalia, or article art when it improves the issue",
+            "lights/spotify: only for ceremonial reading or major public omen",
+        ],
+        "default_sequence": ["text", "image", "voice", "printer"],
+    },
+}
+
+
 def run_script(args: list[str]) -> str:
     proc = subprocess.run(args, cwd=BASE, capture_output=True, text=True, timeout=45)
     return (proc.stdout or "").strip() if proc.returncode == 0 else ""
@@ -159,6 +414,40 @@ def heartbeat_text(limit: int = 220) -> str:
     return re.sub(r"\s+", " ", chunk).strip()[:limit]
 
 
+def latest_packet_page_contract(max_age_hours: int = 24) -> dict[str, Any] | None:
+    """Return the latest delivered/live scene page contract when it is still current.
+
+    Mission Control should show the page the player is actually on, not a broad
+    keyword guess from ambient context. Scene packets already contain the
+    contract used for the reply, so prefer that recent truth for dashboards.
+    """
+    candidates = [
+        SCENE_OUTBOX / "enchantify-scene-packet.json",
+        SCENE_OUTBOX / "enchantify-session-open-packet.json",
+    ]
+    existing = [path for path in candidates if path.exists()]
+    if not existing:
+        return None
+    latest = max(existing, key=lambda p: p.stat().st_mtime)
+    age = datetime.now() - datetime.fromtimestamp(latest.stat().st_mtime)
+    if age > timedelta(hours=max_age_hours):
+        return None
+    try:
+        data = json.loads(latest.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+    contract = metadata.get("scene_contract") if isinstance(metadata.get("scene_contract"), dict) else {}
+    page = contract.get("page_contract") if isinstance(contract.get("page_contract"), dict) else {}
+    if not page:
+        return None
+    page = dict(page)
+    page["selection_reason"] = f"latest scene packet: {latest.name}"
+    page["packet_source"] = str(latest)
+    page["packet_mtime"] = datetime.fromtimestamp(latest.stat().st_mtime).isoformat(timespec="seconds")
+    return page
+
+
 def choose_page_type(mode: str | None, slate: str, story_context: dict[str, Any], requested: str | None = None) -> tuple[str, str]:
     if requested:
         return requested, "requested explicitly"
@@ -172,17 +461,24 @@ def choose_page_type(mode: str | None, slate: str, story_context: dict[str, Any]
         slate_value(slate, "SCHEDULE"),
         slate_value(slate, "STORY"),
         slate_value(slate, "NOTHING"),
-        heartbeat_text(),
+        slate_value(slate, "PLAYER"),
+        slate_value(slate, "RESEARCH"),
         " ".join(story_context.get("continuity_threads", [])),
         " ".join(item.get("title", "") for item in story_context.get("narrative_obligations", [])),
     ]).lower()
     w = words(combined)
-    if {"gps", "anchor", "outer", "stacks", "ley"} & w:
+    if re.search(r"\b(gps|lat(?:itude)?|lon(?:gitude)?|coordinates?|anchor-check|outer stacks|ley line|pocket anchor|location shared|check-?in)\b", combined):
         return "anchor", "location/anchor language is active"
     if {"enchantment", "spell", "photo", "flyleaf"} & w:
         return "enchantment", "spell/photo language is active"
-    if {"compass", "notice", "embark", "souvenir"} & w:
+    if re.search(r"\b(wonder compass|compass run|notice\s*[→>-]\s*embark|embark\s*[→>-]\s*sense|souvenir sentence)\b", combined):
         return "wonder_compass", "Wonder Compass language is active"
+    if {"gimble", "ledger", "budget", "money", "finance", "bank", "transaction", "transactions", "actual", "simplefin", "category", "categories", "bill", "bills", "spending", "debt", "subscription", "safe-to-spend"} & w:
+        return "ledger", "finance/ledger language is active"
+    if {"vellum", "fuel", "food", "protein", "fiber", "calories", "nutrition", "longevity", "healthspan", "blood", "pressure", "bp", "labs", "lab", "supplement", "supplements", "creatine", "exercise", "movement"} & w:
+        return "body_marginalia", "Vellum/body-support language is active"
+    if {"therapy", "therapist", "inkrest", "difficult", "reauthoring", "daydream", "shame", "anxious", "anxiety", "overwhelmed", "spiral"} & w:
+        return "difficult", "therapy/difficult-page language is active"
     if {"letter", "research", "outreach", "note"} & w and "class" not in w:
         return "letter", "message/research language is active"
     if {"tired", "sleep", "rest", "low", "overwhelmed", "recovery"} & w:
@@ -209,13 +505,22 @@ def secondary_flavor(page_type: str, slate: str, story_context: dict[str, Any]) 
 
 
 def build_contract(player: str = "bj", mode: str | None = None, requested_page: str | None = None) -> dict[str, Any]:
+    if not mode and not requested_page:
+        packet_page = latest_packet_page_contract()
+        if packet_page:
+            return packet_page
+
     slate = run_script([sys.executable, str(SCRIPTS / "scene-director.py"), player, "--slate-only"])
     story_context = build_story_context(player)
     page_type, reason = choose_page_type(mode, slate, story_context, requested_page)
     definition = PAGE_TYPES[page_type]
+    tool_posture = PAGE_TOOL_POSTURES.get(page_type, {})
     flavor = secondary_flavor(page_type, slate, story_context)
     if page_type == "rest":
         scene_mode = "slice"
+        drama_budget = "low"
+    elif page_type in {"difficult", "body_marginalia", "ledger"}:
+        scene_mode = "aftermath"
         drama_budget = "low"
     elif page_type == "conflict":
         scene_mode = "mystery" if "investigation" in slate_value(slate, "STORY").lower() else "arc"
@@ -246,6 +551,7 @@ def build_contract(player: str = "bj", mode: str | None = None, requested_page: 
         "player_invitation": definition["player_invitation"],
         "closure_condition": definition["closure_condition"],
         "artifact_due": definition["artifact_due"],
+        "tool_posture": tool_posture,
         "recommended_scene_mode": scene_mode,
         "recommended_drama_budget": drama_budget,
         "state_hints": {
@@ -262,6 +568,7 @@ def build_contract(player: str = "bj", mode: str | None = None, requested_page: 
 
 
 def render_text(contract: dict[str, Any]) -> str:
+    tools = contract.get("tool_posture") or {}
     lines = [
         "PAGE CONTRACT",
         f"PAGE_TYPE: {contract['page_type']} ({contract['page_label']})",
@@ -280,6 +587,27 @@ def render_text(contract: dict[str, Any]) -> str:
     lines.extend(f"- {item}" for item in contract["allowed_systems"])
     lines.append("FORBIDDEN_SYSTEMS:")
     lines.extend(f"- {item}" for item in contract["forbidden_systems"])
+    if tools:
+        lines.append("TOOL_POSTURE:")
+        lines.append(f"- posture: {tools.get('posture')}")
+        lines.append(f"- intrusion_level: {tools.get('intrusion_level', 'low')}")
+        lines.append(f"- preferred_tools: {', '.join(tools.get('preferred_tools', [])) or 'none'}")
+        lines.append(f"- allowed_tools: {', '.join(tools.get('allowed_tools', [])) or 'none'}")
+        lines.append(f"- rare_tools: {', '.join(tools.get('rare_tools', [])) or 'none'}")
+        lines.append(f"- forbidden_tools: {', '.join(tools.get('forbidden_tools', [])) or 'none'}")
+        lines.append(f"- default_sequence: {', '.join(tools.get('default_sequence', [])) or 'text, voice'}")
+        if tools.get("audio_roles"):
+            lines.append(f"- spotify_role: {tools['audio_roles'].get('spotify', '')}")
+            lines.append(f"- musicgen_role: {tools['audio_roles'].get('musicgen', '')}")
+        if tools.get("artifact_tools"):
+            lines.append(f"- artifact_tools: {', '.join(tools.get('artifact_tools', []))}")
+        if tools.get("cooldowns"):
+            lines.append(
+                "- cooldowns_hours: "
+                + ", ".join(f"{tool}={hours}" for tool, hours in tools.get("cooldowns", {}).items())
+            )
+        lines.append("- triggers:")
+        lines.extend(f"  - {item}" for item in tools.get("triggers", []))
     lines.append(f"SMALL_MODEL_RULE: {contract['small_model_rule']}")
     return "\n".join(lines)
 

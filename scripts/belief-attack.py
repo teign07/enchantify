@@ -53,6 +53,7 @@ from datetime import datetime
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 from dice import roll_d100, combat_deal, DIFFICULTY_MODIFIERS
+from belief_caps import clamp_belief
 
 BASE_DIR   = Path(__file__).parent.parent
 REGISTER   = BASE_DIR / "lore" / "world-register.md"
@@ -101,13 +102,13 @@ def get_entity_belief(register_text, name):
 
 def set_entity_belief(register_text, name, new_value):
     new_text = re.sub(
-        r"(\|\s*" + re.escape(name) + r"\s*\|\s*[\w][\w\s]*\s*\|\s*)\d+(\s*\|)",
-        rf"\g<1>{new_value}\g<2>",
+        r"(\|\s*" + re.escape(name) + r"\s*\|\s*([\w][\w\s]*)\s*\|\s*)\d+(\s*\|)",
+        lambda m: f"{m.group(1)}{clamp_belief(new_value, m.group(2), name)}{m.group(3)}",
         register_text, flags=re.MULTILINE
     )
     new_text = re.sub(
-        r"(-\s*" + re.escape(name) + r"\s*\([\w][\w\s]*,\s*Belief\s*)\d+(\))",
-        rf"\g<1>{new_value}\g<2>",
+        r"(-\s*" + re.escape(name) + r"\s*\(([\w][\w\s]*),\s*Belief\s*)\d+(\))",
+        lambda m: f"{m.group(1)}{clamp_belief(new_value, m.group(2), name)}{m.group(3)}",
         new_text, flags=re.MULTILINE
     )
     return new_text

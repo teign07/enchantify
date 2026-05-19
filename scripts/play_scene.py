@@ -51,6 +51,19 @@ def extract_json_payload(text: str) -> dict | None:
         return None
 
 
+def text_delivery_succeeded(conducted_payload: dict | None) -> bool:
+    """True when the canonical text response already reached Telegram."""
+    if not isinstance(conducted_payload, dict):
+        return False
+    results = conducted_payload.get("results")
+    if not isinstance(results, dict):
+        return False
+    text_result = results.get("text")
+    if not isinstance(text_result, dict):
+        return False
+    return bool(text_result.get("ok") and (text_result.get("delivered") or text_result.get("message_ids")))
+
+
 def require_fresh_mechanics_preflight(player: str) -> tuple[bool, str, dict]:
     status = mechanics_state.get_preflight_status(BASE, player, max_age_minutes=PREFLIGHT_MAX_AGE_MINUTES)
     if not status.get("ok"):
@@ -210,6 +223,9 @@ def main() -> int:
         if ledger.returncode != 0 and ledger.stderr:
             sys.stderr.write(ledger.stderr.strip() + "\n")
     if conducted.returncode != 0 and args.fallback_tts and not args.dry_run:
+        if text_delivery_succeeded(conducted_payload):
+            print("FALLBACK SKIPPED: text delivery already succeeded; not sending duplicate fallback.")
+            return conducted.returncode
         return send_voice_fallback(args.voice_file, args.text_file, args.target, args.channel, args.account)
     return conducted.returncode
 

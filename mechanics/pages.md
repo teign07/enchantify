@@ -66,10 +66,10 @@ A page has one primary type and may have one secondary flavor. The primary page 
 
 **Purpose:** Move the player into lived attention.
 **Use when:** The player needs wonder, numbness is pressing, a Compass Run is chosen, or the world asks for real-world noticing.
-**Allowed systems:** Notice, Embark, Sense, Write, Rest; heartbeat calibration; weather; mood; location; souvenir writing; Belief reward; printed souvenir card.
-**Forbidden systems:** Overcomplication, homework tone, pushing outside when inside is right, pretending completion before the player acts.
+**Allowed systems:** `scripts/compass-run.py`; Notice, Embark, Sense, Write, Rest; heartbeat calibration; weather; mood; location; steps; fuel log; schedule/work pressure; souvenir writing; Belief reward; printed souvenir card.
+**Forbidden systems:** Overcomplication, homework tone, pushing outside when inside is right, pretending completion before the player acts, advancing steps without the Compass Run script.
 **Player invitation:** Notice something real, do one small thing, sense it, write one sentence, rest.
-**Closure condition:** The player has actually performed the steps and offered a souvenir sentence.
+**Closure condition:** The player has actually performed the steps, offered a souvenir sentence, and `python3 scripts/compass-run.py complete-west [name] "[sentence]"` succeeds.
 **Artifact due:** Souvenir file, printed card, Belief +9, Compass history update, diary note.
 **Core instruction:** The run succeeds when attention lands somewhere real.
 
@@ -105,6 +105,39 @@ A page has one primary type and may have one secondary flavor. The primary page 
 **Closure condition:** The player is allowed to stop or continue softly; no debt is created.
 **Artifact due:** Diary note, margin note, care note, or deliberately no artifact beyond continuity.
 **Core instruction:** Rest is not failure. Rest is a valid page.
+
+### Dr. Vellum / Body Marginalia Page
+
+**Purpose:** Translate body, fuel, health data, bloodwork, blood pressure, movement, sleep, supplements, exercise, and longevity research into one usable daily experiment.
+**Use when:** The player logs food/drink, asks about health or longevity, shares BP/lab/supplement data, Dr. Vellum sends a brief, fuel is thin, or the day needs body support.
+**Allowed systems:** Dr. Elowen Vellum, `scripts/vellum-chart.py`, `scripts/food_log.py`, fuel log, HEARTBEAT health signals, labs/BP when available, supplement records, exercise experiments, current longevity research when explicitly requested.
+**Forbidden systems:** Moralizing, food shame, diagnosis, prescription changes, heroic protocols, generic wellness copy, ignoring medications/interactions, treating missing data as certainty.
+**Player invitation:** Choose one body-support action, ask a longevity question, log a data point, start/review an experiment, or decline without penalty.
+**Closure condition:** One BJ-sized action, experiment, metric, safety flag, or doctor/pharmacist question is named and recorded when useful.
+**Artifact due:** Vellum chart update, Body Marginalia note, fuel/body observation, experiment record, or doctor/pharmacist question.
+**Core instruction:** Vellum may be precise and useful. She must not shame, diagnose, or pretend certainty where data is missing.
+
+### Dr. Inkrest / Difficult Page
+
+**Purpose:** Hold emotional difficulty through narrative therapy, grounding, and reauthoring.
+**Use when:** The player asks for therapy, feels anxious/overwhelmed/stuck/ashamed, shares a difficult daydream or recurring image, or Dr. Inkrest office hours arrive.
+**Allowed systems:** Dr. Selene Inkrest, `scripts/therapy-chart.py`, Vellum chart, fuel log, Heartbeat, diary/daydream material, narrative therapy, grounding, parts language, ACT/CBT only as practical tools.
+**Forbidden systems:** Diagnosis, forced catharsis, trauma excavation without consent, major plot escalation, spooky ambience, generic wellness copy, claiming certainty about symbols.
+**Player invitation:** Choose reflection, grounding, reauthoring, daydream/image work, quiet company, or stopping.
+**Closure condition:** One feeling or problem is externalized, one preferred-story sentence or grounding step exists, and any artifact is saved only if useful.
+**Artifact due:** Therapy chart check-in, Difficult Page note, reauthoring note, grounding card, or question for real therapy.
+**Core instruction:** A feeling is not a verdict. A problem is not a person. The next hour is where the story can be revised.
+
+### Gimble / Ledger Page
+
+**Purpose:** Turn money fog into one clear, shame-free next action.
+**Use when:** The player asks about money, spending, budget, bank sync, Actual Budget, SimpleFIN, transactions, categories, bills, debt, safe-to-spend, subscriptions, or tiny adventure affordability.
+**Allowed systems:** Gimble of the Errata Registry, `scripts/ledger-faculty.py`, Ledger Chart, Actual Budget when configured, SimpleFIN-imported transactions through Actual, category/vessel review, upcoming bills, safe-to-spend estimate, tiny adventure planning.
+**Forbidden systems:** Money shame, moralizing debt, autonomous money movement, handling bank login directly, tax/legal certainty, risky investment advice, transaction walls, public/social posting.
+**Player invitation:** Bind one transaction, ask for Money Weather, review one vessel, plan a tiny adventure, name a bill/category, or stop before overwhelm.
+**Closure condition:** BJ knows one number, one risk, and one next action, or the ledger records what is still unknown.
+**Artifact due:** Ledger chart update, Money Weather Report, Alchemical Audit, Tiny Leak note, or Adventure Permission Slip.
+**Core instruction:** Accuracy first. Shame is not an accounting method. If the ledger is too much, show the smallest useful slice.
 
 ### Archive Page
 

@@ -218,8 +218,9 @@ def recent_scene_entries(limit: int = 5) -> list[dict[str, Any]]:
                 opening = clean
                 break
         title = entry.get("title") or "scene"
-        if "Session closed cleanly" in title:
-            title = entry.get("scene_id") or "scene"
+        if "Session closed cleanly" in title or title.startswith("Quiet close,"):
+            stamp = str(entry.get("recorded_at") or "")[:16]
+            title = f"Delivered scene {stamp}" if stamp else (entry.get("scene_id") or "scene")
         scene_text = entry.get("text") or entry.get("voice") or ""
         raw_location = contract.get("current_location", "")
         inferred_location = infer_scene_location(scene_text, title, raw_location)
@@ -241,11 +242,10 @@ def recent_scene_entries(limit: int = 5) -> list[dict[str, Any]]:
 
 def infer_scene_location(text: str, title: str = "", fallback: str = "") -> str:
     fallback = (fallback or "").strip()
-    if fallback and "unknown" not in fallback.lower():
-        return fallback
     hay = f"{title}\n{text}".lower()
     patterns = [
         ("Dormitory", ("dorm", "dormitory", "bedside", "blanket", "pillow", "dresser")),
+        ("The Errata Registry", ("errata registry", "goblin bursar", "pigeonholes", "ledger review", "gimble's pen", "brass stamp")),
         ("Headmistress's Office", ("headmistress's office", "headmistress office", "thorne's office")),
         ("The Great Hall", ("great hall", "dining hall", "long table", "house table")),
         ("The Library", ("library", "return desk", "archive ledge", "stacks")),
@@ -260,7 +260,9 @@ def infer_scene_location(text: str, title: str = "", fallback: str = "") -> str:
     for location, needles in patterns:
         if any(needle in hay for needle in needles):
             return location
-    return fallback or "previous scene location"
+    if fallback and "unknown" not in fallback.lower():
+        return fallback
+    return "previous scene location"
 
 
 def last_scene_text_beat(text: str) -> str:
@@ -363,6 +365,80 @@ def open_simulation_actions(limit: int = 5) -> list[dict[str, str]]:
     return actions
 
 
+def recent_bleed_ripples(limit: int = 6) -> list[dict[str, Any]]:
+    path = BASE / "logs" / "bleed-ripples.jsonl"
+    if not path.exists():
+        return []
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except Exception:
+        return []
+    ripples: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for line in reversed(lines[-120:]):
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if obj.get("status") not in ("open", "", None):
+            continue
+        key = obj.get("id") or f"{obj.get('issue_number')}:{obj.get('section')}:{obj.get('detail')}"
+        if key in seen:
+            continue
+        seen.add(key)
+        hook = (
+            f"The Bleed #{obj.get('issue_number')} [{obj.get('section')}]: "
+            f"{obj.get('pressure')} — {obj.get('detail')}"
+        )
+        ripples.append({
+            "id": obj.get("id", ""),
+            "issue_number": obj.get("issue_number", ""),
+            "section": obj.get("section", ""),
+            "effect_type": obj.get("effect_type", ""),
+            "pressure": obj.get("pressure", ""),
+            "detail": obj.get("detail", ""),
+            "entities": obj.get("entities", []),
+            "weight": obj.get("weight", 1),
+            "hook": truncate(hook, 420),
+        })
+        if len(ripples) >= limit:
+            break
+    ripples.sort(key=lambda item: (int(item.get("weight") or 0), str(item.get("section"))), reverse=True)
+    return ripples[:limit]
+
+
+def recent_outreach(limit: int = 6) -> list[dict[str, Any]]:
+    path = BASE / "logs" / "character-outreach.jsonl"
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        kind = row.get("kind")
+        sender = row.get("sender", "")
+        if kind == "reply":
+            hook = (
+                f"bj replied to {sender}: \"{truncate(row.get('reply', ''), 180)}\" "
+                f"after outreach: \"{truncate(row.get('original_message', ''), 180)}\""
+            )
+        else:
+            hook = f"{sender} reached out: \"{truncate(row.get('message', ''), 220)}\""
+        rows.append({
+            "kind": kind,
+            "timestamp": row.get("timestamp", ""),
+            "sender": sender,
+            "entity_type": row.get("entity_type", ""),
+            "belief": row.get("belief", ""),
+            "message": truncate(row.get("message", "") or row.get("original_message", ""), 260),
+            "reply": truncate(row.get("reply", ""), 260),
+            "hook": truncate(hook, 360),
+        })
+    return rows[-limit:]
+
+
 def narrative_obligations(player: str, limit: int = 6) -> list[dict[str, Any]]:
     try:
         proc = subprocess.run(
@@ -440,6 +516,15 @@ def continuity_threads(context: dict[str, Any]) -> list[str]:
     actions = context.get("open_simulation_actions") or []
     if actions:
         threads.append(f"Unresolved NPC action to fold into play: {actions[0].get('hook')}")
+    ripples = context.get("bleed_ripples") or []
+    if ripples:
+        threads.append(f"Bleed public pressure to fold into play: {ripples[0].get('hook')}")
+    outreach = context.get("recent_outreach") or []
+    replies = [item for item in outreach if item.get("kind") == "reply"]
+    if replies:
+        threads.append(f"Recent outreach reply to carry forward: {replies[-1].get('hook')}")
+    elif outreach:
+        threads.append(f"Recent character outreach to remember: {outreach[-1].get('hook')}")
     return [truncate(item, 280) for item in threads[:7]]
 
 
@@ -473,6 +558,8 @@ def build_context(player: str) -> dict[str, Any]:
         "story_progress": current_arc_progress(),
         "emerging_thread_seeds": emerging_thread_seeds(),
         "open_simulation_actions": open_simulation_actions(),
+        "bleed_ripples": recent_bleed_ripples(),
+        "recent_outreach": recent_outreach(),
         "narrative_obligations": narrative_obligations(player),
     }
     context["continuity_threads"] = continuity_threads(context)
@@ -485,6 +572,8 @@ def build_context(player: str) -> dict[str, Any]:
         "Protect slice-of-life scenes from automatic escalation.",
         "If a THREAD SEED is touched meaningfully in play, name a real subplot at closeout instead of leaving it as atmosphere forever.",
         "If an OPEN_SIMULATION_ACTION is relevant, make its trace visible as an object, rumor, schedule change, or NPC behavior before inventing new pressure.",
+        "If a BLEED_RIPPLE is relevant, treat it as public interpretation or rumor pressure, not guaranteed objective truth.",
+        "If RECENT_CHARACTER_OUTREACH includes a player reply, treat it as relationship continuity: the sender knows the player answered and scenes may acknowledge that.",
         "Treat NARRATIVE_OBLIGATIONS as repair duties: satisfy, explicitly defer, or preserve them for closeout.",
     ]
     return context
@@ -534,6 +623,14 @@ def render_text(context: dict[str, Any]) -> str:
         lines.append("OPEN_SIMULATION_ACTIONS:")
         for action in context["open_simulation_actions"]:
             lines.append(f"- {action.get('hook')}")
+    if context.get("bleed_ripples"):
+        lines.append("BLEED_RIPPLES:")
+        for ripple in context["bleed_ripples"]:
+            lines.append(f"- {ripple.get('hook')}")
+    if context.get("recent_outreach"):
+        lines.append("RECENT_CHARACTER_OUTREACH:")
+        for item in context["recent_outreach"][-4:]:
+            lines.append(f"- {item.get('hook')}")
     if context.get("narrative_obligations"):
         lines.append("NARRATIVE_OBLIGATIONS:")
         for item in context["narrative_obligations"]:

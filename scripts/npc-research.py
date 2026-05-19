@@ -3,16 +3,16 @@
 npc-research.py — NPCs research topics from the Unwritten Chapter.
 
 During the simulation phase, an eligible NPC selects a topic from their
-Unwritten Interest, writes a research note in their voice using the Claude/Gemini
-API, and delivers it to the player.
+Unwritten Interest or world-register presence, writes a research note in their
+voice using the OpenClaw gateway, and delivers it to the player.
 
-Eligibility: NPC must be in world-register with Belief >= 8, not on cooldown
-(72h default), and either have a tracked relationship >= 25 or be a core NPC
-(Zara, Stonebrook, etc.) at Full Presence.
+Eligibility: NPC must be in world-register with Belief >= 8 and not on cooldown
+(72h default). Unwritten Interest and relationship are selection bonuses, not
+hard gates; any world-register NPC with enough Belief can get a turn.
 
 Outputs:
   - memory/npc-research/[slug]-[date].md   (always)
-  - Physical letter via CUPS printer       (core NPCs only, unless --no-print)
+  - Physical letter via CUPS printer       (unless --no-print)
   - Telegram via openclaw message send     (always)
   - iCloud Notes via osascript             (always, unless --no-icloud is used)
   - memory/tick-queue.md                   (narrative seed)
@@ -32,6 +32,7 @@ import sys
 import time
 import textwrap
 import unicodedata
+import math
 from datetime import datetime, timedelta
 from pathlib import Path
 from tick_queue_utils import ensure_header, prune_tick_queue
@@ -66,7 +67,9 @@ COOLDOWN_HOURS  = 72      # per-NPC cooldown between notes
 TELEGRAM_TARGET  = "8729557865"
 TELEGRAM_CHANNEL = "telegram"
 
-# NPCs always eligible regardless of tracked relationship (core cast)
+# Core cast receives a small selection bonus, but no longer forms a hard
+# whitelist. Research should feel like the whole Academy peering through the
+# Margin-Glass, not the same few names taking every turn.
 CORE_NPCS = {"Zara Finch", "Professor Stonebrook", "Headmistress Thorne", "Boggle", "Dr. Elowen Vellum"}
 
 CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
@@ -239,7 +242,7 @@ def parse_characters() -> list[dict]:
             })
 
     for m in re.finditer(
-        r"\*\*([A-Z][^*]+?)\*\*\s*[—–-].*?\*\*Unwritten Interest:\*\*\s*(.*?)(?=\s+\*\*Voice:\*\*|\n|$)",
+        r"\*\*([A-Z][^*]+?)\*\*(?:(?:\s*\([^)]*\))|(?:\s*\*[^*]+\*))*\s*[—–-].*?\*\*Unwritten Interest:\*\*\s*(.*?)(?=\s+\*\*Voice:\*\*|\n|$)",
         text,
     ):
         name     = m.group(1).strip()
@@ -251,6 +254,32 @@ def parse_characters() -> list[dict]:
             npcs.append({"name": name, "interest": interest, "voice": voice})
 
     return npcs
+
+
+def canonical_name(name: str) -> str:
+    text = name.lower()
+    text = re.sub(r"\([^)]*\)", "", text)
+    text = text.replace("prof. ", "professor ")
+    text = re.sub(r"^(headmistress|headmaster|professor|dr)\s+", "", text)
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def character_lookup(characters: list[dict], name: str) -> dict:
+    direct = {c["name"].lower(): c for c in characters}
+    if name.lower() in direct:
+        return direct[name.lower()]
+    target = canonical_name(name)
+    for c in characters:
+        candidate = canonical_name(c["name"])
+        if candidate == target:
+            return c
+        target_parts = target.split()
+        candidate_parts = candidate.split()
+        if target_parts and candidate_parts and target_parts[-1] == candidate_parts[-1]:
+            if set(target_parts).issubset(set(candidate_parts)) or set(candidate_parts).issubset(set(target_parts)):
+                return c
+    return {}
 
 
 # ─── Parse world-register.md ─────────────────────────────────────────────────
@@ -326,6 +355,29 @@ def is_on_cooldown(cache: dict, name: str) -> bool:
     last = cache.get(name)
     if not last:
         return False
+
+
+def recent_npc_log_counts(days: int = 14) -> dict[str, int]:
+    """Return recent research counts by NPC so selection can diversify."""
+    path = BASE_DIR / "memory" / "npc-log.md"
+    if not path.exists():
+        return {}
+    cutoff = datetime.now() - timedelta(days=days)
+    counts: dict[str, int] = {}
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if not line.startswith("|") or "---" in line or "Date" in line:
+            continue
+        parts = [p.strip() for p in line.strip("|").split("|")]
+        if len(parts) < 3:
+            continue
+        try:
+            date = datetime.fromisoformat(parts[0])
+        except Exception:
+            continue
+        if date < cutoff or parts[2] != "research":
+            continue
+        counts[parts[1]] = counts.get(parts[1], 0) + 1
+    return counts
     try:
         last_dt = datetime.fromisoformat(last)
         return (datetime.now() - last_dt).total_seconds() < COOLDOWN_HOURS * 3600
@@ -344,7 +396,7 @@ def select_npc(
 ) -> Optional[dict]:
     import random
 
-    char_data = {c["name"].lower(): c for c in characters}
+    recent_counts = recent_npc_log_counts()
     eligible =[]
     
     for name, reg in register.items():
@@ -355,27 +407,38 @@ def select_npc(
         if not forced_name and is_on_cooldown(cache, name):
             continue
 
-        rel_score = relationships.get(name, None)
-        if not forced_name and name not in CORE_NPCS and (rel_score is None or rel_score < 25):
-            continue
-
-        c_info = char_data.get(name.lower(), {})
+        c_info = character_lookup(characters, name)
         interest = c_info.get("interest", f"General real-world research relating to my current situation: {reg['notes']}")
         voice = c_info.get("voice", "In-character, natural, reflecting my academy role.")
+        rel_score = relationships.get(name)
+        recent_count = recent_counts.get(name, 0)
+        has_unwritten_interest = bool(c_info.get("interest"))
+        weight = math.sqrt(max(reg["belief"], 1))
+        if has_unwritten_interest:
+            weight *= 1.35
+        if rel_score is not None:
+            weight *= 1.0 + max(min(rel_score, 60), -30) / 150
+        if name in CORE_NPCS:
+            weight *= 1.10
+        if recent_count:
+            weight /= (1 + recent_count)
 
         eligible.append({
             "name": name,
             "interest": interest,
             "voice": voice,
             "belief": reg["belief"],
-            "notes": reg["notes"]
+            "notes": reg["notes"],
+            "weight": round(weight, 3),
+            "has_unwritten_interest": has_unwritten_interest,
+            "recent_research_count": recent_count,
         })
 
     if not eligible:
         return None
 
-    eligible.sort(key=lambda n: n["belief"], reverse=True)
-    weights = [n["belief"] for n in eligible]
+    eligible.sort(key=lambda n: n["weight"], reverse=True)
+    weights = [max(float(n["weight"]), 0.1) for n in eligible]
     total   = sum(weights)
     r = random.uniform(0, total)
     cumulative = 0
@@ -793,9 +856,11 @@ def build_letter_image_prompt(npc: dict, date_str: str) -> str:
         f"Visual motif: {style['motif']}. "
         "illustrated in sparse pen-and-ink linework with loose watercolor washes on textured aged parchment, "
         "with visible paper grain, soft ink bleed, watercolor blooms, layered manuscript-page composition, "
-        "handwritten marginalia, and selective pops of color. Keep the image airy, literary, sketch-like, "
+        "lush handwritten marginalia, lush watercolor washes, visible library stamps, wax seals, labels, tabs, arrows, "
+        "annotations, archival overlays, and selective pops of color. Make the page furniture abundant and integral, "
+        "not timid decoration. Keep the image airy, literary, sketch-like, "
         "and slightly unfinished, like a page from a magical field journal rather than a polished digital illustration. "
-        "Include subtle page layout elements such as notes, labels, sketches, margin writing, or archival overlays so "
+        "Include generous page layout elements such as notes, labels, sketches, margin writing, stamps, seals, and overlays so "
         "the image feels embedded in a manuscript page. No readable text, no logo, no border, no watermark."
     )
 
@@ -1189,20 +1254,56 @@ def write_letter_postscript(npc: dict, research: str, date_str: str) -> Path:
     return path
 
 
+def _cups_default_printer() -> str:
+    cfg = load_config()
+    configured = (
+        os.environ.get("NPC_RESEARCH_PRINTER")
+        or cfg.get("NPC_RESEARCH_PRINTER")
+        or os.environ.get("BLEED_PRINTER")
+        or cfg.get("BLEED_PRINTER")
+        or os.environ.get("ENCHANTIFY_PRINTER")
+        or cfg.get("ENCHANTIFY_PRINTER")
+    )
+    if configured:
+        return configured.strip()
+    try:
+        result = subprocess.run(["lpstat", "-d"], capture_output=True, text=True, timeout=8)
+    except Exception:
+        return ""
+    text = ((result.stdout or "") + (result.stderr or "")).strip()
+    m = re.search(r"system default destination:\s*(\S+)", text)
+    return m.group(1).strip() if m else ""
+
+
+def _first_available_printer() -> str:
+    try:
+        result = subprocess.run(["lpstat", "-p"], capture_output=True, text=True, timeout=8)
+    except Exception:
+        return ""
+    for line in (result.stdout or "").splitlines():
+        m = re.match(r"printer\s+(\S+)\s+", line)
+        if m:
+            return m.group(1).strip()
+    return ""
+
+
 def print_npc_letter(npc: dict, letter_path: Path, research: str, date_str: str) -> bool:
     """
     Print a physical letter from the NPC via the default CUPS printer.
-    Only runs for core NPCs. Uses the styled HTML/PDF letter artifact.
+    Uses the styled HTML/PDF letter artifact.
     """
-    if npc["name"] not in CORE_NPCS:
-        return False
-
     print_file = html_to_pdf(letter_path)
     if print_file.suffix.lower() == ".html":
         print_file = write_letter_postscript(npc, research, date_str)
+    printer = _cups_default_printer() or _first_available_printer()
+    if not printer:
+        print("  ⚠ Print failed: no CUPS printer found.")
+        return False
+    lp_bin = shutil.which("lp") or "/usr/bin/lp"
+    command = [lp_bin, "-d", printer, "-o", "media=Letter", str(print_file)]
     try:
         result = subprocess.run(
-            ["lpr", "-o", "media=Letter", str(print_file)],
+            command,
             capture_output=True, text=True, timeout=20,
         )
     except subprocess.TimeoutExpired:
@@ -1210,7 +1311,7 @@ def print_npc_letter(npc: dict, letter_path: Path, research: str, date_str: str)
         return False
 
     if result.returncode == 0:
-        print(f"  ✓ Letter printed: {npc['name']}")
+        print(f"  ✓ Letter printed: {npc['name']} → {printer}")
         return True
     print(f"  ⚠ Print failed: {result.stderr.strip()[:120]}")
     return False

@@ -43,27 +43,26 @@
 
 ## Compass Run Mechanics
 
-*Full specification: `lore/compass-run.md`. Read it completely before the first run. This is the operational checklist.*
+*Full specification: `lore/compass-run.md`. Read it completely before the first run. `scripts/compass-run.py` is the canonical state machine; use it before prose for every start, step advance, status check, and completion.*
 
 **Pre-run:**
-1. Check last Compass Run date in `players/[name].md` — enforce 1/day limit.
-2. Read `HEARTBEAT.md` for weather, moon, tides.
+1. Run `python3 scripts/compass-run.py start [name] --mood ready|tired|low|restless`.
+2. Obey the emitted `COMPASS_DIRECTIVE`. It enforces cooldown, reads `HEARTBEAT.md`, charges activation Belief, and produces the North invitation.
 3. If integrations enabled: set lights to `academy`, queue ambient music.
-4. Ask the pre-run mood check: Ready / Tired but willing / Kind of low / Restless.
+4. Never generate or complete a Compass step without the script.
 
-**North — Notice (+2 Belief):** Generate a personalized "I wonder…" prompt using heartbeat data + player history. Weave their response into the narrative. Lights → `compass-north`.
+**North — Notice:** The script emits the Spark. When the player accepts/revises it, run `python3 scripts/compass-run.py answer [name] "[player response]"`. Lights → `compass-north`.
 
-**East — Embark (+2 Belief):** Generate an Adventure Recipe: Destination (specific, nearby, achievable), Delight (what to look for), Definition (how they'll know it's done). Scale to mood. Wait for their return. Lights → `compass-east`.
+**East — Embark:** The script emits the Adventure Recipe: Destination, Delight, Definition. Wait for the real return. Then run `answer` again with the player's return report. Lights → `compass-east`.
 
-**South — Sense (+2 Belief):** Issue a Playful Mission — a simple sensory/photo task. Respond with synesthetic wonder. Translate the image into a non-visual sense. Ask a follow-up sensory question. Lights → `compass-south`, music → meditative.
+**South — Sense:** The script emits one Playful Mission, not options. Wait for the sensory report. Then run `answer` again. Lights → `compass-south`, music → meditative.
 
-**West — Write (+3 Belief):** Ask for the One-Sentence Souvenir simply and reverently. Wait. **Silence** (pause music). When the sentence arrives, give it weight. Describe the words appearing on the page. Narrate the Nothing's reaction — dramatic, visceral, final. Lights → `compass-west`.
+**West — Write:** Ask for the One-Sentence Souvenir simply and reverently. Wait. **Silence** (pause music). When the sentence arrives, run `python3 scripts/compass-run.py complete-west [name] "[souvenir sentence]"`. Lights → `compass-west`.
 
 **Post-run:**
 1. Narrate the Rest at center. Don't rush back to gameplay.
-2. Write the souvenir file: `python3 scripts/write-souvenir.py [name] "[sentence]" --north "..." --east "..." --south "..."`
-3. Update Belief: `python3 scripts/update-player.py [name] belief +9`
-4. Fire the printer: `bash scripts/print-souvenir.sh`. Lights → `compass-complete`, music → gentle resolution.
+2. `complete-west` writes and prints the souvenir, awards +9 Belief, updates Compass history, increases Compass item Belief, and records `complete-compass`.
+3. If the writer reports a print failure, retry once with `bash scripts/print-souvenir.sh [souvenir-file.md]`. Lights → `compass-complete`, music → gentle resolution.
 
 **Failure states:**
 - Stops mid-run: save progress, resume from last completed step next session.
@@ -89,9 +88,29 @@ The Nothing appears at narratively appropriate moments — never randomly, never
 
 ---
 
+## Reality Wagers
+
+Reality Wagers handle wild, impossible, or scene-breaking player actions. Read `mechanics/belief-dice.md` before resolving them.
+
+**Rule:** Do not flatly refuse a wild action when the world can answer. Spend Belief, roll dice, and let the Labyrinth respond.
+
+**Examples:** Trying to fly, punching through a wall, declaring oneself headmaster, rewriting a clue into existence, opening a door to somewhere impossible, forcing a scene to skip its consequence, or attacking the Nothing directly without a formal ritual.
+
+**Costs:** Wild physical stunt 1 Belief; non-Enchantment impossibility 2; direct narrative edit 3; major reality rewrite 5; brute-forcing the Nothing 5.
+
+**Rolls:** Use `scripts/roll-dice.py` after deducting the up-front Belief. Most wild actions are `dramatic`; major reality rewrites and Nothing brute-force attempts are `desperate`.
+
+**Outcomes:** Success bends the world through Enchantify logic, not generic wish fulfillment. Failure creates a consequence, clue, embarrassment, complication, or stranger path. Critical failures are plot generators.
+
+**Nothing tie-in:** Playful impossibility feeds wonder. Repeated arbitrary reality-breaking, consequence-erasure, or attempts to treat the scene as meaningless attract the Nothing as coherence loss: generic voices, faded detail, flattened choices, forgotten names, rooms turning thin. The repair path should be an Enchantment, Compass Run, apology/relationship repair, or a smaller wager that engages the scene.
+
+---
+
 ## Book Jumping
 
 **Initiation:** A professor, NPC, or narrative event triggers it — or the player requests: *"I want to jump into a book."*
+
+**Script gate:** Use `python3 scripts/book-jump.py ...` for every formal Book Jump. The script owns book, anchor, intention, guide, depth, return count, degradation, souvenir due, and return. Do not deepen, stabilize, complete, or return from a Book Jump in prose alone.
 
 **Available books:** Public domain classics + original Enchantify library books. Reference `lore/books.md`. Choose books that resonate with the player's Chapter, current arc, or stated interests.
 

@@ -6,7 +6,8 @@ The wallpaper is always bj's dorm room — same composition, changing details.
 What varies: the light (belief), the window (real weather/time), the edges
 (Nothing pressure), one subtle arc element, one NPC trace.
 
-It's a painting that happens to know things. Never a dashboard.
+It's a manuscript-page field-journal plate that happens to know things.
+Never a dashboard, never a polished cinematic painting.
 
 Architecture
 ────────────
@@ -58,6 +59,19 @@ STATE_FILE      = WALLPAPER_DIR / "state.json"
 ARCHIVE_KEEP    = 10       # keep last N wallpapers
 COOLDOWN_HOURS  = 2        # minimum hours between generations
 STALE_HOURS     = 8        # regenerate even if state unchanged after this long
+
+ARCHIVE_ART_STYLE = (
+    "Illustrated in sparse pen-and-ink linework with loose watercolor washes on textured aged parchment, "
+    "with visible paper grain, soft ink bleed, watercolor blooms, layered manuscript-page composition, "
+    "lush handwritten marginalia, lush watercolor washes, visible library stamps, wax seals, labels, tabs, arrows, "
+    "annotations, archival overlays, and selective pops of color. Make the page furniture abundant and integral, "
+    "not timid decoration. Keep the image airy, literary, sketch-like, and slightly unfinished, like a page from a "
+    "magical field journal rather than a polished digital illustration. Include generous page layout elements such "
+    "as notes, labels, sketches, margin writing, stamps, seals, and overlays so the image feels embedded in a "
+    "manuscript page. Muted sepia and gray palette with selective jewel-like color only in magical details. "
+    "Avoid anime, Studio Ghibli style, glossy digital fantasy art, photorealism, 3D render, cinematic concept art, "
+    "smooth airbrushed surfaces, UI elements, captions, watermarks, and readable modern typography."
+)
 
 
 # ── State ─────────────────────────────────────────────────────────────────────
@@ -363,12 +377,8 @@ def build_prompt(detail: dict) -> str:
     arc_el    = _ARC_ELEMENTS.get(detail["arc_phase"], _ARC_ELEMENTS["SETUP"])
 
     parts = [
-        "Illustrated in sparse pen-and-ink linework with loose watercolor washes on textured aged parchment, "
-        "with visible paper grain, soft ink bleed, watercolor blooms, layered manuscript-page composition, "
-        "handwritten marginalia, and selective pops of color. Keep the image airy, literary, sketch-like, "
-        "and slightly unfinished, like a page from a magical field journal rather than a polished digital illustration. "
-        "Include subtle page layout elements such as notes, labels, sketches, margin writing, or archival overlays so "
-        "the image feels embedded in a manuscript page. No UI elements, no caption, no watermark.",
+        "STYLE: " + ARCHIVE_ART_STYLE,
+        "This is a living desktop wallpaper, but it must read as a wide archival manuscript page or field-journal spread, not a rendered room painting.",
         "",
         f"SCENE: {_SCENE}",
         "",
@@ -388,9 +398,11 @@ def build_prompt(detail: dict) -> str:
     parts += [
         "",
         "COMPOSITION: Landscape orientation, 16:9, for desktop wallpaper. "
+        "Use a wide manuscript spread composition with decorative but non-readable margins, inked labels, soft wash borders, and archival overlays. "
         "The desk anchors the foreground. The window occupies the upper right. "
         "The room recedes into warm or cold shadow depending on atmosphere. "
-        "The feeling is: someone lives here, and the world knows them.",
+        "The feeling is: someone lives here, and the world knows them. "
+        "Keep the wallpaper calm enough to sit behind desktop icons while still unmistakably belonging to Enchantify's magical-archive style.",
     ]
 
     return "\n".join(parts)
