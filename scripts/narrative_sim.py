@@ -20,9 +20,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 import json
+import os
 import random
 import re
 import sys
+import time
+import urllib.error
+import urllib.request
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -37,6 +41,7 @@ REGISTER_MD = BASE_DIR / "lore" / "world-register.md"
 CHARACTERS_MD = BASE_DIR / "lore" / "characters.md"
 ANCHORS_DIR = BASE_DIR / "players"
 STATE_FILE = BASE_DIR / "config" / "narrative-sim-state.json"
+SIM_TRACE_LOG = BASE_DIR / "logs" / "narrative-sim-llm.log"
 FULL_HEADER = "## Full Presence (Belief 15+)"
 FADING_HEADER = "## Fading Presence (Belief 5–14)"
 WHISPER_HEADER = "## Whisper Register (Belief <5)"
@@ -57,6 +62,8 @@ DEEP_WEIGHT_LIMIT = 20
 MAX_CANDIDATE_ACTIONS = 4
 MAX_LIVE_ACTIONS = 2
 RECENT_TRACE_WINDOW = 28
+SIM_TRACE_MODEL_DEFAULT = "openclaw/gpt55"
+SIM_TRACE_TIMEOUT_DEFAULT = 240
 
 DAILY_LIFE_ACTION_BANK = {
     "reposition": [
@@ -932,6 +939,42 @@ def trace_is_recent(deed: str, result: str, avoid_signatures: set[str]) -> bool:
     return any(sig and sig in avoid_signatures for sig in (deed_sig, result_sig, combined))
 
 
+BOILERPLATE_TRACE_PATTERNS = [
+    "what it costs when nobody helps",
+    "students stopped treating",
+    "the room learned",
+    "changed one public errand",
+    "the hallway carried the rumor",
+    "specific thing waiting",
+    "thread changed in a visible way",
+    "concrete trace",
+    "made the thread more present",
+    "left a living-world trace",
+    "students changed behavior before anyone made a speech",
+    "one future choice will have to account",
+    "by the next bell, one future choice",
+]
+
+
+def trace_has_boilerplate(text: str) -> bool:
+    lower = (text or "").lower()
+    return any(pattern in lower for pattern in BOILERPLATE_TRACE_PATTERNS)
+
+
+def trace_is_usable(text: str, recent_signatures: set[str]) -> bool:
+    text = (text or "").strip()
+    if not text or len(text) < 80 or len(text) > 900:
+        return False
+    if trace_has_boilerplate(text):
+        return False
+    if re.search(r"\b(something|someone|somebody|stuff|things|matter|issue|gesture|evidence)\b", text.lower()) and len(re.findall(r"\b[A-Z][A-Za-z'.-]+", text)) < 3:
+        return False
+    sig = normalize_trace_signature(text)
+    if sig and sig in recent_signatures:
+        return False
+    return True
+
+
 def _pick(items: list[str], key: str) -> str:
     if not items:
         return ""
@@ -1004,34 +1047,31 @@ def _daily_bespoke_material(profile: ActorProfile, action: str, influences: list
     motif = _actor_motif(profile)
     medium = _chapter_medium(profile, base)
     place = _daily_place(profile, action, base)
-    verb = _action_verb(action, profile, base)
     signature = motif.split(" / ")[0]
-    prop_pool = [
-        medium,
-        f"one index card annotated in {profile.name.split()[-1]}'s hand",
-        f"a folded note keyed to {signature}",
-        f"a borrowed object with a fresh label tied around its handle",
-        f"a corrected timetable square no one could pretend not to see",
-        f"a cup, receipt, ribbon, or scrap chosen because {signature} would make it mean something",
+    last = profile.name.split()[-1]
+    scene_pool = [
+        (
+            f"pinned {medium} to the notice rail and wrote {last}: {signature} in the corner",
+            "three students stopped to read it because it looked less like an announcement than a dare",
+        ),
+        (
+            f"set one annotated index card on the warmest table, weighted with a teaspoon from breakfast",
+            "the next student who sat there copied the note into their own margin before leaving",
+        ),
+        (
+            f"changed one timetable square from warning-red to ordinary pencil and added a real room number",
+            "the usual little panic at that hour lost its easiest excuse",
+        ),
+        (
+            f"moved a chair, a lamp, and {medium} into the path where students usually hurry past",
+            "two people slowed down enough to notice each other",
+        ),
+        (
+            f"left a labeled envelope under the hearth brick marked for whoever keeps pretending not to need help",
+            "someone took it, and the brick was put back straighter than before",
+        ),
     ]
-    prop = _pick(prop_pool, f"{base}|prop")
-    manner_pool = [
-        "where students would notice it without being summoned",
-        "at the exact point where the usual rush begins",
-        "beside the person most likely to pretend not to need help",
-        "before the room had time to make the old mistake again",
-        "so the ordinary route had to acknowledge it",
-    ]
-    manner = _pick(manner_pool, f"{base}|manner")
-    outcome_pool = [
-        f"two students copied the gesture before they knew they had chosen {signature}",
-        "the next ordinary choice had one more humane option in it",
-        "the room changed behavior before anyone made a speech about changing",
-        "a practical kindness became repeatable instead of private",
-        f"someone who normally rushes through that hour stopped long enough to notice {profile.name}'s work",
-    ]
-    result = _pick(outcome_pool, f"{base}|result")
-    deed = f"{verb} {prop} {manner}"
+    deed, result = _stable_pick_pair(scene_pool, base, recent_trace_signatures(state or {}, actor=profile.name, thread_id="academy-daily", action=action))
     return place, deed, result
 
 
@@ -1044,28 +1084,28 @@ def _thread_object(thread: ThreadPolicy, action: str, profile: ActorProfile, key
         target_word = target_bits[-1] if target_bits else target.lower()
         target_objects = [
             f"{target} notice",
-            f"{target} proof",
-            f"{target} errand",
-            f"{target} receipt",
-            f"{target} question",
+            f"{target} roster line",
+            f"{target} chalk mark",
+            f"{target} library slip",
+            f"{target} timetable square",
         ]
         return _pick(target_objects, f"{key}|target-object|{profile.name}")
     objects = {
         "take_action": [
-            f"{topic} margin record",
-            f"{topic} witness sequence",
-            f"{topic} borrowed object",
-            f"{topic} threshold",
+            f"{topic} margin page",
+            f"{topic} witness list",
+            f"{topic} library slip",
+            f"{topic} stairwell mark",
         ],
         "attack_belief": [
             f"{topic} public certainty",
-            f"{topic} easiest proof",
+            f"{topic} safest explanation",
             f"{topic} supporting rumor",
             f"{topic} confident claim",
         ],
         "invest_belief": [
             f"{topic} repeated custom",
-            f"{topic} chosen gesture",
+            f"{topic} noticeboard ritual",
             f"{topic} shared practice",
             f"{topic} small ritual",
         ],
@@ -1079,28 +1119,75 @@ def _thread_bespoke_material(profile: ActorProfile, thread: ThreadPolicy, action
     motif = _actor_motif(profile)
     medium = _chapter_medium(profile, key)
     obj = _thread_object(thread, action, profile, key, target)
-    verb = _action_verb(action, profile, key)
     signature = motif.split(" / ")[0]
-    method_pool = [
-        f"with {medium} tucked where a witness would find it first",
-        f"by walking {medium} through the busiest corridor until the right person noticed",
-        f"with a practical gesture only {profile.name} would bother making",
-        f"with {medium}, a witness, and one detail copied before it could blur",
-        f"by turning {signature} into something repeatable before anyone could call it a performance",
-        f"by borrowing an ordinary school rule and bending it toward {signature}",
-    ]
-    method = _pick(method_pool, f"{key}|method")
-    deed = f"{verb} the {obj} {method}"
-    result_pool = [
-        f"{thread.name} gained a physical detail the next scene can touch",
-        "a witness now carries the clue without yet knowing why it matters",
-        "the next conversation about the thread will have to account for that object",
-        f"{signature} changed what the room assumes is true",
-        "the pressure moved from rumor into behavior",
-        "the thread became less theoretical and more difficult to ignore",
-    ]
-    result = _pick(result_pool, f"{key}|result")
+    place = _thread_place(profile, thread, action, key)
+    if action == "attack_belief":
+        scene_pool = [
+            (
+                f"in {place}, crossed a thin black line through the {obj} and left {medium} tucked beneath the tack",
+                "students who had been repeating the claim began adding if before it",
+            ),
+            (
+                f"in {place}, swapped the clean copy of the {obj} for one with a single date circled twice",
+                "the easy version of the story suddenly needed an explanation",
+            ),
+            (
+                f"in {place}, asked a passing student to read the {obj} aloud and then pointed to the one sentence that did not survive being spoken",
+                "the target lost force because the room heard the weakness at the same time",
+            ),
+        ]
+    elif action == "invest_belief":
+        scene_pool = [
+            (
+                f"in {place}, pinned {medium} above the {obj} and made the first three students sign their names beside it",
+                "the idea stopped being private and became something the hallway could repeat",
+            ),
+            (
+                f"in {place}, copied the {obj} onto fresh paper and added a small ritual instruction at the bottom",
+                "students began doing the thing before they knew who had started it",
+            ),
+            (
+                f"in {place}, turned the {obj} into a visible station with a pencil, a ribbon, and one chair facing outward",
+                "support gathered because the next step looked physically possible",
+            ),
+        ]
+    else:
+        scene_pool = [
+            (
+                f"in {place}, moved the {obj} from the back of the stack to the one place a witness would have to touch it",
+                "the next scene now has a specific thing waiting on the table",
+            ),
+            (
+                f"in {place}, copied one line from the {obj} onto {medium} and left both copies slightly misaligned",
+                "someone can now notice what changed by comparing the two versions",
+            ),
+            (
+                f"in {place}, asked two students to carry the {obj} together instead of sending it alone",
+                "the clue now has witnesses attached to it",
+            ),
+        ]
+    deed, result = _stable_pick_pair(scene_pool, key, recent_trace_signatures(state or {}, actor=profile.name, thread_id=thread.thread_id, action=action))
     return deed, result
+
+
+def _thread_place(profile: ActorProfile, thread: ThreadPolicy, action: str, key: str) -> str:
+    name = thread.name.lower()
+    lens = (character_lens(profile, 360) + " " + profile.lore_summary + " " + name).lower()
+    if "music" in lens or "sound" in lens or "song" in lens or "euphony" in lens:
+        places = ["practice-room door", "choir stair", "metronome shelf", "music corridor"]
+    elif "library" in lens or "book" in lens or "margin" in lens or "research" in lens:
+        places = ["Library return desk", "catalogue cabinet", "side table under the reading lamp", "stacks threshold"]
+    elif "dusk" in lens or "thorn" in lens or "wicker" in lens:
+        places = ["east stair noticeboard", "shadowed corridor bend", "discipline-office door", "dormitory sign-out rail"]
+    elif "food" in lens or "vellum" in lens or "protein" in lens:
+        places = ["refectory serving line", "tea urn ledger", "breakfast tray return", "side table near the water pitcher"]
+    elif "finance" in lens or "gimble" in lens or "ledger" in lens or "errata" in lens:
+        places = ["Errata Registry hatch", "coin drawer", "receipt rail", "budget ledger desk"]
+    elif "therapy" in lens or "inkrest" in lens or "mood" in lens:
+        places = ["Reauthoring Rooms threshold", "quiet counseling alcove", "mirrorless side room", "warm-lit margin table"]
+    else:
+        places = ["north corridor landing", "Great Hall notice rail", "common-room hearth", "courtyard arch", "classroom threshold"]
+    return _pick(places, f"{key}|thread-place")
 
 
 def summarize_influences(profile: ActorProfile, thread: ThreadPolicy, entities: dict[str, dict], talismans: dict[str, int], anchors: dict[str, int], anchor_pressure: int) -> list[str]:
@@ -1234,6 +1321,113 @@ def build_trace(profile: ActorProfile, thread: ThreadPolicy, action: str, target
     return build_concrete_thread_trace(profile, thread, action, target, influences, state)
 
 
+def load_gateway_config() -> tuple[int, str, str, int]:
+    oc_cfg: dict = {}
+    oc_path = Path.home() / ".openclaw" / "openclaw.json"
+    if oc_path.exists():
+        try:
+            loaded = json.loads(oc_path.read_text(encoding="utf-8"))
+            oc_cfg = loaded if isinstance(loaded, dict) else {}
+        except Exception:
+            oc_cfg = {}
+    port = int(os.environ.get("OPENCLAW_GATEWAY_PORT") or oc_cfg.get("gateway", {}).get("port") or "18789")
+    token = os.environ.get("OPENCLAW_GATEWAY_TOKEN") or oc_cfg.get("gateway", {}).get("auth", {}).get("token") or ""
+    model = os.environ.get("NARRATIVE_SIM_TRACE_MODEL") or SIM_TRACE_MODEL_DEFAULT
+    try:
+        timeout = max(60, int(os.environ.get("NARRATIVE_SIM_TRACE_TIMEOUT") or SIM_TRACE_TIMEOUT_DEFAULT))
+    except ValueError:
+        timeout = SIM_TRACE_TIMEOUT_DEFAULT
+    return port, token, model, timeout
+
+
+def llm_trace_prompt(plans: list[dict], state: dict) -> str:
+    recent = []
+    for item in state.get("recent_actions", [])[-14:]:
+        trace = item.get("visible_trace") or item.get("deed") or ""
+        if trace:
+            recent.append(trace[:360])
+    return (
+        "Write offscreen simulation traces for Enchantify.\n\n"
+        "Hard requirements:\n"
+        "- Output ONLY valid JSON: {\"traces\":[{\"id\":\"...\",\"visible_trace\":\"...\",\"hidden_effect\":\"...\"}]}.\n"
+        "- The visible_trace must be a tiny story snippet: one or two sentences, simple, concrete, and playable.\n"
+        "- Invent the action fresh from the actor's goals, quirks, faults, chapter, thread, target, and prior memory.\n"
+        "- Do NOT use pre-defined action labels in the prose. Do NOT say protected, moved, acted, gesture, changed behavior, made the thread more present, left a trace, the room learned, students stopped treating, what it costs when nobody helps, or anything like a template.\n"
+        "- Do NOT summarize philosophy. Show an object, place, person, quote, or small choice that can feed the next scene, The Bleed, memory, or a story seed.\n"
+        "- If action is invest_belief, show what the actor makes more believable or repeatable.\n"
+        "- If action is attack_belief, show what claim/person/object they weaken and how, without resolving it.\n"
+        "- If action is take_action, show one slice-of-life or thread action that still costs 1 Belief and leaves a usable hook.\n"
+        "- hidden_effect should be terse operator memory: mechanic, cost, target/thread, and the playable hook. No flowery prose.\n\n"
+        "Avoid echoing these recent traces:\n"
+        + json.dumps(recent, ensure_ascii=False, indent=2)
+        + "\n\nPlans:\n"
+        + json.dumps(plans, ensure_ascii=False, indent=2)
+    )
+
+
+def call_llm_for_traces(plans: list[dict], state: dict) -> dict[str, tuple[str, str]]:
+    if not plans or os.environ.get("NARRATIVE_SIM_NO_LLM", "").lower() in {"1", "true", "yes", "on"}:
+        return {}
+    port, token, model, timeout = load_gateway_config()
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are the Labyrinth of Stories' offscreen simulation writer. "
+                    "You write concrete, bespoke, non-template micro-actions that preserve mechanics."
+                ),
+            },
+            {"role": "user", "content": llm_trace_prompt(plans, state)},
+        ],
+        "temperature": 0.8,
+        "max_tokens": 2200,
+        "stream": False,
+    }
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{port}/v1/chat/completions",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+            "x-openclaw-session-key": f"narrative-sim-{int(time.time())}",
+        },
+        data=json.dumps(payload).encode("utf-8"),
+    )
+    def log_failure(message: str) -> None:
+        try:
+            SIM_TRACE_LOG.parent.mkdir(parents=True, exist_ok=True)
+            with SIM_TRACE_LOG.open("a", encoding="utf-8") as fh:
+                fh.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {message}\n")
+        except Exception:
+            pass
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+        content = result["choices"][0]["message"]["content"].strip()
+        if content.startswith("```"):
+            content = re.sub(r"^```(?:json)?\s*", "", content)
+            content = re.sub(r"\s*```$", "", content)
+        parsed = json.loads(content)
+    except (urllib.error.URLError, urllib.error.HTTPError, KeyError, IndexError, json.JSONDecodeError, TimeoutError, OSError) as exc:
+        log_failure(f"LLM_TRACE_FALLBACK {type(exc).__name__}: {str(exc)[:300]}")
+        return {}
+    recent_sigs = recent_trace_signatures(state or {})
+    traces: dict[str, tuple[str, str]] = {}
+    for item in parsed.get("traces", []):
+        trace_id = str(item.get("id") or "").strip()
+        visible = str(item.get("visible_trace") or "").strip()
+        hidden = str(item.get("hidden_effect") or "").strip()
+        if not trace_id or not trace_is_usable(visible, recent_sigs):
+            log_failure(f"LLM_TRACE_REJECTED id={trace_id or '?'} visible={visible[:220]!r}")
+            continue
+        if not hidden:
+            hidden = "Mechanic preserved by narrative simulation; playable hook should be carried into the next relevant scene."
+        traces[trace_id] = (visible, hidden)
+    return traces
+
+
 def choose_target(action: str, profile: ActorProfile, entities: dict[str, dict]) -> Optional[str]:
     """Pick a target for attack_belief from the full world register.
 
@@ -1273,6 +1467,8 @@ def _stable_pick(items: list[tuple], key: str, avoid_signatures: Optional[set[st
             deed, result = item
         else:
             continue
+        if trace_has_boilerplate(f"{deed} {result}"):
+            continue
         if not trace_is_recent(deed, result, avoid_signatures):
             return item
     return ordered[0]
@@ -1285,6 +1481,8 @@ def _stable_pick_pair(items: list[tuple[str, str]], key: str, avoid_signatures: 
     start = sum(ord(ch) for ch in key) % len(items)
     ordered = items[start:] + items[:start]
     for deed, result in ordered:
+        if trace_has_boilerplate(f"{deed} {result}"):
+            continue
         if not trace_is_recent(deed, result, avoid_signatures):
             return deed, result
     return ordered[0]
@@ -1304,93 +1502,194 @@ def _clause_case(text: str) -> str:
     return text[0].lower() + text[1:]
 
 
+def _lens_has(lens: str, *needles: str) -> bool:
+    for needle in needles:
+        if " " in needle:
+            if needle in lens:
+                return True
+            continue
+        if re.search(rf"\b{re.escape(needle)}s?\b", lens):
+            return True
+    return False
+
+
+def _plain_label(label: str) -> str:
+    return re.sub(r"^(the|a|an)\s+", "", (label or "").strip(), flags=re.IGNORECASE)
+
+
 def _signature_move(profile: ActorProfile, thread: Optional[ThreadPolicy], target: Optional[str], action: str, state: Optional[dict]) -> Optional[tuple[str, str]]:
     lens = (character_lens(profile, 500) + " " + profile.lore_summary).lower()
     thread_name = thread.name if thread else "Academy Daily Life"
     focus = target or thread_name
+    focus_label = _plain_label(focus)
     pulse = (state or {}).get("pulse_index", 0)
     key = f"{profile.name}|{thread_name}|{focus}|{action}|{pulse}"
 
-    if any(word in lens for word in ("thrift", "antique", "receipt", "stores")):
+    if _lens_has(lens, "chaos", "sigil", "gossip", "scandal", "leverage") or profile.name.lower() == "wicker eddies":
         moves = [
             (
-                f"pinned a thrift-store price tag to the {focus} notice and wrote a second, smaller price beside it: what it costs when nobody helps",
+                f"drew a small sigil in the corner of the {focus_label} notice and then loudly pretended not to care who saw it",
+                "By lunch, students were repeating the mark as a joke, which meant it had already started working",
+            ),
+            (
+                f"changed one public errand for {focus_label} into a dare and signed it with somebody else's initials",
+                "The hallway carried the rumor farther because nobody could agree whether it was official",
+            ),
+            (
+                f"started a harmless-looking coffee-line rumor about {focus_label}, then walked away before it chose a villain",
+                "Attention did the rest of the damage without needing his hands on it",
+            ),
+        ]
+        return _stable_pick_pair(moves, key)
+
+    if _lens_has(lens, "music", "sound", "song", "acoustic", "tuning", "migration") or profile.name.lower() == "professor euphony":
+        moves = [
+            (
+                f"set three metronomes outside the {focus_label} room and tuned them to slightly different heartbeats",
+                "Everyone who passed heard the missing rhythm before they understood what was missing",
+            ),
+            (
+                f"tapped her tuning fork against the {focus_label} doorframe and wrote down which note refused to fade",
+                "The thread gained an audible clue instead of another theory",
+            ),
+            (
+                f"asked the choir stair to hum the {focus_label} phrase back at her and caught the wrong echo in her notebook",
+                "The sound made the secret easier to find and harder to dismiss",
+            ),
+        ]
+        return _stable_pick_pair(moves, key)
+
+    if _lens_has(lens, "hidden", "alley", "night", "photography", "shadow") or profile.name.lower() == "caspian shan":
+        moves = [
+            (
+                f"slipped a black-and-white photograph of the {focus_label} corner under the stair rail, with one shadow circled in silver pencil",
+                "The hidden part of the scene became visible only after someone tilted the paper toward the window",
+            ),
+            (
+                f"left a folded map of the back corridors beside {focus_label}, marked with the route nobody uses in daylight",
+                "The safest path stopped being the obvious one",
+            ),
+            (
+                f"waited in the landing shadow until the {focus_label} witness passed, then handed them a note without making them stop walking",
+                "The message arrived without turning the witness into a spectacle",
+            ),
+        ]
+        return _stable_pick_pair(moves, key)
+
+    if _lens_has(lens, "estate", "obituary", "museum", "plaque", "recipe") or profile.name.lower() == "professor archibald permancer":
+        moves = [
+            (
+                f"tied an estate-sale tag to the {focus_label} file and wrote provenance unknown in immaculate ink",
+                "Students treated the file like an artifact instead of a rumor",
+            ),
+            (
+                f"placed an old recipe card beside {focus_label}, the ingredient list altered so one impossible item appeared twice",
+                "The past entered the room through something practical enough to be unsettling",
+            ),
+            (
+                f"copied a forgotten obituary into the {focus_label} margin and underlined the date that should not match",
+                "The thread acquired a dead witness with excellent handwriting",
+            ),
+        ]
+        return _stable_pick_pair(moves, key)
+
+    if _lens_has(lens, "architecture", "foundation", "stone", "threshold", "lock"):
+        moves = [
+            (
+                f"chalked a quiet load-bearing mark beneath the {focus_label} threshold, low enough that only someone kneeling would see it",
+                "The next person who crossed that line felt the floor answer before the faculty did",
+            ),
+            (
+                f"moved the {focus_label} record into a drawer with two key-tags and left one tag hanging where a guilty hand would hesitate",
+                "The evidence became harder to erase because access now required a choice",
+            ),
+            (
+                f"set a stone paperweight on the {focus_label} page and turned it exactly one quarter toward the old wing",
+                "The thread acquired direction instead of merely pressure",
+            ),
+        ]
+        return _stable_pick_pair(moves, key)
+
+    if profile.chapter == "Duskthorn":
+        moves = [
+            (
+                f"stamped the {focus_label} notice with a dark thorn-mark exactly where a signature should have been",
+                "Students argued about authority instead of the original question",
+            ),
+            (
+                f"moved the {focus_label} sign-out sheet to the discipline-office door and left the old hook empty",
+                "The ordinary route suddenly felt like choosing sides",
+            ),
+            (
+                f"blackened one corner of the {focus_label} record without burning the paper through",
+                "The damage looked deliberate enough that everyone began supplying motives",
+            ),
+        ]
+        return _stable_pick_pair(moves, key)
+
+    if _lens_has(lens, "thrift", "antique", "receipt", "store"):
+        moves = [
+            (
+                f"pinned a thrift-store price tag to the {focus_label} notice and wrote a second, smaller price beside it: what it costs when nobody helps",
                 "Students stopped treating the matter like an abstract rule and started asking who was actually paying for it",
             ),
             (
-                f"copied the {focus} clue onto the back of three old shop receipts and slipped them into coat pockets before supper",
+                f"copied the {focus_label} clue onto the back of three old shop receipts and slipped them into coat pockets before supper",
                 "By evening, the thread had spread through errands, pockets, and ordinary inconvenience",
             ),
             (
-                f"left a tray of mismatched buttons under the {focus} board, each tied to a name no one had been saying aloud",
+                f"left a tray of mismatched buttons under the {focus_label} board, each tied to a name no one had been saying aloud",
                 "The room learned to count the missing people before it counted the evidence",
             ),
         ]
         return _stable_pick_pair(moves, key)
 
-    if any(word in lens for word in ("spelling", "bees", "grammar", "language", "word")):
+    if _lens_has(lens, "spelling", "bee", "grammar", "language"):
         moves = [
             (
-                f"replaced the {focus} sign with one corrected letter circled in red chalk and a pronunciation key underneath",
+                f"replaced the {focus_label} sign with one corrected letter circled in red chalk and a pronunciation key underneath",
                 "Students repeated the corrected word all afternoon without noticing they had changed the spell",
             ),
             (
-                f"left three spelling slips beside the {focus} register, each defining the word everyone had been misusing",
+                f"left three spelling slips beside the {focus_label} register, each defining the word everyone had been misusing",
                 "The thread lost some of its fog because the wrong word no longer had cover",
             ),
             (
-                f"made the youngest students chant the {focus} term as a spelling-bee warmup until the older students grew embarrassed into accuracy",
+                f"made the youngest students chant the {focus_label} term as a spelling-bee warmup until the older students grew embarrassed into accuracy",
                 "Precision became social before it became official",
             ),
         ]
         return _stable_pick_pair(moves, key)
 
-    if any(word in lens for word in ("therapy", "narrative", "consciousness", "brain", "mood")):
+    if _lens_has(lens, "therapy", "therapeutic", "narrative", "consciousness", "brain", "mood"):
         moves = [
             (
                 f"left a two-column reauthoring card beside {focus}: what happened, and what the frightened part believes happened",
                 "The next witness had language for the feeling before the feeling could become fate",
             ),
             (
-                f"moved a chair beside the {focus} record so the first person to read it would have somewhere to sit",
+                f"moved a chair beside the {focus_label} record so the first person to read it would have somewhere to sit",
                 "The thread slowed down enough for care to enter before interpretation",
             ),
             (
-                f"underlined one sentence in the {focus} account and wrote, not the whole self, in the margin",
+                f"underlined one sentence in the {focus_label} account and wrote, not the whole self, in the margin",
                 "The pressure became survivable because it stopped pretending to be total",
             ),
         ]
         return _stable_pick_pair(moves, key)
 
-    if any(word in lens for word in ("architecture", "foundation", "stone", "threshold", "locks")):
-        moves = [
-            (
-                f"chalked a quiet load-bearing mark beneath the {focus} threshold, low enough that only someone kneeling would see it",
-                "The next person who crossed that line felt the floor answer before the faculty did",
-            ),
-            (
-                f"moved the {focus} record into a drawer with two key-tags and left one tag hanging where a guilty hand would hesitate",
-                "The evidence became harder to erase because access now required a choice",
-            ),
-            (
-                f"set a stone paperweight on the {focus} page and turned it exactly one quarter toward the old wing",
-                "The thread acquired direction instead of merely pressure",
-            ),
-        ]
-        return _stable_pick_pair(moves, key)
-
-    if any(word in lens for word in ("food", "nutrition", "longevity", "protein", "diet")):
+    if _lens_has(lens, "food", "nutrition", "longevity", "protein", "diet"):
         moves = [
             (
                 f"left a precise refectory note beside {focus}: protein first, fiber second, panic never",
                 "The hour became easier to survive because the body had been consulted",
             ),
             (
-                f"replaced the {focus} rumor with a meal card, a water glass, and one question about sleep",
+                f"replaced the {focus_label} rumor with a meal card, a water glass, and one question about sleep",
                 "The thread had to pass through the body before becoming drama",
             ),
             (
-                f"annotated the {focus} ledger with a practical prescription for the next meal, not the next moral failure",
+                f"annotated the {focus_label} ledger with a practical prescription for the next meal, not the next moral failure",
                 "The Academy treated care as evidence",
             ),
         ]
@@ -1410,7 +1709,6 @@ def build_daily_life_trace(profile: ActorProfile, action: str, influences: list[
         lens = character_lens(profile, 170)
         visible = (
             f"In {location}, {profile.name} {deed}. "
-            f"The gesture cost a sliver of Belief because attention always costs something. "
             f"{_sentence_case(result)}."
         )
         hidden = (
@@ -1424,7 +1722,6 @@ def build_daily_life_trace(profile: ActorProfile, action: str, influences: list[
     cost = belief_cost_for_action(action, "minor")
     visible = (
         f"In {location}, {profile.name} {deed}. "
-        f"The gesture cost a sliver of Belief because attention always costs something. "
         f"{_sentence_case(result)}."
     )
     hidden = (
@@ -1449,21 +1746,7 @@ def build_concrete_thread_trace(
         lens = character_lens(profile, 170)
         target_name = target or thread.name
         cost = belief_cost_for_action(action, "minor")
-        if action == "attack_belief":
-            visible = (
-                f"{profile.name} put {cost} Belief at risk to make {target_name} less certain: {deed}. "
-                f"By the time anyone named the damage, {_clause_case(result)}."
-            )
-        elif action == "invest_belief":
-            visible = (
-                f"{profile.name} spent {cost} Belief giving {target_name} a place to stand: {deed}. "
-                f"By the next bell, {_clause_case(result)}."
-            )
-        else:
-            visible = (
-                f"{profile.name} spent {cost} Belief on a concrete move inside {thread.name}: {deed}. "
-                f"Later, {_sentence_case(result)}."
-            )
+        visible = f"{profile.name} {deed}. {_sentence_case(result)}."
         hidden = (
             f"Mechanic: {action}; cost {cost} Belief; target: {target_name}; thread: {thread.name}; signature move: {deed}; result: {result}. "
             f"Character lens: {lens or 'world-register only'}."
@@ -1474,22 +1757,7 @@ def build_concrete_thread_trace(
     motive = _actor_motif(profile) if lens else "their own particular habits"
     target_name = target or thread.name
     cost = belief_cost_for_action(action, "minor")
-    if action == "invest_belief":
-        visible = (
-            f"{profile.name} gave {target_name} a stronger foothold by spending {cost} Belief on the work itself: {deed}. "
-            f"By the next bell, {_clause_case(result)}."
-        )
-    elif action == "attack_belief":
-        visible = (
-            f"{profile.name} put {cost} Belief at risk to make {target_name} less certain. "
-            f"They did not argue with the idea; they changed the evidence around it: {deed}. "
-            f"By the time anyone named the damage, {_clause_case(result)}."
-        )
-    else:
-        visible = (
-            f"{profile.name} spent {cost} Belief on a concrete move inside {thread.name}: {deed}. "
-            f"Later, {_sentence_case(result)}."
-        )
+    visible = f"{profile.name}, {deed}. {_sentence_case(result)}."
     hidden = (
         f"Mechanic: {action}; cost {cost} Belief; target: {target_name}; thread: {thread.name}; trace: {deed}; result: {result}. "
         f"Character lens: {lens or 'world-register only'}."
@@ -1561,7 +1829,7 @@ def simulate_world_pulse(register_text: str, threads_text: str, state: Optional[
 
     selected = sample_without_replacement_weighted(candidates, MAX_CANDIDATE_ACTIONS)
     selected.sort(key=lambda item: item[0], reverse=True)
-    pulse_recent_rows: list[dict] = []
+    planned_actions: list[dict] = []
     for _, profile, thread, entity_belief in selected:
         influences = summarize_influences(profile, thread, entities, talismans, anchors, anchor_pressure)
         action_name, reason = pick_action(profile, thread, entity_belief, talismans, influences)
@@ -1571,9 +1839,58 @@ def simulate_world_pulse(register_text: str, threads_text: str, state: Optional[
             action_name = "take_action"
             reason = f"{profile.name} can leave a trace in {thread.name}, but not resolve it without the player"
         target = choose_target(action_name, profile, entities)
-        trace_state = dict(state)
-        trace_state["recent_actions"] = list(state.get("recent_actions", [])) + pulse_recent_rows
-        visible_trace, hidden_effect = build_trace(profile, thread, action_name, target, influences, trace_state)
+        plan_id = f"sim-{len(planned_actions) + 1}"
+        planned_actions.append({
+            "id": plan_id,
+            "profile": profile,
+            "thread": thread,
+            "entity_belief": entity_belief,
+            "influences": influences,
+            "action_name": action_name,
+            "reason": reason,
+            "intensity": intensity,
+            "target": target,
+            "llm_packet": {
+                "id": plan_id,
+                "actor": profile.name,
+                "actor_kind": profile.actor_kind,
+                "belief": entity_belief,
+                "chapter": profile.chapter,
+                "personality": profile.personality,
+                "quirks": profile.quirks,
+                "faults": profile.faults,
+                "goals": profile.goals_text,
+                "beliefs": profile.beliefs_text,
+                "unwritten_interest": profile.unwritten_interest,
+                "lore_summary": character_lens(profile, 700) or profile.lore_summary,
+                "thread": {
+                    "id": thread.thread_id,
+                    "name": thread.name,
+                    "phase": thread.phase,
+                    "pressure": thread.pressure,
+                    "npc_anchor": thread.npc_anchor,
+                    "next_beat": thread.next_beat,
+                },
+                "mechanic": action_name,
+                "belief_cost": belief_cost_for_action(action_name, intensity),
+                "target": target,
+                "reason": reason,
+                "influences": influences[:6],
+            },
+        })
+
+    llm_traces = call_llm_for_traces([item["llm_packet"] for item in planned_actions], state)
+    pulse_recent_rows: list[dict] = []
+    for plan in planned_actions:
+        profile = plan["profile"]
+        thread = plan["thread"]
+        action_name = plan["action_name"]
+        target = plan["target"]
+        intensity = plan["intensity"]
+        influences = plan["influences"]
+        visible_trace, hidden_effect = llm_traces.get(plan["id"], ("", ""))
+        if not visible_trace:
+            continue
         pulse_recent_rows.append({
             "npc": profile.name,
             "thread_id": thread.thread_id,
@@ -1595,7 +1912,7 @@ def simulate_world_pulse(register_text: str, threads_text: str, state: Optional[
             thread_id=thread.thread_id,
             action=action_name,
             intensity=intensity,
-            reason=reason,
+            reason=plan["reason"],
             visible_trace=visible_trace,
             hidden_effect=hidden_effect,
             target=target,

@@ -34,8 +34,20 @@ function displayPayee(t) {
   return t.imported_payee || t.payee_name || t.payee || '';
 }
 
+function displaySchedulePayee(s) {
+  return s.payee_name || s.payee || s._payee || s.name || '';
+}
+
 function normalize(value) {
   return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function dateDiffDays(date) {
+  if (!date) return null;
+  const today = new Date(`${todayISO()}T00:00:00`);
+  const then = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(then.getTime())) return null;
+  return Math.round((then.getTime() - today.getTime()) / 86400000);
 }
 
 async function loadConfig() {
@@ -105,6 +117,15 @@ async function collectSummary() {
   const recent = transactions
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
     .slice(0, 30);
+  const schedules = await collectSchedules(45).catch(error => ({
+    generated_at: new Date().toISOString(),
+    horizon_days: 45,
+    schedule_count: 0,
+    upcoming_count: 0,
+    upcoming_total: 0,
+    error: String(error?.message || error),
+    upcoming: [],
+  }));
   return {
     generated_at: new Date().toISOString(),
     budget_month: monthISO(),
@@ -136,6 +157,7 @@ async function collectSummary() {
       to_budget: dollars(month.toBudget),
     } : null,
     transaction_window: { start, end, count: transactions.length },
+    schedules,
     uncategorized_count: uncategorized.length,
     uncategorized: uncategorized.slice(0, 12).map(t => ({
       id: t.id,
@@ -155,6 +177,48 @@ async function collectSummary() {
       notes: t.notes || '',
       amount: dollars(t.amount),
     })),
+  };
+}
+
+async function collectSchedules(horizonDays = 45) {
+  const schedules = await api.getSchedules().catch(() => []);
+  const today = todayISO();
+  const horizon = new Date(`${today}T00:00:00`);
+  horizon.setDate(horizon.getDate() + horizonDays);
+  const horizonISO = horizon.toISOString().slice(0, 10);
+  const rows = schedules
+    .filter(s => !s.deleted && !s.tombstone && !s.completed)
+    .map(s => {
+      const date = s.next_date || s.date || s._date || '';
+      const days_until = dateDiffDays(date);
+      return {
+        id: s.id,
+        name: s.name || displaySchedulePayee(s) || 'Scheduled payment',
+        next_date: date,
+        days_until,
+        amount: dollars(s.amount ?? s._amount ?? 0),
+        payee: displaySchedulePayee(s),
+        account: s.account_name || s.account || s._account || '',
+        category: s.category_name || s.category || s._category || '',
+        notes: s.notes || s._notes || '',
+        posts_transaction: !!s.posts_transaction,
+        status: s.status || '',
+      };
+    })
+    .filter(s => s.next_date && s.next_date <= horizonISO)
+    .sort((a, b) => String(a.next_date).localeCompare(String(b.next_date)));
+  const upcoming = rows.slice(0, 20);
+  const upcomingTotal = upcoming.reduce((sum, s) => {
+    const amount = Number(s.amount || 0);
+    return amount < 0 ? sum + Math.abs(amount) : sum;
+  }, 0);
+  return {
+    generated_at: new Date().toISOString(),
+    horizon_days: horizonDays,
+    schedule_count: schedules.length,
+    upcoming_count: rows.length,
+    upcoming_total: Math.round(upcomingTotal * 100) / 100,
+    upcoming,
   };
 }
 
@@ -348,6 +412,12 @@ async function main() {
     } else if (command === 'categories') {
       console.log('__ACTUAL_JSON_START__');
       console.log(JSON.stringify(await api.getCategories(), null, 2));
+      console.log('__ACTUAL_JSON_END__');
+    } else if (command === 'schedules') {
+      const horizonArg = process.argv.find(arg => arg.startsWith('--days='));
+      const horizonDays = horizonArg ? Number(horizonArg.split('=').slice(1).join('=')) || 45 : 45;
+      console.log('__ACTUAL_JSON_START__');
+      console.log(JSON.stringify(await collectSchedules(horizonDays), null, 2));
       console.log('__ACTUAL_JSON_END__');
     } else if (command === 'bank-sync') {
       const accounts = await api.getAccounts();

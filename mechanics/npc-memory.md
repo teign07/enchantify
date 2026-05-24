@@ -5,6 +5,22 @@ since they last appeared in play — researched a topic, assigned a quest,
 invested Belief, or had their Belief eroded — they carry that with them.
 The Director's Slate CAST layer flags these with `[HAS: type · detail]`.
 
+`scripts/entity_memory.py` is the canonical persistent memory rail. It writes:
+
+- `logs/entity-memory.jsonl` — append-only event memory for all entities.
+- `memory/entities/[entity].md` — readable compact memory cards.
+
+The rail is fed by:
+
+- `world-pulse.py` for simulation actions and Belief consequences.
+- `outreach-memory.py` for character outreach and BJ's replies.
+- `record_scene_run.py` for successfully delivered live scenes.
+- `story-context.py` for relevant compact memory injection before scene writing.
+
+If `story-context.py` renders `ENTITY_MEMORY`, treat it as hard continuity. It
+should shape what a character notices, remembers, avoids repeating, trusts,
+withholds, asks about, or lets show through behavior.
+
 ---
 
 ## When CAST Shows a Flag

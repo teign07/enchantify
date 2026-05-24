@@ -14,6 +14,7 @@ import json
 import re
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -38,7 +39,7 @@ _page_contract_spec.loader.exec_module(_page_contract)
 build_page_contract = _page_contract.build_contract
 
 
-SCENE_MODES = {"slice", "school-life", "arc", "mystery", "aftermath", "compass", "enchantment"}
+SCENE_MODES = {"slice", "school-life", "dorm", "arc", "mystery", "aftermath", "compass", "enchantment"}
 DRAMA_BUDGETS = {"low", "medium", "high"}
 PLOT_WORDS = {
     "investigate", "investigation", "nothing", "duskthorn", "wicker", "threat", "attack",
@@ -68,6 +69,7 @@ DICE_RISK_WORDS = {
 SCENE_FULLNESS_DEFAULTS = {
     "slice": {"target_words": "650-950", "minimum_words": 500, "minimum_paragraphs": 5},
     "school-life": {"target_words": "750-1100", "minimum_words": 575, "minimum_paragraphs": 6},
+    "dorm": {"target_words": "650-950", "minimum_words": 525, "minimum_paragraphs": 5},
     "arc": {"target_words": "750-1150", "minimum_words": 600, "minimum_paragraphs": 6},
     "mystery": {"target_words": "750-1150", "minimum_words": 600, "minimum_paragraphs": 6},
     "aftermath": {"target_words": "600-900", "minimum_words": 475, "minimum_paragraphs": 5},
@@ -186,10 +188,22 @@ def mechanics_opportunities(
     context_words = words(context_text)
 
     session = mechanics.get("session", {}) or {}
-    enchantment_done_today = (mechanics.get("enchantment") or {}).get("completed_on")
+    enchantment_done_today = (mechanics.get("enchantment") or {}).get("completed_on") == date.today().isoformat()
     enchantment_offers = int(session.get("enchantment_offers") or 0)
+    compass_done_today = bool(mechanics.get("compass_locked_today"))
+    compass_offers = int(session.get("compass_offers") or 0)
+
+    compass_reasons: list[str] = []
+    if mechanics.get("should_offer_compass"):
+        compass_reasons.append("once-daily Compass Run offer is available and Belief is in recovery range")
+    if "compass" in (schedule + " " + classroom).lower():
+        compass_reasons.append("Compass class/schedule texture is active")
+    if mode in {"slice", "school-life", "aftermath"} and not compass_done_today and compass_offers == 0:
+        compass_reasons.append("quiet or aftermath play can offer a low-pressure daily attention ritual")
 
     enchant_reasons: list[str] = []
+    if mechanics.get("should_offer_enchantment") and enchantment_offers == 0:
+        enchant_reasons.append("Belief is in recovery range; first scene-appropriate Enchantment offer for the day is due")
     if "basic enchantments" in (schedule + " " + classroom).lower():
         enchant_reasons.append("current class/practice is Basic Enchantments")
     if "nothing" in nothing.lower() and any(w in nothing.lower() for w in ("active", "high", "pressing", "seam")):
@@ -221,6 +235,8 @@ def mechanics_opportunities(
 
     return {
         "known_enchantments": known,
+        "compass_opportunity": bool(compass_reasons) and not compass_done_today and compass_offers == 0,
+        "compass_reasons": compass_reasons[:4],
         "enchantment_opportunity": should_offer_enchantment,
         "suggested_enchantment": select_enchantment(context_text, known),
         "enchantment_reasons": enchant_reasons[:4],
@@ -275,7 +291,7 @@ def drama_budget(mode: str, slate: str, requested: str | None) -> str:
     if requested:
         return requested
     story = slate_value(slate, "STORY").lower()
-    if mode in {"slice", "school-life"}:
+    if mode in {"slice", "school-life", "dorm"}:
         return "low"
     if mode in {"compass", "enchantment", "aftermath"}:
         return "medium"
@@ -300,10 +316,13 @@ def mode_rules(mode: str, budget: str) -> dict[str, list[str]]:
         "The SURPRISE choice may reframe or leave the current thread without being random.",
     ]
 
-    if mode in {"slice", "school-life"}:
+    if mode in {"slice", "school-life", "dorm"}:
         base.append("Keep the central beat ordinary: food, rest, class texture, friendship, room detail, or a small errand.")
         must_not.append("Do not introduce a new crisis, attack, reveal, or direct Nothing escalation.")
         may_advance.append("Arc pressure may appear only as background texture or an optional choice.")
+        if mode == "dorm":
+            base.append("Treat the player's dorm as home base: safe, specific, canon, and gently changed by time away.")
+            must_not.append("Do not summarize the whole world at the door; surface one or two return details and let the player choose what to inspect.")
     elif mode == "aftermath":
         base.append("Show consequences in small specifics before introducing the next problem.")
         must_not.append("Do not rush immediately into the next confrontation.")
@@ -433,6 +452,7 @@ def tool_packet_suggestion(contract: dict[str, Any]) -> dict[str, Any]:
     tools = page.get("tool_posture") or {}
     page_type = page.get("page_type") or "slice_of_life"
     intensity = {
+        "dorm": "cinematic",
         "conflict": "ritual",
         "enchantment": "ritual",
         "wonder_compass": "quiet",
@@ -462,11 +482,18 @@ def tool_packet_suggestion(contract: dict[str, Any]) -> dict[str, Any]:
         packet["image"] = {
             "backend": "drawthings",
             "deliver": True,
-            "prompt_hint": "character-focused field-journal portrait/action beat: face, expression, posture, hands, meaningful object; room only as faint background wash",
+            "prompt_hint": (
+                "field-journal scene illustration: for Dorm Pages, focus on the dorm as home base, a changed object, "
+                "or a waiting note rather than a BJ portrait; otherwise choose the strongest non-player subject first "
+                "(NPC, talisman, creature, clue, class activity, or living place); include BJ/the player only when he "
+                "is central or useful as witness; make the room/world legible and alive, not a faint wash"
+            ),
         }
     if "lights" in sequence or "lights" in tools.get("preferred_tools", []):
         if page_type == "conflict":
             packet["lights"] = {"color": "deep violet", "brightness": 35, "transition": 4}
+        elif page_type == "dorm":
+            packet["lights"] = {"scene": "dorm", "transition": 3}
         elif page_type == "rest":
             packet["lights"] = {"color": "warm amber", "brightness": 25, "transition": 5}
         elif page_type == "wonder_compass":
@@ -500,10 +527,10 @@ def tool_packet_suggestion(contract: dict[str, Any]) -> dict[str, Any]:
     return packet
 
 
-def build_contract(player: str, mode: str | None, budget: str | None) -> dict[str, Any]:
+def build_contract(player: str, mode: str | None, budget: str | None, page_type: str | None = None) -> dict[str, Any]:
     slate = run_script([sys.executable, str(SCRIPTS / "scene-director.py"), player, "--slate-only"])
     initial_mode = infer_mode(slate, mode)
-    page_contract = build_page_contract(player, mode=mode or initial_mode)
+    page_contract = build_page_contract(player, mode=mode or initial_mode, requested_page=page_type)
     selected_mode = mode or page_contract.get("recommended_scene_mode") or initial_mode
     selected_budget = budget or page_contract.get("recommended_drama_budget") or drama_budget(selected_mode, slate, None)
     mechanics = mechanics_state.get_mechanics_state(BASE, player)
@@ -549,6 +576,11 @@ def build_contract(player: str, mode: str | None, budget: str | None) -> dict[st
         )
         rules["must_not"].append(
             "Do not summarize an OPEN_SIMULATION_ACTION as abstract pressure; show how it physically or socially changed the scene."
+        )
+    if opportunities["compass_opportunity"]:
+        reasons = "; ".join(opportunities.get("compass_reasons", []))
+        rules["must_include"].append(
+            f"Offer one formal daily Compass Run as an optional path when it fits. Reason: {reasons}. If the player chooses it, run `python3 scripts/compass-run.py start {player}` and obey the COMPASS_DIRECTIVE; do not complete the run until the player gives a real one-sentence souvenir."
         )
     if narrative_obligations:
         rules["must_include"].append(
@@ -608,6 +640,8 @@ def build_contract(player: str, mode: str | None, budget: str | None) -> dict[st
             "offer_compass": bool(mechanics.get("should_offer_compass")),
             "offer_enchantment": bool(mechanics.get("should_offer_enchantment")),
             "compass_locked_today": bool(mechanics.get("compass_locked_today")),
+            "compass_opportunity": opportunities["compass_opportunity"],
+            "compass_reasons": opportunities["compass_reasons"],
             "roll_on_risk": bool(mechanics.get("should_roll", True)),
             "known_enchantments": opportunities.get("known_enchantments", []),
             "enchantment_opportunity": opportunities["enchantment_opportunity"],
@@ -667,11 +701,16 @@ def render_text(contract: dict[str, Any]) -> str:
         (
             "MECHANICS: "
             f"belief={mechanics['belief']} ({mechanics['belief_band']}), "
-            f"compass={'offer' if mechanics['offer_compass'] else 'no'}, "
+            f"compass={'offer' if mechanics.get('compass_opportunity') else 'no'}, "
             f"enchantment={'offer' if mechanics['enchantment_opportunity'] else ('low-belief-offer' if mechanics['offer_enchantment'] else 'no')}, "
             f"dice={'roll-on-risk' if mechanics['dice_opportunity'] or mechanics['roll_on_risk'] else 'light'}"
         ),
     ]
+    if mechanics.get("compass_opportunity"):
+        lines.append("COMPASS_OPPORTUNITY: once-daily formal Compass Run may be offered as an option")
+        lines.extend(f"- {reason}" for reason in mechanics.get("compass_reasons", []))
+        lines.append(f"- FORMAL START: python3 scripts/compass-run.py start {contract['player']}")
+        lines.append("- COMPLETE ONLY AFTER WEST: python3 scripts/compass-run.py complete-west [player] --souvenir \"[one real sentence]\"")
     if mechanics.get("enchantment_opportunity"):
         lines.append(f"ENCHANTMENT_OPPORTUNITY: {mechanics.get('suggested_enchantment')}")
         lines.extend(f"- {reason}" for reason in mechanics.get("enchantment_reasons", []))
@@ -1049,7 +1088,33 @@ def _tag_existing_choice_block(text: str) -> str:
     return "\n".join(rebuilt).rstrip() + "\n"
 
 
-def _replace_choice_block(text: str, contract: dict[str, Any]) -> str:
+def _fallback_choice_block(contract: dict[str, Any]) -> list[str]:
+    return [
+        "What do you do?",
+        "1. [LIFE] Ask whether anyone wants tea before the next strange thing happens, giving the room one ordinary kindness to gather around.",
+        "2. [ARC] Try a Belief roll to investigate the marked clue in the drawer, letting the current thread answer through evidence instead of panic.",
+        "3. [SURPRISE] Follow the odd draft under the side door no one mentioned, because the page may be asking a better sideways question.",
+    ]
+
+
+def _replace_choice_block(text: str, contract: dict[str, Any], *, force: bool = False) -> str:
+    if force:
+        lines = text.splitlines()
+        choices = _plain_numbered_choices(text)
+        if choices:
+            last_choice_text = choices[-1][1]
+            last_idx = next(
+                (idx for idx in range(len(lines) - 1, -1, -1) if last_choice_text in lines[idx]),
+                len(lines),
+            )
+            first_idx = last_idx
+            while first_idx > 0 and not re.match(r"^\s*what do you do\??\s*$", lines[first_idx - 1], re.IGNORECASE):
+                first_idx -= 1
+            if first_idx > 0:
+                first_idx -= 1
+            return "\n".join(lines[:first_idx]).rstrip() + "\n\n" + "\n".join(_fallback_choice_block(contract)) + "\n"
+        return text.rstrip() + "\n\n" + "\n".join(_fallback_choice_block(contract)) + "\n"
+
     tagged_existing = _tag_existing_choice_block(text)
     if tagged_existing != text or extract_tagged_choices(tagged_existing):
         return tagged_existing
@@ -1092,7 +1157,7 @@ def repair_scene_text(text: str, contract: dict[str, Any], failures: list[str] |
         )
         repaired = opener + ("\n\n" + rest.strip() if rest.strip() else "")
     elif needs_grounding and location:
-        repaired = f"You are still in {location}. Nothing important has been skipped; the room holds its place around you.\n\n" + repaired
+        repaired = f"You are still in {location}. No important beat has been skipped; the room holds its place around you.\n\n" + repaired
 
     choice_failures = [
         "missing tagged choices",
@@ -1102,7 +1167,11 @@ def repair_scene_text(text: str, contract: dict[str, Any], failures: list[str] |
         "classroom ARC choice",
     ]
     if any(any(needle in item for needle in choice_failures) for item in failures):
-        repaired = _replace_choice_block(repaired, contract)
+        force_choice_repair = any(
+            any(needle in item for needle in ("too terse", "LIFE choice", "ARC choice", "SURPRISE choice"))
+            for item in failures
+        )
+        repaired = _replace_choice_block(repaired, contract, force=force_choice_repair)
 
     if not repaired.endswith("\n"):
         repaired += "\n"
@@ -1113,6 +1182,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Build or validate a compact scene contract.")
     parser.add_argument("player", nargs="?", default="bj")
     parser.add_argument("--mode", choices=sorted(SCENE_MODES))
+    parser.add_argument("--page-type", choices=sorted(_page_contract.PAGE_TYPES))
     parser.add_argument("--drama-budget", choices=sorted(DRAMA_BUDGETS))
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--validate-scene", type=Path)
@@ -1120,7 +1190,7 @@ def main() -> int:
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
 
-    contract = build_contract(args.player, args.mode, args.drama_budget)
+    contract = build_contract(args.player, args.mode, args.drama_budget, args.page_type)
     if args.repair_scene:
         if not args.repair_scene.exists():
             print(f"scene file not found: {args.repair_scene}", file=sys.stderr)

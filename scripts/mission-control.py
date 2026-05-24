@@ -201,6 +201,23 @@ def read_json(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def read_jsonl(path: Path, limit: int = 20) -> list[dict]:
+    if not path.exists():
+        return []
+    rows = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines()[-max(limit * 3, limit):]:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except Exception:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows[-limit:]
+
+
 def first_match(pattern: str, text: str, flags=0, group=1, default="") -> str:
     m = re.search(pattern, text or "", flags)
     return m.group(group).strip() if m else default
@@ -223,6 +240,23 @@ def clean_context(text: str) -> str:
     text = text.replace('*', '')
     text = text.replace('—', '—').strip().strip('|').strip()
     return re.sub(r'\s+', ' ', text).strip(' ;')
+
+
+def parse_attention_board(player_name: str = "bj") -> dict:
+    script = BASE / "scripts" / "attention-board.py"
+    if script.exists():
+        try:
+            subprocess.run(
+                [sys.executable, str(script), player_name, "--write"],
+                cwd=BASE,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+        except Exception:
+            pass
+    data = read_json(BASE / "memory" / "attention-board.json")
+    return data if isinstance(data, dict) else {}
 
 
 def is_low_info_live_text(text: str) -> bool:
@@ -605,6 +639,7 @@ def parse_threads() -> list[dict]:
 
         # Age badge
         age_note = ""
+        last_advanced_days = None
         if born_raw and born_raw not in ("—", "-", ""):
             try:
                 # Clean the date string in case the LLM added trailing words
@@ -615,6 +650,12 @@ def parse_threads() -> list[dict]:
                     age_note = "new"
             except ValueError:
                 pass
+        last_raw = src.get("last_advanced", "")
+        if last_raw and last_raw not in ("—", "-", ""):
+            try:
+                last_advanced_days = (date.today() - date.fromisoformat(last_raw.split()[0])).days
+            except ValueError:
+                last_advanced_days = None
 
         overlay = live_overlay.get(key, {})
         phase_signal = phase_signals.get(key, {})
@@ -625,6 +666,13 @@ def parse_threads() -> list[dict]:
         next_beat = src.get("next_beat", "")
         if not next_beat and overlay.get("latest_reason"):
             next_beat = overlay.get("latest_reason", "")
+        closure_signal = ""
+        if phase_word == "resolution":
+            closure_signal = "Ready for Ending Page" if last_advanced_days is None or last_advanced_days < 3 else "Ready to Archive"
+        elif b == 0 and phase_word not in ("permanent", "quiet"):
+            closure_signal = "Unfinished Archive"
+        elif last_advanced_days is not None and last_advanced_days >= 14 and phase_word in ("setup", "rising"):
+            closure_signal = "Revive or Cool"
 
         threads.append({
             "name":         name,
@@ -639,6 +687,8 @@ def parse_threads() -> list[dict]:
             "last_advanced":src.get("last_advanced", ""),
             "born":         born_raw,
             "closed":       closed_raw,
+            "closure_signal": closure_signal,
+            "last_advanced_days": last_advanced_days,
             "age_note":     age_note,
             "npc_anchor":   src.get("npc_anchor", ""),
             "live":         overlay,
@@ -1447,7 +1497,7 @@ def parse_heartbeat_finance_summary() -> dict:
             "total_spent": float(month.group(1).replace(",", "")),
             "to_budget": float(month.group(2).replace(",", "")),
         }
-    unbound = re.search(r'Unbound Echoes:\s*(\d+)', block)
+    unbound = re.search(r'(?:Unbound Echoes|Uncategorized transactions):\s*(\d+)', block)
     if unbound:
         summary["uncategorized_count"] = int(unbound.group(1))
     for line in block.splitlines():
@@ -1664,6 +1714,161 @@ def parse_inkrest_status(player_name: str = "bj", heartbeat=None) -> dict:
     }
 
 
+def parse_penny_status(player_name: str = "bj") -> dict:
+    press_dir = BASE / "memory" / "publishing"
+    proposals_dir = press_dir / "proposals"
+    briefs_dir = press_dir / "briefs"
+    images_dir = press_dir / "images"
+    strategy_path = press_dir / "editorial-strategy.md"
+    queue_path = press_dir / "consent-queue.json"
+    social_path = press_dir / "social-ledger.jsonl"
+    log_path = BASE / "logs" / "publishing" / "penny-press.jsonl"
+
+    queue = read_json(queue_path)
+    items = queue.get("items", []) if isinstance(queue.get("items"), list) else []
+    pending_statuses = {
+        "pending",
+        "needs_review",
+        "needs_revision",
+        "drafted",
+        "draft",
+        "queued",
+        "awaiting_consent",
+        "consent_required",
+        "ready_for_review",
+    }
+    pending = [item for item in items if str(item.get("status") or "pending") in pending_statuses]
+    approved = [item for item in items if item.get("status") == "approved"]
+
+    def latest_files(path: Path, limit: int = 6) -> list[dict]:
+        if not path.exists():
+            return []
+        files = sorted(path.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
+        out = []
+        for p in files:
+            text = read(p)
+            title = first_match(r"^#\s+(.+)$", text, re.MULTILINE, default=p.stem)
+            out.append({
+                "name": p.name,
+                "path": str(p),
+                "title": title,
+                "mtime": datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+                "excerpt": clean_context(text[:900]),
+            })
+        return out
+
+    images = []
+    if images_dir.exists():
+        for p in sorted(images_dir.glob("*.png"), key=lambda x: x.stat().st_mtime, reverse=True)[:8]:
+            images.append({
+                "name": p.name,
+                "path": str(p),
+                "mtime": datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+            })
+
+    return {
+        "press_dir": str(press_dir),
+        "strategy_path": str(strategy_path),
+        "strategy": read(strategy_path)[:3500],
+        "queue_path": str(queue_path),
+        "queue_total": len(items),
+        "pending": pending[-8:],
+        "approved": approved[-6:],
+        "proposals": latest_files(proposals_dir, 6),
+        "briefs": latest_files(briefs_dir, 8),
+        "images": images,
+        "social_rows": read_jsonl(social_path, 12),
+        "log_rows": read_jsonl(log_path, 12),
+    }
+
+
+def parse_goldwater_status(player_name: str = "bj") -> dict:
+    desk = BASE / "memory" / "publishing" / "applied-abundance"
+    briefs_dir = desk / "briefs"
+    offers_dir = desk / "offers"
+    experiments_dir = desk / "experiments"
+    chart_path = BASE / "players" / f"{player_name}-goldwater-chart.md"
+    log_path = BASE / "logs" / "publishing" / "goldwater.jsonl"
+    product_seeds_dir = BASE / "memory" / "publishing" / "product-seeds"
+
+    def latest_files(path: Path, limit: int = 6) -> list[dict]:
+        if not path.exists():
+            return []
+        files = sorted(path.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
+        out = []
+        for p in files:
+            text = read(p)
+            title = first_match(r"^#\s+(.+)$", text, re.MULTILINE, default=p.stem)
+            out.append({
+                "name": p.name,
+                "path": str(p),
+                "title": title,
+                "mtime": datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+                "excerpt": clean_context(text[:1200]),
+            })
+        return out
+
+    return {
+        "desk_dir": str(desk),
+        "chart_path": str(chart_path),
+        "chart_text": read(chart_path)[:4200],
+        "chart_mtime": datetime.fromtimestamp(chart_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M") if chart_path.exists() else "",
+        "briefs": latest_files(briefs_dir, 8),
+        "offers": latest_files(offers_dir, 8),
+        "experiments": latest_files(experiments_dir, 8),
+        "product_seeds": latest_files(product_seeds_dir, 8),
+        "log_rows": read_jsonl(log_path, 16),
+    }
+
+
+def parse_bellkeeper_status(player_name: str = "bj") -> dict:
+    chart_path = BASE / "players" / f"{player_name}-bellkeeper-chart.md"
+    log_path = BASE / "players" / f"{player_name}-bellkeeper-log.jsonl"
+    config_path = BASE / "config" / "proactive-offices.json"
+    memory_dir = BASE / "memory" / "support-faculty" / "bellkeeper"
+    cards = []
+    if memory_dir.exists():
+        for p in sorted(memory_dir.glob("*.md"), key=lambda x: x.stat().st_mtime, reverse=True)[:8]:
+            text = read(p)
+            cards.append({
+                "name": p.name,
+                "path": str(p),
+                "mtime": datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+                "title": first_match(r"^#\s+(.+)$", text, re.MULTILINE, default=p.stem),
+                "shape": first_match(r"## Today's Shape\s+(.*?)(?=\n## |\Z)", text, re.DOTALL, default="").strip(),
+                "watch": first_match(r"## One Thing To Watch\s+(.*?)(?=\n## |\Z)", text, re.DOTALL, default="").strip(),
+                "invitation": first_match(r"## Tiny Invitation\s+(.*?)(?=\n## |\Z)", text, re.DOTALL, default="").strip(),
+                "support": first_match(r"## Support On Call\s+(.*?)(?=\n## |\Z)", text, re.DOTALL, default="").strip(),
+                "excerpt": clean_context(text[:1600]),
+            })
+    rows = read_jsonl(log_path, 24)
+    handoffs = []
+    for row in rows:
+        handoff = row.get("handoff") if isinstance(row, dict) else None
+        if isinstance(handoff, dict):
+            handoffs.append({
+                "timestamp": row.get("timestamp", ""),
+                "kind": row.get("kind", ""),
+                "character": handoff.get("character", ""),
+                "reason": handoff.get("reason", ""),
+                "bring": handoff.get("bring", ""),
+                "after": handoff.get("after", ""),
+            })
+    return {
+        "chart_path": str(chart_path),
+        "chart_text": read(chart_path)[:3500],
+        "chart_mtime": datetime.fromtimestamp(chart_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M") if chart_path.exists() else "",
+        "log_path": str(log_path),
+        "log_rows": rows,
+        "handoffs": handoffs[-8:],
+        "config_path": str(config_path),
+        "config": read_json(config_path),
+        "memory_dir": str(memory_dir),
+        "cards": cards,
+        "latest": cards[0] if cards else {},
+    }
+
+
 def parse_forecast(talismans: list) -> dict:
     hb      = read(HEARTBEAT_F)
     state   = read(BASE / "lore" / "academy-state.md")
@@ -1717,15 +1922,21 @@ def parse_forecast(talismans: list) -> dict:
             whispers.append({"title": m.group(1).strip(), "text": m.group(2).strip()})
     if not whispers and whispers_raw:
         for heading_m in re.finditer(
-            r'^###\s+(.+?)\s*\n(.*?)(?=^### |\Z)',
+            r'^#{2,3}\s+(.+?)\s*\n(.*?)(?=^#{2,3}\s+|\Z)',
             whispers_raw,
             re.MULTILINE | re.DOTALL,
         ):
             category = re.sub(r'^[^\w]+', '', heading_m.group(1)).strip()
-            for m in re.finditer(r'^-\s+\*\*([^*:]+):\*\*\s*(.+)', heading_m.group(2), re.MULTILINE):
-                title = m.group(1).strip()
-                text = m.group(2).strip()
-                whispers.append({"title": f"{category}: {title}", "text": text})
+            body = heading_m.group(2)
+            for m in re.finditer(
+                r'^-\s+\*\*([^*]+?)\*\*\s*[:.—-]?\s*(.+?)(?=^\s*-\s+\*\*|\n\s*\n|^#{2,3}\s+|\Z)',
+                body,
+                re.MULTILINE | re.DOTALL,
+            ):
+                title = m.group(1).strip().rstrip(".:—- ")
+                text = re.sub(r"\s+", " ", m.group(2)).strip()
+                if title and text:
+                    whispers.append({"title": f"{category}: {title}", "text": text})
 
     # ── Academy environment ──
     env_rows =[]
@@ -2721,6 +2932,7 @@ def render_thread_card(t: dict) -> str:
     live   = t.get("live", {}) or {}
     latest_event = live.get("latest_action_event") or live.get("latest_event") or {}
     phase_signal = t.get("phase_signal", {}) or {}
+    closure_signal = t.get("closure_signal", "")
 
     live_text = live.get("latest_narrative", "")
     live_text_specific = live_text and not is_low_info_live_text(live_text)
@@ -2787,6 +2999,7 @@ def render_thread_card(t: dict) -> str:
         ("Live reason",      "" if is_low_info_effect(live.get("latest_reason", "")) else live.get("latest_reason", "")),
         ("Recent action prose", recent_actions_text),
         ("Current status",   status_text if status_specific else ""),
+        ("Closure signal",   closure_signal),
         ("Next beat",        t["next_beat"]),
         ("Pressure",         t["pressure"]),
         ("Nothing pressure", t["nothing"]),
@@ -2838,6 +3051,10 @@ def render_thread_card(t: dict) -> str:
         )
         beat_parts.append(
             f'<div style="color:var(--seed);font-size:.8rem"><span class="muted">Phase pressure:</span> {h(signal_line)}</div>'
+        )
+    if closure_signal:
+        beat_parts.append(
+            f'<div style="color:var(--resolution);font-size:.8rem"><span class="muted">Ending:</span> {h(closure_signal)}</div>'
         )
 
     if status_specific:
@@ -3028,6 +3245,8 @@ def render_pact_action(entry: dict) -> str:
         extra.append(f"war: {entry.get('war_subtype')}")
     if entry.get("consent_id"):
         extra.append(f"consent: {entry.get('consent_id')}")
+    if entry.get("content_file"):
+        extra.append(f"file: {Path(str(entry.get('content_file'))).name}")
     if entry.get("telegram_sent") is not None:
         extra.append(f"telegram: {'sent' if entry.get('telegram_sent') else 'not sent'}")
     if entry.get("before") is not None and entry.get("after") is not None:
@@ -3469,7 +3688,7 @@ def render_ledger_tab(ledger: dict) -> str:
         ("On-budget balance", money(ledger.get("account_total", 0))),
         ("To budget", money(month.get("to_budget"))),
         ("Spent this month", money(abs(float(month.get("total_spent") or 0))) if month else "—"),
-        ("Unbound Echoes", str(ledger.get("uncategorized_count", 0))),
+        ("Uncategorized transactions", str(ledger.get("uncategorized_count", 0))),
         ("Budget month", ledger.get("budget_month") or "—"),
         ("Last Actual read", generated_label),
     ]
@@ -3553,7 +3772,7 @@ def render_ledger_tab(ledger: dict) -> str:
     <div class="heartbeat-head clickable" onclick="openModal(this)" data-modal={raw_md}>
       <div>
         <div class="heartbeat-title">Gimble's Errata Ledger</div>
-        <div class="heartbeat-sub muted">Live balances, recent kinetic ink, and shame-free money weather.</div>
+        <div class="heartbeat-sub muted">Live balances, recent transactions, and shame-free budget notes.</div>
       </div>
       <div class="heartbeat-stamp" style="color:{status_color}">
         <span>{h(status_label.upper())}</span>
@@ -3562,7 +3781,7 @@ def render_ledger_tab(ledger: dict) -> str:
     </div>
     <div class="heartbeat-grid">
       <div class="hb-block">
-        <div class="fc-block-title">Money Weather</div>
+        <div class="fc-block-title">Budget Snapshot</div>
         {weather_html}
       </div>
       <div class="hb-block">
@@ -3570,7 +3789,7 @@ def render_ledger_tab(ledger: dict) -> str:
         {accounts_html}
       </div>
       <div class="hb-block">
-        <div class="fc-block-title">Recent Kinetic Ink</div>
+        <div class="fc-block-title">Recent Transactions</div>
         {tx_html}
       </div>
       <div class="hb-block">
@@ -3713,6 +3932,321 @@ def render_inkrest_tab(inkrest: dict) -> str:
       <div class="hb-block hb-block-wide">
         <div class="fc-block-title">Active Support Experiments</div>
         {experiment_html}
+      </div>
+    </div>'''
+
+
+def render_penny_tab(penny: dict) -> str:
+    if not penny:
+        return '<div class="muted">No Penny press desk data.</div>'
+
+    pending = penny.get("pending", [])
+    proposals = penny.get("proposals", [])
+    briefs = penny.get("briefs", [])
+    social = penny.get("social_rows", [])
+    logs = penny.get("log_rows", [])
+    raw_md = modal_attr("Penny Blackletter Press Desk", [
+        ("Press Dir", penny.get("press_dir", "")),
+        ("Strategy", penny.get("strategy", "")),
+        ("Consent Queue", penny.get("queue_path", "")),
+    ])
+
+    weather_rows = [
+        ("Drafts awaiting consent", str(len(pending))),
+        ("Total queue items", str(penny.get("queue_total", 0))),
+        ("Recent proposals", str(len(proposals))),
+        ("Recent full briefs", str(len(briefs))),
+        ("Recent generated images", str(len(penny.get("images", [])))),
+    ]
+    weather_html = "".join(
+        f'<div class="hb-row"><span class="hb-label">{h(label)}</span><span class="hb-value">{h(value)}</span></div>'
+        for label, value in weather_rows
+    )
+
+    pending_html = ""
+    for item in reversed(pending[-8:]):
+        title = item.get("title") or item.get("topic") or item.get("kind") or item.get("id", "draft")
+        kind = item.get("kind") or item.get("platform") or "content"
+        path = item.get("path") or item.get("file") or ""
+        pending_html += f'''
+        <div class="vellum-fuel-row">
+          <div><span class="vellum-date">{h(item.get("created_at", item.get("timestamp", ""))[:19])}</span> <span>{h(str(title)[:86])}</span></div>
+          <div class="muted">{h(kind)} · {h(item.get("status", "pending"))}{(" · " + h(path)) if path else ""}</div>
+        </div>'''
+    if not pending_html:
+        pending_html = '<div class="muted">Penny has no drafts awaiting consent.</div>'
+
+    def file_rows(rows: list[dict], empty: str) -> str:
+        html_rows = ""
+        for row in rows:
+            html_rows += f'''
+            <div class="vellum-fuel-row clickable" onclick="openModal(this)" data-modal={modal_attr(row.get("title", row.get("name", "File")), [("Path", row.get("path", "")), ("Updated", row.get("mtime", "")), ("Excerpt", row.get("excerpt", ""))])}>
+              <div><span class="vellum-date">{h(row.get("mtime", ""))}</span> <span>{h(row.get("title", row.get("name", ""))[:90])}</span></div>
+              <div class="muted">{h(row.get("name", ""))}</div>
+            </div>'''
+        return html_rows or f'<div class="muted">{h(empty)}</div>'
+
+    social_html = ""
+    for row in reversed(social[-8:]):
+        social_html += f'''
+        <div class="vellum-fuel-row">
+          <div><span class="vellum-date">{h(str(row.get("timestamp", row.get("created_at", "")))[:19])}</span> <span>{h(str(row.get("platform", row.get("kind", "social")))[:40])}</span></div>
+          <div class="muted">{h(clean_context(str(row.get("title") or row.get("summary") or row.get("topic") or row))[:240])}</div>
+        </div>'''
+    if not social_html:
+        social_html = '<div class="muted">No social ledger entries yet.</div>'
+
+    log_html = ""
+    for row in reversed(logs[-8:]):
+        log_html += f'''
+        <div class="vellum-fuel-row">
+          <div><span class="vellum-date">{h(str(row.get("timestamp", ""))[:19])}</span> <span>{h(str(row.get("kind", "press")))}</span></div>
+          <div class="muted">{h(clean_context(str(row.get("path") or row.get("summary") or row.get("message") or row))[:240])}</div>
+        </div>'''
+    if not log_html:
+        log_html = '<div class="muted">No Penny press log entries yet.</div>'
+
+    return f'''
+    <div class="heartbeat-head clickable" onclick="openModal(this)" data-modal={raw_md}>
+      <div>
+        <div class="heartbeat-title">Penny Blackletter's Press Desk</div>
+        <div class="heartbeat-sub muted">Editorial, social, marketing, and consent queue for spreading the Academy in the real world.</div>
+      </div>
+      <div class="heartbeat-stamp" style="color:var(--seed)">
+        <span>EDITORIAL</span>
+        <span class="muted">{h(len(pending))} pending</span>
+      </div>
+    </div>
+    <div class="heartbeat-grid">
+      <div class="hb-block">
+        <div class="fc-block-title">Press Weather</div>
+        {weather_html}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Consent Tray</div>
+        {pending_html}
+      </div>
+      <div class="hb-block hb-block-wide">
+        <div class="fc-block-title">Latest Proposals</div>
+        {file_rows(proposals, "No proposals filed yet.")}
+      </div>
+      <div class="hb-block hb-block-wide">
+        <div class="fc-block-title">Full Content Briefs</div>
+        {file_rows(briefs, "No full content briefs filed yet.")}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Social Ledger</div>
+        {social_html}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Press Log</div>
+        {log_html}
+      </div>
+    </div>'''
+
+
+def render_goldwater_tab(goldwater: dict) -> str:
+    if not goldwater:
+        return '<div class="muted">No Goldweaver Applied Abundance data.</div>'
+
+    briefs = goldwater.get("briefs", [])
+    offers = goldwater.get("offers", [])
+    experiments = goldwater.get("experiments", [])
+    seeds = goldwater.get("product_seeds", [])
+    logs = goldwater.get("log_rows", [])
+    raw_md = modal_attr("Professor Bastion Goldweaver Desk", [
+        ("Desk Dir", goldwater.get("desk_dir", "")),
+        ("Chart", goldwater.get("chart_path", "")),
+        ("Chart Text", goldwater.get("chart_text", "")),
+    ])
+
+    weather_rows = [
+        ("Applied briefs", str(len(briefs))),
+        ("Offer files", str(len(offers))),
+        ("Revenue experiments", str(len(experiments))),
+        ("Product seeds", str(len(seeds))),
+        ("Chart updated", goldwater.get("chart_mtime", "")),
+    ]
+    weather_html = "".join(
+        f'<div class="hb-row"><span class="hb-label">{h(label)}</span><span class="hb-value">{h(value)}</span></div>'
+        for label, value in weather_rows
+    )
+
+    def file_rows(rows: list[dict], empty: str) -> str:
+        html_rows = ""
+        for row in rows:
+            html_rows += f'''
+            <div class="vellum-fuel-row clickable" onclick="openModal(this)" data-modal={modal_attr(row.get("title", row.get("name", "File")), [("Path", row.get("path", "")), ("Updated", row.get("mtime", "")), ("Excerpt", row.get("excerpt", ""))])}>
+              <div><span class="vellum-date">{h(row.get("mtime", ""))}</span> <span>{h(row.get("title", row.get("name", ""))[:92])}</span></div>
+              <div class="muted">{h(row.get("name", ""))}</div>
+            </div>'''
+        return html_rows or f'<div class="muted">{h(empty)}</div>'
+
+    log_html = ""
+    for row in reversed(logs[-8:]):
+        log_html += f'''
+        <div class="vellum-fuel-row">
+          <div><span class="vellum-date">{h(str(row.get("timestamp", ""))[:19])}</span> <span>{h(str(row.get("kind", "abundance")))}</span></div>
+          <div class="muted">{h(clean_context(str(row.get("summary") or row.get("path") or row))[:260])}</div>
+        </div>'''
+    if not log_html:
+        log_html = '<div class="muted">No Goldweaver log entries yet.</div>'
+
+    latest_offer = briefs[0].get("excerpt", "") if briefs else "No Applied Abundance brief yet. Run `python3 scripts/goldwater.py brief bj` to let him open the ledger."
+
+    return f'''
+    <div class="heartbeat-head clickable" onclick="openModal(this)" data-modal={raw_md}>
+      <div>
+        <div class="heartbeat-title">Professor Bastion Goldweaver's Applied Abundance Desk</div>
+        <div class="heartbeat-sub muted">Products, Patreon, pricing, offer ladders, and ethical revenue experiments for the Academy.</div>
+      </div>
+      <div class="heartbeat-stamp" style="color:var(--ember)">
+        <span>ABUNDANCE</span>
+        <span class="muted">{h(len(briefs))} briefs</span>
+      </div>
+    </div>
+    <div class="heartbeat-grid">
+      <div class="hb-block">
+        <div class="fc-block-title">Commercial Weather</div>
+        {weather_html}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Latest Offer Lens</div>
+        <div class="vellum-chart">{h(clean_context(latest_offer)[:900])}</div>
+      </div>
+      <div class="hb-block hb-block-wide">
+        <div class="fc-block-title">Applied Abundance Briefs</div>
+        {file_rows(briefs, "No Applied Abundance briefs filed yet.")}
+      </div>
+      <div class="hb-block hb-block-wide">
+        <div class="fc-block-title">Offer Files</div>
+        {file_rows(offers, "No offer files yet.")}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Product Seeds</div>
+        {file_rows(seeds, "No product seeds yet.")}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Goldweaver Log</div>
+        {log_html}
+      </div>
+    </div>'''
+
+
+def render_bellkeeper_tab(bellkeeper: dict) -> str:
+    if not bellkeeper:
+        return '<div class="muted">No Bellkeeper data.</div>'
+    latest = bellkeeper.get("latest") or {}
+    cards = bellkeeper.get("cards") or []
+    raw_md = modal_attr("Bellkeeper Desk", [
+        ("Chart", bellkeeper.get("chart_path", "")),
+        ("Config", bellkeeper.get("config_path", "")),
+        ("Log", bellkeeper.get("log_path", "")),
+        ("Latest Card", latest.get("path", "")),
+        ("Chart Text", bellkeeper.get("chart_text", "")),
+    ])
+
+    mode = (((bellkeeper.get("config") or {}).get("offices") or {}).get("bellkeeper") or {}).get("default_mode", "companion")
+    settings = (((bellkeeper.get("config") or {}).get("offices") or {}).get("bellkeeper") or {})
+    weather_html = "".join(
+        f'<div class="hb-row"><span class="hb-label">{h(label)}</span><span class="hb-value">{h(value)}</span></div>'
+        for label, value in [
+            ("Mode", mode),
+            ("Latest card", latest.get("mtime", "—")),
+            ("Cards filed", str(len(cards))),
+            ("Chart updated", bellkeeper.get("chart_mtime") or "—"),
+            ("Upcoming scan", f'{settings.get("upcoming_scan_minutes", "—")} min'),
+            ("Evening scrap", settings.get("evening_scrap_time", "—")),
+            ("Week ahead", settings.get("week_ahead_time", "—")),
+        ]
+    )
+
+    latest_html = ""
+    if latest:
+        latest_html = f'''
+        <div class="vellum-fuel-row clickable" onclick="openModal(this)" data-modal={modal_attr(latest.get("title", "Today's Page"), [("Path", latest.get("path", "")), ("Updated", latest.get("mtime", "")), ("Card", latest.get("excerpt", ""))])}>
+          <div><span class="vellum-date">{h(latest.get("mtime", ""))}</span> <span>{h(latest.get("title", ""))}</span></div>
+          <div class="muted">{h(clean_context(latest.get("shape", ""))[:260])}</div>
+        </div>
+        <div class="hb-row"><span class="hb-label">Watch</span><span class="hb-value">{h(clean_context(latest.get("watch", ""))[:180])}</span></div>
+        <div class="hb-row"><span class="hb-label">Invitation</span><span class="hb-value">{h(clean_context(latest.get("invitation", ""))[:180])}</span></div>
+        <div class="hb-row"><span class="hb-label">Support</span><span class="hb-value">{h(clean_context(latest.get("support", ""))[:180])}</span></div>'''
+    else:
+        latest_html = '<div class="muted">No Today’s Page card has been filed yet.</div>'
+
+    card_rows = ""
+    for card in cards[1:8]:
+        card_rows += f'''
+        <div class="vellum-fuel-row clickable" onclick="openModal(this)" data-modal={modal_attr(card.get("title", card.get("name", "Card")), [("Path", card.get("path", "")), ("Updated", card.get("mtime", "")), ("Card", card.get("excerpt", ""))])}>
+          <div><span class="vellum-date">{h(card.get("mtime", ""))}</span> <span>{h(card.get("name", ""))}</span></div>
+          <div class="muted">{h(clean_context(card.get("invitation", card.get("shape", "")))[:220])}</div>
+        </div>'''
+    if not card_rows:
+        card_rows = '<div class="muted">No earlier Bellkeeper cards yet.</div>'
+
+    log_html = ""
+    for row in reversed(bellkeeper.get("log_rows", [])[-8:]):
+        kind = row.get("kind") or "today"
+        title = row.get("title") or row.get("date") or row.get("week_start") or ""
+        handoff = row.get("handoff") if isinstance(row.get("handoff"), dict) else {}
+        text = (
+            row.get("shape")
+            or row.get("invitation")
+            or row.get("message")
+            or (f'{handoff.get("character", "")}: {handoff.get("reason", "")}' if handoff else "")
+            or ""
+        )
+        log_html += f'''
+        <div class="vellum-fuel-row clickable" onclick="openModal(this)" data-modal={modal_attr(f"Bellkeeper {kind}", [("When", str(row.get("timestamp", ""))[:19]), ("Title", str(title)), ("Message", clean_context(str(row.get("message", text)))[:1600]), ("Handoff", json.dumps(handoff, ensure_ascii=False, indent=2) if handoff else "none")])}>
+          <div><span class="vellum-date">{h(str(row.get("timestamp", ""))[:19])}</span> <span>{h(kind)} {h(str(title)[:60])}</span></div>
+          <div class="muted">{h(clean_context(text)[:260])}</div>
+        </div>'''
+    if not log_html:
+        log_html = '<div class="muted">No Bellkeeper log rows yet.</div>'
+
+    handoff_html = ""
+    for row in reversed(bellkeeper.get("handoffs", [])[-6:]):
+        handoff_html += f'''
+        <div class="vellum-fuel-row">
+          <div><span class="vellum-date">{h(str(row.get("timestamp", ""))[:19])}</span> <span>{h(row.get("character", ""))}</span></div>
+          <div>{h(clean_context(row.get("reason", ""))[:180])}</div>
+          <div class="muted">Bring: {h(clean_context(row.get("bring", ""))[:160])}</div>
+          <div class="muted">Bring back: {h(clean_context(row.get("after", ""))[:160])}</div>
+        </div>'''
+    if not handoff_html:
+        handoff_html = '<div class="muted">No support handoffs logged yet.</div>'
+
+    return f'''
+    <div class="heartbeat-head clickable" onclick="openModal(this)" data-modal={raw_md}>
+      <div>
+        <div class="heartbeat-title">Bellkeeper Elian Quill's Desk</div>
+        <div class="heartbeat-sub muted">Today’s shape, transitions, Compass windows, and evening scraps without nagging.</div>
+      </div>
+      <div class="heartbeat-stamp" style="color:var(--seed)">
+        <span>TIME READ</span>
+        <span class="muted">{h(mode)}</span>
+      </div>
+    </div>
+    <div class="heartbeat-grid">
+      <div class="hb-block">
+        <div class="fc-block-title">Proactive Office</div>
+        {weather_html}
+      </div>
+      <div class="hb-block hb-block-wide">
+        <div class="fc-block-title">Latest Today's Page</div>
+        {latest_html}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Recent Cards</div>
+        {card_rows}
+      </div>
+      <div class="hb-block">
+        <div class="fc-block-title">Bellkeeper Log</div>
+        {log_html}
+      </div>
+      <div class="hb-block hb-block-wide">
+        <div class="fc-block-title">Support Handoffs</div>
+        {handoff_html}
       </div>
     </div>'''
 
@@ -4213,6 +4747,73 @@ def render_book_jump_tab(book: dict) -> str:
     return f'{cards}{active_card}<div class="section-label">Returned Pages</div><div class="tick-feed">{archives_html}</div>'
 
 
+def render_attention_board(board: dict) -> str:
+    if not board:
+        return '<div class="muted">No attention board data. Run `python3 scripts/attention-board.py bj --write`.</div>'
+
+    labels = [
+        ("needs_consent", "Needs Consent"),
+        ("today", "Today"),
+        ("waiting_on_bj", "Waiting on BJ"),
+        ("in_progress", "In Progress"),
+        ("watching", "Watching"),
+        ("done", "Done"),
+    ]
+    columns = board.get("columns") or {}
+    counts = board.get("counts") or {}
+    total = board.get("total", 0)
+    generated = board.get("generated_at", "")
+    summary = (
+        '<div class="auto-health attention-summary">'
+        + "".join([
+            _mini_stat("Open cards", str(total)),
+            _mini_stat("Consent", str(counts.get("needs_consent", 0)), "warn" if counts.get("needs_consent", 0) else ""),
+            _mini_stat("Waiting on BJ", str(counts.get("waiting_on_bj", 0)), "warn" if counts.get("waiting_on_bj", 0) else ""),
+            _mini_stat("Updated", generated.replace("T", " ")[:16] if generated else "—"),
+        ])
+        + "</div>"
+    )
+    board_html = '<div class="attention-board">'
+    for key, label in labels:
+        cards = columns.get(key) or []
+        card_html = ""
+        for item in cards[:12]:
+            priority = item.get("priority", "normal")
+            cls = " high" if priority == "high" else (" warning" if priority == "warning" else "")
+            details = [
+                ("Source", item.get("source", "")),
+                ("Owner", item.get("owner", "")),
+                ("Action", item.get("action", "")),
+                ("Due", item.get("due", "")),
+                ("Path", item.get("path", "")),
+                ("Text", item.get("text", "")),
+            ]
+            md = modal_attr(item.get("title", "Attention Card"), details)
+            meta_bits = [item.get("owner", ""), item.get("source", ""), item.get("due", "")]
+            meta = " · ".join([str(x) for x in meta_bits if x])
+            action = item.get("action", "")
+            path = item.get("path", "")
+            path_html = f'<div class="attention-path muted">{h(path)}</div>' if path else ""
+            action_html = f'<div class="attention-action">{h(action)}</div>' if action else ""
+            card_html += f'''
+            <div class="attention-card{cls} clickable" onclick="openModal(this)" data-modal={md}>
+              <div class="attention-card-title">{h(item.get("title", "Attention"))}</div>
+              <div class="attention-card-text muted">{h(item.get("text", ""))}</div>
+              {action_html}
+              <div class="attention-meta muted">{h(meta)}</div>
+              {path_html}
+            </div>'''
+        if not card_html:
+            card_html = '<div class="attention-empty muted">Clear.</div>'
+        board_html += f'''
+        <div class="attention-column">
+          <div class="attention-column-head"><span>{h(label)}</span><span>{len(cards)}</span></div>
+          <div class="attention-column-body">{card_html}</div>
+        </div>'''
+    board_html += "</div>"
+    return summary + board_html
+
+
 def _director_chip(label: str, value: str) -> str:
     return f'<span class="director-chip"><strong>{h(label)}</strong>{h(value)}</span>'
 
@@ -4474,7 +5075,7 @@ def render_scene_gallery(entries: list[dict]) -> str:
 
 # ── Full page ─────────────────────────────────────────────────────────────────
 
-def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, anchors=None, sched=None, forecast=None, heartbeat=None, vellum=None, inkrest=None, ledger=None, compass=None, book_jump=None, sim_feed=None, pact_actions=None, gallery_entries=None, narrative_health=None, page_contract=None, scene_director=None) -> str:
+def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, anchors=None, sched=None, forecast=None, heartbeat=None, vellum=None, inkrest=None, ledger=None, penny=None, goldwater=None, bellkeeper=None, compass=None, book_jump=None, attention=None, sim_feed=None, pact_actions=None, gallery_entries=None, narrative_health=None, page_contract=None, scene_director=None) -> str:
     generated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # Arc banner
@@ -4514,8 +5115,12 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
     vellum_html = render_vellum_tab(vellum or {})
     inkrest_html = render_inkrest_tab(inkrest or {})
     ledger_html = render_ledger_tab(ledger or {})
+    penny_html = render_penny_tab(penny or {})
+    goldwater_html = render_goldwater_tab(goldwater or {})
+    bellkeeper_html = render_bellkeeper_tab(bellkeeper or {})
     compass_html = render_compass_tab(compass or {})
     book_jump_html = render_book_jump_tab(book_jump or {})
+    attention_html = render_attention_board(attention or {})
 
     # Gallery
     gallery_entries = gallery_entries or []
@@ -4897,6 +5502,39 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .auto-card.bad {{ border-color:#c2410c66; }}
   .auto-label {{ color:var(--muted); font-size:.6rem; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
   .auto-value {{ color:var(--text); font-family:monospace; font-size:.78rem; margin-top:.15rem; }}
+
+  /* ── Attention Board ── */
+  .attention-summary {{ grid-template-columns: repeat(4, minmax(0,1fr)); }}
+  .attention-board {{
+    display:grid; grid-template-columns: repeat(6, minmax(180px, 1fr)); gap:.55rem;
+    align-items:start; overflow-x:auto; padding-bottom:.35rem;
+  }}
+  .attention-column {{
+    min-width:180px; background:rgba(255,251,238,.28);
+    border:1px solid rgba(94,63,33,.15); border-radius:3px; overflow:hidden;
+  }}
+  .attention-column-head {{
+    display:flex; justify-content:space-between; gap:.5rem;
+    font-family:"Courier New", monospace; font-size:.62rem; text-transform:uppercase;
+    letter-spacing:.06em; color:var(--sepia); padding:.45rem .5rem;
+    background:rgba(108,72,36,.07); border-bottom:1px solid var(--border);
+  }}
+  .attention-column-body {{ display:flex; flex-direction:column; gap:.42rem; padding:.45rem; }}
+  .attention-card {{
+    background:rgba(255,251,238,.56); border:1px solid var(--border); border-radius:3px;
+    padding:.5rem; box-shadow:inset 0 1px 0 rgba(255,255,255,.36);
+  }}
+  .attention-card.high {{ border-color:#c2410c66; background:rgba(255,246,230,.72); }}
+  .attention-card.warning {{ border-color:#92681a66; }}
+  .attention-card-title {{ font-size:.76rem; line-height:1.25; color:var(--text); font-weight:bold; }}
+  .attention-card-text {{ font-size:.68rem; line-height:1.35; margin-top:.22rem; }}
+  .attention-action {{
+    margin-top:.35rem; padding:.25rem .34rem; border-left:2px solid var(--seed);
+    background:rgba(85,114,60,.08); font-size:.66rem; line-height:1.35; color:var(--text);
+  }}
+  .attention-meta {{ font-family:monospace; font-size:.58rem; margin-top:.32rem; }}
+  .attention-path {{ font-family:monospace; font-size:.54rem; margin-top:.25rem; word-break:break-all; }}
+  .attention-empty {{ font-size:.68rem; padding:.45rem .2rem; }}
 
   /* ── Current Page ── */
   .page-card {{
@@ -5314,6 +5952,7 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
     <div class="panel">
       <div class="tab-bar">
         <button class="tab active" onclick="switchTab(this,'tick')">Simulation Feed</button>
+        <button class="tab" onclick="switchTab(this,'attention')">Attention <span style="color:var(--muted);font-size:.6rem">({attention.get("total", 0) if attention else 0})</span></button>
         <button class="tab" onclick="switchTab(this,'page')">Current Page</button>
         <button class="tab" onclick="switchTab(this,'director')">Scene Director</button>
         <button class="tab" onclick="switchTab(this,'queue')">Session Queue</button>
@@ -5322,6 +5961,9 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
         <button class="tab" onclick="switchTab(this,'vellum')">Vellum</button>
         <button class="tab" onclick="switchTab(this,'inkrest')">Inkrest</button>
         <button class="tab" onclick="switchTab(this,'ledger')">Ledger</button>
+        <button class="tab" onclick="switchTab(this,'penny')">Penny</button>
+        <button class="tab" onclick="switchTab(this,'goldwater')">Goldweaver</button>
+        <button class="tab" onclick="switchTab(this,'bellkeeper')">Bellkeeper</button>
         <button class="tab" onclick="switchTab(this,'compass')">Compass</button>
         <button class="tab" onclick="switchTab(this,'book-jumps')">Book Jumps</button>
         <button class="tab" onclick="switchTab(this,'entities')">Entities</button>
@@ -5334,6 +5976,9 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
       </div>
       <div id="tick" class="tab-content active">
         <div class="tick-feed">{sim_html}</div>
+      </div>
+      <div id="attention" class="tab-content">
+        {attention_html}
       </div>
       <div id="page" class="tab-content">
         {page_contract_html}
@@ -5379,6 +6024,15 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
       </div>
       <div id="ledger" class="tab-content">
         {ledger_html}
+      </div>
+      <div id="penny" class="tab-content">
+        {penny_html}
+      </div>
+      <div id="goldwater" class="tab-content">
+        {goldwater_html}
+      </div>
+      <div id="bellkeeper" class="tab-content">
+        {bellkeeper_html}
       </div>
       <div id="compass" class="tab-content">
         {compass_html}
@@ -5510,7 +6164,7 @@ document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(
 const REFRESH_MS = 3 * 60 * 1000;  // 3 minutes
 const DATA_REGIONS =[
   'data-topbar', 'data-thread-count', 'data-arc-threads',
-  'tick', 'page', 'director', 'entities', 'talismans', 'anchors', 'images', 'inventory', 'schedule', 'forecast', 'heartbeat', 'vellum', 'inkrest', 'ledger', 'compass', 'book-jumps',
+  'tick', 'attention', 'page', 'director', 'entities', 'talismans', 'anchors', 'images', 'inventory', 'schedule', 'forecast', 'heartbeat', 'vellum', 'inkrest', 'ledger', 'compass', 'book-jumps',
   'data-player', 'data-narrative-health', 'data-automation',
 ];
 
@@ -5599,15 +6253,21 @@ def generate() -> str:
     vellum = parse_vellum_status(player.get("name", "bj"), heartbeat)
     inkrest = parse_inkrest_status(player.get("name", "bj"), heartbeat)
     ledger = parse_ledger_status(player.get("name", "bj"))
+    penny = parse_penny_status(player.get("name", "bj"))
+    goldwater = parse_goldwater_status(player.get("name", "bj"))
+    bellkeeper = parse_bellkeeper_status(player.get("name", "bj"))
     compass = parse_compass_status(player.get("name", "bj"))
     book_jump = parse_book_jump_status(player.get("name", "bj"))
+    attention = parse_attention_board(player.get("name", "bj"))
     gallery_entries = parse_scene_gallery()
     narrative_health = parse_narrative_health(player.get("name", "bj"))
     page_contract = parse_page_contract(player.get("name", "bj"))
     scene_director = parse_scene_director(player.get("name", "bj"))
     return build_html(threads, npcs, talismans, player, queue, bleed, crons,
                       arc=arc, anchors=anchors, sched=sched, forecast=forecast, heartbeat=heartbeat, vellum=vellum, inkrest=inkrest, ledger=ledger,
-                      compass=compass, book_jump=book_jump,
+                      penny=penny, bellkeeper=bellkeeper,
+                      goldwater=goldwater,
+                      compass=compass, book_jump=book_jump, attention=attention,
                       sim_feed=sim_feed, pact_actions=pact_actions, gallery_entries=gallery_entries,
                       narrative_health=narrative_health, page_contract=page_contract, scene_director=scene_director)
 

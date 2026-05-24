@@ -31,6 +31,8 @@ ACTUAL_API = BASE / "scripts" / "actual-api.mjs"
 
 sys.path.insert(0, str(BASE / "scripts"))
 import cron_steward  # type: ignore
+import journal_artifact  # type: ignore
+import support_insights  # type: ignore
 
 
 TEMPLATE = """# Gimble's Errata Ledger — BJ
@@ -39,26 +41,20 @@ This chart is the private working context for Gimble of the Errata Registry, Gob
 
 ## Gimble Rules
 
-- Money is not moral worth. It is weather, logistics, and life-energy given shape.
-- Gimble corrects errors and binds unrecorded transactions; he does not scold.
+- Money is not moral worth. It is logistics, choices, and life-energy given shape.
+- Gimble corrects errors and categorizes transactions; he does not scold.
 - Gimble may categorize spending, summarize accounts, flag upcoming bills, identify leaks, suggest category moves, and propose tiny next actions.
 - Gimble must not move money, make purchases, approve bank actions, give tax/legal certainty, make risky investment recommendations, or shame debt.
 - If the ledger is overwhelming, show the smallest useful slice: never dump a wall of transactions.
-- If more than five uncategorized transactions are found, bind only the three largest or three most recent unless BJ asks for more.
+- If more than five uncategorized transactions are found, show only the three largest or three most recent unless BJ asks for more.
 - For bank sync, use Actual Budget and SimpleFIN only after BJ has completed the external authentication steps.
 
-## Vocabulary
+## Language Rule
 
-| Finance Term | Gimble Term | Meaning |
-|---|---|---|
-| Transactions | Kinetic Ink | Money moving through the Unwritten Chapter |
-| Budget Categories | Vessels | Jobs assigned to money |
-| Uncategorized Transactions | Unbound Echoes | Reality not yet written into the ledger |
-| Categorizing | Binding the Ink | Giving a transaction a truthful place |
-| Overspending | Overflow | A vessel needs repair or a deliberate transfer |
-| Debt | Temporal Tether | A future claim on current energy, not a moral stain |
-| Emergency Fund | Storm Lantern | Reserve that keeps the room lit when weather turns |
-| Fun Money | Tiny Adventure Vessel | Permission to enjoy without fog |
+Keep Actual Budget information plain and readable. Use the real terms first:
+accounts, balances, transactions, categories, uncategorized transactions,
+scheduled payments, bills, debt, income, and safe-to-spend. Gimble may add one
+small surprising sentence, but he must never hide the numbers under metaphor.
 
 ## Current Setup
 
@@ -70,20 +66,20 @@ This chart is the private working context for Gimble of the Errata Registry, Gob
 | Budget ID | Unknown |
 | Bank accounts connected | Unknown |
 | Primary goal | Build visibility without shame |
-| Review rhythm | Daily tiny binding; weekly Alchemical Audit |
+| Review rhythm | Daily sync; weekly budget review |
 
-## Vessel Map
+## Category Map
 
-| Actual Category | Gimble Vessel | Notes |
-|---|---|---|
-| Groceries | Refectory Vessel | Food for ordinary life |
-| Dining Out | Tavern Vessel | Convenience, fatigue, pleasure, social meals |
-| Gas / Transit | Nimbus Fuel | Commute and wandering |
-| Medical | Body Marginalia | Health, medication, care |
-| Subscriptions | Tiny Leaks | Recurring charges that deserve periodic review |
-| Emergency Fund | Storm Lantern | Buffer and safety |
-| Doobaleedoos / Adventure | Tiny Adventure Vessel | Wonder, trips, filming, shared life |
-| Pets | Familiar Care | Cat/familiar needs |
+| Actual Category | Notes |
+|---|---|
+| Groceries | Food for ordinary life |
+| Dining Out | Convenience, fatigue, pleasure, social meals |
+| Gas / Transit | Commute and wandering |
+| Medical | Health, medication, care |
+| Subscriptions | Recurring charges that deserve periodic review |
+| Emergency Fund | Buffer and safety |
+| Doobaleedoos / Adventure | Wonder, trips, filming, shared life |
+| Pets | Cat/familiar needs |
 
 ## Known Fixed Obligations
 
@@ -113,7 +109,7 @@ Each experiment should be small, time-bounded, and non-shaming.
 
 When Gimble gives a substantial report, he should prefer this structure:
 
-1. Weather: one sentence about the ledger state.
+1. Ledger state: one sentence about the budget state.
 2. One number: the most useful number BJ needs right now.
 3. One risk: the smallest truthful risk, not a catastrophe.
 4. One action: the next transaction/category/bill/adventure decision.
@@ -205,6 +201,48 @@ def actual_summary() -> dict[str, Any] | None:
     return actual_command("summary")
 
 
+def scheduled_payment_lines(summary: dict[str, Any] | None, *, limit: int = 5) -> list[str]:
+    if not summary:
+        return []
+    schedules = (summary.get("schedules") or {}).get("upcoming") or []
+    rows = []
+    for row in schedules:
+        amount = float(row.get("amount") or 0)
+        if amount >= 0:
+            continue
+        days = row.get("days_until")
+        if days is None:
+            when = row.get("next_date") or "date unknown"
+        elif int(days) < 0:
+            when = f"{abs(int(days))} day(s) ago"
+        elif int(days) == 0:
+            when = "today"
+        elif int(days) == 1:
+            when = "tomorrow"
+        else:
+            when = f"in {int(days)} days"
+        rows.append(f"- {row.get('next_date','?')}: {row.get('name') or row.get('payee') or 'Scheduled payment'} · ${abs(amount):.2f} · {when}")
+    return rows[:limit]
+
+
+def schedule_weather_line(summary: dict[str, Any] | None) -> str:
+    if not summary:
+        return ""
+    schedules = summary.get("schedules") or {}
+    upcoming = schedules.get("upcoming") or []
+    expense_rows = [row for row in upcoming if float(row.get("amount") or 0) < 0 and int(row.get("days_until") if row.get("days_until") is not None else 9999) >= 0]
+    due_soon = [row for row in expense_rows if int(row.get("days_until") if row.get("days_until") is not None else 9999) <= 7]
+    due_soon_total = sum(abs(float(row.get("amount") or 0)) for row in due_soon)
+    next_bill = expense_rows[0] if expense_rows else None
+    if not next_bill:
+        return f"Scheduled payments: {schedules.get('schedule_count', 0)} schedule(s) visible; no future expense due in the current 45-day window."
+    return (
+        f"Scheduled payments: {len(expense_rows)} future expense(s) visible in {schedules.get('horizon_days', 45)} days; "
+        f"{len(due_soon)} due within 7 days totaling ${due_soon_total:.2f}. "
+        f"Next: {next_bill.get('name') or 'scheduled payment'} on {next_bill.get('next_date')}."
+    )
+
+
 def actual_command(command: str, *extra: str, timeout: int = 300) -> dict[str, Any] | None:
     ready, _reason = actual_ready()
     if not ready:
@@ -281,6 +319,12 @@ def money_weather(*, dry_run: bool = False) -> str:
     ensure_chart()
     actual = actual_stub("money-weather", dry_run=True)
     summary = actual_summary()
+    insight_rows = support_insights.derive_insights(
+        support_insights.build_context(live_actual=False, actual_override=summary),
+        perspective="gimble",
+        limit=2,
+    )
+    insight_lines = [f"- {row['title']}: {row['detail']} Next: {row['action']}" for row in insight_rows]
     if summary:
         accounts = summary.get("accounts", [])
         on_budget = [a for a in accounts if not a.get("offbudget") and not a.get("closed")]
@@ -291,35 +335,31 @@ def money_weather(*, dry_run: bool = False) -> str:
         for t in biggest:
             amount = abs(float(t.get("amount") or 0))
             echo_lines.append(f"- {t.get('date','?')}: {t.get('payee') or t.get('imported_payee') or 'Unknown'} · ${amount:.2f}")
-        lines = [
-            "Gimble of the Errata Registry:",
-            f"Weather: Actual is connected. {len(accounts)} account(s); ${total:.2f} on budget.",
-            f"One number: {uncategorized} Unbound Echoes need categories.",
-            "One risk: a large uncategorized queue creates fog; bind only a few at a time.",
-            "One action: bind the three clearest Echoes first.",
-        ]
-        if echo_lines:
-            lines.append("Largest/most recent Echoes:")
-            lines.extend(echo_lines)
-        lines.append("Registry clause: accuracy first. Shame is not an accounting method.")
-        message = "\n".join(lines)
+        schedule_lines = scheduled_payment_lines(summary)
+        message = gimble_personal_message(
+            title="Gimble's Budget Note",
+            sync_line=f"Actual is connected. I can see {len(accounts)} account(s) through the registry glass.",
+            binding_line=f"One number: {uncategorized} uncategorized transaction(s).",
+            weather_line=f"Current ledger state: ${total:.2f} on budget. {schedule_weather_line(summary)}",
+            sample_lines=echo_lines + (["", "Scheduled payments I can see:"] if schedule_lines else []) + schedule_lines,
+            insight_rows=insight_rows,
+            closing="One action: categorize the three clearest transactions first. Shame is not an accounting method; it has never balanced a drawer in its life.",
+        )
         if dry_run:
             print(message)
-        append_jsonl(LEDGER_LOG, {"kind": "money_weather", "message": message, "actual": actual, "summary": summary})
+        append_jsonl(LEDGER_LOG, {"kind": "money_weather", "message": message, "actual": actual, "summary": summary, "insights": insight_rows})
         return message
-    lines = [
-        "Gimble of the Errata Registry:",
-        f"Weather: {weather_from_logs()}",
-        f"Actual Budget: {actual.get('mode')} — {actual.get('reason')}",
-        "One number: unavailable until Actual Budget is connected.",
-        "One risk: no live transaction visibility yet; this is setup fog, not failure.",
-        "One action: connect Actual + SimpleFIN when ready, or tell Gimble one bill/category to add to the chart.",
-        "Registry clause: accuracy first. Shame is not an accounting method.",
-    ]
-    message = "\n".join(lines)
+    message = gimble_personal_message(
+        title="Gimble's Budget Note",
+        sync_line=f"Ledger log: {weather_from_logs()}",
+        binding_line=f"Actual Budget: {actual.get('mode')} — {actual.get('reason')}",
+        weather_line="One number: unavailable until Actual Budget is connected. This is setup friction, not failure.",
+        insight_rows=insight_rows,
+        closing="One action: connect Actual + SimpleFIN when ready, or tell me one bill/category to add to the chart. Accuracy first. Shame is not an accounting method.",
+    )
     if dry_run:
         print(message)
-    append_jsonl(LEDGER_LOG, {"kind": "money_weather", "message": message, "actual": actual})
+    append_jsonl(LEDGER_LOG, {"kind": "money_weather", "message": message, "actual": actual, "insights": insight_rows})
     return message
 
 
@@ -327,26 +367,36 @@ def weekly_audit(*, dry_run: bool = False) -> str:
     ensure_chart()
     actual = actual_stub("weekly-audit", dry_run=True)
     summary = actual_summary()
+    insight_rows = support_insights.derive_insights(
+        support_insights.build_context(live_actual=False, actual_override=summary),
+        perspective="gimble",
+        limit=3,
+    )
+    insight_lines = [f"- {row['title']}: {row['detail']} Next: {row['action']}" for row in insight_rows]
     if summary:
         month = summary.get("month") or {}
         uncategorized = int(summary.get("uncategorized_count") or 0)
         total_spent = month.get("total_spent")
         total_balance = month.get("total_balance")
+        schedule_line = schedule_weather_line(summary)
         message = "\n".join([
-            "Gimble's Alchemical Audit:",
+            "Gimble's Weekly Budget Review:",
             "Connection: Actual Budget is connected.",
             f"Month: spent ${abs(float(total_spent or 0)):.2f}; balance ${float(total_balance or 0):.2f}.",
-            f"Unbound Echoes: {uncategorized}.",
-            "Audit rule: do not bind the whole storm. Bind three Echoes, then stop.",
+            f"Uncategorized transactions: {uncategorized}.",
+            schedule_line,
+            "Audit rule: do not take on the whole ledger at once. Categorize three transactions, then stop.",
+            "Cross-domain audit:",
+            *insight_lines,
         ])
         if dry_run:
             print(message)
-        append_jsonl(LEDGER_LOG, {"kind": "weekly_audit", "message": message, "summary": summary})
+        append_jsonl(LEDGER_LOG, {"kind": "weekly_audit", "message": message, "summary": summary, "insights": insight_rows})
         return message
     message = "\n".join([
-        "Gimble's Alchemical Audit:",
+            "Gimble's Weekly Budget Review:",
         f"Connection: {actual.get('mode')} — {actual.get('reason')}",
-        "Audit scope: pending. Once Actual is connected, this will summarize safe-to-spend, upcoming bills, uncategorized transactions, category overflow, and one Tiny Leak.",
+        "Audit scope: pending. Once Actual is connected, this will summarize safe-to-spend, upcoming bills, uncategorized transactions, overspending, and one recurring charge to review.",
         "Today: bind one known obligation or category name into the chart if you have the energy.",
     ])
     if dry_run:
@@ -363,7 +413,7 @@ def adventure_permission(*, dry_run: bool = False) -> str:
         f"Ledger connection: {actual.get('mode')} — {actual.get('reason')}",
         "Permission: undecidable from live balances until Actual is connected.",
         "Useful fallback: choose a tiny adventure with a hard cash cap you name in advance.",
-        "Goblin note: a bounded joy is not a leak. It is a vessel with a lid.",
+        "Goblin note: a bounded joy is not a leak. It is a small planned yes.",
     ])
     if dry_run:
         print(message)
@@ -399,17 +449,35 @@ def status() -> int:
     return 0
 
 
-def telegram_send(message: str, *, dry_run: bool = False) -> int:
+def render_gimble_pdf(message: str, stem: str, *, dry_run: bool = False) -> dict[str, str]:
+    return journal_artifact.render(
+        f"# Gimble's Errata Ledger\n\n{message}",
+        MEMORY_DIR / "journal",
+        stem,
+        title="Gimble's Errata Ledger",
+        subtitle="Clear budget facts and one accurate next action",
+        footer="Filed by Gimble of the Errata Registry",
+        accent="#31534c",
+        dry_run=dry_run,
+    )
+
+
+def telegram_send(message: str, media: Path | None = None, *, dry_run: bool = False) -> int:
     if dry_run:
         print(message)
+        if media:
+            print(f"[dry-run media] {media}")
         return 0
-    proc = subprocess.run([
+    args = [
         "openclaw", "message", "send",
         "--target", "8729557865",
         "--channel", "telegram",
         "--account", "enchantify",
         "--message", message,
-    ], cwd=BASE, capture_output=True, text=True, timeout=90)
+    ]
+    if media:
+        args += ["--media", str(media), "--force-document"]
+    proc = subprocess.run(args, cwd=BASE, capture_output=True, text=True, timeout=90)
     if proc.returncode != 0:
         (LOG_DIR / "ledger-send-errors.log").open("a", encoding="utf-8").write(
             f"\n[{now().isoformat(timespec='seconds')}]\n{proc.stderr or proc.stdout}\n"
@@ -417,10 +485,54 @@ def telegram_send(message: str, *, dry_run: bool = False) -> int:
     return proc.returncode
 
 
+def gimble_personal_message(
+    *,
+    title: str,
+    sync_line: str = "",
+    binding_line: str = "",
+    weather_line: str = "",
+    sample_lines: list[str] | None = None,
+    insight_rows: list[dict[str, Any]] | None = None,
+    closing: str = "",
+) -> str:
+    """Turn ledger facts into Gimble's own note instead of a system digest."""
+    sample_lines = sample_lines or []
+    insight_rows = insight_rows or []
+    lines = [
+        f"{title}",
+        "",
+        "BJ,",
+        "",
+        "I opened the Errata drawer. No verdicts were entered. Only facts.",
+    ]
+    if sync_line:
+        lines.extend(["", sync_line])
+    if binding_line:
+        lines.append(binding_line)
+    if weather_line:
+        lines.append(weather_line)
+    if sample_lines:
+        lines.extend(["", "Recent items:"])
+        lines.extend(sample_lines)
+    if insight_rows:
+        lines.extend(["", "What the data suggests:"])
+        for row in insight_rows:
+            lines.append(f"- {row['title']}: {row['detail']} Next: {row['action']}")
+    lines.extend([
+        "",
+        closing or "Registry clause: automatic does not mean judgmental. It only means the record is clearer.",
+        "",
+        "— Gimble, Errata Registry",
+    ])
+    return "\n".join(lines)
+
+
 def brief(*, dry_run: bool = False, send: bool = False) -> int:
     message = money_weather(dry_run=False)
     if send:
-        return telegram_send(message, dry_run=dry_run)
+        artifact = render_gimble_pdf(message, f"{today()}-gimble-money-weather", dry_run=dry_run)
+        media = Path(artifact["pdf"]) if artifact.get("pdf") else None
+        return telegram_send(message, media, dry_run=dry_run)
     if dry_run:
         print(message)
     return 0
@@ -436,12 +548,18 @@ def daily_sync(*, dry_run: bool = False, send: bool = False) -> int:
         timeout=600,
     )
     summary = actual_summary()
+    insight_rows = support_insights.derive_insights(
+        support_insights.build_context(live_actual=False, actual_override=summary),
+        perspective="gimble",
+        limit=3,
+    )
     append_jsonl(LEDGER_LOG, {
         "kind": "daily_sync",
         "setup": setup,
         "bank_sync": sync,
         "categorization": categorization,
         "summary": summary,
+        "insights": insight_rows,
     })
 
     if summary:
@@ -459,22 +577,23 @@ def daily_sync(*, dry_run: bool = False, send: bool = False) -> int:
     for row in sample_rows[:5]:
         amount = abs(float(row.get("amount") or 0))
         sample_lines.append(f"- {row.get('date','?')}: {row.get('payee') or 'Unknown'} · ${amount:.2f} → {row.get('category')}")
+    schedule_lines = scheduled_payment_lines(summary)
 
-    lines = [
-        "Gimble's Daily Binding:",
-        "Bank sync: attempted through Actual/SimpleFIN." if not dry_run else "Bank sync: dry run only.",
-        f"Binding: {categorized} Echoes bound automatically from {seen} seen.",
-        f"Weather now: ${total:.2f} on budget; {uncategorized if uncategorized >= 0 else '?'} Unbound Echoes remain.",
-    ]
-    if sample_lines:
-        lines.append("Fresh bindings:")
-        lines.extend(sample_lines)
-    lines.append("Registry clause: automatic does not mean judgmental. It only means the ink has a shelf.")
-    message = "\n".join(lines)
-    if dry_run:
+    message = gimble_personal_message(
+        title="Gimble's Daily Actual Sync",
+        sync_line="I refreshed Actual/SimpleFIN and checked what changed." if not dry_run else "Dry run only: I checked the flow without changing anything.",
+        binding_line=f"I categorized {categorized} transaction(s) automatically from {seen} seen.",
+        weather_line=f"Ledger now: ${total:.2f} on budget; {uncategorized if uncategorized >= 0 else '?'} uncategorized transaction(s) remain. {schedule_weather_line(summary)}",
+        sample_lines=sample_lines + (["", "Scheduled payments I can see:"] if schedule_lines else []) + schedule_lines,
+        insight_rows=insight_rows,
+        closing="Registry clause: money is not moral worth. Today I only put accurate labels where they belonged so the fog has fewer places to sleep.",
+    )
+    if dry_run and not send:
         print(message)
     if send:
-        return telegram_send(message, dry_run=dry_run)
+        artifact = render_gimble_pdf(message, f"{today()}-gimble-daily-binding", dry_run=dry_run)
+        media = Path(artifact["pdf"]) if artifact.get("pdf") else None
+        return telegram_send(message, media, dry_run=dry_run)
     return 0
 
 
@@ -485,11 +604,11 @@ def main() -> int:
     sub.add_parser("init", help="Create chart and Actual config example")
     sub.add_parser("status", help="Show local finance support status")
 
-    p = sub.add_parser("money-weather", help="Generate a money weather report")
+    p = sub.add_parser("money-weather", help="Generate a plain budget note")
     p.add_argument("--send", action="store_true")
     p.add_argument("--dry-run", action="store_true")
 
-    p = sub.add_parser("weekly-audit", help="Generate an Alchemical Audit")
+    p = sub.add_parser("weekly-audit", help="Generate a weekly budget review")
     p.add_argument("--send", action="store_true")
     p.add_argument("--dry-run", action="store_true")
 

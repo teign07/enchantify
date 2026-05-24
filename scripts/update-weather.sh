@@ -243,18 +243,24 @@ if [[ "${ENCHANTIFY_ENABLE_FUEL}" == "yes" ]]; then
         TODAY_FIBER=$(grep "^${TODAY_DATE}" "$FUEL_LOG" 2>/dev/null | awk -F'|' 'tolower($3)!="description" && tolower($3)!="unknown" && tolower($3)!="n/a" && tolower($3)!="none" {sum += $8} END {print int(sum)}' || echo "0")
         TODAY_MEALS=$(grep "^${TODAY_DATE}" "$FUEL_LOG" 2>/dev/null | awk -F'|' 'tolower($3)!="description" && tolower($3)!="unknown" && tolower($3)!="n/a" && tolower($3)!="none" {count++} END {print int(count)}' || echo "0")
 
-        # Status note
-        if [[ "$TODAY_PROT" -lt 30 ]]; then
-            FUEL_STATUS="Low protein — something substantial would help."
-        elif [[ "$TODAY_CAL" -lt 500 ]]; then
-            FUEL_STATUS="Light day — consider a proper meal."
+        if [[ "$TODAY_MEALS" -eq 0 ]]; then
+            FUEL_SECTION="- **Today:** Nothing logged yet.
+- **Status:** Ask the player what they ate or drank when it naturally comes up.
+- **Last older log:** ${LAST_TIME} (${LAST_DESC}) — history only, not today's fuel."
         else
-            FUEL_STATUS="OK"
-        fi
+            # Status note
+            if [[ "$TODAY_PROT" -lt 30 ]]; then
+                FUEL_STATUS="Low protein — something substantial would help."
+            elif [[ "$TODAY_CAL" -lt 500 ]]; then
+                FUEL_STATUS="Light day — consider a proper meal."
+            else
+                FUEL_STATUS="OK"
+            fi
 
-        FUEL_SECTION="- **Last Logged:** ${LAST_TIME} (${LAST_DESC})
+            FUEL_SECTION="- **Last Logged:** ${LAST_TIME} (${LAST_DESC})
 - **Today:** ~${TODAY_CAL} Cal / ~${TODAY_PROT}g protein / ~${TODAY_CARBS}g carbs / ~${TODAY_FAT}g fat / ~${TODAY_FIBER}g fiber (${TODAY_MEALS} entries)
 - **Status:** ${FUEL_STATUS}"
+        fi
         fi
     else
         FUEL_SECTION="- **Today:** Nothing logged yet.

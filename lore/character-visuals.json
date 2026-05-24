@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "updated": "2026-05-18",
+  "updated": "2026-05-24",
   "characters": {
     "Headmistress Seraphina Thorne": {
       "status": "canonical",
       "source": "auto-core",
-      "belief_at_canon": 68,
+      "belief_at_canon": 65,
       "chapter": "Duskthorn",
       "core": "Leads the Academy; sees the Unwritten; the most powerful presence in the Labyrinth; ageless literary-elf face; star-cold eyes; hair pinned like a dark crown",
       "signature": "an antique star-dark key and a crownlike hairpin",
@@ -13,12 +13,12 @@
       "silhouette": "regal stillness; one hand resting on an antique key",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait, ordinary human office-worker styling",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Dr. Elowen Vellum": {
       "status": "canonical",
       "source": "auto-core",
-      "belief_at_canon": 29,
+      "belief_at_canon": 27,
       "chapter": null,
       "core": "Academy Longevity Physician, Dietician, and keeper of the Refectory Marginalia. She translates the player's fuel, blood pressure, bloodwork, medicatio...; silver-pale hair pinned with exacting care; sharp kind eyes",
       "signature": "a silver bookmark-caliper and red marginal notes",
@@ -26,12 +26,12 @@
       "silhouette": "upright, precise posture; hands annotating or measuring",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait, ordinary human office-worker styling",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Dr. Selene Inkrest": {
       "status": "canonical",
       "source": "auto-core",
-      "belief_at_canon": 33,
+      "belief_at_canon": 31,
       "chapter": null,
       "core": "Academy Narrative Therapist, Keeper of Difficult Pages, and curator of the Reauthoring Rooms. She helps the player separate themselves from problems,...; dark thoughtful eyes; soft silver-black hair; calm listening face",
       "signature": "a black-sand hourglass and tea cup with marginalia",
@@ -39,7 +39,7 @@
       "silhouette": "still, grounded posture; hands around a teacup or hourglass",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait, ordinary human office-worker styling",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Aria Silverthorn": {
       "status": "canonical",
@@ -52,12 +52,12 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Ellie Moons": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 19,
+      "belief_at_canon": 18,
       "chapter": "Riddlewind",
       "core": "Riddlewind; intellectual puzzle-lover; taps fingers when thinking; drawn to the mystery in everything; clear expressive eyes and a memorable silhouette",
       "signature": "a brass coordinate tag",
@@ -65,7 +65,7 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Cedric Widden": {
       "status": "canonical",
@@ -78,7 +78,7 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Serenity Lightfeather": {
       "status": "canonical",
@@ -91,7 +91,7 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Felix Quimby": {
       "status": "canonical",
@@ -104,7 +104,7 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Lyra Stanford": {
       "status": "canonical",
@@ -117,7 +117,7 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Soren Ng": {
       "status": "canonical",
@@ -130,12 +130,12 @@
       "silhouette": "slight, inward posture; attentive hands",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Orlando “Oracle” Scrollstone": {
       "status": "canonical",
       "source": "auto-core",
-      "belief_at_canon": 21,
+      "belief_at_canon": 20,
       "chapter": "Riddlewind",
       "core": "Riddlewind; predicts things one beat too late; unsettlingly accurate; clear expressive eyes and a memorable silhouette",
       "signature": "a pocket barometer",
@@ -143,12 +143,12 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Felicity “Fable” Grimmhaven": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 8,
+      "belief_at_canon": 9,
       "chapter": "Riddlewind",
       "core": "Riddlewind; collects folklore; stories about things that haven't happened yet; clear expressive eyes and a memorable silhouette",
       "signature": "a catalog card",
@@ -156,12 +156,12 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Wilbur “Wordplay” Lexi": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 10,
+      "belief_at_canon": 9,
       "chapter": "Riddlewind",
       "core": "Riddlewind; pun-first personality; the one who makes Boggle laugh; mischievous eyes and a ready grin",
       "signature": "a folded puzzle slip",
@@ -169,7 +169,7 @@
       "silhouette": "bright expression; hands caught in a joke or trick",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Damien Nights": {
       "status": "canonical",
@@ -182,12 +182,12 @@
       "silhouette": "chin lowered; eyes under shadowed brows",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Finn Bridges": {
       "status": "canonical",
       "source": "auto-core",
-      "belief_at_canon": 13,
+      "belief_at_canon": 10,
       "chapter": "Emberheart",
       "core": "Emberheart; independent, determined; antagonistic but honorable; a rival who respects competence; clear expressive eyes and a memorable silhouette",
       "signature": "a red-chalk mark or small brass striker",
@@ -195,7 +195,7 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Wicker Eddies": {
       "status": "canonical",
@@ -208,12 +208,12 @@
       "silhouette": "easy confident lean; fingers near a wrong-door brass key",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Isolde Firare": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 8,
+      "belief_at_canon": 10,
       "chapter": "Emberheart",
       "core": "Emberheart; competitive, adventurous; first to challenge and first to respect competence; bright, controlled expression",
       "signature": "wrapped sparring tape",
@@ -221,7 +221,7 @@
       "silhouette": "open stance; one hand mid-invitation",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Rowan Laraway": {
       "status": "canonical",
@@ -234,12 +234,12 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Lila Woods": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 8,
+      "belief_at_canon": 9,
       "chapter": "Emberheart",
       "core": "Emberheart; impulsive, fiery; explosive potions; will demand food reviews; clear expressive eyes and a memorable silhouette",
       "signature": "a red-chalk mark or small brass striker",
@@ -247,7 +247,7 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Astra Sonseur": {
       "status": "canonical",
@@ -260,12 +260,12 @@
       "silhouette": "soft expression; shoulders lowered in welcome",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Caspian Shan": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 18,
+      "belief_at_canon": 17,
       "chapter": "Emberheart",
       "core": "Emberheart; stealthy, secretive; merges with shadows; night photographer; clear expressive eyes and a memorable silhouette",
       "signature": "a red-chalk mark or small brass striker",
@@ -273,7 +273,7 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Melisande Blackwood": {
       "status": "canonical",
@@ -286,12 +286,12 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-19"
     },
     "Lysander Mosswood": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 9,
+      "belief_at_canon": 8,
       "chapter": "Mossbloom",
       "core": "Mossbloom; thoughtful, wise; nature walks; will send the player to specific local trails; clear expressive eyes and a memorable silhouette",
       "signature": "a moss-edged notebook or pressed leaf",
@@ -299,12 +299,12 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Raven Hearts": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 15,
+      "belief_at_canon": 17,
       "chapter": "Mossbloom",
       "core": "Mossbloom; Wicker's crew; quiet, calculating; watches for strange shadows; soft mouth and observant eyes",
       "signature": "a moss-edged notebook or pressed leaf",
@@ -312,7 +312,7 @@
       "silhouette": "slight, inward posture; attentive hands",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Min-seo Kim": {
       "status": "canonical",
@@ -325,12 +325,12 @@
       "silhouette": "still posture; hands relaxed and deliberate",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Anton Smith": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 18,
+      "belief_at_canon": 17,
       "chapter": "Mossbloom",
       "core": "Mossbloom; scholarly, socially awkward; oldest libraries; paper is sacred to him; clear expressive eyes and a memorable silhouette",
       "signature": "a catalog card",
@@ -338,7 +338,7 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Ivy Liversedge": {
       "status": "canonical",
@@ -351,12 +351,12 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Briar Merlock": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 15,
+      "belief_at_canon": 16,
       "chapter": "Mossbloom",
       "core": "Mossbloom; forest-dweller wisdom; foraging; wild mushroom identification; clear expressive eyes and a memorable silhouette",
       "signature": "a moss-edged notebook or pressed leaf",
@@ -364,12 +364,12 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Thorn Thomas": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 11,
+      "belief_at_canon": 8,
       "chapter": "Mossbloom",
       "core": "Mossbloom; transforms into small animals; curious; can fit under doors; clear expressive eyes and a memorable silhouette",
       "signature": "a moss-edged notebook or pressed leaf",
@@ -377,7 +377,7 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Astrid Natsune": {
       "status": "canonical",
@@ -390,12 +390,12 @@
       "silhouette": "unfocused gaze; body half-turned toward an unseen thought",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Clarissa “Clio” Quibblesnatch": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 10,
+      "belief_at_canon": 9,
       "chapter": "Mossbloom",
       "core": "Mossbloom; poetic daydreamer; open mic nights; sees stories in everything; clear expressive eyes and a memorable silhouette",
       "signature": "a narrow folded poem",
@@ -403,12 +403,12 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Gwendolyn Mythwright": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 15,
+      "belief_at_canon": 13,
       "chapter": "Mossbloom",
       "core": "Mossbloom; passionate cryptid seeker; writes extensively about things she hasn't proven; clear expressive eyes and a memorable silhouette",
       "signature": "a moss-edged notebook or pressed leaf",
@@ -416,12 +416,12 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Zara Finch": {
       "status": "canonical",
       "source": "auto-core",
-      "belief_at_canon": 13,
+      "belief_at_canon": 11,
       "chapter": "Riddlewind",
       "core": "House guide and first friend at Enchantify; Riddlewind; warm, curious, fiercely loyal; watchful gray eyes; ink-dark bobbed hair; quiet attentive face",
       "signature": "a chipped blue sea-glass pendant and thrifted satchel",
@@ -429,12 +429,12 @@
       "silhouette": "slight inward posture; careful hands protecting a found object",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Serenity Brown": {
       "status": "canonical",
       "source": "auto-core",
-      "belief_at_canon": 35,
+      "belief_at_canon": 34,
       "chapter": "Tidecrest",
       "core": "Tidecrest; carefree, spontaneous; keeps everyone from being too serious; 50 Belief invested by bj (20 on 2026-04-30, 30 on 2026-05-18) — Bond tier; wind-tossed hair and lively eyes",
       "signature": "a tiny hand-drawn Tamriel map charm",
@@ -442,7 +442,7 @@
       "silhouette": "leaning forward as if already leaving",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Selene Moonfall": {
       "status": "canonical",
@@ -455,7 +455,7 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Aurora Whispers": {
       "status": "canonical",
@@ -468,12 +468,12 @@
       "silhouette": "unfocused gaze; body half-turned toward an unseen thought",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Orion Watson": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 11,
+      "belief_at_canon": 8,
       "chapter": "Tidecrest",
       "core": "Tidecrest; confident, bold explorer; the first to jump; bright, controlled expression",
       "signature": "a sea-glass charm or ribbon that looks wind-tugged",
@@ -481,7 +481,7 @@
       "silhouette": "open stance; one hand mid-invitation",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Marina Clockhouse": {
       "status": "canonical",
@@ -494,7 +494,7 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Dylan Williamson": {
       "status": "canonical",
@@ -507,7 +507,7 @@
       "silhouette": "animated posture; coat or scarf caught in motion",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Ignatius “Inkwell” Scribblesnap": {
       "status": "canonical",
@@ -520,7 +520,7 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Archibald Evergreen": {
       "status": "canonical",
@@ -533,7 +533,7 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Evelyn Riad": {
       "status": "canonical",
@@ -546,12 +546,12 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Letitia Windings": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 15,
+      "belief_at_canon": 12,
       "chapter": "Riddlewind",
       "core": "Riddlewind Enchantment Guardian; ensures cooperation and unity remain strong; clear expressive eyes and a memorable silhouette",
       "signature": "a folded puzzle slip",
@@ -559,12 +559,12 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Erik Forgeton": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 12,
+      "belief_at_canon": 13,
       "chapter": "Emberheart",
       "core": "Emberheart Enchantment Guardian; safeguards individuality and passion; clear expressive eyes and a memorable silhouette",
       "signature": "a small warding charm",
@@ -572,12 +572,12 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Sylvia Deep": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 11,
+      "belief_at_canon": 12,
       "chapter": "Mossbloom",
       "core": "Mossbloom Enchantment Guardian; promotes wisdom and reflection; clear expressive eyes and a memorable silhouette",
       "signature": "a small warding charm",
@@ -585,7 +585,7 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Harry Ono": {
       "status": "canonical",
@@ -598,12 +598,12 @@
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Eleanor Whitewood": {
       "status": "canonical",
       "source": "auto-belief",
-      "belief_at_canon": 14,
+      "belief_at_canon": 11,
       "chapter": "Emberheart",
       "core": "Emberheart benefactor; real-world believer in storytelling magic; genuinely warm; kind eyes and an expression that listens",
       "signature": "a polished calling card",
@@ -611,21 +611,63 @@
       "silhouette": "soft expression; shoulders lowered in welcome",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
     },
     "Gimble of the Errata Registry": {
       "status": "canonical",
       "source": "auto-core",
-      "belief_at_canon": 35,
+      "belief_at_canon": 30,
       "chapter": null,
-      "core": "Finance support character, budget interpreter, and binder of Unbound Echoes. Gimble translates money fog into small, accurate, non-shaming actions usi...; clear expressive eyes and a memorable silhouette",
+      "core": "Finance support character and Actual Budget interpreter. Gimble translates money fog into small, accurate, non-shaming actions using BJ's ledger, Actu...; clear expressive eyes and a memorable silhouette",
       "signature": "one small object tied to their current story",
       "palette": "muted sepia, soft gray, one jewel-toned accent",
       "silhouette": "recognizable posture; hands involved in the scene",
       "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
       "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
-      "updated": "2026-05-18"
+      "updated": "2026-05-24"
+    },
+    "Penny Blackletter": {
+      "status": "canonical",
+      "source": "auto-core",
+      "belief_at_canon": 41,
+      "chapter": "Riddlewind",
+      "core": "Social media and marketing specialist, student editor, public-facing storyteller, and keeper of the Press & Peculiar Commerce desk. Penny turns Enchan...; clear expressive eyes and a memorable silhouette",
+      "signature": "a catalog card",
+      "palette": "ink blue, parchment cream, quick silver",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "updated": "2026-05-24"
+    },
+    "Bellkeeper Elian Quill": {
+      "status": "canonical",
+      "source": "auto-core",
+      "belief_at_canon": 30,
+      "chapter": null,
+      "core": "Calendar and time-shape support character, keeper of Today’s Page, and first resident of the proactive offices. Elian reads schedule, calendar, Heartb...; soft mouth and observant eyes",
+      "signature": "a catalog card",
+      "palette": "muted sepia, soft gray, one jewel-toned accent",
+      "silhouette": "slight, inward posture; attentive hands",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait, ordinary human office-worker styling",
+      "updated": "2026-05-24"
+    },
+    "Professor Bastion Goldweaver": {
+      "status": "canonical",
+      "source": "auto-core",
+      "belief_at_canon": 34,
+      "chapter": "Emberheart",
+      "core": "Flamboyant entrepreneurial professor of the Press & Peculiar Commerce wing. Goldweaver turns Wonder Compass, The Doobaleedoos, free open-source Enchan...; clear expressive eyes and a memorable silhouette",
+      "signature": "a catalog card",
+      "palette": "ember red, warm gold, charcoal ink",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "updated": "2026-05-24"
     }
   },
-  "last_changed": []
+  "last_changed": [
+    "Gimble of the Errata Registry",
+    "Professor Bastion Goldweaver"
+  ]
 }

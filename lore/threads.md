@@ -119,9 +119,9 @@ Two endings:
 **entities:** Zara Finch
 **Nothing pressure:** medium — the Nothing would love to make her doubt the portfolio is good enough. Self-erasure before the deadline.
 
-**Next beat:** By morning, Zara has added a second notation beside the first — a small drawing of a tide chart, rough and quick, the kind made when a thought arrives faster than certainty. The sea glass remains, but she has slid a folded scrap of paper halfway beneath the vessel's hull, its edge just visible.
+**Next beat:** Zara's open notebook has been left on a page dense with crossed-out lines — a portfolio artist's statement, every version abandoned mid-sentence. The folded paper under the Tide Glass price tag has been joined by a second, written in different handwriting.
 
-**Last advanced:** 2026-05-18
+**Last advanced:** 2026-05-24
 **born:** 2026-04-12
 **closed:** —
 
@@ -138,9 +138,9 @@ Two endings:
 **entities:** Wicker Eddies
 **Nothing pressure:** high — Wicker is adjacent to the Nothing. His schemes drain Belief from others as a feature, not a side effect. The Nothing doesn't control him; they simply have similar tastes.
 
-**Next beat:** The intake tray now holds a fourth folded page — but this one is blank except for the thumb-sigil, pressed so deliberately it left a faint crease-shadow like a door hinge. The errand-runner who left it no longer lingers at the threshold; they simply do not return, as if the delivery itself closed an account.
+**Next beat:** Three students have already attempted the dare, believing the initials were a senior's endorsement — one of them is now nursing a bruised wrist and asking loudly who authorized it. The original errand it replaced is gone, but the receipt pinned beneath has been handled enough times that the margin note is smudged, almost unreadable.
 
-**Last advanced:** 2026-05-18
+**Last advanced:** 2026-05-24
 **born:** 2026-04-01
 **closed:** —
 
@@ -159,9 +159,9 @@ Two endings:
 **entities:** Headmistress Thorne, Dusk Thorn Talisman, Victor Ebonheart
 **Nothing pressure:** high — something in Duskthorn is already adjacent to absence. The sealed corridor smells of it.
 
-**Next beat:** The blotter has been removed from the desk entirely — replaced with a clean one, faint scorch-smell still in the air where the old one rested. The drawer that was latched from the inside now opens freely and holds nothing at all, not even dust, as though the space itself has been renegotiated.
+**Next beat:** The Second Floor Records Office lamp is burning past the building's posted closing hour — visible as a thin amber line beneath the frosted glass panel from the stairwell landing. The ghost-mark on the bulletin board, examined closely, carries the faint shadow of a prior notice's ink: the letterhead impression is consistent with documents originating from the Headmistress's office.
 
-**Last advanced:** 2026-05-18
+**Last advanced:** 2026-05-24
 **born:** 2026-04-01
 **closed:** —
 

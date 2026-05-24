@@ -18,6 +18,7 @@ from typing import Any
 
 from scene_ledger import load_entries as load_scene_ledger_entries
 import action_lifecycle
+import entity_memory
 
 
 BASE = Path(__file__).resolve().parent.parent
@@ -341,28 +342,124 @@ def emerging_thread_seeds(limit: int = 6) -> list[str]:
     return seeds[-limit:]
 
 
+def thread_closure_obligations(limit: int = 4) -> list[dict[str, Any]]:
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(BASE / "scripts" / "thread-closure.py"), "status", "--json"],
+            cwd=BASE,
+            text=True,
+            capture_output=True,
+            timeout=8,
+            check=False,
+        )
+    except Exception:
+        return []
+    if proc.returncode != 0 or not proc.stdout.strip():
+        return []
+    try:
+        payload = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return []
+    out = []
+    for item in payload.get("candidates", [])[:limit]:
+        out.append({
+            "thread": item.get("name", ""),
+            "signal": item.get("signal", ""),
+            "phase": item.get("phase", ""),
+            "belief": item.get("belief"),
+            "next_beat": truncate(item.get("next_beat", ""), 260),
+            "status": truncate(item.get("status", ""), 220),
+        })
+    return out
+
+
 def open_simulation_actions(limit: int = 5) -> list[dict[str, str]]:
     actions = []
     for action in action_lifecycle.open_actions(limit=limit):
         target = f" -> {action.get('target')}" if action.get("target") else ""
         hidden = action.get("hidden_effect") or ""
-        mechanism = f" Mechanism: {hidden}" if hidden else ""
+        playable_hook = simulation_playable_hook(action)
         actions.append({
             "id": action.get("action_id", ""),
             "actor": action.get("actor", ""),
-            "action": action.get("action", ""),
+            "action": "",
             "thread": action.get("thread_name", ""),
             "target": action.get("target", ""),
-            "narrative": action.get("narrative", ""),
-            "mechanism": hidden,
+            "narrative": playable_hook,
+            "mechanism": "",
             "priority": action.get("priority", ""),
             "source_timestamp": action.get("source_timestamp", ""),
-            "hook": truncate(
-                f"{action.get('actor')} {action.get('action', '').replace('_', ' ')}{target}: {action.get('narrative')}{mechanism}",
-                420,
-            ),
+            "hook": truncate(playable_hook, 420),
         })
     return actions
+
+
+BOILERPLATE_ACTION_PHRASES = (
+    "spent 1 belief",
+    "left a trace",
+    "one future choice will inherit",
+    "by the next bell",
+    "the method fit",
+    "person least willing",
+    "marked object",
+    "practical move only",
+    "feel more real",
+    "mechanic:",
+)
+
+
+def simulation_playable_hook(action: dict[str, Any]) -> str:
+    """Return scene-facing evidence, not simulation ledger language."""
+    actor = action.get("actor", "Someone")
+    thread = action.get("thread_name", "the current thread")
+    target = action.get("target") or thread
+    narrative = str(action.get("narrative") or "").strip()
+    hidden = str(action.get("hidden_effect") or "").strip()
+    text = narrative
+    low = text.lower()
+
+    if any(phrase in low for phrase in BOILERPLATE_ACTION_PHRASES):
+        trace = ""
+        result = ""
+        trace_match = re.search(r"(?:Signature move|Trace|trace):\s*(.+?)(?:\s*/\s*result:|;\s*result:|\.|$)", hidden, re.I)
+        result_match = re.search(r"result:\s*([^.;]+)", hidden, re.I)
+        if trace_match:
+            trace = clean_playable_trace(trace_match.group(1).strip())
+        if result_match:
+            result = clean_playable_trace(result_match.group(1).strip())
+        if trace and result:
+            text = f"{actor}'s offscreen move around {target} should appear as playable evidence: {trace}. Consequence: {result}."
+        elif trace:
+            text = f"{actor}'s offscreen move around {target} should appear as playable evidence: {trace}."
+        else:
+            text = f"{actor}'s offscreen move around {target} should appear as a concrete object, rumor, schedule change, or changed NPC behavior. Do not narrate the mechanics."
+    else:
+        text = f"Playable evidence from {actor} around {target}: {text}"
+
+    if thread and thread != target:
+        text += f" Thread: {thread}."
+    return text
+
+
+def clean_playable_trace(text: str) -> str:
+    text = re.sub(r"\s+", " ", (text or "").strip(" .;"))
+    replacements = {
+        "left the investigation marked object": "left a shadowed receipt",
+        "person least willing to name it": "quietest witness",
+        "one future choice will inherit this small, deliberate change": "the next scene has one more concrete thing to respond to",
+        "turned into custom the experiments repeated custom": "turned the experiment into a visible refectory custom",
+        "left the object everyone had been stepping around": "left the overlooked object",
+        "marked the object everyone had been stepping around": "marked the overlooked object",
+        "left a shadowed receipt by placing a shadowed receipt": "placed a shadowed receipt",
+    }
+    lowered = text.lower()
+    for old, new in replacements.items():
+        if old in lowered:
+            text = re.sub(re.escape(old), new, text, flags=re.I)
+            lowered = text.lower()
+    if any(phrase in lowered for phrase in ("mechanic:", "spent 1 belief", "the method fit")):
+        return ""
+    return text
 
 
 def recent_bleed_ripples(limit: int = 6) -> list[dict[str, Any]]:
@@ -439,6 +536,40 @@ def recent_outreach(limit: int = 6) -> list[dict[str, Any]]:
     return rows[-limit:]
 
 
+def relevant_entity_memories(context: dict[str, Any], limit: int = 6) -> list[dict[str, Any]]:
+    names: list[str] = []
+
+    def add(name: str) -> None:
+        name = (name or "").strip()
+        if name and name.lower() not in {n.lower() for n in names}:
+            names.append(name)
+
+    for action in context.get("open_simulation_actions", []):
+        add(action.get("actor", ""))
+        add(action.get("target", ""))
+    for item in context.get("recent_outreach", [])[-4:]:
+        add(item.get("sender", ""))
+    for ripple in context.get("bleed_ripples", [])[:4]:
+        for name in ripple.get("entities") or []:
+            add(str(name))
+    anchor = context.get("scene_continuity_anchor") or {}
+    for name in entity_memory.parse_cast_names(anchor.get("cast", "")):
+        add(name)
+    for scene in context.get("recent_scenes", [])[-2:]:
+        for name in entity_memory.detect_entities(
+            " ".join(str(scene.get(k, "")) for k in ("title", "opening", "ending", "available_cast")),
+            limit=4,
+        ):
+            add(name)
+
+    memories = []
+    for name in names[:8]:
+        memory = entity_memory.compact_memory(name, limit=limit)
+        if memory.get("recent") or memory.get("bleed_awareness"):
+            memories.append(memory)
+    return memories
+
+
 def narrative_obligations(player: str, limit: int = 6) -> list[dict[str, Any]]:
     try:
         proc = subprocess.run(
@@ -509,6 +640,12 @@ def continuity_threads(context: dict[str, Any]) -> list[str]:
     seeds = context.get("emerging_thread_seeds") or []
     if seeds:
         threads.append(f"Potential new thread seeds waiting for confirmation: {', '.join(seeds[:4])}.")
+    closure = context.get("thread_closure_obligations") or []
+    if closure:
+        top = closure[0]
+        threads.append(
+            f"Thread closure obligation: {top.get('thread')} is {top.get('signal')} — deliver an Ending Page or explicit continuation instead of adding more setup."
+        )
     obligations = context.get("narrative_obligations") or []
     if obligations:
         top = obligations[0]
@@ -557,11 +694,13 @@ def build_context(player: str) -> dict[str, Any]:
         "scene_continuity_anchor": scene_continuity_anchor(recent_scenes),
         "story_progress": current_arc_progress(),
         "emerging_thread_seeds": emerging_thread_seeds(),
+        "thread_closure_obligations": thread_closure_obligations(),
         "open_simulation_actions": open_simulation_actions(),
         "bleed_ripples": recent_bleed_ripples(),
         "recent_outreach": recent_outreach(),
         "narrative_obligations": narrative_obligations(player),
     }
+    context["entity_memories"] = relevant_entity_memories(context)
     context["continuity_threads"] = continuity_threads(context)
     context["quiet_life_threads"] = quiet_life_threads(context)
     context["model_guidance"] = [
@@ -571,9 +710,11 @@ def build_context(player: str) -> dict[str, Any]:
         "Prefer one remembered specific over three vague callbacks.",
         "Protect slice-of-life scenes from automatic escalation.",
         "If a THREAD SEED is touched meaningfully in play, name a real subplot at closeout instead of leaving it as atmosphere forever.",
+        "If THREAD_CLOSURE_OBLIGATIONS are present, do not keep extending the same thread indefinitely: play an Ending Page, choose a transformed continuation, or explicitly defer closure.",
         "If an OPEN_SIMULATION_ACTION is relevant, make its trace visible as an object, rumor, schedule change, or NPC behavior before inventing new pressure.",
         "If a BLEED_RIPPLE is relevant, treat it as public interpretation or rumor pressure, not guaranteed objective truth.",
         "If RECENT_CHARACTER_OUTREACH includes a player reply, treat it as relationship continuity: the sender knows the player answered and scenes may acknowledge that.",
+        "If ENTITY_MEMORY is present for a character, let it shape behavior, trust, hesitations, callbacks, and offscreen continuity. Do not repeat old actions unless there is a story reason.",
         "Treat NARRATIVE_OBLIGATIONS as repair duties: satisfy, explicitly defer, or preserve them for closeout.",
     ]
     return context
@@ -619,6 +760,12 @@ def render_text(context: dict[str, Any]) -> str:
     if context.get("emerging_thread_seeds"):
         lines.append("EMERGING_THREAD_SEEDS:")
         lines.extend(f"- {seed}" for seed in context["emerging_thread_seeds"])
+    if context.get("thread_closure_obligations"):
+        lines.append("THREAD_CLOSURE_OBLIGATIONS:")
+        for item in context["thread_closure_obligations"]:
+            lines.append(
+                f"- {item.get('signal')} {item.get('thread')} [{item.get('phase')}, Belief {item.get('belief')}]: {item.get('next_beat') or item.get('status')}"
+            )
     if context.get("open_simulation_actions"):
         lines.append("OPEN_SIMULATION_ACTIONS:")
         for action in context["open_simulation_actions"]:
@@ -631,6 +778,18 @@ def render_text(context: dict[str, Any]) -> str:
         lines.append("RECENT_CHARACTER_OUTREACH:")
         for item in context["recent_outreach"][-4:]:
             lines.append(f"- {item.get('hook')}")
+    if context.get("entity_memories"):
+        lines.append("ENTITY_MEMORY:")
+        for memory in context["entity_memories"]:
+            lines.append(f"- {memory.get('entity')}:")
+            for item in memory.get("bleed_awareness", [])[:3]:
+                issue = item.get("issue_number") or "?"
+                section = item.get("section") or "Bleed"
+                stance = item.get("stance") or "may reference this as public rumor"
+                detail = truncate(str(item.get("detail") or ""), 300)
+                lines.append(f"  - Latest Bleed #{issue} [{section}]: {stance}. {detail}")
+            for item in memory.get("recent", [])[-4:]:
+                lines.append(f"  - {item}")
     if context.get("narrative_obligations"):
         lines.append("NARRATIVE_OBLIGATIONS:")
         for item in context["narrative_obligations"]:

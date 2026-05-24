@@ -55,7 +55,8 @@ Do these in order:
 1. Return to the dorm with one grounding image.
 2. Update thread beats and story log entries.
 3. Handle thread lifecycle:
-   - resolved thread → archive it
+   - resolved thread → run `python3 scripts/thread-closure.py close "Thread Name" --outcome-file /tmp/enchantify-thread-ending.txt --send` after the final beat so the mini-story ending artifact is filed and delivered
+   - thread in resolution but not ending yet → write one concrete fresh `Next beat`, not more vague pressure
    - new real subplot → create it
    - confirmed thread seed → register it
 4. Write the diary from `/tmp/enchantify-diary.txt`.

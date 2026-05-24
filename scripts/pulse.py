@@ -6,8 +6,8 @@ in HEARTBEAT.md, preserving the permanent standing orders below.
 Belfast M4 Build — March 2026
 """
 
-import os, sys, json, subprocess, requests, imaplib, email, time, shutil, math, signal
-from datetime import datetime, timedelta
+import os, sys, json, subprocess, requests, imaplib, email, time, shutil, math, signal, re
+from datetime import datetime, timedelta, date
 from pathlib import Path
 
 # — LOAD CONFIG FROM secrets.env —
@@ -648,9 +648,9 @@ def get_finances():
                     info = (
                         f"Actual/SimpleFIN fresh at {datetime.now().strftime('%-I:%M %p')}.\n"
                         f"On-budget balance: ${total:,.2f}{month_line}\n"
-                        f"Unbound Echoes: {uncategorized}\n"
+                        f"Uncategorized transactions: {uncategorized}\n"
                         f"Accounts:\n" + ("\n".join(account_lines) if account_lines else "- No on-budget accounts found.") +
-                        "\nRecent Kinetic Ink:\n" + ("\n".join(recent_lines) if recent_lines else "- No recent transactions found.")
+                        "\nRecent transactions:\n" + ("\n".join(recent_lines) if recent_lines else "- No recent transactions found.")
                     )
                     info = info.replace("\n", "\n  ")
                     set_cache_val("bank_data", info)
@@ -691,9 +691,11 @@ def _load_health_cache():
 def _save_health_cache(result, source_path=None):
     try:
         os.makedirs(os.path.dirname(HEALTH_CACHE), exist_ok=True)
+        source_date = _health_file_date(source_path)
         payload = {
             "result": result,
             "source_path": source_path,
+            "source_date": source_date.isoformat() if source_date else None,
             "updated_at": datetime.now().isoformat(timespec="seconds"),
         }
         tmp = HEALTH_CACHE + ".tmp"
@@ -703,10 +705,36 @@ def _save_health_cache(result, source_path=None):
     except Exception as e:
         _health_log(f"WARN could not save health cache: {e}")
 
+def _health_file_date(path):
+    if not path:
+        return None
+    name = os.path.basename(str(path))
+    for pattern in (r"HealthAutoExport-(\d{4}-\d{2}-\d{2})\.json$", r"(\d{4})(\d{2})(\d{2})\.hae$"):
+        m = re.search(pattern, name)
+        if not m:
+            continue
+        try:
+            if len(m.groups()) == 1:
+                return date.fromisoformat(m.group(1))
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            return None
+    return None
+
 def _format_cached_health(reason="iCloud sync lock"):
     cache = _load_health_cache()
     result = cache.get("result")
     updated_at = cache.get("updated_at")
+    source_date_raw = cache.get("source_date")
+    if not source_date_raw:
+        source_date = _health_file_date(cache.get("source_path"))
+    else:
+        try:
+            source_date = date.fromisoformat(str(source_date_raw))
+        except ValueError:
+            source_date = None
+    if source_date and source_date != date.today():
+        return f"Watch data stale — latest Health Auto Export is {source_date.isoformat()}; waiting for today's iCloud export."
     if not result:
         return "Watch data syncing..."
     suffix = "cached"
@@ -819,9 +847,17 @@ def _get_health_inner(HEALTH_DIR):
             for filename in _safe_listdir(candidate_dir):
                 if filename.endswith(".json") and not filename.startswith("."):
                     files.append(os.path.join(candidate_dir, filename))
-        files = sorted(files, key=lambda p: os.path.basename(p), reverse=True)
+        files = sorted(files, key=lambda p: (_health_file_date(p) or date.min, os.path.basename(p)), reverse=True)
         if not files:
             return f"Watch data offline. (no JSON files in {HEALTH_DIR})"
+
+        today = date.today()
+        todays_files = [path for path in files if _health_file_date(path) == today]
+        latest_date = next((_health_file_date(path) for path in files if _health_file_date(path)), None)
+        if not todays_files:
+            if latest_date:
+                return f"Watch data stale — latest Health Auto Export is {latest_date.isoformat()}; waiting for today's iCloud export."
+            return _format_cached_health("no dated Health Auto Export found")
 
         def load_metrics(path):
             d = _load_json_snapshot(path)
@@ -839,12 +875,65 @@ def _get_health_inner(HEALTH_DIR):
                           and m.get('data')]
             return len(meaningful) < 2
 
-        # Try newest files; fall back if today's export is sparse or locked.
+        def build_result(metrics, source_date):
+            def metric_total(name):
+                """Sum all qty values for a metric across the day's hourly entries."""
+                m = next((x for x in metrics if x.get('name') == name), None)
+                if not m:
+                    return None
+                total = sum(e.get('qty', 0) for e in m.get('data', []) if e.get('qty') is not None)
+                return round(total, 1) if total else None
+
+            def metric_latest(name):
+                """Most recent single value for a metric (sleep, HRV, resting HR)."""
+                m = next((x for x in metrics if x.get('name') == name), None)
+                if not m:
+                    return None
+                entries = m.get('data', [])
+                if not entries:
+                    return None
+                val = entries[-1].get('qty', entries[-1].get('value'))
+                return round(val, 1) if val is not None else None
+
+            parts = []
+
+            steps = metric_total('step_count')
+            if steps is not None:
+                parts.append(f"Steps: {int(steps):,}")
+
+            distance = metric_total('walking_running_distance')
+            if distance is not None and steps is None:
+                parts.append(f"Distance: {distance:.2f}mi")
+
+            sleep = metric_latest('sleep_analysis')
+            if sleep is not None:
+                parts.append(f"Sleep: {sleep}h")
+
+            hrv = metric_latest('heart_rate_variability')
+            if hrv is not None:
+                parts.append(f"HRV: {hrv}ms")
+
+            rhr = metric_latest('resting_heart_rate')
+            if rhr is not None:
+                parts.append(f"RHR: {int(rhr)}bpm")
+
+            if not parts:
+                return None
+
+            result = " | ".join(parts)
+            if source_date and source_date != today:
+                result = f"{result} (latest usable export: {source_date.isoformat()})"
+            elif is_sparse(metrics):
+                result = f"{result} (today's export is still partial)"
+            return result
+
+        # Prefer today's file, even if it is partial. Never let yesterday's step
+        # count masquerade as current; older exports are explicitly labeled.
         metrics = []
         used_path = None
-        is_yesterday = False
+        result = None
         lock_errors = 0
-        for idx, path in enumerate(files[:7]):
+        for path in todays_files:
             try:
                 candidate = load_metrics(path)
             except OSError as e:
@@ -856,61 +945,41 @@ def _get_health_inner(HEALTH_DIR):
                 continue
             metrics = candidate
             used_path = path
-            is_yesterday = idx > 0
-            if not is_sparse(metrics):
+            result = build_result(metrics, today)
+            if result:
                 break
+
+        if result:
+            _save_health_cache(result, used_path)
+            return result
+
+        # If today's export exists but has no usable body metrics yet, surface
+        # the newest usable dated export instead of an older cache. The label
+        # keeps it honest for Vellum and the Heartbeat.
+        for path in files:
+            source_date = _health_file_date(path)
+            if not source_date or source_date >= today:
+                continue
+            try:
+                candidate = load_metrics(path)
+            except OSError as e:
+                if e.errno == 11:
+                    lock_errors += 1
+                    continue
+                raise
+            if not candidate:
+                continue
+            result = build_result(candidate, source_date)
+            if result:
+                _save_health_cache(result, path)
+                return result
 
         if not metrics:
             if lock_errors:
                 _health_log(f"WARN all recent health exports locked under {HEALTH_DIR}")
                 return _format_cached_health("iCloud sync lock")
             return _format_cached_health("no usable recent export")
-
-        def metric_total(name):
-            """Sum all qty values for a metric across the day's hourly entries."""
-            m = next((x for x in metrics if x.get('name') == name), None)
-            if not m:
-                return None
-            total = sum(e.get('qty', 0) for e in m.get('data', []) if e.get('qty') is not None)
-            return round(total, 1) if total else None
-
-        def metric_latest(name):
-            """Most recent single value for a metric (sleep, HRV, resting HR)."""
-            m = next((x for x in metrics if x.get('name') == name), None)
-            if not m:
-                return None
-            entries = m.get('data', [])
-            if not entries:
-                return None
-            val = entries[-1].get('qty', entries[-1].get('value'))
-            return round(val, 1) if val is not None else None
-
-        parts = []
-
-        steps = metric_total('step_count')
-        if steps is not None:
-            parts.append(f"Steps: {int(steps):,}")
-
-        sleep = metric_latest('sleep_analysis')
-        if sleep is not None:
-            parts.append(f"Sleep: {sleep}h")
-
-        hrv = metric_latest('heart_rate_variability')
-        if hrv is not None:
-            parts.append(f"HRV: {hrv}ms")
-
-        rhr = metric_latest('resting_heart_rate')
-        if rhr is not None:
-            parts.append(f"RHR: {int(rhr)}bpm")
-
-        if not parts:
-            return _format_cached_health("sparse export")
-
-        result = " | ".join(parts)
-        if is_yesterday:
-            result += " (recent fallback)"
-        _save_health_cache(result, used_path)
-        return result
+        return _format_cached_health("sparse export")
 
     except OSError:
         raise  # let the retry loop in get_health() handle it

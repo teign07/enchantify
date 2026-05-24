@@ -86,7 +86,7 @@ def build_preflight(workspace: Path, player_name: str) -> dict:
     fae = fae_pressure(workspace, player_name)
 
     if compass["eligible"]:
-        obligations.append("Compass Run should be offered or deliberately deferred in-scene")
+        obligations.append("Once-daily Compass Run should be offered as an option or deliberately deferred in-scene")
     if enchantment["recommended"]:
         obligations.append("Enchantment should be offered or its absence justified in-scene")
     if enchantment["active"]:
@@ -99,11 +99,13 @@ def build_preflight(workspace: Path, player_name: str) -> dict:
     if dice["should_roll"]:
         warnings.append("Use belief dice when the next action is risky and uncertain")
     if not enchantment["recommended"]:
-        warnings.append("Use scene-contract for opportunity-based Enchantments; healthy Belief does not suppress spell offers")
+        warnings.append("Use scene-contract for opportunity-based Enchantments; completed/cadence-limited days suppress routine spell offers")
     if pressure["decline_pressure_active"]:
         warnings.append("Repeated declines are active; another refusal should carry believable cost")
     if belief is not None and belief <= 20:
         warnings.append("Belief is critically low")
+    elif belief is not None and belief <= 60 and not compass["locked_today"]:
+        warnings.append("Belief is in recovery range; formal Compass/Enchantment offers are a fun route back into investment power")
     for item in fae:
         if item.upper().startswith(("OVERDUE", "BROKEN", "EXPIRED")):
             obligations.append(f"Fae bargain consequence is active: {item}")

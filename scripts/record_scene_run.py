@@ -8,6 +8,7 @@ from pathlib import Path
 
 from scene_ledger import append_entry
 import action_lifecycle
+import entity_memory
 
 
 def read_json(path: Path) -> dict:
@@ -56,8 +57,21 @@ def main() -> int:
     }
     path = append_entry(entry, dry_run=args.dry_run)
     if not args.dry_run and entry.get("delivery_ok"):
+        delivered_scene_text = "\n".join(
+            part for part in [entry.get("text", ""), entry.get("voice", "")]
+            if part
+        )
+        remembered = entity_memory.record_scene_memory(
+            player=args.player,
+            scene_id=entry.get("scene_id") or "",
+            text=delivered_scene_text,
+            cast=entry.get("cast", ""),
+            title=entry.get("title") or "",
+        )
+        if remembered:
+            print(f"entity_memories={len(remembered)}")
         scene_text = "\n".join(
-            part for part in [entry.get("text", ""), entry.get("voice", ""), entry.get("director_slate", "")]
+            part for part in [delivered_scene_text, entry.get("director_slate", "")]
             if part
         )
         noticed = action_lifecycle.mark_actions_noticed_from_scene(

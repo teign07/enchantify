@@ -36,6 +36,7 @@ sys.path.insert(0, str(_SCRIPT_DIR))
 import cron_steward
 import world_context
 import action_lifecycle
+import entity_memory
 from tick_queue_utils import ensure_header, prune_tick_queue
 from thread_sync import sync_thread_files
 try:
@@ -882,6 +883,7 @@ def run_living_world_simulation(events: list, ctx: Optional[dict] = None) -> Non
                 "influence_snapshot": influences,
             })
             action_lifecycle.record_open_action(ledger_entries[-1])
+            entity_memory.record_simulation_action(action, source=SKILL_ID)
             if _HAS_NPC_LOG:
                 _npc_log.append(action.npc, action.action, f"{action.thread_name}: {action.hidden_effect}")
 
@@ -912,6 +914,7 @@ def run_living_world_simulation(events: list, ctx: Optional[dict] = None) -> Non
                 "narrative": seed,
                 "reason": item.reason,
             })
+            entity_memory.record_simulation_consequence(item, source=SKILL_ID)
             if _HAS_NPC_LOG:
                 _npc_log.append(item.name, "belief_shift", f"{item.before} → {item.after} ({item.reason})")
 

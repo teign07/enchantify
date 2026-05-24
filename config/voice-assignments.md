@@ -90,7 +90,7 @@
 
 ## The Students — Chapter Tidecrest
 
-- **Zara Finch:** `af_nicole` — Quiet, perceptive, fiercely loyal. The player's best friend gets a warm, headphone-intimate voice. Nicole's quality suits someone who listens closely.
+- **Zara Finch:** `bf_lily` — Gentle, inviting, a warmth that meets you at the door. Lily's softness makes her feel immediately safe — the voice of a best friend from the first sentence of the tutorial.
 - **Serenity Brown:** `af_heart(2)+af_nova(1)` — Carefree, spontaneous, joyful. Heart's sparkle with Nova's brightness. Distinct from Luna Wispwood's solo af_heart.
 - **Selene Moonfall:** `af_jadzia` — Mysterious, alluring, deceptive. Jadzia's edge suits the social climber perfectly.
 - **Aurora Whispers:** `af_nova(2)+bf_lily(1)` — Dreamy, adventurous, imaginative. Nova's warmth with Lily's softness for the astrology student.
@@ -108,6 +108,7 @@
 - **Dr. Elowen Vellum:** `af_v0nicole(2)+af_kore(1)` — Crisp, feminine, precise; Nicole's clear intimacy sharpened by Kore's ancient composure. The voice of a margin note that has read the clinical trial.
 - **Dr. Selene Inkrest:** `af_aoede(2)+af_v0nicole(1)` — Low, intimate, steady; Aoede's softness grounded by Nicole's close clarity. The voice of a difficult page being held open without hurry.
 - **Gimble of the Errata Registry:** `am_liam(2)+am_fenrir(1)` — Brisk, clipped, goblin-ledger precise; dryly kind, never shaming. The voice of a brass stamp that has decided panic is not valid currency.
+- **Bellkeeper Elian Quill:** `am_liam(1)+bm_fable(1)` — Clear, gentle, time-literate, and lightly formal. The voice of a bell heard before it rings, with enough warmth to leave the hour alone.
 - **Archibald Evergreen (Head Librarian):** `bm_v0lewis(2)+bm_george(1)` — Venerable, vast, a chorus of ancient scholars. The blend gives him his own shelf.
 - **Evelyn Riad (Researcher):** `af_kore` — Dedicated, uncovering clues in the digital deep.
 - **Quentin Pagester (they/them, Archivist):** `bm_fable(1)+af_aoede(1)` — Meticulous, precise. An equal blend for a non-binary archivist — Fable's storytelling warmth merged with Aoede's clarity.
@@ -156,7 +157,7 @@
 | `af_heart` | Prof. Luna Wispwood |
 | `af_jadzia` | Selene Moonfall |
 | `af_kore` | Evelyn Riad |
-| `af_nicole` | Zara Finch |
+| `af_nicole` | — *(available)* |
 | `af_nova` | Serenity Lightfeather |
 | `af_river` | Prof. Eleanor Euphony |
 | `af_sarah` | Astra Sonseur |
@@ -180,7 +181,7 @@
 | `bf_alice` | Prof. Lydia Boggle |
 | `bf_emma` | Lara Rourck |
 | `bf_isabella` | Letitia Windings |
-| `bf_lily` | — *(blend only)* |
+| `bf_lily` | Zara Finch |
 | `bf_v0emma` | Eleanor Whitewood |
 | `bf_v0isabella` | Clarissa "Clio" Quibblesnatch |
 | `bm_daniel` | Prof. Archibald Permancer |

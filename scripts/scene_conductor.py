@@ -868,7 +868,7 @@ def example_packet() -> dict[str, Any]:
             "scene": "tension"
         },
         "image": {
-            "prompt": f"Character-focused field-journal portrait of Wicker Eddies, face and posture sharp with invitation, one hand near a wrong door key, haunted library corridor only as a faint background wash, {ARCHIVE_ART_STYLE}",
+            "prompt": f"Field-journal scene illustration anchored on Wicker Eddies and the wrong door key, with the haunted library corridor legible and alive around him, {ARCHIVE_ART_STYLE}",
             "filename_hint": "wicker-corridor.png",
             "backend": "drawthings"
         },

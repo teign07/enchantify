@@ -9,6 +9,9 @@ from pathlib import Path
 
 MECHANICS_STATE_VERSION = 1
 PREFLIGHT_MAX_AGE_MINUTES = 15
+DAILY_COMPASS_OFFER_BELIEF_THRESHOLD = 60
+ENCHANTMENT_OFFER_BELIEF_THRESHOLD = 60
+MAX_DAILY_ENCHANTMENT_OFFERS = 2
 
 
 def _read_safe(path: Path) -> str:
@@ -221,8 +224,22 @@ def get_mechanics_state(workspace: Path, player_name: str) -> dict:
     else:
         belief_band = "healthy"
 
-    should_offer_enchantment = belief is not None and belief <= 40
-    should_offer_compass = belief is not None and belief <= 25 and not compass_locked_today
+    compass_offers_today = int(session.get("compass_offers") or 0)
+    enchantment_offers_today = int(session.get("enchantment_offers") or 0)
+    enchantment_completed_today = enchantment_state.get("completed_on") == today
+
+    should_offer_compass = (
+        belief is not None
+        and belief <= DAILY_COMPASS_OFFER_BELIEF_THRESHOLD
+        and not compass_locked_today
+        and compass_offers_today == 0
+    )
+    should_offer_enchantment = (
+        belief is not None
+        and belief <= ENCHANTMENT_OFFER_BELIEF_THRESHOLD
+        and not enchantment_completed_today
+        and enchantment_offers_today < MAX_DAILY_ENCHANTMENT_OFFERS
+    )
 
     consecutive_declines = 0
     last_offer_type = session.get("last_offer_type")
@@ -238,6 +255,9 @@ def get_mechanics_state(workspace: Path, player_name: str) -> dict:
         "compass_locked_today": compass_locked_today,
         "should_offer_enchantment": should_offer_enchantment,
         "should_offer_compass": should_offer_compass,
+        "daily_compass_offer_threshold": DAILY_COMPASS_OFFER_BELIEF_THRESHOLD,
+        "enchantment_offer_threshold": ENCHANTMENT_OFFER_BELIEF_THRESHOLD,
+        "max_daily_enchantment_offers": MAX_DAILY_ENCHANTMENT_OFFERS,
         "should_roll": True,
         "last_roll_guidance_at": mechanics.get("last_roll_guidance_at"),
         "last_preflight_at": mechanics.get("last_preflight_at"),

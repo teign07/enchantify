@@ -38,6 +38,7 @@ CONSENT_FILE   = BASE_DIR / "config" / "consent.json"
 NOTHING_FILE   = BASE_DIR / "lore" / "nothing-intelligence.md"
 PACT_ACTION_LOG = BASE_DIR / "logs" / "pact-actions.jsonl"
 PENDING_CONSENT_LOG = BASE_DIR / "logs" / "pending-consents.jsonl"
+PACT_CONTENT_DIR = BASE_DIR / "memory" / "pact-content"
 TELEGRAM_TARGET  = "8729557865"
 TELEGRAM_CHANNEL = "telegram"
 TELEGRAM_ACCOUNT = "enchantify"
@@ -422,23 +423,90 @@ def _compact(text: str, limit: int = 700) -> str:
     return text[: max(0, limit - 1)].rstrip() + "…"
 
 
-def _send_telegram_notice(text: str) -> bool:
+def _send_telegram_notice(text: str, media=None) -> bool:
     try:
-        result = subprocess.run(
-            [
-                "openclaw", "message", "send",
-                "--target", TELEGRAM_TARGET,
-                "--channel", TELEGRAM_CHANNEL,
-                "--account", TELEGRAM_ACCOUNT,
-                "--message", text[:3900],
-            ],
-            capture_output=True,
-            text=True,
-            timeout=20,
-        )
+        cmd = [
+            "openclaw", "message", "send",
+            "--target", TELEGRAM_TARGET,
+            "--channel", TELEGRAM_CHANNEL,
+            "--account", TELEGRAM_ACCOUNT,
+            "--message", text[:3900],
+        ]
+        if media and media.exists():
+            cmd += ["--media", str(media), "--force-document"]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         return result.returncode == 0
     except Exception:
         return False
+
+
+def _slug(text: str, limit: int = 70) -> str:
+    text = re.sub(r"[^a-zA-Z0-9]+", "-", text or "").strip("-").lower()
+    return (text or "content")[:limit].strip("-")
+
+
+def _content_value_from_spec(spec: dict) -> tuple[str, str]:
+    """Return (field_name, full_content) for a generated public-facing draft."""
+    if not isinstance(spec, dict):
+        return "", ""
+    for key in ("content", "post", "thread", "message", "body", "draft", "caption", "title"):
+        value = spec.get(key)
+        if isinstance(value, str) and value.strip():
+            return key, value.strip()
+        if isinstance(value, list) and value:
+            return key, "\n".join(f"- {item}" for item in value)
+        if isinstance(value, dict) and value:
+            return key, json.dumps(value, indent=2, ensure_ascii=False)
+    return "", ""
+
+
+def _write_consent_content_file(
+    *,
+    consent_id: str,
+    chapter: str,
+    app_name: str,
+    tier: str,
+    proposal: str,
+    result: str,
+    spec: dict,
+):
+    """Write a human-readable attachment for talisman-generated consent content."""
+    field, content = _content_value_from_spec(spec)
+    if not content:
+        return None
+    PACT_CONTENT_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    path = PACT_CONTENT_DIR / f"{stamp}-{consent_id}-{_slug(chapter)}-{_slug(app_name)}.md"
+    action = spec.get("action") or "content action"
+    lines = [
+        f"# Talisman Content Consent — {chapter} / {app_name}",
+        "",
+        f"- **Consent ID:** {consent_id}",
+        f"- **Timestamp:** {datetime.now().isoformat(timespec='seconds')}",
+        f"- **Talisman:** {chapter}",
+        f"- **App:** {app_name}",
+        f"- **Tier:** {tier}",
+        f"- **Action:** {action}",
+        f"- **Content Field:** {field}",
+        "",
+        "## Consent Request",
+        proposal,
+        "",
+        "## Draft Content",
+        content,
+        "",
+        "## Full Spec",
+        "```json",
+        json.dumps({k: v for k, v in (spec or {}).items() if k != "context"}, indent=2, ensure_ascii=False, default=str),
+        "```",
+        "",
+        "## Pact Result",
+        result,
+        "",
+        "Nothing has been posted or executed until BJ explicitly approves.",
+    ]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
 
 
 def _format_pact_telegram_notice(event: str, fields: dict) -> str:
@@ -511,7 +579,7 @@ def _record_pending_consent(
     result: str,
     spec: dict,
     dry_run: bool,
-) -> tuple[str, bool]:
+) -> tuple[str, bool, str]:
     basis = json.dumps(
         {
             "chapter": chapter,
@@ -535,11 +603,12 @@ def _record_pending_consent(
         "proposal": proposal,
         "result": result,
         "spec": {k: v for k, v in (spec or {}).items() if k != "context"},
+        "content_file": "",
         "dry_run": dry_run,
         "telegram_sent": False,
     }
     if dry_run:
-        return consent_id, False
+        return consent_id, False, ""
     try:
         PENDING_CONSENT_LOG.parent.mkdir(parents=True, exist_ok=True)
         existing = []
@@ -551,7 +620,19 @@ def _record_pending_consent(
             except json.JSONDecodeError:
                 continue
             if obj.get("id") == consent_id and obj.get("status") == "pending" and obj.get("telegram_sent"):
-                return consent_id, True
+                return consent_id, True, str(obj.get("content_file") or "")
+
+        content_file = _write_consent_content_file(
+            consent_id=consent_id,
+            chapter=chapter,
+            app_name=app_name,
+            tier=tier,
+            proposal=proposal,
+            result=result,
+            spec=spec,
+        )
+        if content_file:
+            payload["content_file"] = str(content_file)
 
         text = (
             "🜂 App consent needed\n\n"
@@ -562,13 +643,15 @@ def _record_pending_consent(
             "Nothing has been posted or executed. Reply in play with the ID, approve it manually, "
             "or copy/paste the proposal yourself."
         )
-        sent = _send_telegram_notice(text)
+        if content_file:
+            text += f"\n\nFull draft attached: {content_file.name}"
+        sent = _send_telegram_notice(text, content_file)
         payload["telegram_sent"] = sent
         with PENDING_CONSENT_LOG.open("a", encoding="utf-8") as f:
             f.write(json.dumps(payload, ensure_ascii=False, default=str) + "\n")
-        return consent_id, sent
+        return consent_id, sent, str(content_file) if content_file else ""
     except Exception:
-        return consent_id, False
+        return consent_id, False, ""
 
 
 def _controlled_app_options(chapter: str, apps: list) -> list[tuple]:
@@ -1201,7 +1284,7 @@ def _reality_bleed_action(chapter: str, context: dict, apps: list, dry_run: bool
             f"- **[{chapter} → {app_name}, CONSENT REQUIRED]** "
             f"{proposal} — *The talisman is waiting for your word.*"
         )
-        consent_id, telegram_sent = _record_pending_consent(
+        consent_id, telegram_sent, content_file = _record_pending_consent(
             chapter=chapter,
             app_name=app_name,
             tier=tier,
@@ -1220,6 +1303,7 @@ def _reality_bleed_action(chapter: str, context: dict, apps: list, dry_run: bool
             driver=driver.__class__.__name__,
             consent_id=consent_id,
             proposal=proposal,
+            content_file=content_file,
             telegram_sent=telegram_sent,
             dry_run=dry_run,
             result=result,

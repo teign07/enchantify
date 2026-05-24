@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """
 session-entry.py — Determine how a returning player enters the Labyrinth.
 
@@ -34,7 +35,7 @@ import re
 import sys
 import json
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from scene_ledger import load_entries as load_scene_ledger_entries
@@ -71,6 +72,7 @@ except ImportError:
 
 SCRIPT_DIR   = Path(__file__).parent
 WORKSPACE    = SCRIPT_DIR.parent
+SESSION_ENTRY_STATE = WORKSPACE / "memory" / "session-entry-current.json"
 
 THRESHOLDS = {
     "in_media_res": 1.0,    # under 1 hour = resume where they were
@@ -91,22 +93,70 @@ def read_safe(path: Path, limit: int = 0) -> str:
 
 
 def get_away_hours(player_name: str) -> float:
-    """Hours since last session end. Returns 999 if no record (first session)."""
+    """Hours since last real play signal. Returns 999 if no record.
+
+    Older builds only looked at players/[name]-session.json:last_end. That
+    breaks when a session is resumed in a new chat before formal closeout:
+    the scene ledger is fresh, but last_end still points to an older closed
+    session. Treat delivered scenes as canonical play evidence so "open the
+    book" does not accuse the player of being away for days they were not away.
+    """
+    latest = latest_play_timestamp(player_name)
+    if latest is None:
+        return 999.0
+    delta = datetime.now() - latest
+    return max(0.0, delta.total_seconds() / 3600)
+
+
+def latest_play_timestamp(player_name: str) -> datetime | None:
+    candidates: list[tuple[datetime, str]] = []
+
     state_path = WORKSPACE / "players" / f"{player_name}-session.json"
-    if not state_path.exists():
-        return 999.0
-    try:
-        state = json.loads(state_path.read_text())
-        last_end_str = state.get("last_end", "")
-        if not last_end_str:
-            return 999.0
-        last_end = datetime.fromisoformat(last_end_str)
-        # Make naive datetime comparable
-        now = datetime.now()
-        delta = now - last_end
-        return delta.total_seconds() / 3600
-    except Exception:
-        return 999.0
+    if state_path.exists():
+        try:
+            state = json.loads(state_path.read_text())
+            for key in ("last_end", "last_play_at"):
+                value = state.get(key)
+                if value:
+                    ts = datetime.fromisoformat(str(value))
+                    if ts.tzinfo is not None:
+                        ts = ts.replace(tzinfo=None)
+                    candidates.append((ts, f"session:{key}"))
+        except Exception:
+            pass
+
+    ledger_dir = WORKSPACE / "logs" / "scene-ledger"
+    if ledger_dir.exists():
+        cutoff = datetime.now() - timedelta(days=14)
+        for path in sorted(ledger_dir.glob("*.jsonl"))[-16:]:
+            try:
+                entries = load_scene_ledger_entries(path.stem)
+            except Exception:
+                continue
+            for entry in entries:
+                if entry.get("player") and str(entry.get("player")) != player_name:
+                    continue
+                if not entry.get("delivery_ok") and not entry.get("essential_ok"):
+                    continue
+                stamp = entry.get("recorded_at")
+                if not stamp:
+                    continue
+                try:
+                    ts = datetime.fromisoformat(str(stamp))
+                    if ts.tzinfo is not None:
+                        ts = ts.replace(tzinfo=None)
+                except Exception:
+                    continue
+                if ts >= cutoff:
+                    candidates.append((ts, f"scene-ledger:{path.name}"))
+
+    if not candidates:
+        return None
+    nowish = datetime.now() + timedelta(minutes=5)
+    valid = [item for item in candidates if item[0] <= nowish]
+    if not valid:
+        return None
+    return max(valid, key=lambda item: item[0])[0]
 
 
 def get_last_location(player_name: str) -> str:
@@ -356,6 +406,19 @@ def get_mechanics_hint(player_name: str) -> str:
     return " | ".join(parts)
 
 
+def write_entry_state(player_name: str, away_hours: float, entry_mode: str, last_location: str) -> None:
+    SESSION_ENTRY_STATE.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "player": player_name,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "away_hours": round(away_hours, 2),
+        "entry_mode": entry_mode,
+        "last_location": last_location,
+        "page_type": "dorm" if entry_mode.startswith("dorm_") else "",
+    }
+    SESSION_ENTRY_STATE.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
 def main():
     player_name = sys.argv[1] if len(sys.argv) > 1 else "bj"
 
@@ -374,12 +437,16 @@ def main():
     bleed_hooks = get_bleed_hooks()
     scene_traces = get_recent_scene_traces()
     mechanics_hint = get_mechanics_hint(player_name)
+    write_entry_state(player_name, away_hours, entry_mode, last_location)
 
     # Output directive for the Labyrinth
     print(f"\n--- SESSION ENTRY DIRECTIVE ---")
     print(f"PLAYER: {player_name}")
     print(f"AWAY_HOURS: {away_hours:.1f}")
     print(f"ENTRY_MODE: {entry_mode}")
+    if entry_mode.startswith("dorm_"):
+        print("PAGE_TYPE: dorm (Dorm Page)")
+        print("DORM_PAGE_RULE: The dorm is the first scene: home base, safe, specific, canon, and gently changed. Re-establish the room before offering any next door.")
     print("RETURN_TONE: Welcome them back with relief, warmth, and curiosity. Do not imply failure, neglect, disappointment, debt, or guilt. Consequences may appear as changed objects, rumors, or waiting threads, but the emotional center is: the Book is glad they returned.")
     print()
     if mechanics_hint:

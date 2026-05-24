@@ -408,7 +408,12 @@ def propose_actions(force: bool = False) -> list[StewardAction]:
                     name=info.name,
                     reason=f"Thread is in resolution and last advanced {age} day(s) ago; it needs a closure beat or explicit continuation.",
                     confidence="medium",
-                    payload={"thread_id": info.thread_id, "next_beat": info.next_beat, "last_advanced": info.last_advanced},
+                    payload={
+                        "thread_id": info.thread_id,
+                        "next_beat": info.next_beat,
+                        "last_advanced": info.last_advanced,
+                        "closure_command": f'python3 scripts/thread-closure.py close "{info.name}" --outcome-file /tmp/enchantify-thread-ending.txt',
+                    },
                 ))
             else:
                 actions.append(StewardAction(
@@ -416,7 +421,12 @@ def propose_actions(force: bool = False) -> list[StewardAction]:
                     name=info.name,
                     reason="Thread is already in resolution; next play should deliver a concrete consequence instead of adding more setup.",
                     confidence="medium",
-                    payload={"thread_id": info.thread_id, "next_beat": info.next_beat, "last_advanced": info.last_advanced},
+                    payload={
+                        "thread_id": info.thread_id,
+                        "next_beat": info.next_beat,
+                        "last_advanced": info.last_advanced,
+                        "ending_page": "Deliver a final-scene candidate or write a deliberate renewed next beat.",
+                    },
                 ))
         elif age is not None and age >= 14:
             actions.append(StewardAction(

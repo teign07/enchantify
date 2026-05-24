@@ -24,6 +24,7 @@ BASE = Path(__file__).resolve().parent.parent
 SCRIPTS = BASE / "scripts"
 MECHANICS = BASE / "mechanics"
 SCENE_OUTBOX = BASE / "tmp" / "scene-outbox"
+SESSION_ENTRY_STATE = BASE / "memory" / "session-entry-current.json"
 
 _story_context_spec = importlib.util.spec_from_file_location("story_context", SCRIPTS / "story-context.py")
 _story_context = importlib.util.module_from_spec(_story_context_spec)
@@ -33,6 +34,16 @@ build_story_context = _story_context.build_context
 
 
 PAGE_TYPES: dict[str, dict[str, Any]] = {
+    "dorm": {
+        "label": "Dorm Page",
+        "purpose": "Let the player return to their safe home base and see how the Book kept their place.",
+        "allowed_systems": ["session-entry.py", "Dorm Room canon", "heartbeat atmosphere", "dynamic objects", "quiet thread traces", "letters/notices", "small Compass or Enchantment offer"],
+        "forbidden_systems": ["guilt about absence", "punishment for not playing", "forced plot escalation", "teleporting away from the room", "generic dorm description", "overcrowded catch-up dashboard"],
+        "player_invitation": "Arrive, look around, touch one changed object, read a waiting note, rest, or choose the next door.",
+        "closure_condition": "The room is re-established, one return detail is noticed, and the player has a clear gentle next step.",
+        "artifact_due": ["scene ledger", "dorm margin note", "relationship/thread seed if a waiting object matters", "optional diary note"],
+        "emotional_intensity": "low",
+    },
     "slice_of_life": {
         "label": "Slice of Life Page",
         "purpose": "Let the player inhabit the Academy without forcing drama.",
@@ -128,9 +139,19 @@ PAGE_TYPES: dict[str, dict[str, Any]] = {
         "purpose": "Turn money fog into one clear, shame-free next action.",
         "allowed_systems": ["Gimble", "ledger-faculty.py", "Actual Budget", "SimpleFIN", "transaction review", "category balances", "upcoming bills", "safe-to-spend", "tiny adventure budget"],
         "forbidden_systems": ["money shame", "moralizing debt", "moving money without explicit permission", "bank login handling", "tax/legal certainty", "risky investment advice", "transaction walls"],
-        "player_invitation": "Bind one transaction, ask for money weather, review one vessel, plan a tiny adventure, or stop before overwhelm.",
+        "player_invitation": "Categorize one transaction, ask for a budget note, review one category, plan a tiny adventure, or stop before overwhelm.",
         "closure_condition": "BJ knows one number, one risk, and one next action, or the ledger records what is still unknown.",
-        "artifact_due": ["Ledger chart update", "Money Weather Report", "Alchemical Audit", "Tiny Leak note", "Adventure Permission Slip"],
+        "artifact_due": ["Ledger chart update", "Budget note", "Weekly budget review", "Recurring-charge note", "Adventure Permission Slip"],
+        "emotional_intensity": "low",
+    },
+    "bellkeeper": {
+        "label": "Bellkeeper / Today's Page",
+        "purpose": "Read the shape of the day so the Book can prepare one humane page before the player has to ask.",
+        "allowed_systems": ["Bellkeeper Elian Quill", "bellkeeper.py", "Bellkeeper chart", "Enchantify Academy calendar", "Apple Calendar summaries", "heartbeat", "support logs", "Compass-window suggestions", "evening scrap prompts"],
+        "forbidden_systems": ["nagging", "streaks", "guilt", "heavy fantasy vocabulary", "calendar/reminder writes without explicit consent", "turning every obligation into a quest", "public/social posting"],
+        "player_invitation": "Read Today's Page, choose one tiny invitation, ask for a smaller version, invite another support character, approve/decline a calendar/reminder proposal, or rest.",
+        "closure_condition": "The day's shape is named, one friction point is identified, one optional invitation exists, and any written card is logged.",
+        "artifact_due": ["Today's Page card", "Bellkeeper log entry", "transition prompt", "Compass-window suggestion", "evening scrap prompt"],
         "emotional_intensity": "low",
     },
     "archive": {
@@ -141,6 +162,26 @@ PAGE_TYPES: dict[str, dict[str, Any]] = {
         "player_invitation": "Review, reflect, choose what mattered, or name what changed.",
         "closure_condition": "State has been written and proof exists.",
         "artifact_due": ["diary", "ledger", "field-journal page", "memory card", "quest/spell/thread record"],
+        "emotional_intensity": "low",
+    },
+    "storybook": {
+        "label": "Storybook Page",
+        "purpose": "Redeem the lived day into an illustrated chapter of the player's Enchantified life.",
+        "allowed_systems": ["scene ledger", "diary", "heartbeat", "fuel", "mood", "ledger", "support guild", "Bleed ripples", "simulation vignettes", "Compass Runs", "Enchantments", "images"],
+        "forbidden_systems": ["new drama", "guilt", "surveillance tone", "exhaustive logs", "invented real-world completion", "medical or financial certainty"],
+        "player_invitation": "Read, remember, keep, or let the day's proof become part of the Book.",
+        "closure_condition": "A daily Markdown/HTML/PDF chapter exists and is indexed; Telegram delivery is attempted when requested.",
+        "artifact_due": ["daily storybook chapter", "HTML page", "PDF page", "storybook index", "illustration plates"],
+        "emotional_intensity": "low",
+    },
+    "press": {
+        "label": "Penny Blackletter / Press Page",
+        "purpose": "Turn Enchantify proof into ethical public invitations for The Wonder Compass, the Doobaleedoos one-dollar door, and free open-source Enchantify.",
+        "allowed_systems": ["Penny Blackletter", "penny-press.py", "Storybook", "The Bleed", "Compass Runs", "Enchantments", "saved images", "support-guild notes", "public-safe feature/lore summaries", "X posts/threads", "Instagram/TikTok carousels", "YouTube Shorts/long-form scripts", "Reddit posts/comments", "Patreon posts"],
+        "forbidden_systems": ["auto-posting", "private health/therapy/ledger/family details", "generic marketing voice", "guilt CTAs", "false scarcity", "breaking in-world voice"],
+        "player_invitation": "Review, approve, revise, save, or reject public-safe dispatches and product seeds.",
+        "closure_condition": "A Press Packet, proposal, or platform brief exists with privacy labels, Wonder Compass bridges, CTAs, and one tiny publishing action; autonomous drafts enter the consent queue before public use.",
+        "artifact_due": ["Press Packet", "structured content candidates", "platform brief", "carousel/script/reddit draft", "privacy labels", "consent queue item", "social ledger entry", "product seeds", "publishing log"],
         "emotional_intensity": "low",
     },
     "bleed": {
@@ -157,6 +198,7 @@ PAGE_TYPES: dict[str, dict[str, Any]] = {
 
 
 MODE_TO_PAGE = {
+    "dorm": "dorm",
     "slice": "slice_of_life",
     "school-life": "slice_of_life",
     "arc": "conflict",
@@ -164,10 +206,29 @@ MODE_TO_PAGE = {
     "aftermath": "archive",
     "compass": "wonder_compass",
     "enchantment": "enchantment",
+    "bellkeeper": "bellkeeper",
 }
 
 
 PAGE_TOOL_POSTURES: dict[str, dict[str, Any]] = {
+    "dorm": {
+        "posture": "home-base re-entry, warm and lightly magical",
+        "intrusion_level": "low",
+        "cooldowns": {"image": 2, "lights": 3, "spotify": 8, "music": 24, "printer": 24, "wallpaper": 8, "app_actions": 24},
+        "audio_roles": {"spotify": "soft homecoming mood only if it lowers friction", "musicgen": "rare returning-home chime, not spectacle"},
+        "artifact_tools": ["image", "diary", "dorm note", "wallpaper"],
+        "preferred_tools": ["image", "lights"],
+        "allowed_tools": ["voice", "spotify", "wallpaper", "silent_telegram"],
+        "rare_tools": ["musicgen", "printer"],
+        "forbidden_tools": ["web_search", "urgent notifications", "major conflict lighting"],
+        "triggers": [
+            "image: manuscript-style home-base illustration of the dorm, a changed object, or the waiting note; do not default to a BJ portrait",
+            "lights: warm dorm/academy scene at low-to-medium brightness; never spooky for ordinary return",
+            "wallpaper: optional only when the dorm has meaningfully changed or a major return object appears",
+            "Compass/Enchantment: may be offered as a gentle next door, never as a mandatory return task",
+        ],
+        "default_sequence": ["text", "lights", "image", "voice"],
+    },
     "slice_of_life": {
         "posture": "gentle ambience, not spectacle",
         "intrusion_level": "low",
@@ -348,7 +409,25 @@ PAGE_TOOL_POSTURES: dict[str, dict[str, Any]] = {
             "ledger-faculty: use status, money-weather, weekly-audit, adventure-permission, or question for finance support",
             "Actual Budget: only after BJ has completed local setup and config exists",
             "Telegram: useful for daily binding prompts or consent-needed finance questions",
-            "printer: rare Money Weather or Adventure Permission card",
+            "printer: rare budget note or Adventure Permission card",
+        ],
+        "default_sequence": ["text", "voice"],
+    },
+    "bellkeeper": {
+        "posture": "proactive day-reading without pressure",
+        "intrusion_level": "low",
+        "cooldowns": {"image": 24, "lights": 8, "spotify": 24, "music": 72, "printer": 24, "wallpaper": 48, "app_actions": 12},
+        "audio_roles": {"spotify": "rare transition support only if invited", "musicgen": "never by default"},
+        "artifact_tools": ["bellkeeper.py", "calendar", "silent_telegram", "storybook"],
+        "preferred_tools": ["bellkeeper.py"],
+        "allowed_tools": ["voice", "silent_telegram", "printer", "app_actions"],
+        "rare_tools": ["lights", "image"],
+        "forbidden_tools": ["calendar/reminder writes without explicit consent", "public/social posting", "heavy tool spectacle"],
+        "triggers": [
+            "bellkeeper.py: use today/status for schedule, calendar, morning card, day shape, transition, or evening scrap questions",
+            "calendar: read-only day shape by default; writing requires explicit player approval",
+            "Telegram: useful for morning Today Page card or evening scrap prompt when enabled",
+            "printer: rare Today Page card only when the player wants a physical day slip",
         ],
         "default_sequence": ["text", "voice"],
     },
@@ -368,6 +447,24 @@ PAGE_TOOL_POSTURES: dict[str, dict[str, Any]] = {
             "musicgen: motif only for chapter/arc completion or major memory pages",
         ],
         "default_sequence": ["text", "image", "voice", "printer", "wallpaper", "app_actions"],
+    },
+    "press": {
+        "posture": "public invitation without extraction",
+        "intrusion_level": "low",
+        "cooldowns": {"image": 6, "lights": 24, "spotify": 24, "music": 72, "printer": 24, "wallpaper": 24, "app_actions": 24},
+        "audio_roles": {"spotify": "almost never; Penny writes for publication, not ambience", "musicgen": "never by default"},
+        "artifact_tools": ["penny-press", "storybook", "bleed", "image archive", "telegram", "platform templates"],
+        "preferred_tools": ["penny-press"],
+        "allowed_tools": ["telegram", "printer", "image"],
+        "rare_tools": ["web_search"],
+        "forbidden_tools": ["auto social posting", "private data export", "generic marketing funnels", "app actions that publish without approval"],
+        "triggers": [
+            "penny-press: create a Press Packet, content proposal, autonomous consent bundle, or on-demand platform brief with privacy labels",
+            "image: pair a public-safe draft with an existing manuscript-style illustration when useful",
+            "web_search: only when BJ asks for current platform/marketing research or citations",
+            "telegram: send the packet for review, never as a published post",
+        ],
+        "default_sequence": ["text", "penny-press", "telegram"],
     },
     "bleed": {
         "posture": "public interpretation and world digestion",
@@ -414,7 +511,25 @@ def heartbeat_text(limit: int = 220) -> str:
     return re.sub(r"\s+", " ", chunk).strip()[:limit]
 
 
-def latest_packet_page_contract(max_age_hours: int = 24) -> dict[str, Any] | None:
+def latest_session_entry(player: str = "bj", max_age_minutes: int = 20) -> dict[str, Any] | None:
+    if not SESSION_ENTRY_STATE.exists():
+        return None
+    try:
+        data = json.loads(SESSION_ENTRY_STATE.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if data.get("player") and str(data.get("player")) != player:
+        return None
+    try:
+        stamped = datetime.fromisoformat(str(data.get("generated_at")))
+    except Exception:
+        return None
+    if datetime.now() - stamped > timedelta(minutes=max_age_minutes):
+        return None
+    return data
+
+
+def latest_packet_page_contract(player: str = "bj", max_age_hours: int = 24) -> dict[str, Any] | None:
     """Return the latest delivered/live scene page contract when it is still current.
 
     Mission Control should show the page the player is actually on, not a broad
@@ -442,6 +557,14 @@ def latest_packet_page_contract(max_age_hours: int = 24) -> dict[str, Any] | Non
     if not page:
         return None
     page = dict(page)
+    fresh_context = build_story_context(player)
+    hints = dict(page.get("state_hints") or {})
+    hints["narrative_obligations"] = fresh_context.get("narrative_obligations", [])[:3]
+    hints["open_simulation_actions"] = fresh_context.get("open_simulation_actions", [])[:3]
+    hints["emerging_thread_seeds"] = fresh_context.get("emerging_thread_seeds", [])[:4]
+    if fresh_context.get("continuity_threads"):
+        hints["continuity"] = fresh_context.get("continuity_threads", [])[:3]
+    page["state_hints"] = hints
     page["selection_reason"] = f"latest scene packet: {latest.name}"
     page["packet_source"] = str(latest)
     page["packet_mtime"] = datetime.fromtimestamp(latest.stat().st_mtime).isoformat(timespec="seconds")
@@ -467,6 +590,11 @@ def choose_page_type(mode: str | None, slate: str, story_context: dict[str, Any]
         " ".join(item.get("title", "") for item in story_context.get("narrative_obligations", [])),
     ]).lower()
     w = words(combined)
+    session_entry = latest_session_entry(str(story_context.get("player") or "bj"))
+    if session_entry and str(session_entry.get("entry_mode", "")).startswith("dorm_"):
+        return "dorm", f"session entry {session_entry.get('entry_mode')} after {session_entry.get('away_hours')} hours away"
+    if re.search(r"\b(dorm|dormitory|bedside|blanket|desk|home base|return to your room|room keeps your place)\b", combined):
+        return "dorm", "dorm/home-base language is active"
     if re.search(r"\b(gps|lat(?:itude)?|lon(?:gitude)?|coordinates?|anchor-check|outer stacks|ley line|pocket anchor|location shared|check-?in)\b", combined):
         return "anchor", "location/anchor language is active"
     if {"enchantment", "spell", "photo", "flyleaf"} & w:
@@ -475,6 +603,10 @@ def choose_page_type(mode: str | None, slate: str, story_context: dict[str, Any]
         return "wonder_compass", "Wonder Compass language is active"
     if {"gimble", "ledger", "budget", "money", "finance", "bank", "transaction", "transactions", "actual", "simplefin", "category", "categories", "bill", "bills", "spending", "debt", "subscription", "safe-to-spend"} & w:
         return "ledger", "finance/ledger language is active"
+    if {"bellkeeper", "calendar", "schedule", "appointment", "appointments", "today", "tomorrow", "workday", "reminder", "reminders", "morning", "evening", "transition", "transitions"} & w:
+        return "bellkeeper", "calendar/day-shape language is active"
+    if {"penny", "press", "publishing", "publish", "marketing", "patreon", "social", "newsletter", "content", "posts", "gumroad", "kofi", "ko-fi"} & w:
+        return "press", "Penny/press-publishing language is active"
     if {"vellum", "fuel", "food", "protein", "fiber", "calories", "nutrition", "longevity", "healthspan", "blood", "pressure", "bp", "labs", "lab", "supplement", "supplements", "creatine", "exercise", "movement"} & w:
         return "body_marginalia", "Vellum/body-support language is active"
     if {"therapy", "therapist", "inkrest", "difficult", "reauthoring", "daydream", "shame", "anxious", "anxiety", "overwhelmed", "spiral"} & w:
@@ -506,7 +638,11 @@ def secondary_flavor(page_type: str, slate: str, story_context: dict[str, Any]) 
 
 def build_contract(player: str = "bj", mode: str | None = None, requested_page: str | None = None) -> dict[str, Any]:
     if not mode and not requested_page:
-        packet_page = latest_packet_page_contract()
+        session_entry = latest_session_entry(player)
+        if session_entry and str(session_entry.get("entry_mode", "")).startswith("dorm_"):
+            requested_page = "dorm"
+    if not mode and not requested_page:
+        packet_page = latest_packet_page_contract(player)
         if packet_page:
             return packet_page
 
@@ -516,10 +652,10 @@ def build_contract(player: str = "bj", mode: str | None = None, requested_page: 
     definition = PAGE_TYPES[page_type]
     tool_posture = PAGE_TOOL_POSTURES.get(page_type, {})
     flavor = secondary_flavor(page_type, slate, story_context)
-    if page_type == "rest":
+    if page_type in {"dorm", "rest"}:
         scene_mode = "slice"
         drama_budget = "low"
-    elif page_type in {"difficult", "body_marginalia", "ledger"}:
+    elif page_type in {"difficult", "body_marginalia", "ledger", "bellkeeper"}:
         scene_mode = "aftermath"
         drama_budget = "low"
     elif page_type == "conflict":

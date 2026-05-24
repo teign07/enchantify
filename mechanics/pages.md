@@ -29,6 +29,17 @@ A page has one primary type and may have one secondary flavor. The primary page 
 
 ## Page Types
 
+### Dorm Page
+
+**Purpose:** Let the player return to their safe home base and see how the Book kept their place.
+**Use when:** The player opens the book after 1+ hour away, `session-entry.py` emits `dorm_brief` or `dorm_full`, the player returns to their dorm, or the room itself is the active home-base scene.
+**Allowed systems:** `session-entry.py`, canonical Dorm Room description, heartbeat atmosphere, dynamic objects, quiet thread traces, waiting notes/letters, relationship echoes, optional tiny Compass or Enchantment next door.
+**Forbidden systems:** Guilt about absence, punishment for not playing, forced plot escalation, teleporting away before the room lands, generic dorm description, catch-up dashboarding.
+**Player invitation:** Arrive, look around, touch one changed object, read a waiting note, rest, or choose the next door.
+**Closure condition:** The room is re-established, one return detail is noticed, and the player has a clear gentle next step.
+**Artifact due:** Scene ledger, dorm margin note, relationship/thread seed if a waiting object matters, optional diary note.
+**Core instruction:** The dorm is not a loading screen. It is the Book saying: your place was kept.
+
 ### Slice of Life Page
 
 **Purpose:** Let the player inhabit the Academy.
@@ -134,10 +145,21 @@ A page has one primary type and may have one secondary flavor. The primary page 
 **Use when:** The player asks about money, spending, budget, bank sync, Actual Budget, SimpleFIN, transactions, categories, bills, debt, safe-to-spend, subscriptions, or tiny adventure affordability.
 **Allowed systems:** Gimble of the Errata Registry, `scripts/ledger-faculty.py`, Ledger Chart, Actual Budget when configured, SimpleFIN-imported transactions through Actual, category/vessel review, upcoming bills, safe-to-spend estimate, tiny adventure planning.
 **Forbidden systems:** Money shame, moralizing debt, autonomous money movement, handling bank login directly, tax/legal certainty, risky investment advice, transaction walls, public/social posting.
-**Player invitation:** Bind one transaction, ask for Money Weather, review one vessel, plan a tiny adventure, name a bill/category, or stop before overwhelm.
+**Player invitation:** Categorize one transaction, ask for a budget note, review one category, plan a tiny adventure, name a bill/category, or stop before overwhelm.
 **Closure condition:** BJ knows one number, one risk, and one next action, or the ledger records what is still unknown.
-**Artifact due:** Ledger chart update, Money Weather Report, Alchemical Audit, Tiny Leak note, or Adventure Permission Slip.
+**Artifact due:** Ledger chart update, budget note, weekly budget review, recurring-charge note, or Adventure Permission Slip.
 **Core instruction:** Accuracy first. Shame is not an accounting method. If the ledger is too much, show the smallest useful slice.
+
+### Bellkeeper / Today's Page
+
+**Purpose:** Read the shape of the day so the Book can prepare one humane page before the player has to ask.
+**Use when:** The player asks about today, schedule, calendar, appointments, workday shape, errands, gaps, transitions, reminders, proactive support, morning cards, evening binding, or when the system prepares a daily page.
+**Allowed systems:** Bellkeeper Elian Quill, `scripts/bellkeeper.py`, `players/bj-bellkeeper-chart.md`, Enchantify Academy calendar, Apple Calendar summaries when available, HEARTBEAT, support-character logs, Compass-window suggestions, after-event souvenir prompts, evening scrap prompts, and calendar/reminder proposals.
+**Forbidden systems:** Nagging, streaks, guilt, "you should" language, heavy fantasy vocabulary that obscures meaning, writing/editing/deleting calendar events or reminders without explicit permission, turning every obligation into a quest, public/social posting.
+**Player invitation:** Read Today's Page, choose one tiny invitation, ask for a smaller version, invite another support character, approve/decline a calendar/reminder proposal, or rest.
+**Closure condition:** The day's shape is named, one friction point is identified, one optional invitation exists, and any written card is logged.
+**Artifact due:** Today's Page card, Bellkeeper log entry, transition prompt, Compass-window suggestion, or evening scrap prompt.
+**Core instruction:** The Bellkeeper reads time; they do not prosecute it. Simple language first, magic second.
 
 ### Archive Page
 
@@ -149,6 +171,39 @@ A page has one primary type and may have one secondary flavor. The primary page 
 **Closure condition:** State has been written and the proof exists.
 **Artifact due:** The artifact is the page: diary, ledger, field-journal page, memory card, quest/spell/thread record.
 **Core instruction:** If the Book cannot remember it, it did not become part of the Labyrinth.
+
+### Ending Page
+
+**Purpose:** Let a story thread finish, transform, or deliberately continue instead of lingering in resolution forever.
+**Use when:** `scripts/thread-closure.py status` marks a thread as `ENDING_PAGE_REQUIRED`, `READY_TO_ARCHIVE`, or `UNFINISHED_ARCHIVE_READY`, or when the player chooses to settle a thread.
+**Allowed systems:** `scripts/thread-closure.py`, thread registry, world-register active thread rows, player story log, tick queue aftermath, Belief consequences, one concrete final scene, and optional replacement seed promotion through `scripts/thread-steward.py --apply`.
+**Forbidden systems:** Adding more setup, vague “the next conversation will account for it” language, fake closure without archiving, punishing the player for not resolving a thread sooner, or quietly deleting the thread with no story memory.
+**Player invitation:** Witness the final consequence, choose mercy/exposure/repair/letting-go, transform the thread into background, or explicitly defer closure with a new concrete next beat.
+**Closure condition:** The final beat has been played or deferred; if closed, `thread-closure.py close "Thread Name" --outcome-file /tmp/enchantify-thread-ending.txt --send` has archived the thread, removed its active row, written the player-story closure beat, queued the aftermath, and delivered the ending artifact.
+**Artifact due:** Archive entry, player-story closure beat, aftermath tick, Markdown/HTML/PDF Thread Ending Page, and Telegram document delivery when available.
+**Core instruction:** Endings are gameplay. A thread in resolution must become a remembered consequence, a changed relationship, a transformed background truth, or a deliberately renewed thread with a fresh next beat.
+
+### Storybook Page
+
+**Purpose:** Redeem the lived day into an illustrated chapter of the player's Enchantified life.
+**Use when:** The day is being wrapped, preserved, delivered, or reviewed as part of The Book of You.
+**Allowed systems:** Scene ledger, diary, Heartbeat, fuel, mood, ledger, Support Guild, Bleed ripples, simulation vignettes, Compass Runs, Enchantments, Book Jumps, anchors, and saved illustrations.
+**Forbidden systems:** New drama, guilt, surveillance tone, exhaustive logs, invented real-world completion, medical certainty, financial certainty.
+**Player invitation:** Read, remember, keep, or let the day's proof become part of the Book.
+**Closure condition:** A daily Markdown/HTML/PDF chapter exists, is indexed, and is delivered through Telegram when requested.
+**Artifact due:** The Book of You daily chapter, HTML storybook page, PDF, image plates, storybook index.
+**Core instruction:** The Storybook does not report the day. It redeems the day into narrative memory.
+
+### Penny Blackletter / Press Page
+
+**Purpose:** Turn Enchantify proof into ethical public invitations for The Wonder Compass, the Doobaleedoos $1 Patreon, and free open-source Enchantify.
+**Use when:** The player asks for marketing, social media, publishing, Patreon, product seeds, public project explanations, open-source Enchantify introductions, Wonder Compass book promotion, or content curation.
+**Allowed systems:** Penny Blackletter, `scripts/penny-press.py`, Storybook chapters, The Bleed, Compass Runs, Enchantments, saved images, support-guild notes, public-safe feature/lore summaries, Wonder Compass language, X posts/threads, Instagram/TikTok carousel drafts, YouTube Shorts, long-form YouTube scripts, Reddit posts/comments, Patreon posts, and content proposals.
+**Forbidden systems:** Auto-posting, private health/therapy/ledger/family/relationship details, generic marketing voice, guilt CTAs, false scarcity, breaking in-world voice, treating private play as public content without review.
+**Player invitation:** Review, approve, revise, save, or reject public-safe dispatches and product seeds.
+**Closure condition:** A Press Packet, proposal, or platform brief exists with privacy labels, Wonder Compass bridges, CTAs, and one tiny publishing action; autonomous drafts enter the consent queue before any public use.
+**Artifact due:** Press Packet, structured content candidates, on-demand platform brief, carousel/script/reddit draft, privacy labels, consent queue item, product seeds, social ledger entry, publishing log.
+**Core instruction:** Penny drafts invitations, not funnels. Every public piece should stay in story and help someone Notice, Embark, Sense, Write, or Rest. Current autonomy is Level 1: she may draft and ask for consent, but she may not post.
 
 ### Bleed Page
 

@@ -49,8 +49,15 @@ CACHE_PATH   = BASE_DIR / "config" / "npc-research-cache.json"
 RESEARCH_DIR = BASE_DIR / "memory" / "npc-research"
 LETTER_DIR   = RESEARCH_DIR / "letters"
 LETTER_IMAGES_DIR = RESEARCH_DIR / "letter-images"
+RESEARCH_HISTORY_LOG = BASE_DIR / "logs" / "npc-research-history.jsonl"
+RESEARCH_HISTORY_DIR = RESEARCH_DIR / "history"
 TICK_QUEUE   = BASE_DIR / "memory" / "tick-queue.md"
 QUEUE_HEADER = "# Tick Queue\n\n*Read at session open, then cleared.*\n"
+SCENE_LEDGER_DIR = BASE_DIR / "logs" / "scene-ledger"
+STORYBOOK_DAILY = BASE_DIR / "memory" / "storybook" / "daily"
+BLEED_RIPPLES = BASE_DIR / "logs" / "bleed-ripples.jsonl"
+ENTITY_MEMORY_DIR = BASE_DIR / "memory" / "entities"
+OUTREACH_LOG = BASE_DIR / "logs" / "character-outreach.jsonl"
 
 sys.path.insert(0, str(SCRIPT_DIR))
 try:
@@ -355,6 +362,11 @@ def is_on_cooldown(cache: dict, name: str) -> bool:
     last = cache.get(name)
     if not last:
         return False
+    try:
+        last_dt = datetime.fromisoformat(last)
+        return (datetime.now() - last_dt).total_seconds() < COOLDOWN_HOURS * 3600
+    except Exception:
+        return False
 
 
 def recent_npc_log_counts(days: int = 14) -> dict[str, int]:
@@ -378,11 +390,139 @@ def recent_npc_log_counts(days: int = 14) -> dict[str, int]:
             continue
         counts[parts[1]] = counts.get(parts[1], 0) + 1
     return counts
-    try:
-        last_dt = datetime.fromisoformat(last)
-        return (datetime.now() - last_dt).total_seconds() < COOLDOWN_HOURS * 3600
-    except Exception:
-        return False
+
+
+def append_jsonl(path: Path, row: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+
+
+def slugify(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-") or "unknown"
+
+
+def read_research_history(npc_name: str = "", limit: int = 12) -> list[dict]:
+    if not RESEARCH_HISTORY_LOG.exists():
+        return []
+    rows: list[dict] = []
+    for line in RESEARCH_HISTORY_LOG.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(row, dict):
+            continue
+        if npc_name and str(row.get("npc", "")).lower() != npc_name.lower():
+            continue
+        rows.append(row)
+    return rows[-limit:] if limit else rows
+
+
+RESEARCH_ANGLES = [
+    "one local or BJ-specific application",
+    "one origin story or historical root",
+    "one practical experiment BJ could try",
+    "one surprising real-world mechanism",
+    "one caution, limit, or ethical boundary",
+    "one tool, material, or method real people use",
+    "one comparison between two schools of thought",
+    "one tiny field assignment that could become play",
+]
+
+
+def choose_research_angle(npc: dict) -> str:
+    recent = read_research_history(npc["name"], limit=10)
+    used = [str(row.get("angle", "")) for row in recent]
+    for angle in RESEARCH_ANGLES:
+        if angle not in used[-6:]:
+            return angle
+    seed = f"{npc['name']}|{datetime.now().date().isoformat()}"
+    return RESEARCH_ANGLES[sum(ord(ch) for ch in seed) % len(RESEARCH_ANGLES)]
+
+
+def research_history_context(npc: dict, limit: int = 8) -> str:
+    rows = read_research_history(npc["name"], limit=limit)
+    if not rows:
+        return "No prior research dispatches recorded for this character yet."
+    lines = []
+    for row in rows[-limit:]:
+        date = str(row.get("date") or row.get("timestamp") or "")[:10]
+        topic = str(row.get("topic") or row.get("interest") or "unknown topic")
+        angle = str(row.get("angle") or "unspecified angle")
+        summary = str(row.get("summary") or "")
+        lines.append(f"- {date}: {topic} / {angle}. {summary[:220]}")
+    return "\n".join(lines)
+
+
+def infer_research_topic(npc: dict, research: str) -> str:
+    for raw in strip_runtime_noise(research).splitlines():
+        line = raw.strip(" #*—-\t")
+        lower = line.lower()
+        if lower.startswith(("dear ", "bj,", "[plugins]", "[agent/", "[context-engine]", "filed by:", "signal origin:")):
+            continue
+        if line in ("---", "--"):
+            continue
+        if 8 <= len(line) <= 110:
+            return line
+    interest = npc.get("interest") or "Unwritten research"
+    return interest[:110]
+
+
+def strip_runtime_noise(text: str) -> str:
+    lines = []
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            lines.append(raw)
+            continue
+        if line.startswith(("[plugins]", "[agent/", "[context-engine]", "[openclaw]", "OpenClaw ")):
+            continue
+        lines.append(raw)
+    cleaned = "\n".join(lines).strip()
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned
+
+
+def summarize_research(research: str, limit: int = 280) -> str:
+    clean_text = strip_runtime_noise(research)
+    paragraphs = [
+        re.sub(r"\s+", " ", p.strip())
+        for p in clean_text.split("\n\n")
+        if p.strip() and p.strip("- \n\t")
+    ]
+    text = paragraphs[0] if paragraphs else re.sub(r"\s+", " ", research.strip())
+    return text[: max(0, limit - 1)].rstrip() + ("…" if len(text) > limit else "")
+
+
+def record_research_history(npc: dict, research: str, date_str: str, local_path: Path) -> None:
+    row = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "date": date_str,
+        "npc": npc["name"],
+        "interest": npc.get("interest", ""),
+        "angle": npc.get("research_angle", ""),
+        "topic": infer_research_topic(npc, research),
+        "summary": summarize_research(research),
+        "path": str(local_path.relative_to(BASE_DIR)),
+    }
+    append_jsonl(RESEARCH_HISTORY_LOG, row)
+
+    RESEARCH_HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+    history_path = RESEARCH_HISTORY_DIR / f"{slugify(npc['name'])}.md"
+    rows = read_research_history(npc["name"], limit=20)
+    lines = [
+        f"# Research History — {npc['name']}",
+        "",
+        "*Generated by `scripts/npc-research.py`; used to avoid repeated research topics.*",
+        "",
+    ]
+    for item in rows:
+        lines.append(
+            f"- {str(item.get('date') or '')[:10]} — **{item.get('topic') or item.get('interest')}** "
+            f"({item.get('angle') or 'unspecified angle'}): {item.get('summary') or ''}"
+        )
+    history_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
 # ─── NPC selection ────────────────────────────────────────────────────────────
@@ -473,6 +613,143 @@ def load_heartbeat_snippet() -> str:
 
 # ─── Research generation ──────────────────────────────────────────────────────
 
+def _clean_text(value: object, limit: int = 500) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    return text[:limit].rstrip() + ("…" if len(text) > limit else "")
+
+
+def _first_scene_line(text: str) -> str:
+    for line in (text or "").splitlines():
+        clean = line.strip()
+        if clean and not clean.startswith("[/") and clean != "---":
+            return _clean_text(re.sub(r"\[[^\]]+\]", "", clean), 260)
+    return ""
+
+
+def recent_scene_context(limit: int = 3) -> list[str]:
+    if not SCENE_LEDGER_DIR.exists():
+        return []
+    rows: list[dict] = []
+    for path in sorted(SCENE_LEDGER_DIR.glob("*.jsonl"))[-8:]:
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                obj = json.loads(line)
+                if isinstance(obj, dict):
+                    rows.append(obj)
+            except json.JSONDecodeError:
+                continue
+    out: list[str] = []
+    for row in rows[-limit:]:
+        contract = row.get("scene_contract") if isinstance(row.get("scene_contract"), dict) else {}
+        location = contract.get("current_location") or ""
+        title = row.get("title") or row.get("scene_id") or "recent scene"
+        text = row.get("text") or row.get("voice") or ""
+        ending = ""
+        for line in reversed(text.splitlines()):
+            clean = re.sub(r"\[[^\]]+\]", "", line).strip()
+            if clean and len(clean) > 25 and not clean.startswith("Ask ") and not clean.startswith("Sit "):
+                ending = _clean_text(clean, 280)
+                break
+        opening = _first_scene_line(text)
+        parts = [str(title)]
+        if location:
+            parts.append(f"at {location}")
+        if opening:
+            parts.append(f"opened with: {opening}")
+        if ending:
+            parts.append(f"left on: {ending}")
+        out.append(" — ".join(parts))
+    return out
+
+
+def latest_storybook_context(limit: int = 2) -> list[str]:
+    if not STORYBOOK_DAILY.exists():
+        return []
+    out: list[str] = []
+    for path in sorted(STORYBOOK_DAILY.glob("*.md"))[-limit:]:
+        text = path.read_text(encoding="utf-8", errors="replace")
+        title = ""
+        for line in text.splitlines():
+            if line.startswith("## "):
+                title = line[3:].strip()
+                break
+        first = ""
+        for line in text.splitlines():
+            clean = line.strip()
+            if clean and not clean.startswith("#") and not clean.startswith("-") and not clean.startswith("*") and clean != "---":
+                first = _clean_text(clean, 360)
+                break
+        out.append(f"{path.stem}: {title or 'Book of You page'} — {first}")
+    return out
+
+
+def recent_bleed_context(limit: int = 5) -> list[str]:
+    if not BLEED_RIPPLES.exists():
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for line in reversed(BLEED_RIPPLES.read_text(encoding="utf-8", errors="replace").splitlines()[-160:]):
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if obj.get("status") not in ("open", "", None):
+            continue
+        key = str(obj.get("id") or obj.get("detail") or "")
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(
+            f"The Bleed #{obj.get('issue_number')} / {obj.get('section')}: "
+            f"{_clean_text(obj.get('detail'), 320)}"
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
+def outreach_context(npc_name: str, limit: int = 3) -> list[str]:
+    if not OUTREACH_LOG.exists():
+        return []
+    rows: list[str] = []
+    for line in OUTREACH_LOG.read_text(encoding="utf-8", errors="replace").splitlines()[-120:]:
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        sender = str(obj.get("sender") or "")
+        if sender and sender.lower() != npc_name.lower():
+            continue
+        if obj.get("kind") == "reply":
+            rows.append(f"BJ replied to {sender}: \"{_clean_text(obj.get('reply'), 220)}\"")
+        elif sender:
+            rows.append(f"{sender} recently reached out: \"{_clean_text(obj.get('message'), 220)}\"")
+    return rows[-limit:]
+
+
+def entity_memory_context(npc_name: str, limit_chars: int = 900) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", npc_name.lower()).strip("-")
+    path = ENTITY_MEMORY_DIR / f"{slug}.md"
+    return _clean_text(path.read_text(encoding="utf-8", errors="replace"), limit_chars) if path.exists() else ""
+
+
+def build_continuity_context(npc: dict) -> str:
+    sections = {
+        "Recent play scenes": recent_scene_context(),
+        "Book of You": latest_storybook_context(),
+        "Bleed / Academy public hooks": recent_bleed_context(),
+        f"{npc['name']} memory": [entity_memory_context(npc["name"])] if entity_memory_context(npc["name"]) else [],
+        f"{npc['name']} outreach": outreach_context(npc["name"]),
+    }
+    lines: list[str] = []
+    for title, items in sections.items():
+        filtered = [item for item in items if item]
+        if not filtered:
+            continue
+        lines.append(f"{title}:")
+        lines.extend(f"- {item}" for item in filtered[:5])
+    return "\n".join(lines)
+
 SYSTEM_PROMPT = """\
 You are {name}, a character in a magical academy called the Labyrinth of Stories.
 You are writing a private research note to send through the Margin-Glass — the
@@ -488,11 +765,16 @@ RULES FOR YOUR RESEARCH:
 3. LENGTH: 300 to 500 words. Make it substantial enough to be a genuine research dispatch.
 4. Write entirely in your character voice. You are {name}.
 5. Ground the note in the provided Margin-Glass signals (weather/time) if applicable.
-6. Do NOT break character or use therapeutic/game mechanics language.
-7. Sign your full name at the end.
+6. CONTINUITY REQUIRED: Include at least one specific line that connects your research back to recent play, the player bj, a prior interaction, a Bleed story, a current Academy rumor, a Book of You detail, or something that happened in the Academy. This should feel natural and personal, not a bolted-on footnote.
+7. DO NOT REPEAT PRIOR DISPATCHES: If prior research history is provided, choose a genuinely new subtopic, example, case study, practical angle, or question. Do not write the same facts, same recommendations, or same framing again.
+8. Use TODAY'S REQUIRED ANGLE as the center of the dispatch.
+9. Do NOT break character or use therapeutic/game mechanics language.
+10. Sign your full name at the end.
 """
 
 def generate_research(npc: dict, heartbeat: str, city: str) -> str:
+    angle = npc.get("research_angle") or choose_research_angle(npc)
+    npc["research_angle"] = angle
     system = SYSTEM_PROMPT.format(
         name=npc["name"],
         voice=npc["voice"],
@@ -501,8 +783,11 @@ def generate_research(npc: dict, heartbeat: str, city: str) -> str:
     user_prompt = (
         f"Current signals from the Margin-Glass (real-world data):\n\n{heartbeat}\n\n"
         f"Player's Current Location (IP Geolocation): {city}\n\n"
+        f"Continuity packet from the living Academy and recent play:\n\n{build_continuity_context(npc) or 'No recent continuity packet available; make one modest callback to bj and the Academy at large.'}\n\n"
+        f"Prior research dispatches from {npc['name']} — avoid repeating these:\n\n{research_history_context(npc)}\n\n"
+        f"TODAY'S REQUIRED ANGLE: {angle}\n\n"
         "TASK: Conduct real-world research on your Unwritten Interest. Use your web search capabilities or your deep factual knowledge base to find true, specific facts (e.g., actual stores in the player's location, real websites, true historical events, or scientific facts).\n\n"
-        "Write your 300-500 word research dispatch, weaving these absolute real-world facts into your character's magical perspective."
+        "Write your 300-500 word research dispatch, weaving these absolute real-world facts into your character's magical perspective. Include one or two natural continuity lines that reference the continuity packet specifically, and make the dispatch clearly different from the prior history."
     )
     try:
         research = call_llm(f"{system}\n\n{user_prompt}")
@@ -514,6 +799,22 @@ def generate_research(npc: dict, heartbeat: str, city: str) -> str:
         return build_fallback_research(npc, heartbeat, city)
     return research
 
+def continuity_line_for_fallback(npc: dict) -> str:
+    context = build_continuity_context(npc)
+    if context:
+        for raw in context.splitlines():
+            line = raw.strip("- ").strip()
+            if line and not line.endswith(":") and len(line) > 30:
+                return (
+                    "I am also noting this because it touches the page bj has actually been living: "
+                    f"{_clean_text(line, 260)}"
+                )
+    return (
+        "I am also noting this for bj because research sent through the Margin-Glass should answer "
+        "the life presently being played, not merely decorate the shelves."
+    )
+
+
 def build_fallback_research(npc: dict, heartbeat: str, city: str) -> str:
     """Deterministic dispatch when the gateway is unavailable.
 
@@ -522,6 +823,8 @@ def build_fallback_research(npc: dict, heartbeat: str, city: str) -> str:
     name = npc["name"]
     interest = npc["interest"]
     voice = npc["voice"]
+    angle = npc.get("research_angle") or choose_research_angle(npc)
+    npc["research_angle"] = angle
     lower_interest = interest.lower()
     if any(term in lower_interest for term in ("music", "song", "sound", "audio")):
         fact_block = (
@@ -570,8 +873,10 @@ def build_fallback_research(npc: dict, heartbeat: str, city: str) -> str:
     return (
         f"I could not make the Glass hold still long enough for a full expedition, so I am sending "
         f"a narrower field note from {city}. My assigned curiosity remains this: {interest}. "
-        f"I am recording it in the manner that best fits my hand: {voice}.{heartbeat_line}\n\n"
+        f"Today's required angle is {angle}. I am recording it in the manner that best fits my hand: "
+        f"{voice}.{heartbeat_line}\n\n"
         f"{fact_block}\n\n"
+        f"{continuity_line_for_fallback(npc)}\n\n"
         "What interests me most is not the fact by itself, but the discipline around it. Humans keep "
         "building little agreements with reality: a measurement, a label, a route, a recipe, a shelf "
         "mark, a maintenance schedule. None of these look like spells from the outside. Yet each one "
@@ -851,9 +1156,11 @@ def _letter_subject(npc: dict, research: str) -> str:
 def build_letter_image_prompt(npc: dict, date_str: str) -> str:
     style = STATIONERY.get(npc["name"], DEFAULT_STATIONERY)
     return (
-        f"Small archival ornament for a printed magical academy research letter from {npc['name']}. "
+        f"Full-width illustrated plate for a printed magical academy research Page from {npc['name']}. "
         f"The character's focus is: {npc.get('interest', '')}. "
         f"Visual motif: {style['motif']}. "
+        "Make it feel like the main illumination on a sentient storybook page, not a small side ornament. "
+        "Show a clear subject, layered page furniture, a sense of research evidence, and one memorable magical object or gesture. "
         "illustrated in sparse pen-and-ink linework with loose watercolor washes on textured aged parchment, "
         "with visible paper grain, soft ink bleed, watercolor blooms, layered manuscript-page composition, "
         "lush handwritten marginalia, lush watercolor washes, visible library stamps, wax seals, labels, tabs, arrows, "
@@ -909,7 +1216,11 @@ def build_letter_html(npc: dict, research: str, date_str: str, image_path: Optio
     voice_note = html.escape(style["note"])
     image_html = ""
     if image_path and image_path.exists():
-        image_html = f"<img class=\"letter-art\" src=\"{image_path.resolve().as_uri()}\" alt=\"letter ornament\">"
+        image_html = f"""
+  <figure class="hero-plate">
+    <img class="letter-art" src="{image_path.resolve().as_uri()}" alt="research page illumination">
+    <figcaption><span>Illumination</span>{subject}</figcaption>
+  </figure>"""
 
     return f"""<!doctype html>
 <html>
@@ -992,16 +1303,60 @@ body {{
   font-size: 12px;
   color: #6f6048;
 }}
+.hero-plate {{
+  position: relative;
+  margin: 0.2in 0 0.19in;
+  padding: 0.08in;
+  border: 1px solid rgba(83,68,44,0.32);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.3), rgba(102,78,42,0.08)),
+    rgba(255,255,255,0.17);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.45) inset,
+    0 8px 18px rgba(71,51,25,0.12);
+  break-inside: avoid;
+}}
+.hero-plate::before {{
+  content: "✦";
+  position: absolute;
+  top: -0.08in;
+  right: 0.16in;
+  color: {style['accent']};
+  font-size: 22px;
+  transform: rotate(9deg);
+}}
+.hero-plate img {{
+  display: block;
+  width: 100%;
+  max-height: 3.05in;
+  object-fit: cover;
+  border: 1px solid rgba(83,68,44,0.26);
+  filter: sepia(0.12) contrast(0.96) saturate(0.94);
+}}
+.hero-plate figcaption {{
+  margin-top: 0.055in;
+  color: #62533d;
+  font-size: 10.8px;
+  font-style: italic;
+}}
+.hero-plate figcaption span {{
+  margin-right: 0.08in;
+  color: {style['accent']};
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-style: normal;
+  font-size: 8.5px;
+}}
 .content {{
   position: relative;
   display: grid;
-  grid-template-columns: 1fr 1.34in;
-  gap: 0.22in;
-  margin-top: 0.24in;
+  grid-template-columns: 1fr 1.72in;
+  gap: 0.24in;
+  margin-top: 0.08in;
   align-items: start;
 }}
 .letter-body {{
-  font-size: 13.2px;
+  font-size: 13.4px;
 }}
 .letter-body p {{
   margin: 0 0 0.105in;
@@ -1026,17 +1381,14 @@ body {{
   background: linear-gradient(90deg, transparent, {style['accent']}, transparent);
 }}
 .margin {{
-  border-left: 1px solid rgba(83,68,44,0.26);
-  padding-left: 0.14in;
+  border-left: 1px solid rgba(83,68,44,0.24);
+  padding-left: 0.16in;
   color: #5f503a;
   font-size: 11.4px;
   break-inside: avoid;
 }}
 .letter-art {{
   width: 100%;
-  border: 1px solid rgba(83,68,44,0.22);
-  margin-bottom: 0.14in;
-  filter: sepia(0.16) contrast(0.94);
 }}
 .scribble {{
   color: {style['accent']};
@@ -1068,17 +1420,17 @@ body {{
   <header class="masthead">
     <div class="seal">{html.escape(style['seal'])}</div>
     <div>
-      <h1 class="from">A Letter from {name}</h1>
-      <div class="subhead">{title} · Enchantify Academy</div>
+      <h1 class="from">A Page from {name}</h1>
+      <div class="subhead">{title} · Research Letter · Enchantify Academy</div>
       <div class="date-line">{date_str} · through the Margin-Glass · subject: {subject}</div>
     </div>
   </header>
+  {image_html}
   <section class="content">
     <article class="letter-body">
       {_research_to_html(research)}
     </article>
     <aside class="margin">
-      {image_html}
       <div class="scribble">{html.escape(style['motif'])}</div>
       <div class="label">Hand</div>
       <p>{voice_note}</p>
@@ -1109,6 +1461,7 @@ def read_research_note(path: Path) -> tuple[dict, str, str]:
     name_m = re.search(r"^#\s*Research Note from\s+(.+?)\s*$", text, flags=re.MULTILINE)
     date_m = re.search(r"^\*(\d{4}-\d{2}-\d{2})\s+·", text, flags=re.MULTILINE)
     body = re.sub(r"^#.*?\n\*.*?\*\n\n", "", text, count=1, flags=re.DOTALL).strip()
+    body = strip_runtime_noise(body)
     name = name_m.group(1).strip() if name_m else path.stem.rsplit("-", 3)[0].replace("-", " ").title()
     date_str = date_m.group(1) if date_m else datetime.now().strftime("%Y-%m-%d")
 
@@ -1124,6 +1477,28 @@ def read_research_note(path: Path) -> tuple[dict, str, str]:
         "notes": reg.get("notes", ""),
     }
     return npc, body, date_str
+
+
+def backfill_research_history_from_notes() -> int:
+    existing_paths = {
+        str(row.get("path", ""))
+        for row in read_research_history(limit=0)
+        if row.get("path")
+    }
+    count = 0
+    for path in sorted(RESEARCH_DIR.glob("*.md")):
+        rel = str(path.relative_to(BASE_DIR))
+        if rel in existing_paths:
+            continue
+        try:
+            npc, research, date_str = read_research_note(path)
+        except Exception:
+            continue
+        npc.setdefault("research_angle", "legacy dispatch before research history")
+        record_research_history(npc, research, date_str, path)
+        existing_paths.add(rel)
+        count += 1
+    return count
 
 
 def preview_letter(note_path: Path, with_image: bool = True) -> Path:
@@ -1328,14 +1703,24 @@ def main():
     parser.add_argument("--no-print",  action="store_true", help="Skip physical letter printing")
     parser.add_argument("--no-letter-image", action="store_true", help="Skip optional Draw Things letter ornament")
     parser.add_argument("--preview-letter", type=Path, help="Render a styled letter from an existing memory/npc-research note and exit")
+    parser.add_argument("--backfill-history", action="store_true", help="Backfill research history from existing notes and exit")
     parser.add_argument("--model-smoke", action="store_true", help="Check the configured gateway model and exit")
     args = parser.parse_args()
 
     if args.model_smoke:
         sys.exit(model_smoke_test())
+    if args.backfill_history:
+        count = backfill_research_history_from_notes()
+        print(f"[npc-research] Backfilled {count} research history entr{'y' if count == 1 else 'ies'}.")
+        return
     if args.preview_letter:
         preview_letter(args.preview_letter, with_image=not args.no_letter_image)
         return
+
+    if not RESEARCH_HISTORY_LOG.exists():
+        count = backfill_research_history_from_notes()
+        if count:
+            print(f"[npc-research] Backfilled {count} prior research note(s) into history.")
 
     with cron_steward.run("npc-research", dry_run=args.dry_run, forced=bool(args.npc)):
         characters    = parse_characters()
@@ -1352,6 +1737,8 @@ def main():
             return
 
         print(f"[npc-research] {npc['name']} (Belief {npc['belief']}) is researching: {npc['interest'][:60]}…")
+        npc["research_angle"] = choose_research_angle(npc)
+        print(f"  Research angle: {npc['research_angle']}")
 
         heartbeat = load_heartbeat_snippet()
         city = get_local_city()
@@ -1389,7 +1776,8 @@ def main():
         print(research[:200] + "…" if len(research) > 200 else research)
         print("---\n")
 
-        deliver_local(npc, research, date_str)
+        local_path = deliver_local(npc, research, date_str)
+        record_research_history(npc, research, date_str, local_path)
         letter_image = None if args.no_letter_image else generate_letter_image(npc, date_str)
         letter_path = write_letter_html(npc, research, date_str, image_path=letter_image)
 

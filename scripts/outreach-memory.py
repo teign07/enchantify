@@ -18,6 +18,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 BASE = Path(__file__).resolve().parent.parent
+import sys
+sys.path.insert(0, str(BASE / "scripts"))
+import entity_memory
+
 LOG_PATH = BASE / "logs" / "character-outreach.jsonl"
 PENDING_PATH = BASE / "players" / "bj-outreach-pending.json"
 TICK_QUEUE = BASE / "memory" / "tick-queue.md"
@@ -89,6 +93,13 @@ def record_sent(args: argparse.Namespace) -> int:
         "source": args.source,
     }
     append_jsonl(LOG_PATH, row)
+    entity_memory.record_outreach_sent(
+        args.sender,
+        args.message,
+        player=args.player,
+        source=args.source,
+        event_id=eid,
+    )
     if args.text_ok or args.voice_ok:
         save_pending({
             "status": "awaiting-reply",
@@ -138,6 +149,14 @@ def record_reply_text(text: str, *, player: str = "bj", context: str = "telegram
         "context": context,
     }
     append_jsonl(LOG_PATH, row)
+    entity_memory.record_outreach_reply(
+        str(pending.get("sender") or "Unknown"),
+        str(pending.get("message") or ""),
+        text,
+        player=player,
+        source="outreach-memory",
+        event_id=str(pending.get("id") or ""),
+    )
     append_tick_queue(str(pending.get("sender") or "Unknown"), str(pending.get("message") or ""), text)
     pending["status"] = "replied"
     pending["reply"] = clean(text, 900)

@@ -31,6 +31,7 @@ BASE = Path(__file__).resolve().parent.parent
 SCRIPTS = BASE / "scripts"
 DEFAULT_TARGET = "8729557865"
 TOOL_STATE_FILE = Path(os.environ.get("ENCHANTIFY_TOOL_STATE", BASE / "memory" / "page-tool-state.json"))
+IMAGE_SUBJECT_STATE = BASE / "memory" / "image-subject-state.json"
 PLAYER_DIR = BASE / "players"
 sys.path.insert(0, str(BASE / "mechanics"))
 import mechanics_state  # type: ignore
@@ -82,6 +83,25 @@ def save_tool_state(state: dict) -> None:
     tmp = TOOL_STATE_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(state, indent=2), encoding="utf-8")
     tmp.replace(TOOL_STATE_FILE)
+
+
+def load_image_subject_state() -> dict:
+    if not IMAGE_SUBJECT_STATE.exists():
+        return {"recent": []}
+    try:
+        data = json.loads(IMAGE_SUBJECT_STATE.read_text(encoding="utf-8"))
+        data.setdefault("recent", [])
+        return data
+    except Exception:
+        return {"recent": []}
+
+
+def save_image_subject_state(state: dict) -> None:
+    state["recent"] = list(state.get("recent", []))[-24:]
+    IMAGE_SUBJECT_STATE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = IMAGE_SUBJECT_STATE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    tmp.replace(IMAGE_SUBJECT_STATE)
 
 
 def hours_since(iso: str | None) -> float:
@@ -162,7 +182,7 @@ def parse_slate_value(slate: str, key: str) -> str:
     return m.group(1).strip() if m else ""
 
 
-def player_visual_fragment(player: str, scene_text: str) -> str:
+def player_visual_fragment(player: str, scene_text: str, *, full: bool = True) -> str:
     path = PLAYER_DIR / f"{player}.md"
     if not path.exists():
         return ""
@@ -177,6 +197,9 @@ def player_visual_fragment(player: str, scene_text: str) -> str:
         parts.append(f"PLAYER GENDER IDENTITY for BJ / the player: {gender.group(1).strip()}")
     else:
         parts.append("PLAYER GENDER IDENTITY for BJ / the player: male; adult man; he/him visual presentation.")
+    if not full:
+        parts.append("BJ/the player is not the default subject. Only include him if the scene explicitly needs him visible, and then depict him as a male adult man, never as a woman, girl, or feminine-presenting character.")
+        return " ".join(parts)
     if appearance:
         parts.append(f"PLAYER VISUAL IDENTITY for BJ / the player: {appearance.group(1).strip()}")
     if chapter:
@@ -241,32 +264,64 @@ def mentioned_visual_characters(cast: str, scene_text: str, title: str) -> list[
     return deduped
 
 
-def character_focus_from_scene(cast: str, scene_text: str, title: str) -> str:
-    if re.search(r"\b(you|your|bj)\b", f" {title or ''} {scene_text or ''} ", re.IGNORECASE):
-        player_first = re.search(r"\b(you|your|bj)\b", f" {title or ''} {scene_text or ''} ", re.IGNORECASE)
-        first_npc = mentioned_visual_characters(cast, scene_text, title)
-        if not first_npc or (player_first and player_first.start() < f' {title or ""} {scene_text or ""} '.lower().find(first_npc[0].lower())):
-            return "BJ / the player"
+def choose_recent_balanced_focus(mentions: list[str], state: dict) -> str:
+    if not mentions:
+        return ""
+    recent = [str(item.get("focus") or "") for item in state.get("recent", [])[-12:] if isinstance(item, dict)]
+    if len(mentions) == 1:
+        return mentions[0]
+    scored: list[tuple[int, int, str]] = []
+    for index, name in enumerate(mentions):
+        penalty = 0
+        for distance, prior in enumerate(reversed(recent), start=1):
+            if prior == name:
+                penalty += max(1, 7 - distance)
+        scored.append((penalty, index, name))
+    scored.sort()
+    return scored[0][2]
+
+
+def scene_requests_player_portrait(scene_text: str, title: str) -> bool:
+    text = f" {title or ''} {scene_text or ''} ".lower()
+    return any(
+        phrase in text
+        for phrase in (
+            "selfie",
+            "mirror mirror",
+            "portrait of bj",
+            "portrait of the player",
+            "player portrait",
+            "bj's reflection",
+            "your reflection",
+            "you look",
+            "what you look like",
+        )
+    )
+
+
+def character_focus_from_scene(cast: str, scene_text: str, title: str, state: dict | None = None) -> str:
     visual_mentions = mentioned_visual_characters(cast, scene_text, title)
     if visual_mentions:
-        return visual_mentions[0]
+        return choose_recent_balanced_focus(visual_mentions, state or {}) or visual_mentions[0]
+    if scene_requests_player_portrait(scene_text, title):
+        return "BJ / the player"
     text = " ".join([cast or "", scene_text or "", title or ""])
     candidates: list[str] = []
     for match in re.finditer(r"\b(?:Professor|Headmistress|Dr\.)\s+[A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+)?", text):
         candidates.append(match.group(0).strip())
     for match in re.finditer(r"\b[A-Z][a-z]+(?:\s+\"[A-Z][A-Za-z'’-]+\")?\s+[A-Z][A-Za-z'’-]+", text):
         name = match.group(0).strip()
-        if name not in {"The Nothing", "The Academy", "The Bleed"}:
+        if name not in {"The Nothing", "The Academy", "The Bleed", "No NPC", "NPC Data"}:
             candidates.append(name)
     for name in candidates:
         if len(name) <= 60:
             return name
-    return "the most emotionally important character in the scene"
+    return "the most visually interesting non-player entity, talisman, clue, creature, class activity, or Academy place in the scene"
 
 
 def character_visual_fragment(name: str) -> str:
     if name == "BJ / the player":
-        return player_visual_fragment("bj", "BJ")
+        return player_visual_fragment("bj", "BJ", full=True)
     module = character_visuals_module()
     if not module or not name or name == "the most emotionally important character in the scene":
         return ""
@@ -287,10 +342,6 @@ def character_visual_fragment(name: str) -> str:
 def scene_visual_fragments(player: str, cast: str, scene_text: str, title: str, focus: str = "") -> tuple[str, list[str]]:
     fragments: list[str] = []
     names: list[str] = []
-    player_fragment = player_visual_fragment(player, scene_text)
-    if player_fragment and focus != "BJ / the player":
-        fragments.append(player_fragment)
-        names.append("BJ / the player")
     for name in mentioned_visual_characters(cast, scene_text, title)[:5]:
         if name == focus:
             continue
@@ -305,11 +356,19 @@ def build_image_prompt(title: str, mood: str, feel: str, cast: str, scene_text: 
     scene_hint = scene_text.replace("\n", " ").strip()
     scene_hint = re.sub(r"\s+", " ", scene_hint)
     scene_hint = scene_hint[:260]
-    focus = character_focus_from_scene(cast, scene_text, title)
+    subject_state = load_image_subject_state()
+    focus = character_focus_from_scene(cast, scene_text, title, subject_state)
     visual_identity = character_visual_fragment(focus)
     cast_visuals, visual_names = scene_visual_fragments(player, cast, scene_text, title, focus)
     if visual_identity and focus not in visual_names:
         visual_names.insert(0, focus)
+    player_continuity = "" if focus == "BJ / the player" else player_visual_fragment(player, scene_text, full=False)
+    subject_state.setdefault("recent", []).append({
+        "focus": focus,
+        "generated_at": datetime.now().isoformat(),
+        "title": title,
+    })
+    save_image_subject_state(subject_state)
     cast_hint = cast[:120] if cast else "current scene cast"
     feel_hint = feel[:120] if feel else mood
     style = (
@@ -323,16 +382,20 @@ def build_image_prompt(title: str, mood: str, feel: str, cast: str, scene_text: 
         "the image feels embedded in a manuscript page"
     )
     return (
-        f"Character-focused field-journal portrait of {focus}. "
+        f"Character-focused field-journal scene illustration anchored on {focus}, the active world, and the concrete story action. "
         f"{visual_identity + ' ' if visual_identity else ''}"
         f"{cast_visuals + ' ' if cast_visuals else ''}"
-        f"The image may focus on one character, but any character it shows must use their provided visual identity. "
-        f"Do not redesign BJ/the player or named NPCs. If BJ/the player appears, depict him as a male adult man according to his Gender Identity and Appearance fields. "
+        f"{player_continuity + ' ' if player_continuity else ''}"
+        f"The image may focus on one entity or several, but prefer named NPCs, talismans, creatures, clues, class activity, and the living Academy over BJ/the player unless BJ is the explicit dramatic subject. "
+        f"If the focus is not BJ/the player, BJ should usually be absent. If he must appear, place him small, male, adult, and secondary as a participant, witness, or edge-of-frame presence, never as the default central portrait. "
+        f"Do not use BJ's purple-blue hair, teal sunglasses, dark ribbed sweater, or player portrait recipe for any NPC or non-player subject. "
+        f"Any character shown must use their provided visual identity. Do not redesign BJ/the player or named NPCs. If BJ/the player appears, depict him as a male adult man according to his Gender Identity and Appearance fields. "
         f"Canonical character pool: {', '.join(visual_names) if visual_names else focus}. "
-        f"Prefer one clear focal figure unless the scene explicitly needs two. Show face, expression, posture, hands, clothing details, and one meaningful object or gesture. "
+        f"Compose the picture with a clear hierarchy: first the non-player subject or scene action, second the meaningful object/clue/talisman, third the room or landscape as an active readable place, fourth BJ only if useful. "
+        f"Show face, expression, posture, hands, clothing details, meaningful objects, and the specific surrounding world that makes this beat unmistakably Enchantify. "
         f"Mood: {mood}; atmosphere: {feel_hint}; supporting cast context: {cast_hint}. "
         f"Story beat to embody through the character: {scene_hint}. "
-        "Keep architecture as a faint background wash only; do not make the room, corridor, library, door, desk, or landscape the subject. "
+        "Do not reduce the Academy, Library, classroom, corridor, door, desk, landscape, or magical evidence to a vague wash; make the environment legible and alive without turning it into an empty room study. "
         f"{style}. No UI elements, no caption, no watermark."
     )
 

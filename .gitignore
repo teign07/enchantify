@@ -14,6 +14,11 @@ lore/arc-archive/
 .secrets.md
 config/secrets.env
 config/secrets.env.local
+config/patreon.env
+config/youtube.env
+config/x.env
+config/bluesky.env
+config/instagram.env
 .env
 .env.local
 
@@ -109,11 +114,23 @@ lore/**/*.md.bak
 config/narrative-sim-state.json
 memory/page-tool-state.json
 memory/support-faculty/
+memory/entities/
+memory/publishing/
+memory/storybook/
+memory/attention-board.json
+memory/image-subject-state.json
+memory/session-entry-current.json
+memory/MEMORY.md
+memory/feedback-*.md
 memory/.dreams/
 tmp/
 ios/InsideCover/build/
 hooks/widget-state.json
 hooks/widget-image.png
+scenes/
+logs/*.jsonl
+logs/*.log
+logs/publishing/
 
 # ─── Editor / OS backup files ─────────────────────────────────────────────────
 *.bak

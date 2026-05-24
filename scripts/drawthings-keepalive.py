@@ -12,6 +12,7 @@ It does not delete images, touch models, or require external API calls.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import re
@@ -235,6 +236,80 @@ def deterministic_caption(selection: dict[str, str]) -> str:
     return f"Hourly Field-Journal Plate: {title}\n{detail}"
 
 
+def choose_variant(key: str, variants: list[str]) -> str:
+    if not variants:
+        return ""
+    digest = hashlib.sha1(key.encode("utf-8", errors="ignore")).hexdigest()
+    return variants[int(digest[:8], 16) % len(variants)]
+
+
+def storybook_caption(selection: dict[str, str]) -> dict[str, str]:
+    """Build varied no-LLM plate metadata for Storybook and PDFs."""
+    kind = selection.get("kind", "")
+    subject = selection.get("subject", "")
+    key = subject or kind or datetime.now().isoformat()
+    rows = parse_register_entities()
+    if kind == "character":
+        name = subject_label(selection)
+        row = rows.get(name) or character_visuals.register_for(name, rows) or {}
+        belief = row.get("belief")
+        notes = re.sub(r"\[thread:[^\]]+\]", "", str(row.get("notes") or "")).strip()
+        notes = re.sub(r"\s+", " ", notes)
+        role = notes[:120].rstrip(" .") if notes else "chosen by narrative weight from the Academy register"
+        title = name
+        variants = [
+            f"{name}, drawn forward by Belief {belief}: {role}.",
+            f"A character plate of {name}, caught in the Academy margin where their current pressure is beginning to show.",
+            f"{name} appears as the page's foreground witness; the register gives them enough weight to leave an image.",
+            f"The Book's hourly eye settled on {name}, preserving posture, signature, and the pressure around them.",
+        ]
+        return {
+            "title": title,
+            "caption": choose_variant(key, variants),
+            "kind_label": "Character Plate",
+            "character": name,
+            "role": role,
+            "belief": str(belief or ""),
+        }
+
+    title, detail = SCENE_CAPTIONS.get(kind, (subject_label(selection), "An Academy atmosphere plate from the keepalive rotation."))
+    scene_variants = {
+        "academy": [
+            "Daily life between classes: a hall plate where rumor, weather, and student motion share the same ink.",
+            "The Academy in its ordinary hours, when the background finally admits it has been story all along.",
+            "A between-bells plate: long tables, moving students, and the public weather of the school.",
+        ],
+        "library": [
+            "The living stacks keeping their counsel: drawers open, labels breathing, one note trying to become found.",
+            "A library plate for the shelf-pressure of the day: catalog drawers, quiet ladders, and a secret at reader height.",
+            "The Book's eye on the stacks, where memory keeps filing itself under the wrong heading on purpose.",
+        ],
+        "classroom": [
+            "A practice desk before magic becomes official: card, cup-ring, notebook, and the small machinery of attention.",
+            "The Wonder Compass as classroom evidence: ordinary objects arranged until they begin to mean something.",
+            "A study plate for the day's smallest ritual, with attention laid out like instruments before a lesson.",
+        ],
+        "outer-stacks": [
+            "A threshold plate from the fold-out architecture of the Labyrinth, where real-world attention becomes a door.",
+            "The Outer Stacks at the page edge: map labels, brass coordinates, and one small figure before the hinge.",
+            "A doorway drawn in the margin, waiting for a real place to remember it has an inside.",
+        ],
+        "bleed": [
+            "The newsroom table before publication: clippings, gossip slips, stamps, and the Academy interpreting itself.",
+            "A Bleed desk plate, all public ink and private marginalia, with tomorrow's rumor still wet at the edge.",
+            "The public page under a green lamp: columns waiting to decide what the world thinks happened.",
+        ],
+    }
+    return {
+        "title": title,
+        "caption": choose_variant(key, scene_variants.get(kind, [detail])),
+        "kind_label": "Scene Plate",
+        "character": "",
+        "role": detail,
+        "belief": "",
+    }
+
+
 def api_alive(timeout: float = 2.0) -> tuple[bool, str]:
     try:
         req = request.Request(f"{API_URL}/sdapi/v1/options", headers={"Accept": "application/json"})
@@ -289,6 +364,7 @@ def generate_keepalive_image(*, dry_run: bool = False, width: int = 768, height:
     output = OUT_DIR / f"keepalive-{stamp}.png"
     prompt, kind, subject = keepalive_prompt()
     selection = {"kind": kind, "subject": subject, "prompt": prompt}
+    selection.update(storybook_caption(selection))
     if dry_run:
         return True, f"dry-run would generate {output}: {prompt[:240]}", output, selection
     ok, detail = drawthings_scene.generate(
@@ -301,6 +377,24 @@ def generate_keepalive_image(*, dry_run: bool = False, width: int = 768, height:
         timeout_seconds=240,
     )
     if ok:
+        metadata_path = output.with_suffix(".json")
+        metadata = {
+            "at": datetime.now().isoformat(timespec="seconds"),
+            "image": str(output),
+            "selection": selection,
+            "kind": selection.get("kind", ""),
+            "subject": selection.get("subject", ""),
+            "title": selection.get("title", ""),
+            "caption": selection.get("caption", ""),
+            "kind_label": selection.get("kind_label", ""),
+            "character": selection.get("character", ""),
+            "role": selection.get("role", ""),
+            "belief": selection.get("belief", ""),
+            "prompt": prompt,
+        }
+        metadata_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8")
+        with (OUT_DIR / "caption-ledger.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(metadata, ensure_ascii=False) + "\n")
         latest = OUT_DIR / "latest.png"
         try:
             latest.unlink()
