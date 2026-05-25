@@ -29,7 +29,7 @@ This is not a game you sprint through. It's one you live alongside.
 - **Pact system** — each integration (lights, music, email, financials) is a named Pact you choose to activate. Nothing runs without your permission. Say `THORNE` to pause everything
 - **Book Jumps** — fall into books and live their worlds. The Wonder Compass book is a special case: you fall into the author's memories
 - **Health awareness** — reads your step count, sleep, and heart rate (via iPhone Health Auto Export or Garmin/Fitbit) and lets it bleed into the world's texture
-- **Any LLM** — works with Claude, GPT-4o, or any model OpenClaw supports
+- **Any LLM** — works with Claude, OpenAI Codex models, local models, or any model OpenClaw supports
 
 ---
 
@@ -45,16 +45,16 @@ The Pact War (`scripts/pact-engine.py`) has Talismans competing for control of y
 
 ## Installation
 
-**New to OpenClaw?** One command installs everything:
+**New to OpenClaw?** One command opens the installer:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/teign07/enchantify/main/install.sh | bash
 ```
 
-**Already have OpenClaw?** Install via ClawHub:
+**Already cloned this repo?** Run the local bootstrap:
 
 ```bash
-npx clawhub@latest install enchantify
+bash bootstrap.sh
 ```
 
 The wizard will walk you through:
@@ -62,10 +62,12 @@ The wizard will walk you through:
 - Setting your location (for weather and tides)
 - Connecting health data (iPhone, Garmin, Fitbit, or none)
 - Setting up Telegram for dispatches
+- Setting up support offices: Dr. Vellum, Dr. Inkrest, Gimble, the Bellkeeper, Penny, and Professor Goldweaver
 - The Pact Ceremony — activating only the integrations you want
-- Optional: voice acting (Kokoro TTS), image generation (DALL-E 3), ambient music (MusicGen)
+- Optional: voice acting, Draw Things image generation, wallpaper, printer, lights, music, Actual Budget/SimpleFIN, market research, and publishing/listening adapters
+- Installing the modern cron schedule through `scripts/install-crons.py`
 
-At the end, the wizard will tell you to open OpenClaw and say: `Open the book`
+At the end, the wizard will tell you to open OpenClaw and say: `open the book`
 
 ---
 

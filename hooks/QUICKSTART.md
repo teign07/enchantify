@@ -33,20 +33,26 @@ Not to demand. Just to say: the world is here. It's beautiful. You're welcome.
 clawhub install enchantify
 ```
 
-**Manual install** (now, for anyone):
+**One-command install**:
 ```bash
-git clone https://github.com/doobaleedoos/enchantify
+curl -fsSL https://raw.githubusercontent.com/teign07/enchantify/main/install.sh | bash
+```
+
+**Manual install**:
+```bash
+git clone https://github.com/teign07/enchantify
 cd enchantify
 bash bootstrap.sh
 ```
 
 The installer walks you through everything interactively — about five minutes. It will:
-- Check dependencies (Node.js, Python 3, curl, jq)
-- Install OpenClaw if not present
+- Check dependencies (Git, Node.js, npm, Python 3, curl)
+- Install OpenClaw if not present, then ask you to run `openclaw onboard`
 - Set your location, timezone, and seasons
 - Create your private Telegram bot (step-by-step, with pauses)
-- Configure optional integrations (lights, music, printer, etc.)
-- Register the agent, bind the Telegram channel, set up all cron jobs
+- Configure optional integrations (health export, Actual Budget/SimpleFIN, calendar, lights, music, printer, Draw Things, publishing/listening adapters)
+- Initialize support offices: Dr. Vellum, Dr. Inkrest, Gimble, the Bellkeeper, Penny, and Professor Goldweaver
+- Register the agent, bind the Telegram channel, and set up the modern cron schedule with `scripts/install-crons.py`
 - Initialize the world and hand you off to the Labyrinth
 
 **Already have OpenClaw?** The installer detects it and skips what's already done. It will still walk you through the Telegram bot setup, which is Enchantify-specific.
@@ -54,7 +60,7 @@ The installer walks you through everything interactively — about five minutes.
 ### First Play
 
 ```
-You: open the Labyrinth
+You: open the book
 
 The Labyrinth: The cover is plain. Leather, cracked, warm to the touch. 
 No title — though you could swear you saw one a moment ago...
@@ -249,7 +255,7 @@ Fork it. Extend it. Build a different school in a different world with a differe
 
 **License:** CC BY-SA 4.0 — free to use, modify, redistribute. Credit The Doobaleedoos. ShareAlike for derivatives.
 
-**GitHub:** [github.com/doobaleedoos/enchantify] (when published)
+**GitHub:** [github.com/teign07/enchantify](https://github.com/teign07/enchantify)
 
 If you build something with it, we want to know.
 
@@ -268,7 +274,7 @@ The book teaches it directly. Enchantify teaches it through play. Both work. Bot
 ## Support
 
 **Discord:** The Doobaleedoos Clubhouse (Patreon)
-**GitHub Issues:** [github.com/doobaleedoos/enchantify/issues] (when published)
+**GitHub Issues:** [github.com/teign07/enchantify/issues](https://github.com/teign07/enchantify/issues)
 **Souvenir Sharing:** #souvenirs channel — post your one-sentence souvenirs, read everyone else's
 
 ---

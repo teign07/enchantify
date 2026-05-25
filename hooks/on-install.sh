@@ -20,7 +20,8 @@
 #    8. Music (Tidecrest)
 #    9. Voice acting (Kokoro TTS)
 #   10. Image generation
-#   11. Waking the world (crons, player file, first pulse)
+#   11. Support faculty, ledger, and publishing offices
+#   12. Waking the world (crons, player file, first pulse)
 # ════════════════════════════════════════════════════════════════════════════
 
 set -e
@@ -65,6 +66,10 @@ ask_yn() {
     [[ "$ans" =~ ^[Yy] ]]
 }
 
+lower() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
 set_secret() {
     local key="$1"
     local value="$2"
@@ -79,7 +84,7 @@ set_secret() {
 
 # (write_consent removed — pact ceremony writes app_pacts directly via Python)
 
-mkdir -p "$LOGS_DIR"
+mkdir -p "$LOGS_DIR" "$LOGS_DIR/publishing" "$LOGS_DIR/support-faculty" "$ENCHANTIFY_DIR/players" "$ENCHANTIFY_DIR/memory"
 
 if [ ! -f "$SECRETS_FILE" ]; then
     cp "$CONFIG_DIR/secrets.env.example" "$SECRETS_FILE" 2>/dev/null || touch "$SECRETS_FILE"
@@ -169,20 +174,20 @@ echo "  The Labyrinth runs on different AI models — each with its own"
 echo "  depth, speed, and quality of attention."
 echo "  The voice you choose becomes the narrator of your world."
 echo ""
-echo "    1) Claude Sonnet 4.6  — nuanced, narrative-focused  (recommended)"
-echo "    2) Claude Opus 4.6    — deeper reasoning, uses more tokens"
-echo "    3) Claude Haiku 4.5   — fast and light, good for quick sessions"
-echo "    4) GPT-4o             — requires an OpenAI API key"
-echo "    5) Something else     — enter a model ID directly"
+echo "    1) Claude Sonnet 4.6          — nuanced, narrative-focused  (recommended)"
+echo "    2) openai-codex/gpt-5.5       — strongest frontier reasoning"
+echo "    3) openai-codex/gpt-5.4       — strong daily play/build model"
+echo "    4) openai-codex/gpt-5.4-mini  — fast routing and lighter play"
+echo "    5) Something else             — enter a model ID directly"
 echo ""
 
 MODEL_CHOICE=$(ask "Choose a voice [1-5]" "1")
 
 case "$MODEL_CHOICE" in
     1) MODEL_ID="claude-sonnet-4-6" ;;
-    2) MODEL_ID="claude-opus-4-6" ;;
-    3) MODEL_ID="claude-haiku-4-5-20251001" ;;
-    4) MODEL_ID="gpt-4o" ;;
+    2) MODEL_ID="openai-codex/gpt-5.5" ;;
+    3) MODEL_ID="openai-codex/gpt-5.4" ;;
+    4) MODEL_ID="openai-codex/gpt-5.4-mini" ;;
     5) MODEL_ID=$(ask "Model ID") ;;
     *) MODEL_ID="claude-sonnet-4-6" ;;
 esac
@@ -817,7 +822,54 @@ else
     echo "  Printer skipped. Add PRINTER_NAME to config/secrets.env to enable later."
 fi
 
-# ── 11. Memory Plugins ────────────────────────────────────────────────────────
+# ── 11. Support Faculty, Ledger, and Publishing Offices ──────────────────────
+
+section "The offices that help while the book is closed"
+
+echo "  Enchantify now has support characters with real jobs:"
+echo ""
+echo "    Dr. Vellum      — longevity, fuel, movement, health data"
+echo "    Dr. Inkrest     — mood memory, narrative therapy, check-ins"
+echo "    Gimble          — Actual Budget / SimpleFIN finance support"
+echo "    Bellkeeper      — calendar and day-shape preparation"
+echo "    Penny           — content, marketing, consent packets"
+echo "    Goldweaver      — ethical products and Patreon strategy"
+echo ""
+echo "  They work from local files. If Telegram is configured, some"
+echo "  of their reports can arrive as storybook-journal PDFs."
+echo ""
+
+if ask_yn "Create support faculty charts and default office config?" "y"; then
+    INSTALL_PLAYER="$(lower "$PLAYER_NAME")"
+    [ -z "$INSTALL_PLAYER" ] && INSTALL_PLAYER="wanderer"
+    python3 "$ENCHANTIFY_DIR/scripts/ledger-faculty.py" init >/dev/null 2>&1 || true
+    python3 "$ENCHANTIFY_DIR/scripts/bellkeeper.py" init "$INSTALL_PLAYER" >/dev/null 2>&1 || true
+    python3 "$ENCHANTIFY_DIR/scripts/penny-press.py" init "$INSTALL_PLAYER" >/dev/null 2>&1 || true
+    python3 "$ENCHANTIFY_DIR/scripts/goldwater.py" init "$INSTALL_PLAYER" >/dev/null 2>&1 || true
+    echo "  ✓ The offices have keys."
+fi
+
+echo ""
+echo "  ── Actual Budget / SimpleFIN ─────────────────────────────"
+echo ""
+echo "  Gimble works best with Actual Budget and SimpleFIN, but the"
+echo "  game installs fine without them. You can connect them later."
+echo ""
+if ask_yn "Write Actual Budget example config?" "y"; then
+    python3 "$ENCHANTIFY_DIR/scripts/ledger-faculty.py" init >/dev/null 2>&1 || true
+    echo "  ✓ See config/actual-budget.example.json."
+    echo "  Store the real password outside Git, preferably in ~/.openclaw/secrets/."
+fi
+
+echo ""
+echo "  ── Publishing/listening adapters ─────────────────────────"
+echo ""
+echo "  Penny can draft for X, Bluesky, YouTube, Patreon, Instagram,"
+echo "  TikTok, Reddit, and newsletters. She does not auto-post."
+echo "  Adapter examples live in config/*.env.example."
+echo ""
+
+# ── 12. Memory Plugins ────────────────────────────────────────────────────────
 
 section "Memory plugins (optional)"
 
@@ -885,7 +937,7 @@ PYEOF
     fi
 fi
 
-# ── 12. Agent Registration ─────────────────────────────────────────────────────
+# ── 13. Agent Registration ─────────────────────────────────────────────────────
 
 section "Registering the Labyrinth"
 
@@ -1001,7 +1053,7 @@ PYEOF
 # Store IS_MAIN for the final screen
 export ENCHANTIFY_IS_MAIN="$IS_MAIN"
 
-# ── 13. Waking the World ──────────────────────────────────────────────────────
+# ── 14. Waking the World ──────────────────────────────────────────────────────
 
 section "Waking the world"
 
@@ -1013,112 +1065,39 @@ echo ""
 
 # Write default player name to secrets so scripts can find the right player file
 if [ -n "$PLAYER_NAME" ]; then
-    set_secret "ENCHANTIFY_DEFAULT_PLAYER" "${PLAYER_NAME,,}"
+    set_secret "ENCHANTIFY_DEFAULT_PLAYER" "$(lower "$PLAYER_NAME")"
 fi
 
 # Player file
 if [ "$RETURNING" = "false" ] && [ -n "$PLAYER_NAME" ]; then
-    PLAYER_FILE="$ENCHANTIFY_DIR/players/${PLAYER_NAME,,}.md"
+    PLAYER_ID="$(lower "$PLAYER_NAME")"
+    PLAYER_FILE="$ENCHANTIFY_DIR/players/${PLAYER_ID}.md"
     if [ ! -f "$PLAYER_FILE" ]; then
-        PNAME_LOWER="${PLAYER_NAME,,}"
-        cat > "$PLAYER_FILE" << PLAYEREOF
-# Player: ${PLAYER_NAME}
-
-- **Belief:** 20
-- **Inventory:**
-  - *(empty — will fill during tutorial)*
-- **Tutorial Progress:** T1
-- **Chapter:** *(assigned at T7)*
-- **Anchor:** *(assigned at T6)*
-- **Appearance:** *(described at T1)*
-- **Snack:** *(shared at T2)*
-- **Traits:** *(shared at T3)*
-- **Core Belief:** *(shared at T4)*
-
-## Enchanted Objects
-*Objects ${PLAYER_NAME} has enchanted, with their "personality" and last interaction. The Labyrinth remembers them.*
-
-*(none yet)*
-
-## Story Log
-- **T1:** Entered the Labyrinth.
-
-## Compass Run History
-
-- **Last run:** never
-- **Total runs:** 0
-- **Souvenirs:** 0
-
-## The Inside Cover
-
-| Quest | NPC | Belief | Relationship |
-|---|---|---|---|
-| *(no active quests)* | | | |
-
-## The Margin
-*Fae bargains live here, not in the Inside Cover. Fae give first — ${PLAYER_NAME} always owes a return.*
-*These are contracts, not quests. The Fae remember everything.*
-
-| Fae | What They Gave | Terms (what you owe) | Deadline | Status |
-|---|---|---|---|---|
-| *(the margin is clean — no bargains yet)* | | | | |
-
----
-
-## The Flyleaf
-*The page at the front of The Labyrinth of Stories where known enchantments are recorded. New enchantments appear here as they are discovered — the ink writes itself in.*
-
-| Enchantment | Tier | Notes |
-|---|---|---|
-| *(none yet — discovered through play)* | | |
-
-## Relationships
-
-| NPC | Chapter | Score | Notes |
-|---|---|---|---|
-| *(relationships added as player meets NPCs)* | | | |
-
-## Belief Investments
-
-| Target | Type | Belief | Notes |
-|---|---|---|---|
-| *(none yet)* | | | |
-
-## Ley Line Network
-
-- **Anchors:** 0 — see \`players/${PNAME_LOWER}-anchors.md\`
-- **Total Belief anchored:** 0
-
-## Dorm Room
-
-*(Generated at T13 — not yet assigned)*
-
----
-
-## Notes
-
-*(Player preferences, real-life details shared, tone adjustments, accessibility needs.)*
-PLAYEREOF
-        echo "  ✓ Player file created: players/${PLAYER_NAME,,}.md"
+        if [ -f "$ENCHANTIFY_DIR/templates/player-template.md" ]; then
+            sed "s|\\[Player Name\\]|${PLAYER_NAME}|g" "$ENCHANTIFY_DIR/templates/player-template.md" > "$PLAYER_FILE"
+        else
+            printf "# Player: %s\n\n- **Belief:** 30\n- **Tutorial Progress:** T1\n" "$PLAYER_NAME" > "$PLAYER_FILE"
+        fi
+        echo "  ✓ Player file created: players/${PLAYER_ID}.md"
     else
         echo "  ✓ Player file already exists."
     fi
 
     # Create anchors file
-    ANCHORS_FILE="$ENCHANTIFY_DIR/players/${PLAYER_NAME,,}-anchors.md"
+    ANCHORS_FILE="$ENCHANTIFY_DIR/players/${PLAYER_ID}-anchors.md"
     if [ ! -f "$ANCHORS_FILE" ]; then
         cat > "$ANCHORS_FILE" << ANCHORSEOF
 # Anchors — ${PLAYER_NAME}
 
 *Places ${PLAYER_NAME} has invested Belief into. Each one is permanent. The Labyrinth remembers them forever.*
 
-*Format: one \`##\` section per Anchor. Run \`python3 scripts/anchor-check.py ${PLAYER_NAME,,} [lat] [lon]\` to check proximity.*
+*Format: one \`##\` section per Anchor. Run \`python3 scripts/anchor-check.py ${PLAYER_ID} [lat] [lon]\` to check proximity.*
 
 ---
 
 *(No Anchors yet. The Ley Line map is blank — waiting for the first sacred place.)*
 ANCHORSEOF
-        echo "  ✓ Anchors file created: players/${PLAYER_NAME,,}-anchors.md"
+        echo "  ✓ Anchors file created: players/${PLAYER_ID}-anchors.md"
     fi
 fi
 
@@ -1136,47 +1115,13 @@ for tmpl in arc-spine patterns; do
 done
 
 # Cron jobs
-CRON_BASE="$ENCHANTIFY_DIR"
-PYTHON="/usr/bin/python3"
-LOG="$LOGS_DIR"
-PNAME="${PLAYER_NAME,,:-wanderer}"
+PNAME="${PLAYER_NAME:-wanderer}"
+PNAME="$(lower "$PNAME")"
 
 echo "  Installing cron jobs..."
-
-(
-    # Strip any existing enchantify crons cleanly
-    crontab -l 2>/dev/null | grep -v "$CRON_BASE/scripts/"
-
-    # Pulse: every 15 min — weather, tides, moon, health data
-    echo "*/15 * * * * cd $CRON_BASE && $PYTHON scripts/pulse.py >> $LOG/pulse.log 2>&1"
-
-    # Entity tick + world pulse: every 3 hours at :30 — world simulation
-    echo "30 */3 * * * cd $CRON_BASE && $PYTHON scripts/arc-tick.py && $PYTHON scripts/tick.py && $PYTHON scripts/world-pulse.py && $PYTHON scripts/send_academy_dispatch.py >> $LOG/pulse.log 2>&1"
-
-    # Schedule sync: every 3 hours at :00
-    echo "0 */3 * * * cd $CRON_BASE && $PYTHON scripts/schedule.py --update-state >> $LOG/schedule.log 2>&1"
-
-    # Character outreach: every 2 hours — characters reach out when conditions warrant
-    echo "10 */2 * * * cd $CRON_BASE && $PYTHON scripts/reach-out.py >> $LOG/reach-out.log 2>&1"
-
-    # Nightly intelligence: 11 PM — story log, arc spine, NPC research
-    echo "0 23 * * * $PYTHON $CRON_BASE/scripts/labyrinth-intelligence.py $PNAME >> $LOG/intelligence.log 2>&1"
-
-    # Nightly dream: 2:03 AM — dream generation
-    echo "3 2 * * * cd $CRON_BASE && $PYTHON scripts/dream.py >> $LOG/dream.log 2>&1"
-
-    # Morning wallpaper: 7 AM daily
-    echo "0 7 * * * $PYTHON $CRON_BASE/scripts/wallpaper.py --generate $PNAME >> $LOG/wallpaper.log 2>&1"
-
-    # Sparky shinies: 8 AM daily
-    echo "0 8 * * * $PYTHON $CRON_BASE/scripts/sparky.py >> $LOG/sparky.log 2>&1"
-
-    # Evening broadsheet: 6 PM daily
-    echo "0 18 * * * cd $CRON_BASE && $PYTHON scripts/bleed.py >> $LOG/bleed.log 2>&1"
-
-) | crontab -
-
-echo "  ✓ World heartbeat installed (8 cron jobs)."
+python3 "$ENCHANTIFY_DIR/scripts/install-crons.py" --player "$PNAME" \
+    && echo "  ✓ World heartbeat installed." \
+    || echo "  ⚠ Cron install had issues. Run: python3 scripts/install-crons.py --player $PNAME"
 echo ""
 
 # First pulse

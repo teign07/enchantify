@@ -48,6 +48,34 @@ templates/                Player and setup templates
 
 Generated personal state is intentionally ignored where possible: `players/`, live heartbeats, most logs, health/fuel data, Actual Budget credentials, images, and runtime caches.
 
+## Installation
+
+New readers can install from the public repo with one command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/teign07/enchantify/main/install.sh | bash
+```
+
+If you already cloned the repository, run the local bootstrap instead:
+
+```bash
+bash bootstrap.sh
+```
+
+The installer is meant to feel like the book opening for the first time. It checks the local runtime, installs or updates OpenClaw when needed, creates the player scaffold, walks through model/location/Telegram choices, initializes the support offices, and installs the modern cron set with `scripts/install-crons.py`.
+
+Optional offices and integrations can be configured during or after install:
+
+- **Support faculty:** Dr. Vellum, Dr. Inkrest, Gimble, the Bellkeeper, Penny, and Professor Goldweaver.
+- **Daily world machinery:** pulse, world simulation, outreach, The Bleed, Book of You, support research, market research, and press/abundance reports.
+- **Real-world pacts:** Telegram, Actual Budget/SimpleFIN, calendar, health export, Draw Things, wallpaper, printer, lights, music, and publishing/listening adapters.
+
+Existing installs can refresh just the cron schedule:
+
+```bash
+python3 scripts/install-crons.py --player bj
+```
+
 ## Running the Game
 
 The main player-facing instruction is still simple:
@@ -77,7 +105,7 @@ Enchantify’s north star is:
 
 The interface should feel like a magical field journal or annotated storybook: sparse pen-and-ink linework, watercolor washes, aged parchment, lush marginalia, stamps, seals, handwritten notes, and selective jewel-like pops of color.
 
-Future mobile work lives under the idea of **Enchantify Glass**: a pocket Story-Field Journal for iPhone and iPad, likely with Today, Compass, Library, and Desk tabs.
+Future mobile work lives under the idea of a pocket Story-Field Journal for iPhone and iPad, likely with Today, Compass, Library, and Desk tabs.
 
 ## Privacy and Safety
 

@@ -13,6 +13,11 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/on-install.sh" ]; then
+    ENCHANTIFY_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+else
+    ENCHANTIFY_ROOT="$SCRIPT_DIR"
+fi
 
 echo ""
 echo "  ╔══════════════════════════════════════════════╗"
@@ -71,7 +76,7 @@ fi
 
 echo ""
 
-INSTALL_HOOK="$SCRIPT_DIR/hooks/on-install.sh"
+INSTALL_HOOK="$ENCHANTIFY_ROOT/hooks/on-install.sh"
 
 if [ ! -f "$INSTALL_HOOK" ]; then
     echo "  ❌ hooks/on-install.sh not found."
