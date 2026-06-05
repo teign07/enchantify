@@ -106,6 +106,8 @@ struct LocalModelReport: Codable, Equatable {
     var state: LocalModelState
     var preferredModelID: String
     var fallbackModelID: String
+    var preferredModelSource: String
+    var fallbackModelSource: String
     var installPath: String
     var detail: String
     var deviceSummary: String
@@ -148,26 +150,37 @@ enum LocalModelManager {
         var modelID: String
         var label: String
         var minimumMemoryGB: Int
+        var sourceURL: String
         var reason: String
+        var supersedes: [String] = []
     }
 
     static let compactModel = ModelChoice(
         modelID: "mlx-community/gemma-3-1b-it-4bit",
         label: "Gemma 3 1B 4-bit",
         minimumMemoryGB: 0,
+        sourceURL: "https://huggingface.co/mlx-community/gemma-3-1b-it-4bit",
         reason: "smallest local brain, best for standard iPhones"
     )
     static let balancedModel = ModelChoice(
-        modelID: "mlx-community/gemma-4-e2b-it-4bit",
-        label: "Gemma 4 E2B 4-bit",
+        modelID: "mlx-community/gemma-4-e2b-it-OptiQ-4bit",
+        label: "Gemma 4 E2B OptiQ 4-bit",
         minimumMemoryGB: 6,
-        reason: "balanced local brain for iPhone 15-class devices and roomier iPads"
+        sourceURL: "https://huggingface.co/mlx-community/gemma-4-e2b-it-OptiQ-4bit",
+        reason: "recommended local brain for iPhone 15-class devices; MLX-ready 4-bit upgrade aligned with the Gemma 4 QAT/edge release",
+        supersedes: [
+            "mlx-community/gemma-4-e2b-it-4bit"
+        ]
     )
     static let expansiveModel = ModelChoice(
-        modelID: "mlx-community/gemma-4-e4b-it-4bit",
-        label: "Gemma 4 E4B 4-bit",
-        minimumMemoryGB: 16,
-        reason: "larger local brain for high-memory iPads"
+        modelID: "mlx-community/gemma-4-e4b-it-OptiQ-4bit",
+        label: "Gemma 4 E4B OptiQ 4-bit",
+        minimumMemoryGB: 8,
+        sourceURL: "https://huggingface.co/mlx-community/gemma-4-e4b-it-OptiQ-4bit",
+        reason: "larger local brain for iPhone 17-class devices and high-memory iPads; keeps iPhone 15-class hardware on E2B for memory headroom",
+        supersedes: [
+            "mlx-community/gemma-4-e4b-it-4bit"
+        ]
     )
     static let allModelChoices = [compactModel, balancedModel, expansiveModel]
     static let modelsDirectoryName = "LocalModels"
@@ -175,7 +188,8 @@ enum LocalModelManager {
 
     static var preferredModel: ModelChoice {
         let memoryGB = deviceMemoryGB
-        if memoryGB >= expansiveModel.minimumMemoryGB {
+        if memoryGB >= expansiveModel.minimumMemoryGB,
+           !isIPhone15ClassHardware {
             return expansiveModel
         }
         if memoryGB >= balancedModel.minimumMemoryGB {
@@ -206,6 +220,11 @@ enum LocalModelManager {
             guard let value = element.value as? Int8, value != 0 else { return }
             identifier.append(String(UnicodeScalar(UInt8(value))))
         }
+    }
+
+    static var isIPhone15ClassHardware: Bool {
+        // iPhone 15 and iPhone 15 Pro families report as iPhone15,4/5 and iPhone16,1/2.
+        hardwareIdentifier.hasPrefix("iPhone15,") || hardwareIdentifier.hasPrefix("iPhone16,")
     }
 
     static var deviceSummary: String {
@@ -305,6 +324,8 @@ enum LocalModelManager {
                 state: .unavailable,
                 preferredModelID: preferredModelID,
                 fallbackModelID: fallbackModelID,
+                preferredModelSource: preferredModel.sourceURL,
+                fallbackModelSource: compactModel.sourceURL,
                 installPath: modelsDirectory.path,
                 detail: "The app could not prepare its local model folder: \(error.localizedDescription)",
                 deviceSummary: deviceSummary
@@ -316,6 +337,8 @@ enum LocalModelManager {
                 state: .ready,
                 preferredModelID: preferredModelID,
                 fallbackModelID: fallbackModelID,
+                preferredModelSource: preferredModel.sourceURL,
+                fallbackModelSource: compactModel.sourceURL,
                 installPath: active.directory.path,
                 detail: "\(active.choice.label) is present. The Book chose it for this device: \(active.choice.reason).",
                 deviceSummary: deviceSummary
@@ -326,10 +349,28 @@ enum LocalModelManager {
             state: .missing,
             preferredModelID: preferredModelID,
             fallbackModelID: fallbackModelID,
+            preferredModelSource: preferredModel.sourceURL,
+            fallbackModelSource: compactModel.sourceURL,
             installPath: modelsDirectory.path,
             detail: "The Book recommends \(preferredModel.label) for this device: \(preferredModel.reason). Install it here, then braiding can stay local.",
             deviceSummary: deviceSummary
         )
+    }
+
+    static func removeSupersededModels(for modelID: String, preserving activeDirectory: URL) {
+        guard let choice = allModelChoices.first(where: { $0.modelID == modelID }) else {
+            return
+        }
+
+        let fileManager = FileManager.default
+        for oldModelID in choice.supersedes {
+            let directory = modelDirectory(for: oldModelID)
+            guard directory.standardizedFileURL != activeDirectory.standardizedFileURL,
+                  fileManager.fileExists(atPath: directory.path) else {
+                continue
+            }
+            try? fileManager.removeItem(at: directory)
+        }
     }
 
     private static func modelFilesArePresent(at directory: URL) -> Bool {

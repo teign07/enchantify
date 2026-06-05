@@ -710,6 +710,9 @@ struct ModelStatusCard: View {
                 Label("this device: \(report.deviceSummary)", systemImage: "iphone")
                 Label("the Book chose: \(report.preferredModelID)", systemImage: "sparkles")
                 Label("small fallback: \(report.fallbackModelID)", systemImage: "arrow.triangle.2.circlepath")
+                Link(destination: URL(string: report.preferredModelSource) ?? URL(string: "https://huggingface.co/mlx-community")!) {
+                    Label("model source", systemImage: "link")
+                }
             }
             .font(.caption)
             .foregroundStyle(BookPalette.ink.opacity(0.58))

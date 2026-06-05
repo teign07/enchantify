@@ -1526,7 +1526,7 @@ struct ContentView: View {
                 try await HubClient.default.download(
                     id: modelID,
                     revision: "main",
-                    matching: ["*.safetensors", "*.json", "*.jinja"],
+                    matching: ["*.safetensors", "*.json", "*.jinja", "*.model", "*.txt"],
                     useLatest: false
                 ) { progress in
                     Task { @MainActor in
@@ -1546,9 +1546,10 @@ struct ContentView: View {
                 modelID: modelID,
                 directory: directory
             )
+            LocalModelManager.removeSupersededModels(for: modelID, preserving: directory)
             appLog.info("Gemma install completed at \(directory.path, privacy: .private)")
             installProgress = 1
-            installMessage = "\(model.label) is installed. The next braid can use the local brain."
+            installMessage = "\(model.label) is installed. The old local model was cleared if it was still on the shelf."
         } catch {
             appLog.error("Gemma install failed: \(error.localizedDescription, privacy: .public)")
             installProgress = nil
