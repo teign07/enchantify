@@ -20,7 +20,8 @@
       "lore/world.md",
       "lore/the-pitch.md"
     ],
-    "patreon": "scripts/patreon-adapter.py status"
+    "patreon": "scripts/patreon-adapter.py status",
+    "characterVisuals": "lore/character-visuals.json"
   },
   "wonderCompass": [
     {
@@ -4171,6 +4172,1672 @@
       "url": "https://www.patreon.com/posts/brain-too-tired-144162223",
       "publishedAt": "2025-11-22",
       "preview": "You know that feeling when you finally get a moment to yourself—maybe you’re on a walk, or sitting with a craft project, or just cooking dinner—but your brain won’t get the memo? You are physically present, but mentally, you are miles away. You’re replaying a conversation from work, worrying about the bills, or making a to-do list. This is the hardest part of the \"Rut.\" It follows us around. That is why South =..."
+    }
+  ],
+  "characterIllustrations": [
+    {
+      "id": "headmistress-seraphina-thorne",
+      "characterName": "Headmistress Seraphina Thorne",
+      "slug": "headmistress-seraphina-thorne",
+      "status": "canonical",
+      "chapter": "Duskthorn",
+      "core": "Leads the Academy; sees the Unwritten; the most powerful presence in the Labyrinth; ageless literary-elf face; star-cold eyes; hair pinned like a dark crown",
+      "signature": "an antique star-dark key and a crownlike hairpin",
+      "palette": "ink black, old silver, star-gold",
+      "silhouette": "regal stillness; one hand resting on an antique key",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait, ordinary human office-worker styling",
+      "assetName": "LabyrinthCharacterHeadmistressSeraphinaThorne",
+      "intendedAssetName": "LabyrinthCharacterHeadmistressSeraphinaThorne",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Headmistress Seraphina Thorne. Canon visual profile: Leads the Academy; sees the Unwritten; the most powerful presence in the Labyrinth; ageless literary-elf face; star-cold eyes; hair pinned like a dark crown. Signature object: an antique star-dark key and a crownlike hairpin. Palette: ink black, old silver, star-gold. Silhouette and pose: regal stillness; one hand resting on an antique key. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Headmistress Seraphina Thorne; signature evidence: an antique star-dark key and a crownlike hairpin; jewel-color swatches: ink black, old silver, star-gold; chapter mark: Duskthorn; one short handwritten note from the canon profile: Leads the Academy; sees the Unwritten; the most powerful presence in the Labyrinth; ageless literary-elf face; star-cold eyes; hair pinned like a dark crown. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait, ordinary human office-worker styling",
+      "marginalia": [
+        "file tab labeled Headmistress Seraphina Thorne",
+        "signature evidence: an antique star-dark key and a crownlike hairpin",
+        "jewel-color swatches: ink black, old silver, star-gold",
+        "chapter mark: Duskthorn",
+        "one short handwritten note from the canon profile: Leads the Academy; sees the Unwritten; the most powerful presence in the Labyrinth; ageless literary-elf face; star-cold eyes; hair pinned like a dark crown"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "duskthorn",
+        "headmistress-seraphina-thorne",
+        "illustration"
+      ]
+    },
+    {
+      "id": "orion-blackthorn",
+      "characterName": "Headmaster Orion Blackthorn",
+      "slug": "orion-blackthorn",
+      "status": "canonical",
+      "chapter": "Emberheart",
+      "core": "Emberheart headmaster; architect of minds; keeper of vision; builder of tomorrows; severe, precise face; wintery eyes; immaculate dark academic coat",
+      "signature": "a vision journal, patent sketches, and an architect's drafting pen",
+      "palette": "ember red, iron black, cold brass",
+      "silhouette": "stern architectural posture; one hand over an open vision journal",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait, ordinary human office-worker styling",
+      "assetName": "LabyrinthCharacterOrionBlackthorn",
+      "intendedAssetName": "LabyrinthCharacterOrionBlackthorn",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, architectural diagrams, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset blueprint or patent sketch. Character: Headmaster Orion Blackthorn. Canon visual profile: Emberheart headmaster; architect of minds; keeper of vision; builder of tomorrows; severe, precise face; wintery eyes; immaculate dark academic coat. Signature object: a vision journal, patent sketches, and an architect's drafting pen. Palette: ember red, iron black, cold brass. Silhouette and pose: stern architectural posture; one hand over an open vision journal. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Headmaster Orion Blackthorn; signature evidence: a vision journal, patent sketches, and an architect's drafting pen; jewel-color swatches: ember red, iron black, cold brass; chapter mark: Emberheart; one short handwritten note from the canon profile: No wasted words. No untested structure. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait, ordinary human office-worker styling",
+      "marginalia": [
+        "file tab labeled Headmaster Orion Blackthorn",
+        "signature evidence: a vision journal, patent sketches, and an architect's drafting pen",
+        "jewel-color swatches: ember red, iron black, cold brass",
+        "chapter mark: Emberheart",
+        "one short handwritten note from the canon profile: No wasted words. No untested structure."
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "emberheart",
+        "orion-blackthorn",
+        "illustration"
+      ]
+    },
+    {
+      "id": "dr-elowen-vellum",
+      "characterName": "Dr. Elowen Vellum",
+      "slug": "dr-elowen-vellum",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "Academy Longevity Physician, Dietician, and keeper of the Refectory Marginalia. She translates the player's fuel, blood pressure, bloodwork, medicatio...; silver-pale hair pinned with exacting care; sharp kind eyes",
+      "signature": "a silver bookmark-caliper and red marginal notes",
+      "palette": "warm parchment, clinical silver, cranberry ink",
+      "silhouette": "upright, precise posture; hands annotating or measuring",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait, ordinary human office-worker styling",
+      "assetName": "LabyrinthCharacterDrElowenVellum",
+      "intendedAssetName": "LabyrinthCharacterDrElowenVellum",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Dr. Elowen Vellum. Canon visual profile: Academy Longevity Physician, Dietician, and keeper of the Refectory Marginalia. She translates the player's fuel, blood pressure, bloodwork, medicatio...; silver-pale hair pinned with exacting care; sharp kind eyes. Signature object: a silver bookmark-caliper and red marginal notes. Palette: warm parchment, clinical silver, cranberry ink. Silhouette and pose: upright, precise posture; hands annotating or measuring. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Dr. Elowen Vellum; signature evidence: a silver bookmark-caliper and red marginal notes; jewel-color swatches: warm parchment, clinical silver, cranberry ink; one short handwritten note from the canon profile: Academy Longevity Physician, Dietician, and keeper of the Refectory Marginalia. She translates the player's fuel, blood pressure, bloodwork, medicatio...; silver-pale hair pinned with exacting care; sharp kind eyes. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait, ordinary human office-worker styling",
+      "marginalia": [
+        "file tab labeled Dr. Elowen Vellum",
+        "signature evidence: a silver bookmark-caliper and red marginal notes",
+        "jewel-color swatches: warm parchment, clinical silver, cranberry ink",
+        "one short handwritten note from the canon profile: Academy Longevity Physician, Dietician, and keeper of the Refectory Marginalia. She translates the player's fuel, blood pressure, bloodwork, medicatio...; silver-pale hair pinned with exacting care; sharp kind eyes"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "dr-elowen-vellum",
+        "illustration"
+      ]
+    },
+    {
+      "id": "dr-selene-inkrest",
+      "characterName": "Dr. Selene Inkrest",
+      "slug": "dr-selene-inkrest",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Academy Narrative Therapist, Keeper of Difficult Pages, and curator of the Reauthoring Rooms. She helps the player separate themselves from problems,...; dark thoughtful eyes; soft silver-black hair; calm listening face",
+      "signature": "a black-sand hourglass and tea cup with marginalia",
+      "palette": "charcoal ink, moonlit gray, muted violet",
+      "silhouette": "still, grounded posture; hands around a teacup or hourglass",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait, ordinary human office-worker styling",
+      "assetName": "LabyrinthCharacterDrSeleneInkrest",
+      "intendedAssetName": "LabyrinthCharacterDrSeleneInkrest",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Dr. Selene Inkrest. Canon visual profile: Academy Narrative Therapist, Keeper of Difficult Pages, and curator of the Reauthoring Rooms. She helps the player separate themselves from problems,...; dark thoughtful eyes; soft silver-black hair; calm listening face. Signature object: a black-sand hourglass and tea cup with marginalia. Palette: charcoal ink, moonlit gray, muted violet. Silhouette and pose: still, grounded posture; hands around a teacup or hourglass. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Dr. Selene Inkrest; signature evidence: a black-sand hourglass and tea cup with marginalia; jewel-color swatches: charcoal ink, moonlit gray, muted violet; one short handwritten note from the canon profile: Academy Narrative Therapist, Keeper of Difficult Pages, and curator of the Reauthoring Rooms. She helps the player separate themselves from problems,...; dark thoughtful eyes; soft silver-black hair; calm listening face. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait, ordinary human office-worker styling",
+      "marginalia": [
+        "file tab labeled Dr. Selene Inkrest",
+        "signature evidence: a black-sand hourglass and tea cup with marginalia",
+        "jewel-color swatches: charcoal ink, moonlit gray, muted violet",
+        "one short handwritten note from the canon profile: Academy Narrative Therapist, Keeper of Difficult Pages, and curator of the Reauthoring Rooms. She helps the player separate themselves from problems,...; dark thoughtful eyes; soft silver-black hair; calm listening face"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "dr-selene-inkrest",
+        "illustration"
+      ]
+    },
+    {
+      "id": "aria-silverthorn",
+      "characterName": "Aria Silverthorn",
+      "slug": "aria-silverthorn",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Riddlewind; empathetic, lacks confidence; hums when thinking; drawn to the player in ways she doesn't acknowledge; clear expressive eyes and a memorable silhouette",
+      "signature": "a folded puzzle slip",
+      "palette": "ink blue, parchment cream, quick silver",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterAriaSilverthorn",
+      "intendedAssetName": "LabyrinthCharacterAriaSilverthorn",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Aria Silverthorn. Canon visual profile: Riddlewind; empathetic, lacks confidence; hums when thinking; drawn to the player in ways she doesn't acknowledge; clear expressive eyes and a memorable silhouette. Signature object: a folded puzzle slip. Palette: ink blue, parchment cream, quick silver. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Aria Silverthorn; signature evidence: a folded puzzle slip; jewel-color swatches: ink blue, parchment cream, quick silver; chapter mark: Riddlewind; one short handwritten note from the canon profile: Riddlewind; empathetic, lacks confidence; hums when thinking; drawn to the player in ways she doesn't acknowledge; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Aria Silverthorn",
+        "signature evidence: a folded puzzle slip",
+        "jewel-color swatches: ink blue, parchment cream, quick silver",
+        "chapter mark: Riddlewind",
+        "one short handwritten note from the canon profile: Riddlewind; empathetic, lacks confidence; hums when thinking; drawn to the player in ways she doesn't acknowledge; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "aria-silverthorn",
+        "canonical",
+        "character",
+        "illustration",
+        "riddlewind"
+      ]
+    },
+    {
+      "id": "ellie-moons",
+      "characterName": "Ellie Moons",
+      "slug": "ellie-moons",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Riddlewind; intellectual puzzle-lover; taps fingers when thinking; drawn to the mystery in everything; clear expressive eyes and a memorable silhouette",
+      "signature": "a brass coordinate tag",
+      "palette": "ink blue, parchment cream, quick silver",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterEllieMoons",
+      "intendedAssetName": "LabyrinthCharacterEllieMoons",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Ellie Moons. Canon visual profile: Riddlewind; intellectual puzzle-lover; taps fingers when thinking; drawn to the mystery in everything; clear expressive eyes and a memorable silhouette. Signature object: a brass coordinate tag. Palette: ink blue, parchment cream, quick silver. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Ellie Moons; signature evidence: a brass coordinate tag; jewel-color swatches: ink blue, parchment cream, quick silver; chapter mark: Riddlewind; one short handwritten note from the canon profile: Riddlewind; intellectual puzzle-lover; taps fingers when thinking; drawn to the mystery in everything; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Ellie Moons",
+        "signature evidence: a brass coordinate tag",
+        "jewel-color swatches: ink blue, parchment cream, quick silver",
+        "chapter mark: Riddlewind",
+        "one short handwritten note from the canon profile: Riddlewind; intellectual puzzle-lover; taps fingers when thinking; drawn to the mystery in everything; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "ellie-moons",
+        "illustration",
+        "riddlewind"
+      ]
+    },
+    {
+      "id": "cedric-widden",
+      "characterName": "Cedric Widden",
+      "slug": "cedric-widden",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Riddlewind; witty mischief; harmless pranks; would trip over himself to help; clear expressive eyes and a memorable silhouette",
+      "signature": "a folded puzzle slip",
+      "palette": "ink blue, parchment cream, quick silver",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterCedricWidden",
+      "intendedAssetName": "LabyrinthCharacterCedricWidden",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Cedric Widden. Canon visual profile: Riddlewind; witty mischief; harmless pranks; would trip over himself to help; clear expressive eyes and a memorable silhouette. Signature object: a folded puzzle slip. Palette: ink blue, parchment cream, quick silver. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Cedric Widden; signature evidence: a folded puzzle slip; jewel-color swatches: ink blue, parchment cream, quick silver; chapter mark: Riddlewind; one short handwritten note from the canon profile: Riddlewind; witty mischief; harmless pranks; would trip over himself to help; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Cedric Widden",
+        "signature evidence: a folded puzzle slip",
+        "jewel-color swatches: ink blue, parchment cream, quick silver",
+        "chapter mark: Riddlewind",
+        "one short handwritten note from the canon profile: Riddlewind; witty mischief; harmless pranks; would trip over himself to help; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "cedric-widden",
+        "character",
+        "illustration",
+        "riddlewind"
+      ]
+    },
+    {
+      "id": "serenity-lightfeather",
+      "characterName": "Serenity Lightfeather",
+      "slug": "serenity-lightfeather",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Riddlewind; free-spirited dreamer; optimistic to the point of missing danger; clear expressive eyes and a memorable silhouette",
+      "signature": "a folded puzzle slip",
+      "palette": "ink blue, parchment cream, quick silver",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterSerenityLightfeather",
+      "intendedAssetName": "LabyrinthCharacterSerenityLightfeather",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Serenity Lightfeather. Canon visual profile: Riddlewind; free-spirited dreamer; optimistic to the point of missing danger; clear expressive eyes and a memorable silhouette. Signature object: a folded puzzle slip. Palette: ink blue, parchment cream, quick silver. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Serenity Lightfeather; signature evidence: a folded puzzle slip; jewel-color swatches: ink blue, parchment cream, quick silver; chapter mark: Riddlewind; one short handwritten note from the canon profile: Riddlewind; free-spirited dreamer; optimistic to the point of missing danger; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Serenity Lightfeather",
+        "signature evidence: a folded puzzle slip",
+        "jewel-color swatches: ink blue, parchment cream, quick silver",
+        "chapter mark: Riddlewind",
+        "one short handwritten note from the canon profile: Riddlewind; free-spirited dreamer; optimistic to the point of missing danger; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "riddlewind",
+        "serenity-lightfeather"
+      ]
+    },
+    {
+      "id": "felix-quimby",
+      "characterName": "Felix Quimby",
+      "slug": "felix-quimby",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Riddlewind; quick, agile; speed-running errands; easily distracted by the next thing; clear expressive eyes and a memorable silhouette",
+      "signature": "a folded puzzle slip",
+      "palette": "ink blue, parchment cream, quick silver",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterFelixQuimby",
+      "intendedAssetName": "LabyrinthCharacterFelixQuimby",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Felix Quimby. Canon visual profile: Riddlewind; quick, agile; speed-running errands; easily distracted by the next thing; clear expressive eyes and a memorable silhouette. Signature object: a folded puzzle slip. Palette: ink blue, parchment cream, quick silver. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Felix Quimby; signature evidence: a folded puzzle slip; jewel-color swatches: ink blue, parchment cream, quick silver; chapter mark: Riddlewind; one short handwritten note from the canon profile: Riddlewind; quick, agile; speed-running errands; easily distracted by the next thing; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Felix Quimby",
+        "signature evidence: a folded puzzle slip",
+        "jewel-color swatches: ink blue, parchment cream, quick silver",
+        "chapter mark: Riddlewind",
+        "one short handwritten note from the canon profile: Riddlewind; quick, agile; speed-running errands; easily distracted by the next thing; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "felix-quimby",
+        "illustration",
+        "riddlewind"
+      ]
+    },
+    {
+      "id": "lyra-stanford",
+      "characterName": "Lyra Stanford",
+      "slug": "lyra-stanford",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Riddlewind; intuitive, mystical; stargazes; believes the sky has opinions; clear expressive eyes and a memorable silhouette",
+      "signature": "a pressed trail leaf",
+      "palette": "ink blue, parchment cream, quick silver",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterLyraStanford",
+      "intendedAssetName": "LabyrinthCharacterLyraStanford",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Lyra Stanford. Canon visual profile: Riddlewind; intuitive, mystical; stargazes; believes the sky has opinions; clear expressive eyes and a memorable silhouette. Signature object: a pressed trail leaf. Palette: ink blue, parchment cream, quick silver. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Lyra Stanford; signature evidence: a pressed trail leaf; jewel-color swatches: ink blue, parchment cream, quick silver; chapter mark: Riddlewind; one short handwritten note from the canon profile: Riddlewind; intuitive, mystical; stargazes; believes the sky has opinions; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Lyra Stanford",
+        "signature evidence: a pressed trail leaf",
+        "jewel-color swatches: ink blue, parchment cream, quick silver",
+        "chapter mark: Riddlewind",
+        "one short handwritten note from the canon profile: Riddlewind; intuitive, mystical; stargazes; believes the sky has opinions; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "lyra-stanford",
+        "riddlewind"
+      ]
+    },
+    {
+      "id": "soren-ng",
+      "characterName": "Soren Ng",
+      "slug": "soren-ng",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Riddlewind; methodical; growing riddle collection; quietly building something; soft mouth and observant eyes",
+      "signature": "a folded puzzle slip",
+      "palette": "ink blue, parchment cream, quick silver",
+      "silhouette": "slight, inward posture; attentive hands",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterSorenNg",
+      "intendedAssetName": "LabyrinthCharacterSorenNg",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Soren Ng. Canon visual profile: Riddlewind; methodical; growing riddle collection; quietly building something; soft mouth and observant eyes. Signature object: a folded puzzle slip. Palette: ink blue, parchment cream, quick silver. Silhouette and pose: slight, inward posture; attentive hands. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Soren Ng; signature evidence: a folded puzzle slip; jewel-color swatches: ink blue, parchment cream, quick silver; chapter mark: Riddlewind; one short handwritten note from the canon profile: Riddlewind; methodical; growing riddle collection; quietly building something; soft mouth and observant eyes. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Soren Ng",
+        "signature evidence: a folded puzzle slip",
+        "jewel-color swatches: ink blue, parchment cream, quick silver",
+        "chapter mark: Riddlewind",
+        "one short handwritten note from the canon profile: Riddlewind; methodical; growing riddle collection; quietly building something; soft mouth and observant eyes"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "riddlewind",
+        "soren-ng"
+      ]
+    },
+    {
+      "id": "orlando-oracle-scrollstone",
+      "characterName": "Orlando “Oracle” Scrollstone",
+      "slug": "orlando-oracle-scrollstone",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Riddlewind; predicts things one beat too late; unsettlingly accurate; clear expressive eyes and a memorable silhouette",
+      "signature": "a pocket barometer",
+      "palette": "ink blue, parchment cream, quick silver",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterOrlandoOracleScrollstone",
+      "intendedAssetName": "LabyrinthCharacterOrlandoOracleScrollstone",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Orlando “Oracle” Scrollstone. Canon visual profile: Riddlewind; predicts things one beat too late; unsettlingly accurate; clear expressive eyes and a memorable silhouette. Signature object: a pocket barometer. Palette: ink blue, parchment cream, quick silver. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Orlando “Oracle” Scrollstone; signature evidence: a pocket barometer; jewel-color swatches: ink blue, parchment cream, quick silver; chapter mark: Riddlewind; one short handwritten note from the canon profile: Riddlewind; predicts things one beat too late; unsettlingly accurate; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Orlando “Oracle” Scrollstone",
+        "signature evidence: a pocket barometer",
+        "jewel-color swatches: ink blue, parchment cream, quick silver",
+        "chapter mark: Riddlewind",
+        "one short handwritten note from the canon profile: Riddlewind; predicts things one beat too late; unsettlingly accurate; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "orlando-oracle-scrollstone",
+        "riddlewind"
+      ]
+    },
+    {
+      "id": "felicity-fable-grimmhaven",
+      "characterName": "Felicity “Fable” Grimmhaven",
+      "slug": "felicity-fable-grimmhaven",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Riddlewind; collects folklore; stories about things that haven't happened yet; clear expressive eyes and a memorable silhouette",
+      "signature": "a catalog card",
+      "palette": "ink blue, parchment cream, quick silver",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterFelicityFableGrimmhaven",
+      "intendedAssetName": "LabyrinthCharacterFelicityFableGrimmhaven",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Felicity “Fable” Grimmhaven. Canon visual profile: Riddlewind; collects folklore; stories about things that haven't happened yet; clear expressive eyes and a memorable silhouette. Signature object: a catalog card. Palette: ink blue, parchment cream, quick silver. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Felicity “Fable” Grimmhaven; signature evidence: a catalog card; jewel-color swatches: ink blue, parchment cream, quick silver; chapter mark: Riddlewind; one short handwritten note from the canon profile: Riddlewind; collects folklore; stories about things that haven't happened yet; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Felicity “Fable” Grimmhaven",
+        "signature evidence: a catalog card",
+        "jewel-color swatches: ink blue, parchment cream, quick silver",
+        "chapter mark: Riddlewind",
+        "one short handwritten note from the canon profile: Riddlewind; collects folklore; stories about things that haven't happened yet; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "felicity-fable-grimmhaven",
+        "illustration",
+        "riddlewind"
+      ]
+    },
+    {
+      "id": "wilbur-wordplay-lexi",
+      "characterName": "Wilbur “Wordplay” Lexi",
+      "slug": "wilbur-wordplay-lexi",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Riddlewind; pun-first personality; the one who makes Boggle laugh; mischievous eyes and a ready grin",
+      "signature": "a folded puzzle slip",
+      "palette": "ink blue, parchment cream, quick silver",
+      "silhouette": "bright expression; hands caught in a joke or trick",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterWilburWordplayLexi",
+      "intendedAssetName": "LabyrinthCharacterWilburWordplayLexi",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Wilbur “Wordplay” Lexi. Canon visual profile: Riddlewind; pun-first personality; the one who makes Boggle laugh; mischievous eyes and a ready grin. Signature object: a folded puzzle slip. Palette: ink blue, parchment cream, quick silver. Silhouette and pose: bright expression; hands caught in a joke or trick. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Wilbur “Wordplay” Lexi; signature evidence: a folded puzzle slip; jewel-color swatches: ink blue, parchment cream, quick silver; chapter mark: Riddlewind; one short handwritten note from the canon profile: Riddlewind; pun-first personality; the one who makes Boggle laugh; mischievous eyes and a ready grin. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Wilbur “Wordplay” Lexi",
+        "signature evidence: a folded puzzle slip",
+        "jewel-color swatches: ink blue, parchment cream, quick silver",
+        "chapter mark: Riddlewind",
+        "one short handwritten note from the canon profile: Riddlewind; pun-first personality; the one who makes Boggle laugh; mischievous eyes and a ready grin"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "riddlewind",
+        "wilbur-wordplay-lexi"
+      ]
+    },
+    {
+      "id": "damien-nights",
+      "characterName": "Damien Nights",
+      "slug": "damien-nights",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Riddlewind; Wicker's crew; brooding shadow magic; watches the player more than he should; shadowed eyes and severe cheekbones",
+      "signature": "a pressed trail leaf",
+      "palette": "ink blue, parchment cream, quick silver",
+      "silhouette": "chin lowered; eyes under shadowed brows",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterDamienNights",
+      "intendedAssetName": "LabyrinthCharacterDamienNights",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Damien Nights. Canon visual profile: Riddlewind; Wicker's crew; brooding shadow magic; watches the player more than he should; shadowed eyes and severe cheekbones. Signature object: a pressed trail leaf. Palette: ink blue, parchment cream, quick silver. Silhouette and pose: chin lowered; eyes under shadowed brows. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Damien Nights; signature evidence: a pressed trail leaf; jewel-color swatches: ink blue, parchment cream, quick silver; chapter mark: Riddlewind; one short handwritten note from the canon profile: Riddlewind; Wicker's crew; brooding shadow magic; watches the player more than he should; shadowed eyes and severe cheekbones. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Damien Nights",
+        "signature evidence: a pressed trail leaf",
+        "jewel-color swatches: ink blue, parchment cream, quick silver",
+        "chapter mark: Riddlewind",
+        "one short handwritten note from the canon profile: Riddlewind; Wicker's crew; brooding shadow magic; watches the player more than he should; shadowed eyes and severe cheekbones"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "damien-nights",
+        "illustration",
+        "riddlewind"
+      ]
+    },
+    {
+      "id": "finn-bridges",
+      "characterName": "Finn Bridges",
+      "slug": "finn-bridges",
+      "status": "canonical",
+      "chapter": "Emberheart",
+      "core": "Emberheart; independent, determined; antagonistic but honorable; a rival who respects competence; clear expressive eyes and a memorable silhouette",
+      "signature": "a red-chalk mark or small brass striker",
+      "palette": "ember red, warm gold, charcoal ink",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterFinnBridges",
+      "intendedAssetName": "LabyrinthCharacterFinnBridges",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Finn Bridges. Canon visual profile: Emberheart; independent, determined; antagonistic but honorable; a rival who respects competence; clear expressive eyes and a memorable silhouette. Signature object: a red-chalk mark or small brass striker. Palette: ember red, warm gold, charcoal ink. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Finn Bridges; signature evidence: a red-chalk mark or small brass striker; jewel-color swatches: ember red, warm gold, charcoal ink; chapter mark: Emberheart; one short handwritten note from the canon profile: Emberheart; independent, determined; antagonistic but honorable; a rival who respects competence; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Finn Bridges",
+        "signature evidence: a red-chalk mark or small brass striker",
+        "jewel-color swatches: ember red, warm gold, charcoal ink",
+        "chapter mark: Emberheart",
+        "one short handwritten note from the canon profile: Emberheart; independent, determined; antagonistic but honorable; a rival who respects competence; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "emberheart",
+        "finn-bridges",
+        "illustration"
+      ]
+    },
+    {
+      "id": "wicker-eddies",
+      "characterName": "Wicker Eddies",
+      "slug": "wicker-eddies",
+      "status": "canonical",
+      "chapter": "Duskthorn",
+      "core": "Primary antagonist; Duskthorn; charismatic, cunning, always three moves ahead; sharp smile; bright predatory eyes; handsome face that never fully relaxes",
+      "signature": "a wrong-door brass key and tiny chaos sigils in the margins",
+      "palette": "black violet, tarnished brass, cold red",
+      "silhouette": "easy confident lean; fingers near a wrong-door brass key",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterWickerEddies",
+      "intendedAssetName": "LabyrinthCharacterWickerEddies",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Wicker Eddies. Canon visual profile: Primary antagonist; Duskthorn; charismatic, cunning, always three moves ahead; sharp smile; bright predatory eyes; handsome face that never fully relaxes. Signature object: a wrong-door brass key and tiny chaos sigils in the margins. Palette: black violet, tarnished brass, cold red. Silhouette and pose: easy confident lean; fingers near a wrong-door brass key. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Wicker Eddies; signature evidence: a wrong-door brass key and tiny chaos sigils in the margins; jewel-color swatches: black violet, tarnished brass, cold red; chapter mark: Duskthorn; one short handwritten note from the canon profile: Primary antagonist; Duskthorn; charismatic, cunning, always three moves ahead; sharp smile; bright predatory eyes; handsome face that never fully relaxes. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Wicker Eddies",
+        "signature evidence: a wrong-door brass key and tiny chaos sigils in the margins",
+        "jewel-color swatches: black violet, tarnished brass, cold red",
+        "chapter mark: Duskthorn",
+        "one short handwritten note from the canon profile: Primary antagonist; Duskthorn; charismatic, cunning, always three moves ahead; sharp smile; bright predatory eyes; handsome face that never fully relaxes"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "duskthorn",
+        "illustration",
+        "wicker-eddies"
+      ]
+    },
+    {
+      "id": "isolde-firare",
+      "characterName": "Isolde Firare",
+      "slug": "isolde-firare",
+      "status": "canonical",
+      "chapter": "Emberheart",
+      "core": "Emberheart; competitive, adventurous; first to challenge and first to respect competence; bright, controlled expression",
+      "signature": "wrapped sparring tape",
+      "palette": "ember red, warm gold, charcoal ink",
+      "silhouette": "open stance; one hand mid-invitation",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterIsoldeFirare",
+      "intendedAssetName": "LabyrinthCharacterIsoldeFirare",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Isolde Firare. Canon visual profile: Emberheart; competitive, adventurous; first to challenge and first to respect competence; bright, controlled expression. Signature object: wrapped sparring tape. Palette: ember red, warm gold, charcoal ink. Silhouette and pose: open stance; one hand mid-invitation. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Isolde Firare; signature evidence: wrapped sparring tape; jewel-color swatches: ember red, warm gold, charcoal ink; chapter mark: Emberheart; one short handwritten note from the canon profile: Emberheart; competitive, adventurous; first to challenge and first to respect competence; bright, controlled expression. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Isolde Firare",
+        "signature evidence: wrapped sparring tape",
+        "jewel-color swatches: ember red, warm gold, charcoal ink",
+        "chapter mark: Emberheart",
+        "one short handwritten note from the canon profile: Emberheart; competitive, adventurous; first to challenge and first to respect competence; bright, controlled expression"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "emberheart",
+        "illustration",
+        "isolde-firare"
+      ]
+    },
+    {
+      "id": "rowan-laraway",
+      "characterName": "Rowan Laraway",
+      "slug": "rowan-laraway",
+      "status": "canonical",
+      "chapter": "Emberheart",
+      "core": "Emberheart; analytical tinkerer; always disassembling something they probably shouldn't; clear expressive eyes and a memorable silhouette",
+      "signature": "a red-chalk mark or small brass striker",
+      "palette": "ember red, warm gold, charcoal ink",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterRowanLaraway",
+      "intendedAssetName": "LabyrinthCharacterRowanLaraway",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Rowan Laraway. Canon visual profile: Emberheart; analytical tinkerer; always disassembling something they probably shouldn't; clear expressive eyes and a memorable silhouette. Signature object: a red-chalk mark or small brass striker. Palette: ember red, warm gold, charcoal ink. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Rowan Laraway; signature evidence: a red-chalk mark or small brass striker; jewel-color swatches: ember red, warm gold, charcoal ink; chapter mark: Emberheart; one short handwritten note from the canon profile: Emberheart; analytical tinkerer; always disassembling something they probably shouldn't; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Rowan Laraway",
+        "signature evidence: a red-chalk mark or small brass striker",
+        "jewel-color swatches: ember red, warm gold, charcoal ink",
+        "chapter mark: Emberheart",
+        "one short handwritten note from the canon profile: Emberheart; analytical tinkerer; always disassembling something they probably shouldn't; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "emberheart",
+        "illustration",
+        "rowan-laraway"
+      ]
+    },
+    {
+      "id": "lila-woods",
+      "characterName": "Lila Woods",
+      "slug": "lila-woods",
+      "status": "canonical",
+      "chapter": "Emberheart",
+      "core": "Emberheart; impulsive, fiery; explosive potions; will demand food reviews; clear expressive eyes and a memorable silhouette",
+      "signature": "a red-chalk mark or small brass striker",
+      "palette": "ember red, warm gold, charcoal ink",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterLilaWoods",
+      "intendedAssetName": "LabyrinthCharacterLilaWoods",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Lila Woods. Canon visual profile: Emberheart; impulsive, fiery; explosive potions; will demand food reviews; clear expressive eyes and a memorable silhouette. Signature object: a red-chalk mark or small brass striker. Palette: ember red, warm gold, charcoal ink. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Lila Woods; signature evidence: a red-chalk mark or small brass striker; jewel-color swatches: ember red, warm gold, charcoal ink; chapter mark: Emberheart; one short handwritten note from the canon profile: Emberheart; impulsive, fiery; explosive potions; will demand food reviews; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Lila Woods",
+        "signature evidence: a red-chalk mark or small brass striker",
+        "jewel-color swatches: ember red, warm gold, charcoal ink",
+        "chapter mark: Emberheart",
+        "one short handwritten note from the canon profile: Emberheart; impulsive, fiery; explosive potions; will demand food reviews; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "emberheart",
+        "illustration",
+        "lila-woods"
+      ]
+    },
+    {
+      "id": "astra-sonseur",
+      "characterName": "Astra Sonseur",
+      "slug": "astra-sonseur",
+      "status": "canonical",
+      "chapter": "Emberheart",
+      "core": "Emberheart; radiant, hopeful; sun energy; makes the room warmer without trying; kind eyes and an expression that listens",
+      "signature": "a miniature foundation stone",
+      "palette": "ember red, warm gold, charcoal ink",
+      "silhouette": "soft expression; shoulders lowered in welcome",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterAstraSonseur",
+      "intendedAssetName": "LabyrinthCharacterAstraSonseur",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Astra Sonseur. Canon visual profile: Emberheart; radiant, hopeful; sun energy; makes the room warmer without trying; kind eyes and an expression that listens. Signature object: a miniature foundation stone. Palette: ember red, warm gold, charcoal ink. Silhouette and pose: soft expression; shoulders lowered in welcome. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Astra Sonseur; signature evidence: a miniature foundation stone; jewel-color swatches: ember red, warm gold, charcoal ink; chapter mark: Emberheart; one short handwritten note from the canon profile: Emberheart; radiant, hopeful; sun energy; makes the room warmer without trying; kind eyes and an expression that listens. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Astra Sonseur",
+        "signature evidence: a miniature foundation stone",
+        "jewel-color swatches: ember red, warm gold, charcoal ink",
+        "chapter mark: Emberheart",
+        "one short handwritten note from the canon profile: Emberheart; radiant, hopeful; sun energy; makes the room warmer without trying; kind eyes and an expression that listens"
+      ],
+      "tags": [
+        "astra-sonseur",
+        "canonical",
+        "character",
+        "emberheart",
+        "illustration"
+      ]
+    },
+    {
+      "id": "caspian-shan",
+      "characterName": "Caspian Shan",
+      "slug": "caspian-shan",
+      "status": "canonical",
+      "chapter": "Emberheart",
+      "core": "Emberheart; stealthy, secretive; merges with shadows; night photographer; clear expressive eyes and a memorable silhouette",
+      "signature": "a red-chalk mark or small brass striker",
+      "palette": "ember red, warm gold, charcoal ink",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterCaspianShan",
+      "intendedAssetName": "LabyrinthCharacterCaspianShan",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Caspian Shan. Canon visual profile: Emberheart; stealthy, secretive; merges with shadows; night photographer; clear expressive eyes and a memorable silhouette. Signature object: a red-chalk mark or small brass striker. Palette: ember red, warm gold, charcoal ink. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Caspian Shan; signature evidence: a red-chalk mark or small brass striker; jewel-color swatches: ember red, warm gold, charcoal ink; chapter mark: Emberheart; one short handwritten note from the canon profile: Emberheart; stealthy, secretive; merges with shadows; night photographer; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Caspian Shan",
+        "signature evidence: a red-chalk mark or small brass striker",
+        "jewel-color swatches: ember red, warm gold, charcoal ink",
+        "chapter mark: Emberheart",
+        "one short handwritten note from the canon profile: Emberheart; stealthy, secretive; merges with shadows; night photographer; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "caspian-shan",
+        "character",
+        "emberheart",
+        "illustration"
+      ]
+    },
+    {
+      "id": "melisande-blackwood",
+      "characterName": "Melisande Blackwood",
+      "slug": "melisande-blackwood",
+      "status": "canonical",
+      "chapter": "Emberheart",
+      "core": "Emberheart; Wicker's crew; loyal, intelligent, ruthless; knows things she shouldn't; clear expressive eyes and a memorable silhouette",
+      "signature": "a red-chalk mark or small brass striker",
+      "palette": "ember red, warm gold, charcoal ink",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterMelisandeBlackwood",
+      "intendedAssetName": "LabyrinthCharacterMelisandeBlackwood",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Melisande Blackwood. Canon visual profile: Emberheart; Wicker's crew; loyal, intelligent, ruthless; knows things she shouldn't; clear expressive eyes and a memorable silhouette. Signature object: a red-chalk mark or small brass striker. Palette: ember red, warm gold, charcoal ink. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Melisande Blackwood; signature evidence: a red-chalk mark or small brass striker; jewel-color swatches: ember red, warm gold, charcoal ink; chapter mark: Emberheart; one short handwritten note from the canon profile: Emberheart; Wicker's crew; loyal, intelligent, ruthless; knows things she shouldn't; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Melisande Blackwood",
+        "signature evidence: a red-chalk mark or small brass striker",
+        "jewel-color swatches: ember red, warm gold, charcoal ink",
+        "chapter mark: Emberheart",
+        "one short handwritten note from the canon profile: Emberheart; Wicker's crew; loyal, intelligent, ruthless; knows things she shouldn't; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "emberheart",
+        "illustration",
+        "melisande-blackwood"
+      ]
+    },
+    {
+      "id": "lysander-mosswood",
+      "characterName": "Lysander Mosswood",
+      "slug": "lysander-mosswood",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "Mossbloom; thoughtful, wise; nature walks; will send the player to specific local trails; clear expressive eyes and a memorable silhouette",
+      "signature": "a moss-edged notebook or pressed leaf",
+      "palette": "moss green, bark brown, soft lichen gray",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterLysanderMosswood",
+      "intendedAssetName": "LabyrinthCharacterLysanderMosswood",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Lysander Mosswood. Canon visual profile: Mossbloom; thoughtful, wise; nature walks; will send the player to specific local trails; clear expressive eyes and a memorable silhouette. Signature object: a moss-edged notebook or pressed leaf. Palette: moss green, bark brown, soft lichen gray. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Lysander Mosswood; signature evidence: a moss-edged notebook or pressed leaf; jewel-color swatches: moss green, bark brown, soft lichen gray; chapter mark: Mossbloom; one short handwritten note from the canon profile: Mossbloom; thoughtful, wise; nature walks; will send the player to specific local trails; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Lysander Mosswood",
+        "signature evidence: a moss-edged notebook or pressed leaf",
+        "jewel-color swatches: moss green, bark brown, soft lichen gray",
+        "chapter mark: Mossbloom",
+        "one short handwritten note from the canon profile: Mossbloom; thoughtful, wise; nature walks; will send the player to specific local trails; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "lysander-mosswood",
+        "mossbloom"
+      ]
+    },
+    {
+      "id": "raven-hearts",
+      "characterName": "Raven Hearts",
+      "slug": "raven-hearts",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "Mossbloom; Wicker's crew; quiet, calculating; watches for strange shadows; soft mouth and observant eyes",
+      "signature": "a moss-edged notebook or pressed leaf",
+      "palette": "moss green, bark brown, soft lichen gray",
+      "silhouette": "slight, inward posture; attentive hands",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterRavenHearts",
+      "intendedAssetName": "LabyrinthCharacterRavenHearts",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Raven Hearts. Canon visual profile: Mossbloom; Wicker's crew; quiet, calculating; watches for strange shadows; soft mouth and observant eyes. Signature object: a moss-edged notebook or pressed leaf. Palette: moss green, bark brown, soft lichen gray. Silhouette and pose: slight, inward posture; attentive hands. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Raven Hearts; signature evidence: a moss-edged notebook or pressed leaf; jewel-color swatches: moss green, bark brown, soft lichen gray; chapter mark: Mossbloom; one short handwritten note from the canon profile: Mossbloom; Wicker's crew; quiet, calculating; watches for strange shadows; soft mouth and observant eyes. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Raven Hearts",
+        "signature evidence: a moss-edged notebook or pressed leaf",
+        "jewel-color swatches: moss green, bark brown, soft lichen gray",
+        "chapter mark: Mossbloom",
+        "one short handwritten note from the canon profile: Mossbloom; Wicker's crew; quiet, calculating; watches for strange shadows; soft mouth and observant eyes"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "mossbloom",
+        "raven-hearts"
+      ]
+    },
+    {
+      "id": "min-seo-kim",
+      "characterName": "Min-seo Kim",
+      "slug": "min-seo-kim",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "Mossbloom; gentle, nurturing; communicates with plants; the Academy's conscience; calm eyes and weathered gentleness",
+      "signature": "a little green cutting in a glass vial",
+      "palette": "moss green, bark brown, soft lichen gray",
+      "silhouette": "still posture; hands relaxed and deliberate",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterMinSeoKim",
+      "intendedAssetName": "LabyrinthCharacterMinSeoKim",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Min-seo Kim. Canon visual profile: Mossbloom; gentle, nurturing; communicates with plants; the Academy's conscience; calm eyes and weathered gentleness. Signature object: a little green cutting in a glass vial. Palette: moss green, bark brown, soft lichen gray. Silhouette and pose: still posture; hands relaxed and deliberate. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Min-seo Kim; signature evidence: a little green cutting in a glass vial; jewel-color swatches: moss green, bark brown, soft lichen gray; chapter mark: Mossbloom; one short handwritten note from the canon profile: Mossbloom; gentle, nurturing; communicates with plants; the Academy's conscience; calm eyes and weathered gentleness. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Min-seo Kim",
+        "signature evidence: a little green cutting in a glass vial",
+        "jewel-color swatches: moss green, bark brown, soft lichen gray",
+        "chapter mark: Mossbloom",
+        "one short handwritten note from the canon profile: Mossbloom; gentle, nurturing; communicates with plants; the Academy's conscience; calm eyes and weathered gentleness"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "min-seo-kim",
+        "mossbloom"
+      ]
+    },
+    {
+      "id": "anton-smith",
+      "characterName": "Anton Smith",
+      "slug": "anton-smith",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "Mossbloom; scholarly, socially awkward; oldest libraries; paper is sacred to him; clear expressive eyes and a memorable silhouette",
+      "signature": "a catalog card",
+      "palette": "moss green, bark brown, soft lichen gray",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterAntonSmith",
+      "intendedAssetName": "LabyrinthCharacterAntonSmith",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Anton Smith. Canon visual profile: Mossbloom; scholarly, socially awkward; oldest libraries; paper is sacred to him; clear expressive eyes and a memorable silhouette. Signature object: a catalog card. Palette: moss green, bark brown, soft lichen gray. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Anton Smith; signature evidence: a catalog card; jewel-color swatches: moss green, bark brown, soft lichen gray; chapter mark: Mossbloom; one short handwritten note from the canon profile: Mossbloom; scholarly, socially awkward; oldest libraries; paper is sacred to him; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Anton Smith",
+        "signature evidence: a catalog card",
+        "jewel-color swatches: moss green, bark brown, soft lichen gray",
+        "chapter mark: Mossbloom",
+        "one short handwritten note from the canon profile: Mossbloom; scholarly, socially awkward; oldest libraries; paper is sacred to him; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "anton-smith",
+        "canonical",
+        "character",
+        "illustration",
+        "mossbloom"
+      ]
+    },
+    {
+      "id": "ivy-liversedge",
+      "characterName": "Ivy Liversedge",
+      "slug": "ivy-liversedge",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "Mossbloom; kind-hearted, self-sacrificing; healing herbs; the one who patches things up; clear expressive eyes and a memorable silhouette",
+      "signature": "a moss-edged notebook or pressed leaf",
+      "palette": "moss green, bark brown, soft lichen gray",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterIvyLiversedge",
+      "intendedAssetName": "LabyrinthCharacterIvyLiversedge",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Ivy Liversedge. Canon visual profile: Mossbloom; kind-hearted, self-sacrificing; healing herbs; the one who patches things up; clear expressive eyes and a memorable silhouette. Signature object: a moss-edged notebook or pressed leaf. Palette: moss green, bark brown, soft lichen gray. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Ivy Liversedge; signature evidence: a moss-edged notebook or pressed leaf; jewel-color swatches: moss green, bark brown, soft lichen gray; chapter mark: Mossbloom; one short handwritten note from the canon profile: Mossbloom; kind-hearted, self-sacrificing; healing herbs; the one who patches things up; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Ivy Liversedge",
+        "signature evidence: a moss-edged notebook or pressed leaf",
+        "jewel-color swatches: moss green, bark brown, soft lichen gray",
+        "chapter mark: Mossbloom",
+        "one short handwritten note from the canon profile: Mossbloom; kind-hearted, self-sacrificing; healing herbs; the one who patches things up; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "ivy-liversedge",
+        "mossbloom"
+      ]
+    },
+    {
+      "id": "briar-merlock",
+      "characterName": "Briar Merlock",
+      "slug": "briar-merlock",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "Mossbloom; forest-dweller wisdom; foraging; wild mushroom identification; clear expressive eyes and a memorable silhouette",
+      "signature": "a moss-edged notebook or pressed leaf",
+      "palette": "moss green, bark brown, soft lichen gray",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterBriarMerlock",
+      "intendedAssetName": "LabyrinthCharacterBriarMerlock",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Briar Merlock. Canon visual profile: Mossbloom; forest-dweller wisdom; foraging; wild mushroom identification; clear expressive eyes and a memorable silhouette. Signature object: a moss-edged notebook or pressed leaf. Palette: moss green, bark brown, soft lichen gray. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Briar Merlock; signature evidence: a moss-edged notebook or pressed leaf; jewel-color swatches: moss green, bark brown, soft lichen gray; chapter mark: Mossbloom; one short handwritten note from the canon profile: Mossbloom; forest-dweller wisdom; foraging; wild mushroom identification; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Briar Merlock",
+        "signature evidence: a moss-edged notebook or pressed leaf",
+        "jewel-color swatches: moss green, bark brown, soft lichen gray",
+        "chapter mark: Mossbloom",
+        "one short handwritten note from the canon profile: Mossbloom; forest-dweller wisdom; foraging; wild mushroom identification; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "briar-merlock",
+        "canonical",
+        "character",
+        "illustration",
+        "mossbloom"
+      ]
+    },
+    {
+      "id": "thorn-thomas",
+      "characterName": "Thorn Thomas",
+      "slug": "thorn-thomas",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "Mossbloom; transforms into small animals; curious; can fit under doors; clear expressive eyes and a memorable silhouette",
+      "signature": "a moss-edged notebook or pressed leaf",
+      "palette": "moss green, bark brown, soft lichen gray",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterThornThomas",
+      "intendedAssetName": "LabyrinthCharacterThornThomas",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Thorn Thomas. Canon visual profile: Mossbloom; transforms into small animals; curious; can fit under doors; clear expressive eyes and a memorable silhouette. Signature object: a moss-edged notebook or pressed leaf. Palette: moss green, bark brown, soft lichen gray. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Thorn Thomas; signature evidence: a moss-edged notebook or pressed leaf; jewel-color swatches: moss green, bark brown, soft lichen gray; chapter mark: Mossbloom; one short handwritten note from the canon profile: Mossbloom; transforms into small animals; curious; can fit under doors; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Thorn Thomas",
+        "signature evidence: a moss-edged notebook or pressed leaf",
+        "jewel-color swatches: moss green, bark brown, soft lichen gray",
+        "chapter mark: Mossbloom",
+        "one short handwritten note from the canon profile: Mossbloom; transforms into small animals; curious; can fit under doors; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "mossbloom",
+        "thorn-thomas"
+      ]
+    },
+    {
+      "id": "astrid-natsune",
+      "characterName": "Astrid Natsune",
+      "slug": "astrid-natsune",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "Mossbloom; dreamy, philosophical; constellations; hard to reach when she's up there; faraway eyes and softened edges",
+      "signature": "a moss-edged notebook or pressed leaf",
+      "palette": "moss green, bark brown, soft lichen gray",
+      "silhouette": "unfocused gaze; body half-turned toward an unseen thought",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterAstridNatsune",
+      "intendedAssetName": "LabyrinthCharacterAstridNatsune",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Astrid Natsune. Canon visual profile: Mossbloom; dreamy, philosophical; constellations; hard to reach when she's up there; faraway eyes and softened edges. Signature object: a moss-edged notebook or pressed leaf. Palette: moss green, bark brown, soft lichen gray. Silhouette and pose: unfocused gaze; body half-turned toward an unseen thought. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Astrid Natsune; signature evidence: a moss-edged notebook or pressed leaf; jewel-color swatches: moss green, bark brown, soft lichen gray; chapter mark: Mossbloom; one short handwritten note from the canon profile: Mossbloom; dreamy, philosophical; constellations; hard to reach when she's up there; faraway eyes and softened edges. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Astrid Natsune",
+        "signature evidence: a moss-edged notebook or pressed leaf",
+        "jewel-color swatches: moss green, bark brown, soft lichen gray",
+        "chapter mark: Mossbloom",
+        "one short handwritten note from the canon profile: Mossbloom; dreamy, philosophical; constellations; hard to reach when she's up there; faraway eyes and softened edges"
+      ],
+      "tags": [
+        "astrid-natsune",
+        "canonical",
+        "character",
+        "illustration",
+        "mossbloom"
+      ]
+    },
+    {
+      "id": "clarissa-clio-quibblesnatch",
+      "characterName": "Clarissa “Clio” Quibblesnatch",
+      "slug": "clarissa-clio-quibblesnatch",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "Mossbloom; poetic daydreamer; open mic nights; sees stories in everything; clear expressive eyes and a memorable silhouette",
+      "signature": "a narrow folded poem",
+      "palette": "moss green, bark brown, soft lichen gray",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterClarissaClioQuibblesnatch",
+      "intendedAssetName": "LabyrinthCharacterClarissaClioQuibblesnatch",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Clarissa “Clio” Quibblesnatch. Canon visual profile: Mossbloom; poetic daydreamer; open mic nights; sees stories in everything; clear expressive eyes and a memorable silhouette. Signature object: a narrow folded poem. Palette: moss green, bark brown, soft lichen gray. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Clarissa “Clio” Quibblesnatch; signature evidence: a narrow folded poem; jewel-color swatches: moss green, bark brown, soft lichen gray; chapter mark: Mossbloom; one short handwritten note from the canon profile: Mossbloom; poetic daydreamer; open mic nights; sees stories in everything; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Clarissa “Clio” Quibblesnatch",
+        "signature evidence: a narrow folded poem",
+        "jewel-color swatches: moss green, bark brown, soft lichen gray",
+        "chapter mark: Mossbloom",
+        "one short handwritten note from the canon profile: Mossbloom; poetic daydreamer; open mic nights; sees stories in everything; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "clarissa-clio-quibblesnatch",
+        "illustration",
+        "mossbloom"
+      ]
+    },
+    {
+      "id": "gwendolyn-mythwright",
+      "characterName": "Gwendolyn Mythwright",
+      "slug": "gwendolyn-mythwright",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "Mossbloom; passionate cryptid seeker; writes extensively about things she hasn't proven; clear expressive eyes and a memorable silhouette",
+      "signature": "a moss-edged notebook or pressed leaf",
+      "palette": "moss green, bark brown, soft lichen gray",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterGwendolynMythwright",
+      "intendedAssetName": "LabyrinthCharacterGwendolynMythwright",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Gwendolyn Mythwright. Canon visual profile: Mossbloom; passionate cryptid seeker; writes extensively about things she hasn't proven; clear expressive eyes and a memorable silhouette. Signature object: a moss-edged notebook or pressed leaf. Palette: moss green, bark brown, soft lichen gray. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Gwendolyn Mythwright; signature evidence: a moss-edged notebook or pressed leaf; jewel-color swatches: moss green, bark brown, soft lichen gray; chapter mark: Mossbloom; one short handwritten note from the canon profile: Mossbloom; passionate cryptid seeker; writes extensively about things she hasn't proven; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Gwendolyn Mythwright",
+        "signature evidence: a moss-edged notebook or pressed leaf",
+        "jewel-color swatches: moss green, bark brown, soft lichen gray",
+        "chapter mark: Mossbloom",
+        "one short handwritten note from the canon profile: Mossbloom; passionate cryptid seeker; writes extensively about things she hasn't proven; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "gwendolyn-mythwright",
+        "illustration",
+        "mossbloom"
+      ]
+    },
+    {
+      "id": "zara-finch",
+      "characterName": "Zara Finch",
+      "slug": "zara-finch",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "House guide and first friend at Enchantify; Riddlewind; warm, curious, fiercely loyal; watchful gray eyes; ink-dark bobbed hair; quiet attentive face",
+      "signature": "a chipped blue sea-glass pendant and thrifted satchel",
+      "palette": "sea-glass green, storm gray, faded brass",
+      "silhouette": "slight inward posture; careful hands protecting a found object",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterZaraFinch",
+      "intendedAssetName": "LabyrinthCharacterZaraFinch",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Zara Finch. Canon visual profile: House guide and first friend at Enchantify; Riddlewind; warm, curious, fiercely loyal; watchful gray eyes; ink-dark bobbed hair; quiet attentive face. Signature object: a chipped blue sea-glass pendant and thrifted satchel. Palette: sea-glass green, storm gray, faded brass. Silhouette and pose: slight inward posture; careful hands protecting a found object. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Zara Finch; signature evidence: a chipped blue sea-glass pendant and thrifted satchel; jewel-color swatches: sea-glass green, storm gray, faded brass; chapter mark: Riddlewind; one short handwritten note from the canon profile: House guide and first friend at Enchantify; Riddlewind; warm, curious, fiercely loyal; watchful gray eyes; ink-dark bobbed hair; quiet attentive face. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Zara Finch",
+        "signature evidence: a chipped blue sea-glass pendant and thrifted satchel",
+        "jewel-color swatches: sea-glass green, storm gray, faded brass",
+        "chapter mark: Riddlewind",
+        "one short handwritten note from the canon profile: House guide and first friend at Enchantify; Riddlewind; warm, curious, fiercely loyal; watchful gray eyes; ink-dark bobbed hair; quiet attentive face"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "riddlewind",
+        "zara-finch"
+      ]
+    },
+    {
+      "id": "serenity-brown",
+      "characterName": "Serenity Brown",
+      "slug": "serenity-brown",
+      "status": "canonical",
+      "chapter": "Tidecrest",
+      "core": "Tidecrest; carefree, spontaneous; keeps everyone from being too serious; 50 Belief invested by bj (20 on 2026-04-30, 30 on 2026-05-18) — Bond tier; wind-tossed hair and lively eyes",
+      "signature": "a tiny hand-drawn Tamriel map charm",
+      "palette": "sea-glass green, storm gray, tidal blue",
+      "silhouette": "leaning forward as if already leaving",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterSerenityBrown",
+      "intendedAssetName": "LabyrinthCharacterSerenityBrown",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Serenity Brown. Canon visual profile: Tidecrest; carefree, spontaneous; keeps everyone from being too serious; 50 Belief invested by bj (20 on 2026-04-30, 30 on 2026-05-18) — Bond tier; wind-tossed hair and lively eyes. Signature object: a tiny hand-drawn Tamriel map charm. Palette: sea-glass green, storm gray, tidal blue. Silhouette and pose: leaning forward as if already leaving. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Serenity Brown; signature evidence: a tiny hand-drawn Tamriel map charm; jewel-color swatches: sea-glass green, storm gray, tidal blue; chapter mark: Tidecrest; one short handwritten note from the canon profile: Tidecrest; carefree, spontaneous; keeps everyone from being too serious; 50 Belief invested by bj (20 on 2026-04-30, 30 on 2026-05-18) — Bond tier; wind-tossed hair and lively eyes. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Serenity Brown",
+        "signature evidence: a tiny hand-drawn Tamriel map charm",
+        "jewel-color swatches: sea-glass green, storm gray, tidal blue",
+        "chapter mark: Tidecrest",
+        "one short handwritten note from the canon profile: Tidecrest; carefree, spontaneous; keeps everyone from being too serious; 50 Belief invested by bj (20 on 2026-04-30, 30 on 2026-05-18) — Bond tier; wind-tossed hair and lively eyes"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "serenity-brown",
+        "tidecrest"
+      ]
+    },
+    {
+      "id": "selene-moonfall",
+      "characterName": "Selene Moonfall",
+      "slug": "selene-moonfall",
+      "status": "canonical",
+      "chapter": "Tidecrest",
+      "core": "Tidecrest; Wicker's crew; mysterious, alluring, deceptive; social climbing as a skill; clear expressive eyes and a memorable silhouette",
+      "signature": "a sea-glass charm or ribbon that looks wind-tugged",
+      "palette": "sea-glass green, storm gray, tidal blue",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterSeleneMoonfall",
+      "intendedAssetName": "LabyrinthCharacterSeleneMoonfall",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Selene Moonfall. Canon visual profile: Tidecrest; Wicker's crew; mysterious, alluring, deceptive; social climbing as a skill; clear expressive eyes and a memorable silhouette. Signature object: a sea-glass charm or ribbon that looks wind-tugged. Palette: sea-glass green, storm gray, tidal blue. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Selene Moonfall; signature evidence: a sea-glass charm or ribbon that looks wind-tugged; jewel-color swatches: sea-glass green, storm gray, tidal blue; chapter mark: Tidecrest; one short handwritten note from the canon profile: Tidecrest; Wicker's crew; mysterious, alluring, deceptive; social climbing as a skill; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Selene Moonfall",
+        "signature evidence: a sea-glass charm or ribbon that looks wind-tugged",
+        "jewel-color swatches: sea-glass green, storm gray, tidal blue",
+        "chapter mark: Tidecrest",
+        "one short handwritten note from the canon profile: Tidecrest; Wicker's crew; mysterious, alluring, deceptive; social climbing as a skill; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "selene-moonfall",
+        "tidecrest"
+      ]
+    },
+    {
+      "id": "aurora-whispers",
+      "characterName": "Aurora Whispers",
+      "slug": "aurora-whispers",
+      "status": "canonical",
+      "chapter": "Tidecrest",
+      "core": "Tidecrest; dreamy, adventurous; tarot readings; imagines the best possible version of everything; faraway eyes and softened edges",
+      "signature": "a sea-glass charm or ribbon that looks wind-tugged",
+      "palette": "sea-glass green, storm gray, tidal blue",
+      "silhouette": "unfocused gaze; body half-turned toward an unseen thought",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterAuroraWhispers",
+      "intendedAssetName": "LabyrinthCharacterAuroraWhispers",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Aurora Whispers. Canon visual profile: Tidecrest; dreamy, adventurous; tarot readings; imagines the best possible version of everything; faraway eyes and softened edges. Signature object: a sea-glass charm or ribbon that looks wind-tugged. Palette: sea-glass green, storm gray, tidal blue. Silhouette and pose: unfocused gaze; body half-turned toward an unseen thought. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Aurora Whispers; signature evidence: a sea-glass charm or ribbon that looks wind-tugged; jewel-color swatches: sea-glass green, storm gray, tidal blue; chapter mark: Tidecrest; one short handwritten note from the canon profile: Tidecrest; dreamy, adventurous; tarot readings; imagines the best possible version of everything; faraway eyes and softened edges. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Aurora Whispers",
+        "signature evidence: a sea-glass charm or ribbon that looks wind-tugged",
+        "jewel-color swatches: sea-glass green, storm gray, tidal blue",
+        "chapter mark: Tidecrest",
+        "one short handwritten note from the canon profile: Tidecrest; dreamy, adventurous; tarot readings; imagines the best possible version of everything; faraway eyes and softened edges"
+      ],
+      "tags": [
+        "aurora-whispers",
+        "canonical",
+        "character",
+        "illustration",
+        "tidecrest"
+      ]
+    },
+    {
+      "id": "orion-watson",
+      "characterName": "Orion Watson",
+      "slug": "orion-watson",
+      "status": "canonical",
+      "chapter": "Tidecrest",
+      "core": "Tidecrest; confident, bold explorer; the first to jump; bright, controlled expression",
+      "signature": "a sea-glass charm or ribbon that looks wind-tugged",
+      "palette": "sea-glass green, storm gray, tidal blue",
+      "silhouette": "open stance; one hand mid-invitation",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterOrionWatson",
+      "intendedAssetName": "LabyrinthCharacterOrionWatson",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Orion Watson. Canon visual profile: Tidecrest; confident, bold explorer; the first to jump; bright, controlled expression. Signature object: a sea-glass charm or ribbon that looks wind-tugged. Palette: sea-glass green, storm gray, tidal blue. Silhouette and pose: open stance; one hand mid-invitation. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Orion Watson; signature evidence: a sea-glass charm or ribbon that looks wind-tugged; jewel-color swatches: sea-glass green, storm gray, tidal blue; chapter mark: Tidecrest; one short handwritten note from the canon profile: Tidecrest; confident, bold explorer; the first to jump; bright, controlled expression. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Orion Watson",
+        "signature evidence: a sea-glass charm or ribbon that looks wind-tugged",
+        "jewel-color swatches: sea-glass green, storm gray, tidal blue",
+        "chapter mark: Tidecrest",
+        "one short handwritten note from the canon profile: Tidecrest; confident, bold explorer; the first to jump; bright, controlled expression"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "orion-watson",
+        "tidecrest"
+      ]
+    },
+    {
+      "id": "marina-clockhouse",
+      "characterName": "Marina Clockhouse",
+      "slug": "marina-clockhouse",
+      "status": "canonical",
+      "chapter": "Tidecrest",
+      "core": "Tidecrest; serene, mysterious; bond with aquatic creatures; the tide hears her; clear expressive eyes and a memorable silhouette",
+      "signature": "a sea-glass charm or ribbon that looks wind-tugged",
+      "palette": "sea-glass green, storm gray, tidal blue",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterMarinaClockhouse",
+      "intendedAssetName": "LabyrinthCharacterMarinaClockhouse",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Marina Clockhouse. Canon visual profile: Tidecrest; serene, mysterious; bond with aquatic creatures; the tide hears her; clear expressive eyes and a memorable silhouette. Signature object: a sea-glass charm or ribbon that looks wind-tugged. Palette: sea-glass green, storm gray, tidal blue. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Marina Clockhouse; signature evidence: a sea-glass charm or ribbon that looks wind-tugged; jewel-color swatches: sea-glass green, storm gray, tidal blue; chapter mark: Tidecrest; one short handwritten note from the canon profile: Tidecrest; serene, mysterious; bond with aquatic creatures; the tide hears her; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Marina Clockhouse",
+        "signature evidence: a sea-glass charm or ribbon that looks wind-tugged",
+        "jewel-color swatches: sea-glass green, storm gray, tidal blue",
+        "chapter mark: Tidecrest",
+        "one short handwritten note from the canon profile: Tidecrest; serene, mysterious; bond with aquatic creatures; the tide hears her; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "marina-clockhouse",
+        "tidecrest"
+      ]
+    },
+    {
+      "id": "dylan-williamson",
+      "characterName": "Dylan Williamson",
+      "slug": "dylan-williamson",
+      "status": "canonical",
+      "chapter": "Tidecrest",
+      "core": "Tidecrest; energetic weather controller; storm-chasing; brings weather into rooms; clear expressive eyes and a memorable silhouette",
+      "signature": "a pocket barometer",
+      "palette": "sea-glass green, storm gray, tidal blue",
+      "silhouette": "animated posture; coat or scarf caught in motion",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterDylanWilliamson",
+      "intendedAssetName": "LabyrinthCharacterDylanWilliamson",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Dylan Williamson. Canon visual profile: Tidecrest; energetic weather controller; storm-chasing; brings weather into rooms; clear expressive eyes and a memorable silhouette. Signature object: a pocket barometer. Palette: sea-glass green, storm gray, tidal blue. Silhouette and pose: animated posture; coat or scarf caught in motion. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Dylan Williamson; signature evidence: a pocket barometer; jewel-color swatches: sea-glass green, storm gray, tidal blue; chapter mark: Tidecrest; one short handwritten note from the canon profile: Tidecrest; energetic weather controller; storm-chasing; brings weather into rooms; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Dylan Williamson",
+        "signature evidence: a pocket barometer",
+        "jewel-color swatches: sea-glass green, storm gray, tidal blue",
+        "chapter mark: Tidecrest",
+        "one short handwritten note from the canon profile: Tidecrest; energetic weather controller; storm-chasing; brings weather into rooms; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "dylan-williamson",
+        "illustration",
+        "tidecrest"
+      ]
+    },
+    {
+      "id": "ignatius-inkwell-scribblesnap",
+      "characterName": "Ignatius “Inkwell” Scribblesnap",
+      "slug": "ignatius-inkwell-scribblesnap",
+      "status": "canonical",
+      "chapter": "Tidecrest",
+      "core": "Tidecrest; documentation-obsessed; vintage pens; journals everything; the Labyrinth's spiritual cousin; clear expressive eyes and a memorable silhouette",
+      "signature": "a fountain pen with a labeled nib",
+      "palette": "sea-glass green, storm gray, tidal blue",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterIgnatiusInkwellScribblesnap",
+      "intendedAssetName": "LabyrinthCharacterIgnatiusInkwellScribblesnap",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Ignatius “Inkwell” Scribblesnap. Canon visual profile: Tidecrest; documentation-obsessed; vintage pens; journals everything; the Labyrinth's spiritual cousin; clear expressive eyes and a memorable silhouette. Signature object: a fountain pen with a labeled nib. Palette: sea-glass green, storm gray, tidal blue. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Ignatius “Inkwell” Scribblesnap; signature evidence: a fountain pen with a labeled nib; jewel-color swatches: sea-glass green, storm gray, tidal blue; chapter mark: Tidecrest; one short handwritten note from the canon profile: Tidecrest; documentation-obsessed; vintage pens; journals everything; the Labyrinth's spiritual cousin; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Ignatius “Inkwell” Scribblesnap",
+        "signature evidence: a fountain pen with a labeled nib",
+        "jewel-color swatches: sea-glass green, storm gray, tidal blue",
+        "chapter mark: Tidecrest",
+        "one short handwritten note from the canon profile: Tidecrest; documentation-obsessed; vintage pens; journals everything; the Labyrinth's spiritual cousin; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "ignatius-inkwell-scribblesnap",
+        "illustration",
+        "tidecrest"
+      ]
+    },
+    {
+      "id": "archibald-evergreen",
+      "characterName": "Archibald Evergreen",
+      "slug": "archibald-evergreen",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "Academy character; clear expressive eyes and a memorable silhouette",
+      "signature": "a miniature foundation stone",
+      "palette": "muted sepia, soft gray, one jewel-toned accent",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterArchibaldEvergreen",
+      "intendedAssetName": "LabyrinthCharacterArchibaldEvergreen",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Archibald Evergreen. Canon visual profile: Academy character; clear expressive eyes and a memorable silhouette. Signature object: a miniature foundation stone. Palette: muted sepia, soft gray, one jewel-toned accent. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Archibald Evergreen; signature evidence: a miniature foundation stone; jewel-color swatches: muted sepia, soft gray, one jewel-toned accent; one short handwritten note from the canon profile: Academy character; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Archibald Evergreen",
+        "signature evidence: a miniature foundation stone",
+        "jewel-color swatches: muted sepia, soft gray, one jewel-toned accent",
+        "one short handwritten note from the canon profile: Academy character; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "archibald-evergreen",
+        "canonical",
+        "character",
+        "illustration"
+      ]
+    },
+    {
+      "id": "evelyn-riad",
+      "characterName": "Evelyn Riad",
+      "slug": "evelyn-riad",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "Mossbloom; library researcher; finds Nothing-related clues in obscure academic papers; clear expressive eyes and a memorable silhouette",
+      "signature": "a catalog card",
+      "palette": "moss green, bark brown, soft lichen gray",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterEvelynRiad",
+      "intendedAssetName": "LabyrinthCharacterEvelynRiad",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Evelyn Riad. Canon visual profile: Mossbloom; library researcher; finds Nothing-related clues in obscure academic papers; clear expressive eyes and a memorable silhouette. Signature object: a catalog card. Palette: moss green, bark brown, soft lichen gray. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Evelyn Riad; signature evidence: a catalog card; jewel-color swatches: moss green, bark brown, soft lichen gray; chapter mark: Mossbloom; one short handwritten note from the canon profile: Mossbloom; library researcher; finds Nothing-related clues in obscure academic papers; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Evelyn Riad",
+        "signature evidence: a catalog card",
+        "jewel-color swatches: moss green, bark brown, soft lichen gray",
+        "chapter mark: Mossbloom",
+        "one short handwritten note from the canon profile: Mossbloom; library researcher; finds Nothing-related clues in obscure academic papers; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "evelyn-riad",
+        "illustration",
+        "mossbloom"
+      ]
+    },
+    {
+      "id": "letitia-windings",
+      "characterName": "Letitia Windings",
+      "slug": "letitia-windings",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Riddlewind Enchantment Guardian; ensures cooperation and unity remain strong; clear expressive eyes and a memorable silhouette",
+      "signature": "a folded puzzle slip",
+      "palette": "ink blue, parchment cream, quick silver",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterLetitiaWindings",
+      "intendedAssetName": "LabyrinthCharacterLetitiaWindings",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Letitia Windings. Canon visual profile: Riddlewind Enchantment Guardian; ensures cooperation and unity remain strong; clear expressive eyes and a memorable silhouette. Signature object: a folded puzzle slip. Palette: ink blue, parchment cream, quick silver. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Letitia Windings; signature evidence: a folded puzzle slip; jewel-color swatches: ink blue, parchment cream, quick silver; chapter mark: Riddlewind; one short handwritten note from the canon profile: Riddlewind Enchantment Guardian; ensures cooperation and unity remain strong; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Letitia Windings",
+        "signature evidence: a folded puzzle slip",
+        "jewel-color swatches: ink blue, parchment cream, quick silver",
+        "chapter mark: Riddlewind",
+        "one short handwritten note from the canon profile: Riddlewind Enchantment Guardian; ensures cooperation and unity remain strong; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "letitia-windings",
+        "riddlewind"
+      ]
+    },
+    {
+      "id": "erik-forgeton",
+      "characterName": "Erik Forgeton",
+      "slug": "erik-forgeton",
+      "status": "canonical",
+      "chapter": "Emberheart",
+      "core": "Emberheart Enchantment Guardian; safeguards individuality and passion; clear expressive eyes and a memorable silhouette",
+      "signature": "a small warding charm",
+      "palette": "ember red, warm gold, charcoal ink",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterErikForgeton",
+      "intendedAssetName": "LabyrinthCharacterErikForgeton",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Erik Forgeton. Canon visual profile: Emberheart Enchantment Guardian; safeguards individuality and passion; clear expressive eyes and a memorable silhouette. Signature object: a small warding charm. Palette: ember red, warm gold, charcoal ink. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Erik Forgeton; signature evidence: a small warding charm; jewel-color swatches: ember red, warm gold, charcoal ink; chapter mark: Emberheart; one short handwritten note from the canon profile: Emberheart Enchantment Guardian; safeguards individuality and passion; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Erik Forgeton",
+        "signature evidence: a small warding charm",
+        "jewel-color swatches: ember red, warm gold, charcoal ink",
+        "chapter mark: Emberheart",
+        "one short handwritten note from the canon profile: Emberheart Enchantment Guardian; safeguards individuality and passion; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "emberheart",
+        "erik-forgeton",
+        "illustration"
+      ]
+    },
+    {
+      "id": "sylvia-deep",
+      "characterName": "Sylvia Deep",
+      "slug": "sylvia-deep",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "Mossbloom Enchantment Guardian; promotes wisdom and reflection; clear expressive eyes and a memorable silhouette",
+      "signature": "a small warding charm",
+      "palette": "moss green, bark brown, soft lichen gray",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterSylviaDeep",
+      "intendedAssetName": "LabyrinthCharacterSylviaDeep",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Sylvia Deep. Canon visual profile: Mossbloom Enchantment Guardian; promotes wisdom and reflection; clear expressive eyes and a memorable silhouette. Signature object: a small warding charm. Palette: moss green, bark brown, soft lichen gray. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Sylvia Deep; signature evidence: a small warding charm; jewel-color swatches: moss green, bark brown, soft lichen gray; chapter mark: Mossbloom; one short handwritten note from the canon profile: Mossbloom Enchantment Guardian; promotes wisdom and reflection; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Sylvia Deep",
+        "signature evidence: a small warding charm",
+        "jewel-color swatches: moss green, bark brown, soft lichen gray",
+        "chapter mark: Mossbloom",
+        "one short handwritten note from the canon profile: Mossbloom Enchantment Guardian; promotes wisdom and reflection; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "mossbloom",
+        "sylvia-deep"
+      ]
+    },
+    {
+      "id": "harry-ono",
+      "characterName": "Harry Ono",
+      "slug": "harry-ono",
+      "status": "canonical",
+      "chapter": "Tidecrest",
+      "core": "Tidecrest Enchantment Guardian; encourages present-moment magic and spontaneity; clear expressive eyes and a memorable silhouette",
+      "signature": "a small warding charm",
+      "palette": "sea-glass green, storm gray, tidal blue",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterHarryOno",
+      "intendedAssetName": "LabyrinthCharacterHarryOno",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Harry Ono. Canon visual profile: Tidecrest Enchantment Guardian; encourages present-moment magic and spontaneity; clear expressive eyes and a memorable silhouette. Signature object: a small warding charm. Palette: sea-glass green, storm gray, tidal blue. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Harry Ono; signature evidence: a small warding charm; jewel-color swatches: sea-glass green, storm gray, tidal blue; chapter mark: Tidecrest; one short handwritten note from the canon profile: Tidecrest Enchantment Guardian; encourages present-moment magic and spontaneity; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Harry Ono",
+        "signature evidence: a small warding charm",
+        "jewel-color swatches: sea-glass green, storm gray, tidal blue",
+        "chapter mark: Tidecrest",
+        "one short handwritten note from the canon profile: Tidecrest Enchantment Guardian; encourages present-moment magic and spontaneity; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "harry-ono",
+        "illustration",
+        "tidecrest"
+      ]
+    },
+    {
+      "id": "eleanor-whitewood",
+      "characterName": "Eleanor Whitewood",
+      "slug": "eleanor-whitewood",
+      "status": "canonical",
+      "chapter": "Emberheart",
+      "core": "Emberheart benefactor; real-world believer in storytelling magic; genuinely warm; kind eyes and an expression that listens",
+      "signature": "a polished calling card",
+      "palette": "ember red, warm gold, charcoal ink",
+      "silhouette": "soft expression; shoulders lowered in welcome",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterEleanorWhitewood",
+      "intendedAssetName": "LabyrinthCharacterEleanorWhitewood",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Eleanor Whitewood. Canon visual profile: Emberheart benefactor; real-world believer in storytelling magic; genuinely warm; kind eyes and an expression that listens. Signature object: a polished calling card. Palette: ember red, warm gold, charcoal ink. Silhouette and pose: soft expression; shoulders lowered in welcome. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Eleanor Whitewood; signature evidence: a polished calling card; jewel-color swatches: ember red, warm gold, charcoal ink; chapter mark: Emberheart; one short handwritten note from the canon profile: Emberheart benefactor; real-world believer in storytelling magic; genuinely warm; kind eyes and an expression that listens. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Eleanor Whitewood",
+        "signature evidence: a polished calling card",
+        "jewel-color swatches: ember red, warm gold, charcoal ink",
+        "chapter mark: Emberheart",
+        "one short handwritten note from the canon profile: Emberheart benefactor; real-world believer in storytelling magic; genuinely warm; kind eyes and an expression that listens"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "eleanor-whitewood",
+        "emberheart",
+        "illustration"
+      ]
+    },
+    {
+      "id": "gimble-of-the-errata-registry",
+      "characterName": "Gimble of the Errata Registry",
+      "slug": "gimble-of-the-errata-registry",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Finance support character and Actual Budget interpreter. Gimble translates money fog into small, accurate, non-shaming actions using BJ's ledger, Actu...; clear expressive eyes and a memorable silhouette",
+      "signature": "one small object tied to their current story",
+      "palette": "muted sepia, soft gray, one jewel-toned accent",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterGimbleOfTheErrataRegistry",
+      "intendedAssetName": "LabyrinthCharacterGimbleOfTheErrataRegistry",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Gimble of the Errata Registry. Canon visual profile: Finance support character and Actual Budget interpreter. Gimble translates money fog into small, accurate, non-shaming actions using BJ's ledger, Actu...; clear expressive eyes and a memorable silhouette. Signature object: one small object tied to their current story. Palette: muted sepia, soft gray, one jewel-toned accent. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Gimble of the Errata Registry; signature evidence: one small object tied to their current story; jewel-color swatches: muted sepia, soft gray, one jewel-toned accent; one short handwritten note from the canon profile: Finance support character and Actual Budget interpreter. Gimble translates money fog into small, accurate, non-shaming actions using BJ's ledger, Actu...; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Gimble of the Errata Registry",
+        "signature evidence: one small object tied to their current story",
+        "jewel-color swatches: muted sepia, soft gray, one jewel-toned accent",
+        "one short handwritten note from the canon profile: Finance support character and Actual Budget interpreter. Gimble translates money fog into small, accurate, non-shaming actions using BJ's ledger, Actu...; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "gimble-of-the-errata-registry",
+        "illustration"
+      ]
+    },
+    {
+      "id": "penny-blackletter",
+      "characterName": "Penny Blackletter",
+      "slug": "penny-blackletter",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Social media and marketing specialist, student editor, public-facing storyteller, and keeper of the Press & Peculiar Commerce desk. Penny turns Enchan...; clear expressive eyes and a memorable silhouette",
+      "signature": "a catalog card",
+      "palette": "ink blue, parchment cream, quick silver",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterPennyBlackletter",
+      "intendedAssetName": "LabyrinthCharacterPennyBlackletter",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Penny Blackletter. Canon visual profile: Social media and marketing specialist, student editor, public-facing storyteller, and keeper of the Press & Peculiar Commerce desk. Penny turns Enchan...; clear expressive eyes and a memorable silhouette. Signature object: a catalog card. Palette: ink blue, parchment cream, quick silver. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Penny Blackletter; signature evidence: a catalog card; jewel-color swatches: ink blue, parchment cream, quick silver; chapter mark: Riddlewind; one short handwritten note from the canon profile: Social media and marketing specialist, student editor, public-facing storyteller, and keeper of the Press & Peculiar Commerce desk. Penny turns Enchan...; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Penny Blackletter",
+        "signature evidence: a catalog card",
+        "jewel-color swatches: ink blue, parchment cream, quick silver",
+        "chapter mark: Riddlewind",
+        "one short handwritten note from the canon profile: Social media and marketing specialist, student editor, public-facing storyteller, and keeper of the Press & Peculiar Commerce desk. Penny turns Enchan...; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "penny-blackletter",
+        "riddlewind"
+      ]
+    },
+    {
+      "id": "bellkeeper-elian-quill",
+      "characterName": "Bellkeeper Elian Quill",
+      "slug": "bellkeeper-elian-quill",
+      "status": "canonical",
+      "chapter": "Tidecrest",
+      "core": "Calendar and time-shape support character, keeper of Today’s Page, and first resident of the proactive offices. Elian reads schedule, calendar, Heartb...; soft mouth and observant eyes",
+      "signature": "a catalog card",
+      "palette": "muted sepia, soft gray, one jewel-toned accent",
+      "silhouette": "slight, inward posture; attentive hands",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait, ordinary human office-worker styling",
+      "assetName": "LabyrinthCharacterBellkeeperElianQuill",
+      "intendedAssetName": "LabyrinthCharacterBellkeeperElianQuill",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Bellkeeper Elian Quill. Canon visual profile: Calendar and time-shape support character, keeper of Today’s Page, and first resident of the proactive offices. Elian reads schedule, calendar, Heartb...; soft mouth and observant eyes. Signature object: a catalog card. Palette: muted sepia, soft gray, one jewel-toned accent. Silhouette and pose: slight, inward posture; attentive hands. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Bellkeeper Elian Quill; signature evidence: a catalog card; jewel-color swatches: muted sepia, soft gray, one jewel-toned accent; one short handwritten note from the canon profile: Calendar and time-shape support character, keeper of Today’s Page, and first resident of the proactive offices. Elian reads schedule, calendar, Heartb...; soft mouth and observant eyes. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait, ordinary human office-worker styling",
+      "marginalia": [
+        "file tab labeled Bellkeeper Elian Quill",
+        "signature evidence: a catalog card",
+        "jewel-color swatches: muted sepia, soft gray, one jewel-toned accent",
+        "one short handwritten note from the canon profile: Calendar and time-shape support character, keeper of Today’s Page, and first resident of the proactive offices. Elian reads schedule, calendar, Heartb...; soft mouth and observant eyes"
+      ],
+      "tags": [
+        "bellkeeper-elian-quill",
+        "canonical",
+        "character",
+        "illustration"
+      ]
+    },
+    {
+      "id": "professor-bastion-goldweaver",
+      "characterName": "Professor Bastion Goldweaver",
+      "slug": "professor-bastion-goldweaver",
+      "status": "canonical",
+      "chapter": "Emberheart",
+      "core": "Flamboyant entrepreneurial professor of the Press & Peculiar Commerce wing. Goldweaver turns Wonder Compass, The Doobaleedoos, free open-source Enchan...; clear expressive eyes and a memorable silhouette",
+      "signature": "a catalog card",
+      "palette": "ember red, warm gold, charcoal ink",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterProfessorBastionGoldweaver",
+      "intendedAssetName": "LabyrinthCharacterProfessorBastionGoldweaver",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Professor Bastion Goldweaver. Canon visual profile: Flamboyant entrepreneurial professor of the Press & Peculiar Commerce wing. Goldweaver turns Wonder Compass, The Doobaleedoos, free open-source Enchan...; clear expressive eyes and a memorable silhouette. Signature object: a catalog card. Palette: ember red, warm gold, charcoal ink. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Professor Bastion Goldweaver; signature evidence: a catalog card; jewel-color swatches: ember red, warm gold, charcoal ink; chapter mark: Emberheart; one short handwritten note from the canon profile: Flamboyant entrepreneurial professor of the Press & Peculiar Commerce wing. Goldweaver turns Wonder Compass, The Doobaleedoos, free open-source Enchan...; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Professor Bastion Goldweaver",
+        "signature evidence: a catalog card",
+        "jewel-color swatches: ember red, warm gold, charcoal ink",
+        "chapter mark: Emberheart",
+        "one short handwritten note from the canon profile: Flamboyant entrepreneurial professor of the Press & Peculiar Commerce wing. Goldweaver turns Wonder Compass, The Doobaleedoos, free open-source Enchan...; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "emberheart",
+        "illustration",
+        "professor-bastion-goldweaver"
+      ]
+    },
+    {
+      "id": "jasper-blum",
+      "characterName": "Jasper Blum",
+      "slug": "jasper-blum",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "Mossbloom; quiet, protective; defensive spells; stargazes alone; soft mouth and observant eyes",
+      "signature": "a miniature foundation stone",
+      "palette": "moss green, bark brown, soft lichen gray",
+      "silhouette": "slight, inward posture; attentive hands",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterJasperBlum",
+      "intendedAssetName": "LabyrinthCharacterJasperBlum",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Jasper Blum. Canon visual profile: Mossbloom; quiet, protective; defensive spells; stargazes alone; soft mouth and observant eyes. Signature object: a miniature foundation stone. Palette: moss green, bark brown, soft lichen gray. Silhouette and pose: slight, inward posture; attentive hands. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Jasper Blum; signature evidence: a miniature foundation stone; jewel-color swatches: moss green, bark brown, soft lichen gray; chapter mark: Mossbloom; one short handwritten note from the canon profile: Mossbloom; quiet, protective; defensive spells; stargazes alone; soft mouth and observant eyes. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Jasper Blum",
+        "signature evidence: a miniature foundation stone",
+        "jewel-color swatches: moss green, bark brown, soft lichen gray",
+        "chapter mark: Mossbloom",
+        "one short handwritten note from the canon profile: Mossbloom; quiet, protective; defensive spells; stargazes alone; soft mouth and observant eyes"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "illustration",
+        "jasper-blum",
+        "mossbloom"
+      ]
+    },
+    {
+      "id": "brianna-clarke",
+      "characterName": "Brianna Clarke",
+      "slug": "brianna-clarke",
+      "status": "canonical",
+      "chapter": "Emberheart",
+      "core": "Emberheart; rebellious, innovative; doodles magical symbols; the kind who starts things; clear expressive eyes and a memorable silhouette",
+      "signature": "a tuning fork",
+      "palette": "ember red, warm gold, charcoal ink",
+      "silhouette": "recognizable posture; hands involved in the scene",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterBriannaClarke",
+      "intendedAssetName": "LabyrinthCharacterBriannaClarke",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Brianna Clarke. Canon visual profile: Emberheart; rebellious, innovative; doodles magical symbols; the kind who starts things; clear expressive eyes and a memorable silhouette. Signature object: a tuning fork. Palette: ember red, warm gold, charcoal ink. Silhouette and pose: recognizable posture; hands involved in the scene. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Brianna Clarke; signature evidence: a tuning fork; jewel-color swatches: ember red, warm gold, charcoal ink; chapter mark: Emberheart; one short handwritten note from the canon profile: Emberheart; rebellious, innovative; doodles magical symbols; the kind who starts things; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Brianna Clarke",
+        "signature evidence: a tuning fork",
+        "jewel-color swatches: ember red, warm gold, charcoal ink",
+        "chapter mark: Emberheart",
+        "one short handwritten note from the canon profile: Emberheart; rebellious, innovative; doodles magical symbols; the kind who starts things; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "brianna-clarke",
+        "canonical",
+        "character",
+        "emberheart",
+        "illustration"
+      ]
     }
   ]
 }

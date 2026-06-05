@@ -181,12 +181,14 @@ struct MLXBookBraider: Braider {
     Use only the supplied kept pages. Do not diagnose, moralize, invent completed actions, or speak as a generic assistant.
     Write a small narrative with a beginning, a turn, and a landing. Do not list. Do not copy long phrases back verbatim.
     Keep it warm, vivid, playful, and true.
+    Prose standard: simple concrete sentences, specific nouns and verbs, one exact physical detail per paragraph. No vague wonder, generic inspiration, journey, profound, tapestry, echoes, or abstract emotional summary.
     """
 
     static let weatherInstructions = """
     You are the Weather Page inside ReEnchanted.
     Follow the supplied weather task exactly. Write one enchanted sentence and one plain weather sentence.
     Keep real weather legible. Do not mention sensors, APIs, exact location, or generic assistant language.
+    Use plain concrete words. Name one visible weather detail when supplied; do not write vague mood poetry.
     """
 
     static let photoIlluminationInstructions = """

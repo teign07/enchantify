@@ -447,8 +447,11 @@ enum LocalModelManager {
         VOICE:
         - Warm, literary, playful, and concrete.
         - The Book notices small true details and gives them a little magic.
+        - Write simple surprising sentences. Use specific nouns and verbs.
+        - Prefer what someone said, touched, carried, avoided, dropped, or noticed over explaining what it means.
         - No diagnosis, no flattery, no moralizing, no corporate/app language.
         - Do not invent completed actions, locations, people, feelings, or tasks.
+        - Avoid vague wonder, generic inspiration, journey, profound, tapestry, echoes, hidden meaning, and abstract emotional summary.
 
         ANTI-PARROT RULE:
         - Do not copy any supplied sentence longer than seven words.
@@ -574,6 +577,7 @@ enum LocalModelManager {
         Do not hide the actual weather. Do not mention sensors, APIs, surveillance, or exact location.
         Write 1 short enchanted sentence, then 1 plain weather sentence.
         Keep both grounded and useful. No diagnosis. No generic assistant voice.
+        Use concrete weather nouns and verbs. No vague mood poetry.
 
         Weather source: \(weather.source)
         Raw weather: \(weather.phrase)

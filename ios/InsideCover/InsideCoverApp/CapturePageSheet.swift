@@ -63,6 +63,9 @@ struct CapturePageSheet: View {
     @State private var isGeneratingStoryResult = false
     @State private var generatingStoryResultChoiceID: String?
     @State private var storyContinuationMessage = ""
+    @State private var proofPhotoImage: UIImage?
+    @State private var proofPhotoURL: URL?
+    @State private var proofPhotoMessage = ""
     @AppStorage("illuminatedPhotoHistory") private var illuminatedPhotoHistoryData = "{}"
     #if canImport(PhotosUI)
     @State private var selectedPhotoItem: PhotosPickerItem?
@@ -77,6 +80,14 @@ struct CapturePageSheet: View {
             surface.type == .gossip ||
             surface.renderStyle == .gentleTranslation ||
             surface.origin == .imported
+    }
+
+    private var isCompassPracticePage: Bool {
+        surface.type == .wonderCompass && surface.payload.metadata["compassStep"] != nil
+    }
+
+    private var allowsCompassPhotoProof: Bool {
+        surface.type == .wonderCompass && surface.payload.metadata["proofKind"] == "sentence-or-photo"
     }
 
     private var preparedPageLabel: String {
@@ -136,6 +147,32 @@ struct CapturePageSheet: View {
 
     private var effectiveSurface: SurfacePage {
         currentIlluminatedSurface ?? surface
+    }
+
+    private var effectiveProofSurface: SurfacePage {
+        guard surface.type == .wonderCompass,
+              let proofPhotoURL else {
+            return effectiveSurface
+        }
+        var metadata = surface.payload.metadata
+        metadata["proofImagePath"] = proofPhotoURL.path
+        metadata["proofCaption"] = surface.payload.metadata["playfulMissionTitle"] ?? surface.payload.headline
+        return SurfacePage(
+            id: surface.id,
+            type: surface.type,
+            sourceID: surface.sourceID,
+            intent: surface.intent,
+            renderStyle: surface.renderStyle,
+            score: surface.score,
+            reason: surface.reason,
+            prompt: surface.prompt,
+            detail: surface.detail,
+            payload: BookPagePayload(
+                headline: surface.payload.headline,
+                body: surface.payload.body,
+                metadata: metadata
+            )
+        )
     }
 
     private var currentIlluminatedSurface: SurfacePage? {
@@ -307,7 +344,7 @@ struct CapturePageSheet: View {
                     Button("Keep this page") {
                         let input = preparedInput
                         markIlluminatedDraftKept()
-                        onSave(effectiveSurface, input, preparedTags)
+                        onSave(effectiveProofSurface, input, preparedTags)
                         dismiss()
                     }
                     .disabled(!canKeep)
@@ -316,7 +353,13 @@ struct CapturePageSheet: View {
             #if canImport(PhotosUI)
             .onChange(of: selectedPhotoItem) { _, newValue in
                 guard let newValue else { return }
-                Task { await loadManualPhoto(from: newValue) }
+                Task {
+                    if allowsCompassPhotoProof {
+                        await loadCompassProofPhoto(from: newValue)
+                    } else {
+                        await loadManualPhoto(from: newValue)
+                    }
+                }
             }
             #endif
             .task {
@@ -359,7 +402,7 @@ struct CapturePageSheet: View {
                 )
             }
 
-            if isPreparedPage {
+            if isPreparedPage || isCompassPracticePage {
                 preparedPageContent
             }
 
@@ -412,6 +455,14 @@ struct CapturePageSheet: View {
                 storySceneView(activeStoryTurn)
             }
 
+            if isCompassPracticePage {
+                compassPracticeView
+            }
+
+            if allowsCompassPhotoProof {
+                compassProofPhotoPicker
+            }
+
             HStack(spacing: 8) {
                 if let weatherSymbolName {
                     Image(systemName: weatherSymbolName)
@@ -423,7 +474,7 @@ struct CapturePageSheet: View {
                     .foregroundStyle(BookPalette.teal)
             }
 
-            if surface.type != .narrativeOS {
+            if surface.type != .narrativeOS && !isCompassPracticePage {
                 Text(surface.payload.body)
                     .font(.system(.body, design: .serif))
                     .foregroundStyle(BookPalette.ink)
@@ -435,6 +486,52 @@ struct CapturePageSheet: View {
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+        }
+    }
+
+    private var compassPracticeView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let step = surface.payload.metadata["compassStep"], step == "run" {
+                compassRail("Mode", surface.payload.metadata["conciergeMode"])
+                compassRail("Time", surface.payload.metadata["timeBox"])
+                compassRail("Budget", surface.payload.metadata["budget"])
+                compassRail("Place", surface.payload.metadata["place"])
+                compassRail("Energy", surface.payload.metadata["energy"])
+                compassRail("With", surface.payload.metadata["companions"])
+                compassRail("Considerations", surface.payload.metadata["considerations"])
+            }
+
+            compassRail("Notice", surface.payload.metadata["spark"])
+            compassRail("Destination", surface.payload.metadata["destination"])
+            compassRail("Delight", surface.payload.metadata["delight"])
+            compassRail("Definition", surface.payload.metadata["definition"])
+            compassRail("Mission", surface.payload.metadata["mission"])
+            compassRail("Souvenir", surface.payload.metadata["souvenirPrompt"])
+            compassRail("Rest", surface.payload.metadata["restPrompt"])
+
+            Text(surface.payload.body)
+                .font(.system(.callout, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.76))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 4)
+        }
+    }
+
+    @ViewBuilder
+    private func compassRail(_ title: String, _ value: String?) -> some View {
+        if let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title.uppercased())
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(BookPalette.teal.opacity(0.82))
+                Text(value)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(BookPalette.paper.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 
@@ -555,6 +652,51 @@ struct CapturePageSheet: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
                 }
+        }
+    }
+
+    @ViewBuilder
+    private var compassProofPhotoPicker: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Proof can be one sentence, one photo, or both.")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(openPageSecondaryText)
+
+            if let proofPhotoImage {
+                Image(uiImage: proofPhotoImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 190)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
+                    }
+                    .accessibilityLabel("Playful mission proof photo")
+            }
+
+            #if canImport(PhotosUI)
+            PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                Label(proofPhotoImage == nil ? "Add proof photo" : "Replace proof photo", systemImage: "camera")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(BookPalette.teal)
+            #endif
+
+            if !proofPhotoMessage.isEmpty {
+                Text(proofPhotoMessage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.58))
+            }
+        }
+        .padding(12)
+        .background(BookPalette.page.opacity(0.82), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.ink.opacity(0.12), lineWidth: 1)
         }
     }
 
@@ -832,6 +974,30 @@ struct CapturePageSheet: View {
     }
 
     #if canImport(PhotosUI)
+    private func loadCompassProofPhoto(from item: PhotosPickerItem) async {
+        proofPhotoMessage = "The Book is tucking the proof into the margin."
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let image = UIImage(data: data) else {
+            BookFeedback.play(.error)
+            proofPhotoMessage = "That photo would not open. A sentence still counts."
+            return
+        }
+        do {
+            let url = try saveCompassProofPhotoData(data)
+            await MainActor.run {
+                proofPhotoImage = image
+                proofPhotoURL = url
+                proofPhotoMessage = "Proof photo ready."
+                BookFeedback.play(.select)
+            }
+        } catch {
+            await MainActor.run {
+                BookFeedback.play(.error)
+                proofPhotoMessage = "The photo could not be saved. A sentence still counts."
+            }
+        }
+    }
+
     private func loadManualPhoto(from item: PhotosPickerItem) async {
         guard !isLocalBrainWorking else {
             illuminationMessage = "The local brain is already writing. Let that ink dry first."
@@ -853,7 +1019,7 @@ struct CapturePageSheet: View {
         AppMemoryLedger.record("photo-manual-after-gemma")
         let draft = IlluminatedPageComposer.compose(
             analysis: analysis,
-            sourceAssetName: "LabyrinthHourly01",
+            sourceAssetName: "IlluminatedPhotoSource",
             seed: data.count ^ Int(Date().timeIntervalSince1970),
             assetLocalIdentifier: "manual:\(UUID().uuidString)"
         )
@@ -872,6 +1038,19 @@ struct CapturePageSheet: View {
         }
     }
     #endif
+
+    private func saveCompassProofPhotoData(_ data: Data) throws -> URL {
+        let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.openclaw.enchantify.insidecover"
+        let directory = baseURL
+            .appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("CompassProofs", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let filename = "compass-proof-\(UUID().uuidString).jpg"
+        let url = directory.appendingPathComponent(filename)
+        try data.write(to: url, options: [.atomic])
+        return url
+    }
 
     private func letTheBookChoosePhoto() async {
         #if canImport(Photos) && canImport(UIKit)
@@ -915,7 +1094,7 @@ struct CapturePageSheet: View {
             let analysis = await analyzeIlluminatedPhoto(image)
             let draft = IlluminatedPageComposer.compose(
                 analysis: analysis,
-                sourceAssetName: "LabyrinthHourly01",
+                sourceAssetName: "IlluminatedPhotoSource",
                 seed: abs(candidate.assetLocalIdentifier.hashValue ^ Int(Date().timeIntervalSince1970)),
                 assetLocalIdentifier: candidate.assetLocalIdentifier
             )
@@ -1138,6 +1317,9 @@ struct CapturePageSheet: View {
             guard !isGeneratingStoryResult else { return false }
             return storyTurns.contains { $0.selectedChoice != nil } || selectedStoryChoice != nil
         }
+        if allowsCompassPhotoProof, proofPhotoURL != nil {
+            return true
+        }
         return isPreparedPage || !preparedInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -1160,6 +1342,10 @@ struct CapturePageSheet: View {
             return threadText + marginNote
         }
         if isPreparedPage {
+            if isCompassPracticePage {
+                let marginNote = trimmed.isEmpty ? "" : "\n\nMargin note: \(trimmed)"
+                return compassPreparedInput + marginNote
+            }
             if surface.type == .illuminatedPhoto, let illuminatedDraft {
                 let manualNote = trimmed.isEmpty ? "" : "\n\nMargin note: \(trimmed)"
                 let renderLine = renderedIlluminatedPageURL.map { "\n\nRendered plate: \($0.lastPathComponent)" } ?? ""
@@ -1182,6 +1368,45 @@ struct CapturePageSheet: View {
             return selectedWeather
         }
         return "\(selectedWeather): \(trimmed)"
+    }
+
+    private var compassPreparedInput: String {
+        let metadata = surface.payload.metadata
+        let step = metadata["compassStep"] ?? "run"
+        if step == "run" {
+            return [
+                "Wonder Compass Run",
+                "Location: \(metadata["place"] ?? "unknown")",
+                "Time Limit: \(metadata["timeBox"] ?? "unknown")",
+                "Energy: \(metadata["energy"] ?? "unknown")",
+                "Who is with me: \(metadata["companions"] ?? "unknown")",
+                "Budget: \(metadata["budget"] ?? "unknown")",
+                "Special Needs/Considerations: \(metadata["considerations"] ?? "unknown")",
+                "",
+                "NORTH (NOTICE)",
+                metadata["spark"],
+                "",
+                "EAST (EMBARK)",
+                "Destination: \(metadata["destination"] ?? "")",
+                "Delight: \(metadata["delight"] ?? "")",
+                "Definition: \(metadata["definition"] ?? "")",
+                "",
+                "SOUTH (SENSE)",
+                metadata["mission"],
+                "",
+                "WEST (WRITE)",
+                metadata["souvenirPrompt"],
+                "",
+                "CENTER (REST)",
+                metadata["restPrompt"]
+            ]
+            .compactMap { $0 }
+            .joined(separator: "\n")
+        }
+        if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return surface.payload.metadata["placeholder"] ?? surface.payload.body
     }
 
     private var preparedTags: [String] {
@@ -1223,10 +1448,21 @@ struct CapturePageSheet: View {
         if surface.type == .gossip {
             tags.append("gossip-page")
         }
+        if surface.type == .wonderCompass, let runID = surface.payload.metadata["runID"] {
+            tags.append("wonder-compass")
+            tags.append("wonder-compass-run")
+            tags.append("compass-run:\(runID)")
+            if let step = surface.payload.metadata["compassStep"], step != "run" {
+                tags.append("compass-step:\(step)")
+            }
+            if let mode = surface.payload.metadata["conciergeMode"] {
+                tags.append("concierge:\(mode)")
+            }
+        }
         if surface.type == .mood, !selectedWeather.isEmpty {
             tags.append(selectedWeather.lowercased())
         }
-        return tags.sorted()
+        return Array(Set(tags)).sorted()
     }
 }
 
@@ -1387,7 +1623,8 @@ enum GossipPagePromptBuilder {
     The app has already decided the simulation mechanics and supplied any real-world interest clippings. You may only polish those supplied materials into warm, strange, readable margin-gossip.
     Do not add new actors, threads, actions, outcomes, rewards, quests, user actions, or real-world facts.
     Do not mention sensors, APIs, code, prompts, JSON, searches, or simulation machinery.
-    Write in the Book's voice: literary, playful, intimate, never corporate.
+    Write in the Book's voice: plain, literary, playful, intimate, never corporate.
+    Prose standard: simple concrete sentences; one exact object, gesture, or spoken line per entry; no vague wonder, hidden meaning, tapestry of, echoes of, quiet magic, profound, journey, or generic inspiration.
     """
 
     static func prompt(for surface: SurfacePage) -> String {
@@ -1401,6 +1638,9 @@ enum GossipPagePromptBuilder {
         - Write 3-5 short entries total.
         - Include 2-3 Academy gossip entries.
         - If real-world interest clippings are supplied, include 1-2 of them as ordinary-world margin gossip.
+        - Each entry must show what someone said, touched, carried, hid, dropped, overheard, or did.
+        - Prefer dialogue, tiny betrayals, social pressure, and visible character action over explanation.
+        - Use short, specific sentences. Let concrete nouns and verbs carry the joke.
         - Keep fictional Academy consequences and real-world facts distinct while letting them sit on the same page.
         - Include one brief "What changed" section in-world.
         - Keep it under 320 words.
@@ -1463,6 +1703,7 @@ enum StoryPageResultPromptBuilder {
     Write only the consequence of the selected Story Page action. The app owns the mechanics; you write the ink.
     Do not invent completed real-world actions, exact locations, diagnoses, private facts, identities, or surveillance details.
     Keep it grounded, strange, concrete, and warm. No headings. No labels. No choices.
+    Prose standard: simple surprising sentences; specific nouns and verbs; character action before explanation; no generic wisdom, no abstract emotional summary, no mist, echoes, tapestry, journey, profound, or quiet magic.
     """
 
     static func prompt(for context: StoryPageResultContext) -> String {
@@ -1506,6 +1747,9 @@ enum StoryPageResultPromptBuilder {
         - 90-150 words.
         - 4-7 sentences.
         - Make the consequence specific to the selected action, not generic.
+        - Include at least two visible actions or interactions.
+        - Include one exact object, surface, sound, or small physical detail.
+        - If a character is present, let them reveal themselves by speech or behavior, not summary.
         - Let one entity, object, or motif gain weight.
         - If this is Progress Arc, let the thread move one step.
         - If this is Slice of Life, let an ordinary detail deepen.
@@ -1529,6 +1773,8 @@ enum StoryPagePromptBuilder {
     Write a living storybook vignette from the supplied scene packet. The app owns the mechanics; you write the ink.
     Do not invent completed real-world actions, exact locations, diagnoses, private facts, identities, or surveillance details.
     Keep the real and fictional braided together: warm, strange, grounded, concrete, never corporate.
+    Prose standard: write like a sharp story, not an assistant. Simple surprising sentences. Specific nouns and verbs. Characters show themselves by dialogue, choices, gestures, and interruptions. Do not explain the theme.
+    Ban filler: no generic inspiration, no vague wonder, no abstract emotional summary, no tapestry, echoes, journey, profound, quiet magic, hidden meaning, or "as if the world itself".
     """
 
     static func prompt(for draft: StoryPageSceneDraft) -> String {
@@ -1565,6 +1811,9 @@ enum StoryPagePromptBuilder {
         OUTPUT FORMAT, EXACTLY:
         SCENE:
         170-240 words. A vignette with a beginning, a turn, and a landing. Address the reader as "you" only when it feels natural. Make it feel like real life becoming a fantasy story, not like a quest log.
+        The vignette must include at least one spoken line or overheard line when any entity is present.
+        The vignette must include at least three concrete physical details from this packet: objects, surfaces, sounds, weather, posture, clothing, tools, mess, or light.
+        The main movement must happen through character action and interaction, not narration about feelings or significance.
         If CONTINUATION MEMORY is present, this scene must be the next beat of that same thread. Do not recap everything; let the previous consequence alter the first paragraph.
         The SCENE must contain only the vignette. Do not include any choices, prompts, results, button titles, labels, or mechanics inside SCENE.
 

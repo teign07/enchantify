@@ -67,7 +67,7 @@ final class BookCuratorTests: XCTestCase {
                 metadata: [
                     "renderedPreviewPath": "/tmp/reenchanted-prepared-illumination.jpg",
                     "assetLocalIdentifier": "test-photo-asset",
-                    "sourceAssetName": "LabyrinthHourly01"
+                    "sourceAssetName": "IlluminatedPhotoSource"
                 ]
             )
         )
@@ -331,6 +331,36 @@ final class BookCuratorTests: XCTestCase {
         })
         XCTAssertTrue(corePack.entities.first { $0.id == "dr-inkrest" }?.unwrittenInterest?.contains("Consciousness") == true)
         XCTAssertTrue(corePack.entities.first { $0.id == "penny-blackletter" }?.unwrittenInterest?.contains("ethical marketing") == true)
+    }
+
+    func testCoreNarrativeCharactersAllHaveChapters() throws {
+        let corePack = try XCTUnwrap(NarrativePackRegistry.enabledPacks.first { $0.id == NarrativePackRegistry.corePackID })
+        let characterEntities = corePack.entities.filter { $0.kind == .character }
+        let missingChapters = characterEntities.filter {
+            ($0.chapter ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+
+        XCTAssertTrue(missingChapters.isEmpty, "Missing chapters: \(missingChapters.map(\.name).joined(separator: ", "))")
+        XCTAssertEqual(corePack.entities.first { $0.id == "dr-inkrest" }?.chapter, "Riddlewind")
+        XCTAssertEqual(corePack.entities.first { $0.id == "dr-vellum" }?.chapter, "Mossbloom")
+        XCTAssertEqual(corePack.entities.first { $0.id == "wicker-eddies" }?.chapter, "Duskthorn")
+    }
+
+    func testCharacterIllustrationsAllHaveChapters() {
+        let missingChapters = BookReferenceCatalog.characterIllustrations.filter {
+            ($0.chapter ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+
+        XCTAssertTrue(missingChapters.isEmpty, "Missing chapters: \(missingChapters.map(\.characterName).joined(separator: ", "))")
+    }
+
+    func testLabyrinthIllustrationsOnlyUseBundledCharacterAssets() {
+        let missingAssetPlates = BookReferenceCatalog.labyrinthIllustrations.filter {
+            !BookReferenceCatalog.bundledCharacterIllustrationAssetNames.contains($0.assetName)
+        }
+
+        XCTAssertFalse(BookReferenceCatalog.labyrinthIllustrations.isEmpty)
+        XCTAssertTrue(missingAssetPlates.isEmpty, "Missing bundled assets: \(missingAssetPlates.map(\.assetName).joined(separator: ", "))")
     }
 
     func testSupportFacultyPackIncludesInkrestAndVellumCharts() throws {

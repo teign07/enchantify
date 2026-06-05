@@ -99,6 +99,7 @@ struct LabStatusCard: View {
     }
 }
 
+
 struct BodySourceCard: View {
     let bodySignal: BodySourceSignal?
     let message: String
@@ -760,4 +761,3 @@ struct ModelStatusCard: View {
         .parchmentSurface(accent: statusColor, isActive: report.state == .ready)
     }
 }
-

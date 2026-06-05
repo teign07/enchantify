@@ -521,6 +521,7 @@ struct NarrativeWorldEntity: Identifiable, Codable, Equatable {
     var kind: NarrativeEntityKind
     var belief: Int
     var narrativeWeight: Int
+    var chapter: String?
     var unwrittenInterest: String?
     var traits: [String]
     var quirks: [String]
@@ -888,6 +889,7 @@ enum NarrativePackRegistry {
             .character,
             belief: 24,
             weight: 18,
+            chapter: "Riddlewind",
             unwrittenInterest: "Indie publishing, ethical marketing, Patreon, open-source storytelling, and the creator economy.",
             traits: ["dry", "warm", "observant"],
             quirks: ["files ridiculous evidence", "distrusts sentences that arrive too polished"],
@@ -902,6 +904,7 @@ enum NarrativePackRegistry {
             .character,
             belief: 34,
             weight: 18,
+            chapter: "Riddlewind",
             unwrittenInterest: "Consciousness and brain studies as they relate to BJ.",
             traits: ["gentle", "precise", "therapeutic", "narrative-minded"],
             quirks: ["keeps office hours for difficult pages", "sets chairs out before feelings arrive"],
@@ -916,6 +919,7 @@ enum NarrativePackRegistry {
             .character,
             belief: 27,
             weight: 17,
+            chapter: "Mossbloom",
             unwrittenInterest: "Longevity research, fuel, recovery, supplements, movement, and humane body experiments.",
             traits: ["precise", "warmly clinical", "experiment-minded", "low-shame"],
             quirks: ["turns breakfast into field notes", "can make a supplement interaction sound like etiquette"],
@@ -930,6 +934,7 @@ enum NarrativePackRegistry {
             .character,
             belief: 26,
             weight: 20,
+            chapter: "Duskthorn",
             unwrittenInterest: "Thresholds, hidden authority, institutional coherence, and the cost of keeping a living school safe.",
             traits: ["elegant", "watchful", "unseelie"],
             quirks: ["speaks as if buildings are listening", "keeps doors from admitting they are tests"],
@@ -944,6 +949,7 @@ enum NarrativePackRegistry {
             .character,
             belief: 18,
             weight: 14,
+            chapter: "Emberheart",
             unwrittenInterest: "Architecture, innovation, ambitious systems, and the human cost of making impossible structures work.",
             traits: ["brilliant", "restless", "architectural"],
             quirks: ["turns problems into towers", "measures magic by what it can build"],
@@ -958,6 +964,7 @@ enum NarrativePackRegistry {
             .character,
             belief: 20,
             weight: 17,
+            chapter: "Riddlewind",
             unwrittenInterest: "Trust, friendship, practical magic, hidden alcoves, and helping the reader find paths that hold.",
             traits: ["loyal", "quick", "ferociously observant"],
             quirks: ["notices exits before introductions", "keeps practical magic in her pockets"],
@@ -972,6 +979,7 @@ enum NarrativePackRegistry {
             .character,
             belief: 16,
             weight: 17,
+            chapter: "Duskthorn",
             unwrittenInterest: "Testing belief, puncturing false magic, rumor pressure, and the places doubt can become useful or cruel.",
             traits: ["sharp", "funny", "dangerously persuasive"],
             quirks: ["attacks weak premises for sport", "can smell theatrical belief from across a room"],
@@ -986,6 +994,7 @@ enum NarrativePackRegistry {
             .character,
             belief: 19,
             weight: 15,
+            chapter: "Mossbloom",
             unwrittenInterest: "Cryptids, impossible zoology, maritime mysteries, archives, and evidence that makes wonder less lonely.",
             traits: ["scholarly", "odd", "steadfast"],
             quirks: ["files impossible animals as if they are overdue forms", "writes letters to fog"],
@@ -1000,6 +1009,7 @@ enum NarrativePackRegistry {
             .character,
             belief: 17,
             weight: 13,
+            chapter: "Riddlewind",
             unwrittenInterest: "Homes as vessels, domestic objects, tea, rooms, and the ordinary magic that survives chores.",
             traits: ["domestic", "wry", "practical"],
             quirks: ["can make tea sound like a tactical intervention", "labels chaos by room"],
@@ -1014,6 +1024,7 @@ enum NarrativePackRegistry {
             .character,
             belief: 18,
             weight: 14,
+            chapter: "Riddlewind",
             unwrittenInterest: "Maps, patterns, riddles, diagrams, hidden systems, and clues that become invitations.",
             traits: ["quiet", "precise", "pattern-minded"],
             quirks: ["leaves clues where only patient people look", "trusts diagrams more than declarations"],
@@ -1332,6 +1343,7 @@ enum NarrativePackRegistry {
         _ kind: NarrativeEntityKind,
         belief: Int,
         weight: Int,
+        chapter: String? = nil,
         unwrittenInterest: String? = nil,
         traits: [String],
         quirks: [String],
@@ -1347,6 +1359,7 @@ enum NarrativePackRegistry {
             kind: kind,
             belief: belief,
             narrativeWeight: weight,
+            chapter: chapter,
             unwrittenInterest: unwrittenInterest,
             traits: traits,
             quirks: quirks,
@@ -2169,6 +2182,7 @@ enum GossipSimulationBuilder {
             kind: .object,
             belief: 30,
             narrativeWeight: 30,
+            chapter: nil,
             unwrittenInterest: "Whether ordinary life can become literature without lying.",
             traits: ["attentive"],
             quirks: ["keeps receipts in the margins"],
@@ -2510,6 +2524,31 @@ struct LabyrinthIllustrationPlate: Identifiable, Equatable {
     var caption: String
     var note: String
     var tags: [String]
+    var characterID: String? = nil
+}
+
+struct CharacterIllustrationProfile: Identifiable, Codable, Equatable {
+    var id: String
+    var characterName: String
+    var slug: String
+    var status: String
+    var chapter: String?
+    var core: String
+    var signature: String
+    var palette: String
+    var silhouette: String
+    var continuity: String
+    var avoid: String
+    var assetName: String?
+    var intendedAssetName: String
+    var prompt: String
+    var negativePrompt: String
+    var marginalia: [String]
+    var tags: [String]
+
+    var hasBundledAsset: Bool {
+        assetName?.isEmpty == false
+    }
 }
 
 enum QuipPackAvailability: String, Codable, Equatable {
@@ -2747,8 +2786,40 @@ struct BookReferenceLibraryPayload: Codable, Equatable {
     var wonderCompass: [ReferenceSnippet]
     var enchantifyLore: [ReferenceSnippet]
     var patreon: [ReferenceSnippet]?
+    var characterIllustrations: [CharacterIllustrationProfile]
 
-    static let empty = BookReferenceLibraryPayload(version: 0, wonderCompass: [], enchantifyLore: [], patreon: [])
+    enum CodingKeys: String, CodingKey {
+        case version
+        case wonderCompass
+        case enchantifyLore
+        case patreon
+        case characterIllustrations
+    }
+
+    init(
+        version: Int,
+        wonderCompass: [ReferenceSnippet],
+        enchantifyLore: [ReferenceSnippet],
+        patreon: [ReferenceSnippet]?,
+        characterIllustrations: [CharacterIllustrationProfile] = []
+    ) {
+        self.version = version
+        self.wonderCompass = wonderCompass
+        self.enchantifyLore = enchantifyLore
+        self.patreon = patreon
+        self.characterIllustrations = characterIllustrations
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decode(Int.self, forKey: .version)
+        wonderCompass = try container.decode([ReferenceSnippet].self, forKey: .wonderCompass)
+        enchantifyLore = try container.decode([ReferenceSnippet].self, forKey: .enchantifyLore)
+        patreon = try container.decodeIfPresent([ReferenceSnippet].self, forKey: .patreon)
+        characterIllustrations = try container.decodeIfPresent([CharacterIllustrationProfile].self, forKey: .characterIllustrations) ?? []
+    }
+
+    static let empty = BookReferenceLibraryPayload(version: 0, wonderCompass: [], enchantifyLore: [], patreon: [], characterIllustrations: [])
 }
 
 enum QuipPackRegistry {
@@ -2886,38 +2957,67 @@ enum BookReferenceCatalog {
         return snippets.isEmpty ? fallbackPatreon : snippets
     }
 
-    static let labyrinthIllustrations: [LabyrinthIllustrationPlate] = [
-        LabyrinthIllustrationPlate(
-            id: "hourly-01",
-            assetName: "LabyrinthHourly01",
-            title: "Hourly Field-Journal Plate",
-            caption: "The Book's hourly eye paused here and kept a little proof that the Labyrinth was still awake.",
-            note: "A generated keepalive illustration, bundled into the app as part of the in-app image shelf.",
-            tags: ["illustration", "hourly", "field-journal"]
-        ),
-        LabyrinthIllustrationPlate(id: "hourly-02", assetName: "LabyrinthHourly02", title: "Hourly Field-Journal Plate", caption: "An ambient plate from the Labyrinth's rotating watch.", note: "These pictures are not fetched live; they travel inside the app.", tags: ["illustration", "hourly"]),
-        LabyrinthIllustrationPlate(id: "hourly-03", assetName: "LabyrinthHourly03", title: "Hourly Field-Journal Plate", caption: "A small visual dispatch from the Academy margins.", note: "A bundled Draw Things plate from the hourly image shelf.", tags: ["illustration", "hourly", "academy"]),
-        LabyrinthIllustrationPlate(id: "hourly-04", assetName: "LabyrinthHourly04", title: "Hourly Field-Journal Plate", caption: "The Labyrinth left this image in the stack for later discovery.", note: "Rotates by day and hour so the same doorway can return with different art.", tags: ["illustration", "hourly", "stacks"]),
-        LabyrinthIllustrationPlate(id: "hourly-05", assetName: "LabyrinthHourly05", title: "Hourly Field-Journal Plate", caption: "A witness plate: character, place, or pressure caught before it drifted.", note: "Bundled from the keepalive shelf.", tags: ["illustration", "hourly", "witness"]),
-        LabyrinthIllustrationPlate(id: "hourly-06", assetName: "LabyrinthHourly06", title: "Hourly Field-Journal Plate", caption: "Something in the Academy held still long enough to be painted.", note: "A local in-app illustration card.", tags: ["illustration", "hourly", "academy"]),
-        LabyrinthIllustrationPlate(id: "hourly-07", assetName: "LabyrinthHourly07", title: "Hourly Field-Journal Plate", caption: "A soft plate from the living margins.", note: "The app keeps this as a built-in illustration, not a live feed.", tags: ["illustration", "hourly", "margins"]),
-        LabyrinthIllustrationPlate(id: "hourly-08", assetName: "LabyrinthHourly08", title: "Hourly Field-Journal Plate", caption: "A small image carried forward from the Labyrinth's hourly watch.", note: "A repeatable page source with different bundled content.", tags: ["illustration", "hourly"]),
-        LabyrinthIllustrationPlate(id: "hourly-09", assetName: "LabyrinthHourly09", title: "Hourly Field-Journal Plate", caption: "A plate from the shelves where the story kept breathing.", note: "Bundled art from Enchantify's generated archive.", tags: ["illustration", "hourly", "archive"]),
-        LabyrinthIllustrationPlate(id: "hourly-10", assetName: "LabyrinthHourly10", title: "Hourly Field-Journal Plate", caption: "The Book saved this picture because it had a little weather in it.", note: "Surface it, keep it, or let it drift back.", tags: ["illustration", "hourly", "weather"]),
-        LabyrinthIllustrationPlate(id: "hourly-11", assetName: "LabyrinthHourly11", title: "Hourly Field-Journal Plate", caption: "A little proof of the Labyrinth's ongoing watch.", note: "Generated earlier, bundled now.", tags: ["illustration", "hourly"]),
-        LabyrinthIllustrationPlate(id: "hourly-12", assetName: "LabyrinthHourly12", title: "Hourly Field-Journal Plate", caption: "A quiet image from the middle distance of the story world.", note: "Part of the in-app illustration shelf.", tags: ["illustration", "hourly", "story"]),
-        LabyrinthIllustrationPlate(id: "hourly-13", assetName: "LabyrinthHourly13", title: "Hourly Field-Journal Plate", caption: "The margins made a picture and left it where you might find it.", note: "The card can return with another plate later.", tags: ["illustration", "hourly", "margins"]),
-        LabyrinthIllustrationPlate(id: "hourly-14", assetName: "LabyrinthHourly14", title: "Hourly Field-Journal Plate", caption: "An ambient illustration from the Academy's background life.", note: "Bundled local art.", tags: ["illustration", "hourly", "academy"]),
-        LabyrinthIllustrationPlate(id: "hourly-15", assetName: "LabyrinthHourly15", title: "Hourly Field-Journal Plate", caption: "A page-light image, kept for no reason except that it mattered a little.", note: "A local plate from the hourly shelf.", tags: ["illustration", "hourly", "page-light"]),
-        LabyrinthIllustrationPlate(id: "hourly-16", assetName: "LabyrinthHourly16", title: "Hourly Field-Journal Plate", caption: "The Labyrinth's watchful hand set this beside the day.", note: "In-app art, ready to surface.", tags: ["illustration", "hourly", "watch"]),
-        LabyrinthIllustrationPlate(id: "hourly-17", assetName: "LabyrinthHourly17", title: "Hourly Field-Journal Plate", caption: "A little window into the story field.", note: "Bundled from generated Enchantify images.", tags: ["illustration", "hourly", "story-field"]),
-        LabyrinthIllustrationPlate(id: "hourly-18", assetName: "LabyrinthHourly18", title: "Hourly Field-Journal Plate", caption: "An image the Book kept because ordinary hours deserve witnesses too.", note: "This source can surface again with new content.", tags: ["illustration", "hourly", "witness"]),
-        LabyrinthIllustrationPlate(id: "hourly-19", assetName: "LabyrinthHourly19", title: "Hourly Field-Journal Plate", caption: "A field-journal glimpse from the Labyrinth's side of the glass.", note: "Bundled local illustration.", tags: ["illustration", "hourly", "field-journal"]),
-        LabyrinthIllustrationPlate(id: "hourly-20", assetName: "LabyrinthHourly20", title: "Hourly Field-Journal Plate", caption: "A scrap of visual weather from the Academy.", note: "Part of the app's local illustration shelf.", tags: ["illustration", "hourly", "academy"]),
-        LabyrinthIllustrationPlate(id: "hourly-21", assetName: "LabyrinthHourly21", title: "Hourly Field-Journal Plate", caption: "The page turned, briefly, toward a picture.", note: "A bundled Draw Things keepalive plate.", tags: ["illustration", "hourly", "draw-things"]),
-        LabyrinthIllustrationPlate(id: "hourly-22", assetName: "LabyrinthHourly22", title: "Hourly Field-Journal Plate", caption: "A small plate from a larger unseen hour.", note: "Local in-app image.", tags: ["illustration", "hourly"]),
-        LabyrinthIllustrationPlate(id: "hourly-23", assetName: "LabyrinthHourly23", title: "Hourly Field-Journal Plate", caption: "The Labyrinth put a little paint in the margin.", note: "Bundled image, no network required.", tags: ["illustration", "hourly", "marginalia"]),
-        LabyrinthIllustrationPlate(id: "hourly-24", assetName: "LabyrinthHourly24", title: "Hourly Field-Journal Plate", caption: "One more witness from the hourly shelf.", note: "The image is stored inside the app.", tags: ["illustration", "hourly"])
+    static var characterIllustrations: [CharacterIllustrationProfile] {
+        let profiles = bundledLibrary.characterIllustrations
+        return profiles.isEmpty ? fallbackCharacterIllustrations : profiles
+    }
+
+    static var labyrinthIllustrations: [LabyrinthIllustrationPlate] {
+        characterIllustrationPlates
+    }
+
+    static let bundledCharacterIllustrationAssetNames: Set<String> = [
+        "LabyrinthCharacterDrSeleneInkrest",
+        "LabyrinthCharacterHeadmistressSeraphinaThorne",
+        "LabyrinthCharacterOrionBlackthorn",
+        "LabyrinthCharacterPennyBlackletter",
+        "LabyrinthCharacterSerenityBrown",
+        "LabyrinthCharacterWickerEddies",
+        "LabyrinthCharacterZaraFinch"
+    ]
+
+    private static var characterIllustrationPlates: [LabyrinthIllustrationPlate] {
+        characterIllustrations.compactMap { profile in
+            let assetName = profile.assetName?.isEmpty == false ? profile.assetName ?? profile.intendedAssetName : profile.intendedAssetName
+            guard bundledCharacterIllustrationAssetNames.contains(assetName) else {
+                return nil
+            }
+            return LabyrinthIllustrationPlate(
+                id: "character-\(profile.slug)",
+                assetName: assetName,
+                title: profile.characterName,
+                caption: profile.core,
+                note: "Character dossier illustration. Signature: \(profile.signature). Marginalia: \(profile.marginalia.joined(separator: " | ")).",
+                tags: Array((["illustration", "character", profile.slug] + profile.tags).prefix(8)),
+                characterID: profile.id
+            )
+        }
+    }
+
+    private static let fallbackCharacterIllustrations = [
+        CharacterIllustrationProfile(
+            id: "headmistress-seraphina-thorne",
+            characterName: "Headmistress Seraphina Thorne",
+            slug: "headmistress-seraphina-thorne",
+            status: "canonical",
+            chapter: "Duskthorn",
+            core: "Leads the Academy; sees the Unwritten; ageless literary-elf face; star-cold eyes; hair pinned like a dark crown.",
+            signature: "an antique star-dark key and a crownlike hairpin",
+            palette: "ink black, old silver, star-gold",
+            silhouette: "regal stillness; one hand resting on an antique key",
+            continuity: "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+            avoid: "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+            assetName: "LabyrinthCharacterHeadmistressSeraphinaThorne",
+            intendedAssetName: "LabyrinthCharacterHeadmistressSeraphinaThorne",
+            prompt: "Create an Enchantify Academy character dossier illustration in sparse graphite and ink, watercolor washes, jewel-color accents, and character-specific parchment marginalia.",
+            negativePrompt: "Avoid generic fantasy pinup, glossy anime, polished digital fantasy portrait, and inconsistent signature object.",
+            marginalia: [
+                "file tab labeled Headmistress Seraphina Thorne",
+                "signature evidence: an antique star-dark key and a crownlike hairpin",
+                "jewel-color swatches: ink black, old silver, star-gold"
+            ],
+            tags: ["canonical", "character", "duskthorn", "illustration"]
+        )
     ]
 
     private static let bundledLibrary: BookReferenceLibraryPayload = {
@@ -3204,12 +3304,17 @@ enum BookReferenceCatalog {
                 assetName: "",
                 title: "Illustration",
                 caption: "The illustration shelf is empty for now.",
-                note: "Add bundled plates to wake this page.",
+                note: "Add character dossier assets to wake this page.",
                 tags: ["illustration"]
             )
         }
         let seed = "\(day.id)-labyrinth-illustrations-\(referenceRotationSlot(for: now, hours: 1))"
         return labyrinthIllustrations[stableIndex(for: seed, count: labyrinthIllustrations.count)]
+    }
+
+    static func characterIllustrationProfile(id: String?) -> CharacterIllustrationProfile? {
+        guard let id else { return nil }
+        return characterIllustrations.first { $0.id == id }
     }
 
     static func firstURL(in snippet: ReferenceSnippet) -> String? {
@@ -3707,6 +3812,15 @@ struct SurfacePage: Identifiable, Equatable {
                 ))
             }
         }
+        if let proofImagePath = nonEmptyMetadataValue("proofImagePath") {
+            assets.append(BookPageMediaAsset(
+                kind: .renderedImageFile,
+                reference: proofImagePath,
+                caption: payload.metadata["proofCaption"] ?? payload.headline,
+                sourceID: sourceID,
+                metadata: payload.metadata
+            ))
+        }
         return assets
     }
 
@@ -4101,8 +4215,11 @@ enum FakePhotoIlluminationAnalyzer {
 
     static func analyze(illustration plate: LabyrinthIllustrationPlate) -> PhotoAnalysis {
         let loweredTags = plate.tags.map { $0.lowercased() }
+        let profile = BookReferenceCatalog.characterIllustrationProfile(id: plate.characterID)
         let template: IlluminatedTemplateID
-        if loweredTags.contains("weather") || loweredTags.contains("harbor") {
+        if profile != nil {
+            template = .academyFieldStudy
+        } else if loweredTags.contains("weather") || loweredTags.contains("harbor") {
             template = .harborFieldNote
         } else if loweredTags.contains("watch") || loweredTags.contains("witness") || loweredTags.contains("page-light") {
             template = .restAndQuiet
@@ -4110,20 +4227,28 @@ enum FakePhotoIlluminationAnalyzer {
             template = .academyFieldStudy
         }
 
-        let motifs = Array((["illustration"] + loweredTags).prefix(5))
+        let motifs = Array((["illustration"] + (profile == nil ? [] : ["character"]) + loweredTags).prefix(6))
         let titleWords = plate.title
             .split(separator: " ")
             .prefix(3)
             .joined(separator: " ")
+        let fieldNote = profile.map { "The Labyrinth filed \($0.characterName) as a living dossier." } ?? "The Labyrinth filed a witness."
+        let closingLine = profile == nil
+            ? "The Book kept the page: image listened."
+            : "The Book kept the page: portrait, note, and name braided together."
+        let souvenir = profile.map { "A character portrait of \($0.characterName) became reusable evidence for the Book of You." }
+            ?? "A bundled illustration became evidence from the story side."
 
         return PhotoAnalysisValidator.validate(
             PhotoAnalysis(
                 scene: plate.caption,
                 motifs: motifs,
-                mood: loweredTags.contains("weather") ? "watchful weather" : "ink and quiet",
+                mood: profile == nil
+                    ? (loweredTags.contains("weather") ? "watchful weather" : "ink and quiet")
+                    : "academy dossier",
                 suggestedTemplate: template,
                 marginalia: PhotoMarginalia(
-                    fieldNote: "The Labyrinth filed a witness.",
+                    fieldNote: fieldNote,
                     stampLabel: titleWords.isEmpty ? "Field Plate" : titleWords,
                     observationList: [
                         "Ink kept its post",
@@ -4132,11 +4257,11 @@ enum FakePhotoIlluminationAnalyzer {
                         "The plate watched back",
                         "Story light lingered"
                     ],
-                    closingLine: "The Book kept the page: image listened."
+                    closingLine: closingLine
                 ),
                 souvenirCandidates: [
                     "The Labyrinth left a picture where the day could find it.",
-                    "A bundled illustration became evidence from the story side."
+                    souvenir
                 ]
             ),
             fallback: .academyFallback
@@ -5350,6 +5475,596 @@ enum SurfaceCadence {
     }
 }
 
+enum CompassRunStep: String, CaseIterable, Identifiable {
+    case notice
+    case embark
+    case sense
+    case write
+    case rest
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .notice:
+            return "Notice"
+        case .embark:
+            return "Embark"
+        case .sense:
+            return "Sense"
+        case .write:
+            return "Write"
+        case .rest:
+            return "Rest"
+        }
+    }
+
+    var compassPoint: String {
+        switch self {
+        case .notice:
+            return "North"
+        case .embark:
+            return "East"
+        case .sense:
+            return "South"
+        case .write:
+            return "West"
+        case .rest:
+            return "Center"
+        }
+    }
+
+    var prompt: String {
+        switch self {
+        case .notice:
+            return "I wonder..."
+        case .embark:
+            return "Plan so badly it cannot fail."
+        case .sense:
+            return "Give your senses a tiny game."
+        case .write:
+            return "Keep one sentence from time."
+        case .rest:
+            return "Let the center hold."
+        }
+    }
+
+    var standaloneDetail: String {
+        switch self {
+        case .notice:
+            return "Choose a spark: a question, object, place, oddity, color, sound, or tiny curiosity."
+        case .embark:
+            return "Name the 3 D's: Destination, Delight, and Definition."
+        case .sense:
+            return "Pick a playful mission: find, count, compare, collect, touch, listen, taste, or photograph."
+        case .write:
+            return "Save the single best sensory detail. Specific is terrific."
+        case .rest:
+            return "Set the phone down for one quiet minute. Rest is the pin, not the prize."
+        }
+    }
+
+    var capturePlaceholder: String {
+        switch self {
+        case .notice:
+            return "I wonder what would happen if..."
+        case .embark:
+            return "Destination: \nDelight: \nDefinition: "
+        case .sense:
+            return "Mission: Find three rough textures / Listen for the quietest sound / Photograph one strange angle..."
+        case .write:
+            return "The single detail I want to keep is..."
+        case .rest:
+            return "After one quiet minute, the needle feels..."
+        }
+    }
+
+    var scoreBoost: Int {
+        switch self {
+        case .notice:
+            return 8
+        case .embark:
+            return 11
+        case .sense:
+            return 12
+        case .write:
+            return 14
+        case .rest:
+            return 9
+        }
+    }
+
+    var missionBody: String {
+        switch self {
+        case .notice:
+            return "North sets the bearing. Ask a real 'I wonder...' question and let it become the goal of the run."
+        case .embark:
+            return "East crosses the threshold with the 3 D's: Destination, Delight, Definition. Specificity lowers the activation energy."
+        case .sense:
+            return "South breaks the museum gaze. Use a playful sensory mission so the phone becomes a field kit, then the eyes come up."
+        case .write:
+            return "West is the save button. One specific sentence is enough to keep the memory from dissolving."
+        case .rest:
+            return "The Center keeps the compass from becoming homework. Sixty seconds of no input is a valid completion."
+        }
+    }
+}
+
+struct CompassRunProgress: Equatable {
+    var completedSteps: Set<CompassRunStep>
+    var latestRunID: String?
+    var latestSpark: String?
+
+    var nextStep: CompassRunStep {
+        CompassRunStep.allCases.first { !completedSteps.contains($0) } ?? .notice
+    }
+
+    var isComplete: Bool {
+        CompassRunStep.allCases.allSatisfy { completedSteps.contains($0) }
+    }
+
+    static func progress(for day: BookDay) -> CompassRunProgress {
+        let compassPages = day.capturedPages.filter { page in
+            page.tags.contains("wonder-compass-run") || page.tags.contains("wonder-compass")
+        }
+        let completed = Set(compassPages.compactMap { page -> CompassRunStep? in
+            for tag in page.tags {
+                if tag.hasPrefix("compass-step:") {
+                    return CompassRunStep(rawValue: String(tag.dropFirst("compass-step:".count)))
+                }
+            }
+            return nil
+        })
+        let runID = compassPages
+            .flatMap(\.tags)
+            .first { $0.hasPrefix("compass-run:") }
+            .map { String($0.dropFirst("compass-run:".count)) }
+        let spark = compassPages
+            .last { $0.tags.contains("compass-step:notice") }?
+            .userInput
+            .split(separator: "\n")
+            .first
+            .map(String.init)
+
+        return CompassRunProgress(
+            completedSteps: completed,
+            latestRunID: runID,
+            latestSpark: spark
+        )
+    }
+}
+
+enum WonderConciergeMode: String, CaseIterable {
+    case closeToHome
+    case budget
+    case obscure
+    case vibe
+    case scavenger
+    case recovery
+
+    var title: String {
+        switch self {
+        case .closeToHome:
+            return "Close to Home"
+        case .budget:
+            return "Budget Agent"
+        case .obscure:
+            return "Curator of the Obscure"
+        case .vibe:
+            return "Vibe Check"
+        case .scavenger:
+            return "Gamifier"
+        case .recovery:
+            return "Recovery Compass"
+        }
+    }
+
+    var promptSeed: String {
+        switch self {
+        case .closeToHome:
+            return "Make a tiny adventure from the room, porch, driveway, kitchen, or nearest walkable threshold."
+        case .budget:
+            return "Keep cost anxiety low. Use free or cheap options and name one simple treat."
+        case .obscure:
+            return "Look for overlooked oddities, strange local history, old signs, hidden corners, or story-rich places."
+        case .vibe:
+            return "Match the user's mood to a place, texture, sound, or tiny ritual."
+        case .scavenger:
+            return "Turn the situation into a sensory scavenger hunt with specific things to find or photograph."
+        case .recovery:
+            return "Shrink the Compass to the user's energy envelope. Movement can be one inch; rest can be the run."
+        }
+    }
+}
+
+struct WonderCompassRunSeed: Equatable {
+    var id: String
+    var mode: WonderConciergeMode
+    var timeBox: String
+    var budget: String
+    var place: String
+    var energy: String
+    var companions: String
+    var considerations: String
+    var circumstance: String
+    var spark: String
+    var destination: String
+    var delight: String
+    var definition: String
+    var mission: String
+    var souvenirPrompt: String
+    var restPrompt: String
+    var tags: [String]
+
+    var fullPrompt: String {
+        [
+            "Mode: \(mode.title)",
+            "Time: \(timeBox)",
+            "Budget: \(budget)",
+            "Place: \(place)",
+            "Energy: \(energy)",
+            "With: \(companions)",
+            "Considerations: \(considerations)",
+            "Circumstance: \(circumstance)",
+            "North: \(spark)",
+            "East: Destination: \(destination); Delight: \(delight); Definition: \(definition)",
+            "South: \(mission)",
+            "West: \(souvenirPrompt)",
+            "Center: \(restPrompt)"
+        ].joined(separator: "\n")
+    }
+}
+
+struct PlayfulMission: Identifiable, Equatable {
+    var id: String
+    var title: String
+    var prompt: String
+    var proofPrompt: String
+    var tags: [String]
+    var allowsPhoto: Bool = true
+}
+
+enum PlayfulMissionRegistry {
+    static func mission(for day: BookDay, inputs: BookSourceInputs, now: Date = Date()) -> PlayfulMission {
+        let missions = rankedMissions(for: day, inputs: inputs, now: now)
+        let slot = SurfaceCadence.slotID(for: now, hours: 2)
+        let seed = abs("\(day.id)-\(slot)-playful-mission".hashValue)
+        return missions[seed % missions.count]
+    }
+
+    private static func rankedMissions(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [PlayfulMission] {
+        let text = [
+            inputs.weather?.phrase,
+            inputs.body?.status,
+            day.capturedPages.suffix(6).map { "\($0.promptText) \($0.userInput) \($0.tags.joined(separator: " "))" }.joined(separator: " ")
+        ]
+        .compactMap(\.self)
+        .joined(separator: " ")
+        .lowercased()
+
+        let preferredTags: Set<String>
+        if text.contains("rain") || text.contains("storm") || text.contains("fog") {
+            preferredTags = ["weather", "sound", "scent", "inside"]
+        } else if text.contains("low") || text.contains("tired") || text.contains("rest") {
+            preferredTags = ["low-energy", "touch", "inside"]
+        } else if text.contains("work") || text.contains("errand") || text.contains("store") {
+            preferredTags = ["public", "visual", "errand"]
+        } else {
+            preferredTags = ["touch", "visual", "scent", "sound"]
+        }
+
+        return missions.sorted { left, right in
+            let leftScore = Set(left.tags).intersection(preferredTags).count
+            let rightScore = Set(right.tags).intersection(preferredTags).count
+            if leftScore == rightScore {
+                return left.id < right.id
+            }
+            return leftScore > rightScore
+        }
+    }
+
+    static let missions: [PlayfulMission] = [
+        mission("oldest-smell", "The Oldest Thing", "Find the oldest thing near you and smell it. What does age smell like here?", "Complete this: The oldest thing near me smelled like...", ["scent", "touch", "inside", "low-energy"]),
+        mission("coldest-touch", "The Coldest Touch", "Find the coldest thing you are allowed to touch. Hold it for five seconds.", "Write one sentence about where the cold seemed to come from.", ["touch", "temperature", "inside", "low-energy"]),
+        mission("quietest-sound", "The Quietest Sound", "Stand still and hunt the quietest sound in the room. Not the loudest. The shyest.", "Complete this: Under everything else, I heard...", ["sound", "inside", "low-energy"]),
+        mission("three-rough", "Texture Thief", "Find three rough textures within ten steps. Rank them from friendly to suspicious.", "Write one sentence naming the strangest texture.", ["touch", "inside", "public"]),
+        mission("blue-count", "Blue Census", "Count every blue thing you can see without moving your feet.", "Write the blue thing that surprised you most.", ["visual", "color", "inside", "public"]),
+        mission("tiny-door", "Tiny Door", "Find the smallest opening nearby: a crack, keyhole, drawer gap, vent, bottle mouth, or shadow under a door.", "Write what might live on the other side.", ["visual", "imagination", "inside"]),
+        mission("weather-scent", "Weather Has A Smell", "Step near a door or window and compare the air on both sides. Which side has more weather in it?", "Write one sentence about the smell or weight of the air.", ["weather", "scent", "inside"]),
+        mission("object-portrait", "Object Portrait", "Choose one ordinary object and photograph it like it is the main character.", "Write its first line of dialogue.", ["photo", "visual", "character", "inside"]),
+        mission("five-shadows", "Shadow Hunt", "Find five shadows. Pick the one that looks least like the thing casting it.", "Write what the shadow is pretending to be.", ["visual", "photo", "inside", "public"]),
+        mission("softest-edge", "The Softest Edge", "Find the softest edge nearby. A sleeve, paper, light, bread crust, blanket, voice, or dust counts.", "Write one sentence about what made it soft.", ["touch", "visual", "low-energy"]),
+        mission("smell-map", "Smell Map", "Move through three nearby spots and notice how the smell changes. Make a tiny map in your head.", "Write the border where the smell changed.", ["scent", "movement", "inside"]),
+        mission("tiny-kindness", "Evidence Of Kindness", "Find one tiny sign that someone made life easier for someone else.", "Write the evidence, no moral required.", ["visual", "public", "errand"]),
+        mission("weirdest-label", "The Weirdest Label", "Find the strangest label, warning, sticker, sign, or package text nearby.", "Write what makes it strange.", ["visual", "public", "errand"]),
+        mission("sound-layer", "Sound Layer", "Listen for three layers: machine, body, world. Name one sound in each layer.", "Write the layer that felt most alive.", ["sound", "inside", "public"]),
+        mission("weight-guess", "Weight Oracle", "Pick up a safe object. Guess its exact weight, then decide if your hand agrees.", "Write whether it was heavier or lighter than its face suggested.", ["touch", "weight", "inside"]),
+        mission("one-inch-kingdom", "One-Inch Kingdom", "Look closely at one square inch of something: fabric, bark, carpet, table, wall, sidewalk.", "Write what lives in that tiny kingdom.", ["visual", "touch", "photo", "low-energy"]),
+        mission("borrowed-color", "Borrowed Color", "Find an object borrowing color from something else: reflected light, stained glass, screen glow, sunset, shade.", "Write who lent the color.", ["visual", "color", "photo"]),
+        mission("old-date", "Date Hunter", "Find the oldest visible date nearby: on a coin, receipt, book, sign, package, building, or file.", "Write what that date has been waiting through.", ["visual", "public", "history"]),
+        mission("chair-held", "The Chair Holds", "Sit down and let the chair do all the work for sixty seconds. Notice where it pushes back.", "Complete this: The chair held me by...", ["touch", "rest", "low-energy", "inside"], allowsPhoto: false),
+        mission("brightest-small", "Small Bright Thing", "Find the brightest small thing nearby. Not the biggest bright thing. The small one.", "Write why it caught the light.", ["visual", "low-energy", "inside", "public"])
+    ]
+
+    private static func mission(
+        _ id: String,
+        _ title: String,
+        _ prompt: String,
+        _ proofPrompt: String,
+        _ tags: [String],
+        allowsPhoto: Bool = true
+    ) -> PlayfulMission {
+        PlayfulMission(id: id, title: title, prompt: prompt, proofPrompt: proofPrompt, tags: tags, allowsPhoto: allowsPhoto)
+    }
+}
+
+enum WonderCompassRunGenerator {
+    static func seed(for day: BookDay, inputs: BookSourceInputs, progress: CompassRunProgress, now: Date = Date()) -> WonderCompassRunSeed {
+        let mode = mode(for: day, inputs: inputs, now: now)
+        let timeBox = timeBox(for: mode, inputs: inputs, now: now)
+        let budget = mode == .budget ? "$0-$10" : "Use what is already available."
+        let place = place(for: mode, inputs: inputs)
+        let energy = energy(for: mode, inputs: inputs)
+        let companions = companions(for: day)
+        let considerations = considerations(for: mode, inputs: inputs)
+        let circumstance = circumstance(for: inputs, now: now)
+        let spark = progress.latestSpark ?? spark(for: mode, inputs: inputs, now: now)
+        let destination = destination(for: mode, spark: spark, place: place)
+        let delight = delight(for: mode, inputs: inputs, now: now)
+        let definition = definition(for: mode, timeBox: timeBox)
+        let mission = mission(for: mode, inputs: inputs)
+        let souvenir = souvenirPrompt(for: mode)
+        let rest = restPrompt(for: inputs)
+        let slot = SurfaceCadence.slotID(for: now, hours: 6)
+
+        return WonderCompassRunSeed(
+            id: "run-\(day.id)-\(slot)-\(mode.rawValue)",
+            mode: mode,
+            timeBox: timeBox,
+            budget: budget,
+            place: place,
+            energy: energy,
+            companions: companions,
+            considerations: considerations,
+            circumstance: circumstance,
+            spark: spark,
+            destination: destination,
+            delight: delight,
+            definition: definition,
+            mission: mission,
+            souvenirPrompt: souvenir,
+            restPrompt: rest,
+            tags: ["wonder-compass", "wonder-compass-run", "concierge:\(mode.rawValue)"]
+        )
+    }
+
+    private static func mode(for day: BookDay, inputs: BookSourceInputs, now: Date) -> WonderConciergeMode {
+        let hour = Calendar.current.component(.hour, from: now)
+        let capturedText = day.capturedPages.suffix(4).map { "\($0.promptText) \($0.userInput) \($0.tags.joined(separator: " "))" }.joined(separator: " ").lowercased()
+        let bodyStatus = inputs.body?.status.lowercased() ?? ""
+        if bodyStatus.contains("watch") || bodyStatus.contains("low") || capturedText.contains("tired") || capturedText.contains("rest") {
+            return .recovery
+        }
+        if hour >= 19 || hour < 8 {
+            return .closeToHome
+        }
+        if let weather = inputs.weather?.phrase.lowercased(),
+           weather.contains("rain") || weather.contains("storm") || weather.contains("snow") || weather.contains("fog") {
+            return .vibe
+        }
+        if capturedText.contains("cheap") || capturedText.contains("budget") || capturedText.contains("money") {
+            return .budget
+        }
+        if capturedText.contains("weird") || capturedText.contains("old") || capturedText.contains("history") {
+            return .obscure
+        }
+        if capturedText.contains("errand") || capturedText.contains("work") || capturedText.contains("store") {
+            return .scavenger
+        }
+        return day.capturedPages.isEmpty ? .closeToHome : .vibe
+    }
+
+    private static func timeBox(for mode: WonderConciergeMode, inputs: BookSourceInputs, now: Date) -> String {
+        switch mode {
+        case .recovery:
+            return "1-10 minutes"
+        case .closeToHome:
+            return "10-20 minutes"
+        case .budget, .vibe, .scavenger:
+            return "20-45 minutes"
+        case .obscure:
+            return "45-90 minutes"
+        }
+    }
+
+    private static func place(for mode: WonderConciergeMode, inputs: BookSourceInputs) -> String {
+        switch mode {
+        case .closeToHome, .recovery:
+            return "where the user already is"
+        case .budget:
+            return "nearby and cheap"
+        case .obscure:
+            return "within a reasonable local radius"
+        case .vibe:
+            if let weather = inputs.weather?.phrase {
+                return "somewhere that fits this weather: \(weather)"
+            }
+            return "somewhere that fits the current mood"
+        case .scavenger:
+            return "the place the user already has to go"
+        }
+    }
+
+    private static func energy(for mode: WonderConciergeMode, inputs: BookSourceInputs) -> String {
+        if let body = inputs.body, body.isAvailable {
+            return "\(body.status): \(body.phrase)"
+        }
+        switch mode {
+        case .recovery:
+            return "low; shrink the run"
+        case .obscure:
+            return "curious enough for a slightly larger loop"
+        default:
+            return "ordinary tired adult"
+        }
+    }
+
+    private static func companions(for day: BookDay) -> String {
+        let text = day.capturedPages.suffix(6).map { "\($0.promptText) \($0.userInput)" }.joined(separator: " ").lowercased()
+        if text.contains("kid") || text.contains("child") || text.contains("children") {
+            return "with kids"
+        }
+        if text.contains("partner") || text.contains("wife") || text.contains("husband") || text.contains("friend") {
+            return "with someone trusted"
+        }
+        return "solo unless the user says otherwise"
+    }
+
+    private static func considerations(for mode: WonderConciergeMode, inputs: BookSourceInputs) -> String {
+        var notes: [String] = []
+        if mode == .recovery {
+            notes.append("low energy")
+        }
+        if let weather = inputs.weather?.phrase.lowercased(),
+           weather.contains("rain") || weather.contains("storm") || weather.contains("snow") || weather.contains("heat") {
+            notes.append("weather-aware")
+        }
+        if inputs.body != nil {
+            notes.append("body signals outrank the plan")
+        }
+        if notes.isEmpty {
+            notes.append("no special constraints known")
+        }
+        return notes.joined(separator: ", ")
+    }
+
+    private static func circumstance(for inputs: BookSourceInputs, now: Date) -> String {
+        var pieces: [String] = []
+        if let weather = inputs.weather?.phrase {
+            pieces.append("weather: \(weather)")
+        }
+        if let body = inputs.body?.phrase {
+            pieces.append("body: \(body)")
+        }
+        let hour = Calendar.current.component(.hour, from: now)
+        pieces.append(hour >= 18 ? "evening" : "daylight")
+        return pieces.joined(separator: "; ")
+    }
+
+    private static func spark(for mode: WonderConciergeMode, inputs: BookSourceInputs, now: Date) -> String {
+        switch mode {
+        case .closeToHome:
+            return "I wonder what detail in this room has been invisible all week?"
+        case .budget:
+            return "I wonder what cheap, specific pleasure would make today feel less gray?"
+        case .obscure:
+            return "I wonder what strange little story is hiding nearby?"
+        case .vibe:
+            return "I wonder where today's mood would feel understood instead of fixed?"
+        case .scavenger:
+            return "I wonder what five oddly specific things I can find where I already have to be?"
+        case .recovery:
+            return "I wonder what is the smallest true thing I can notice without pushing?"
+        }
+    }
+
+    private static func destination(for mode: WonderConciergeMode, spark: String, place: String) -> String {
+        switch mode {
+        case .closeToHome:
+            return "one threshold nearby: a door, window, porch, kitchen table, or mailbox"
+        case .budget:
+            return "one free or cheap local stop tied to the spark"
+        case .obscure:
+            return "one odd sign, old building, marker, bridge, shop, or overlooked corner"
+        case .vibe:
+            return "one place or object that matches the mood"
+        case .scavenger:
+            return place
+        case .recovery:
+            return "the nearest chair, window, glass of water, blanket, or patch of light"
+        }
+    }
+
+    private static func delight(for mode: WonderConciergeMode, inputs: BookSourceInputs, now: Date) -> String {
+        switch mode {
+        case .closeToHome:
+            return "one song, warm drink, favorite hoodie, or good socks"
+        case .budget:
+            return "a cheap snack, road drink, playlist, or saved podcast"
+        case .obscure:
+            return "a camera-only phone, a playlist, and permission to leave if the place is dull"
+        case .vibe:
+            return "music, weather-appropriate clothes, or a drink that matches the atmosphere"
+        case .scavenger:
+            return "turn the errand into a game; the prize is the souvenir"
+        case .recovery:
+            return "comfort first: water, blanket, soft light, or silence"
+        }
+    }
+
+    private static func definition(for mode: WonderConciergeMode, timeBox: String) -> String {
+        switch mode {
+        case .recovery:
+            return "stop as soon as the body says stop"
+        case .scavenger:
+            return "finish after three finds or \(timeBox)"
+        default:
+            return "finish after \(timeBox)"
+        }
+    }
+
+    private static func mission(for mode: WonderConciergeMode, inputs: BookSourceInputs) -> String {
+        switch mode {
+        case .closeToHome:
+            return "Find the oldest, brightest, coldest, or most neglected thing within ten steps."
+        case .budget:
+            return "Find three details that make the cheap thing feel specific: smell, texture, sound."
+        case .obscure:
+            return "Photograph one overlooked detail and ask what story it is trying to keep."
+        case .vibe:
+            return "Compare the mood inside your body with the mood of the place. Name one match and one contrast."
+        case .scavenger:
+            return "Find five non-obvious things: a strange sign, a hidden color, an old date, a texture, and a tiny kindness."
+        case .recovery:
+            return "Feel one support: chair, floor, blanket, wall, breath. No improving."
+        }
+    }
+
+    private static func souvenirPrompt(for mode: WonderConciergeMode) -> String {
+        switch mode {
+        case .recovery:
+            return "Write proof of survival: I was here, and one thing held."
+        default:
+            return "Write one specific sensory sentence. Let the object do something if you can."
+        }
+    }
+
+    private static func restPrompt(for inputs: BookSourceInputs) -> String {
+        if inputs.body != nil {
+            return "Take the 60-second reset or stop completely; body signals outrank the plan."
+        }
+        return "Put the phone face down for 60 seconds and let the run land."
+    }
+
+    static func body(for seed: WonderCompassRunSeed) -> String {
+        """
+        \(seed.mode.promptSeed)
+
+        Deterministic rails for Gemma:
+        \(seed.fullPrompt)
+
+        Generate a custom Wonder Compass cycle from these constraints. Keep it sensory, specific, and non-generic. Use NORTH (NOTICE), EAST (EMBARK), SOUTH (SENSE), WEST (WRITE), and CENTER (REST). End with one useful hint.
+
+        N -> E -> S -> W, then Center:
+        Notice: \(seed.spark)
+        Embark: Destination: \(seed.destination). Delight: \(seed.delight). Definition: \(seed.definition).
+        Sense: \(seed.mission)
+        Write: \(seed.souvenirPrompt)
+        Rest: \(seed.restPrompt)
+        """
+    }
+}
+
 struct MoodPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .mood)
 
@@ -5696,11 +6411,17 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
             return []
         }
 
+        let progress = CompassRunProgress.progress(for: day)
+        let seed = WonderCompassRunGenerator.seed(for: day, inputs: inputs, progress: progress, now: now)
+        let playfulMission = PlayfulMissionRegistry.mission(for: day, inputs: inputs, now: now)
         let snippet = inputs.selectedWonderCompass
             ?? BookReferenceCatalog.relevantWonderCompassSnippet(for: day, inputs: inputs, now: now)
         let selector = inputs.selectedWonderCompassSelector ?? "local-relevance"
         let isGemmaSelected = selector == "gemma"
-        return [
+        var pages: [SurfacePage] = [
+            runSurface(seed: seed, progress: progress, context: context, now: now),
+            stepSurface(step: progress.nextStep, seed: seed, progress: progress, context: context, now: now),
+            playfulMissionSurface(playfulMission, seed: seed, context: context, now: now),
             SurfacePage(
                 id: "\(source.id)-\(snippet.id)",
                 type: .wonderCompass,
@@ -5725,6 +6446,168 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
                 )
             )
         ]
+
+        if progress.completedSteps.isEmpty {
+            pages.append(stepSurface(step: .notice, seed: seed, progress: progress, context: context, now: now, standalone: true))
+        }
+
+        return pages
+    }
+
+    private func playfulMissionSurface(
+        _ mission: PlayfulMission,
+        seed: WonderCompassRunSeed,
+        context: CuratorContext,
+        now: Date
+    ) -> SurfacePage {
+        var metadata = metadata(for: seed, step: .sense)
+        metadata["compassStep"] = "sense"
+        metadata["playfulMissionID"] = mission.id
+        metadata["playfulMissionTitle"] = mission.title
+        metadata["mission"] = mission.prompt
+        metadata["souvenirPrompt"] = mission.proofPrompt
+        metadata["placeholder"] = mission.proofPrompt
+        metadata["proofKind"] = mission.allowsPhoto ? "sentence-or-photo" : "sentence"
+        metadata["tags"] = (seed.tags + ["compass-step:sense", "playful-mission"] + mission.tags.map { "mission:\($0)" }).joined(separator: ",")
+        metadata["symbol"] = mission.allowsPhoto ? "camera.macro" : "hand.raised"
+
+        return SurfacePage(
+            id: "\(source.id)-playful-mission-\(mission.id)-\(SurfaceCadence.slotID(for: now, hours: 2))",
+            type: .wonderCompass,
+            sourceID: source.id,
+            intent: .capture,
+            renderStyle: .promptCard,
+            score: context.distress.isActive ? 54 : 64,
+            reason: "A playful mission can turn South into something your senses can actually do.",
+            prompt: "Playful Mission: \(mission.title)",
+            detail: mission.prompt,
+            payload: BookPagePayload(
+                headline: "South = Sense",
+                body: "\(mission.prompt)\n\nProof: \(mission.proofPrompt)\(mission.allowsPhoto ? " Or keep a photo." : "")",
+                metadata: metadata
+            )
+        )
+    }
+
+    private func runSurface(
+        seed: WonderCompassRunSeed,
+        progress: CompassRunProgress,
+        context: CuratorContext,
+        now: Date
+    ) -> SurfacePage {
+        let completed = progress.completedSteps.count
+        let isFresh = completed == 0
+        let next = progress.isComplete ? CompassRunStep.rest : progress.nextStep
+        let headline = isFresh ? "Compass Run" : (progress.isComplete ? "Compass Run Complete" : "Resume Compass Run")
+        let detail = isFresh
+            ? "A full N-E-S-W loop customized to now: constraints first, magic after."
+            : "\(completed)/5 directions complete. Next: \(next.compassPoint) = \(next.title)."
+        var metadata = metadata(for: seed, step: nil)
+        metadata["compassStep"] = "run"
+        metadata["completedSteps"] = "\(completed)"
+        metadata["nextStep"] = next.rawValue
+
+        return SurfacePage(
+            id: "\(source.id)-run-\(seed.id)",
+            type: .wonderCompass,
+            sourceID: source.id,
+            intent: .capture,
+            renderStyle: .quoteCard,
+            score: context.distress.isActive ? 48 : (isFresh ? 60 : 62),
+            reason: progress.isComplete
+                ? "The wheel has turned; the center can hold the page."
+                : "The Compass can turn the current constraints into one small adventure.",
+            prompt: headline,
+            detail: detail,
+            payload: BookPagePayload(
+                headline: headline,
+                body: WonderCompassRunGenerator.body(for: seed),
+                metadata: metadata
+            )
+        )
+    }
+
+    private func stepSurface(
+        step: CompassRunStep,
+        seed: WonderCompassRunSeed,
+        progress: CompassRunProgress,
+        context: CuratorContext,
+        now: Date,
+        standalone: Bool = false
+    ) -> SurfacePage {
+        var metadata = metadata(for: seed, step: step)
+        metadata["compassStep"] = step.rawValue
+        metadata["standalone"] = standalone ? "true" : "false"
+        metadata["placeholder"] = step.capturePlaceholder
+
+        let score = context.distress.isActive && step != .rest
+            ? 50
+            : (standalone ? 42 : 58 + min(step.scoreBoost, 4))
+
+        return SurfacePage(
+            id: "\(source.id)-\(standalone ? "solo" : "run")-\(seed.id)-\(step.rawValue)",
+            type: .wonderCompass,
+            sourceID: source.id,
+            intent: .capture,
+            renderStyle: .promptCard,
+            score: score,
+            reason: standalone
+                ? "\(step.title) can be used on its own without committing to a full run."
+                : "The next Compass direction is ready.",
+            prompt: "\(step.compassPoint): \(step.title)",
+            detail: step.standaloneDetail,
+            payload: BookPagePayload(
+                headline: "\(step.compassPoint) = \(step.title)",
+                body: step.missionBody,
+                metadata: metadata
+            )
+        )
+    }
+
+    private func metadata(for seed: WonderCompassRunSeed, step: CompassRunStep?) -> [String: String] {
+        let tags = seed.tags + (step.map { ["compass-step:\($0.rawValue)"] } ?? [])
+        var metadata: [String: String] = [
+            "source": source.id,
+            "tags": tags.joined(separator: ","),
+            "runID": seed.id,
+            "conciergeMode": seed.mode.rawValue,
+            "timeBox": seed.timeBox,
+            "budget": seed.budget,
+            "place": seed.place,
+            "energy": seed.energy,
+            "companions": seed.companions,
+            "considerations": seed.considerations,
+            "circumstance": seed.circumstance,
+            "spark": seed.spark,
+            "destination": seed.destination,
+            "delight": seed.delight,
+            "definition": seed.definition,
+            "mission": seed.mission,
+            "souvenirPrompt": seed.souvenirPrompt,
+            "restPrompt": seed.restPrompt,
+            "privacy": "private local practice"
+        ]
+        if let step {
+            metadata["symbol"] = symbol(for: step)
+        } else {
+            metadata["symbol"] = "safari"
+        }
+        return metadata
+    }
+
+    private func symbol(for step: CompassRunStep) -> String {
+        switch step {
+        case .notice:
+            return "sparkle.magnifyingglass"
+        case .embark:
+            return "figure.walk"
+        case .sense:
+            return "hand.draw"
+        case .write:
+            return "pencil.and.scribble"
+        case .rest:
+            return "moon.stars"
+        }
     }
 }
 
@@ -5830,6 +6713,32 @@ struct LabyrinthIllustrationPageSourceAdapter: BookPageSourceAdapter {
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
         let plate = BookReferenceCatalog.labyrinthIllustration(for: day, now: now)
+        let profile = BookReferenceCatalog.characterIllustrationProfile(id: plate.characterID)
+        let aboutText = profile.map { Self.characterAboutText(for: $0) } ?? plate.caption
+        let bodyText = profile.map { Self.characterPageBody(for: $0, plate: plate) } ?? "\(plate.caption)\n\n\(plate.note)"
+        var metadata = [
+            "source": source.id,
+            "assetName": plate.assetName,
+            "plateID": plate.id,
+            "tags": plate.tags.joined(separator: ","),
+            "privacy": "bundled local image"
+        ]
+        if let profile {
+            metadata["characterID"] = profile.id
+            metadata["characterName"] = profile.characterName
+            metadata["characterSlug"] = profile.slug
+            metadata["characterStatus"] = profile.status
+            metadata["characterChapter"] = profile.chapter ?? ""
+            metadata["illustrationPrompt"] = profile.prompt
+            metadata["negativePrompt"] = profile.negativePrompt
+            metadata["intendedAssetName"] = profile.intendedAssetName
+            metadata["signature"] = profile.signature
+            metadata["palette"] = profile.palette
+            metadata["silhouette"] = profile.silhouette
+            metadata["continuity"] = profile.continuity
+            metadata["marginalia"] = profile.marginalia.joined(separator: " | ")
+            metadata["visualStyleReference"] = "antique parchment academy dossier portrait collage"
+        }
         return [
             SurfacePage(
                 id: "\(source.id)-\(plate.id)-\(SurfaceCadence.slotID(for: now, hours: 1))",
@@ -5839,21 +6748,47 @@ struct LabyrinthIllustrationPageSourceAdapter: BookPageSourceAdapter {
                 renderStyle: .illustrationPlate,
                 score: context.distress.isActive ? 50 : 65,
                 reason: "A bundled illustration can surface without asking anything of you.",
-                prompt: "An Illustration from the Labyrinth of Stories",
-                detail: plate.caption,
+                prompt: profile.map { "Character Illustration: \($0.characterName)" } ?? "An Illustration from the Labyrinth of Stories",
+                detail: aboutText,
                 payload: BookPagePayload(
                     headline: plate.title,
-                    body: "\(plate.caption)\n\n\(plate.note)",
-                    metadata: [
-                        "source": source.id,
-                        "assetName": plate.assetName,
-                        "plateID": plate.id,
-                        "tags": plate.tags.joined(separator: ","),
-                        "privacy": "bundled local image"
-                    ]
+                    body: bodyText,
+                    metadata: metadata
                 )
             )
         ]
+    }
+
+    private static func characterAboutText(for profile: CharacterIllustrationProfile) -> String {
+        let dossierKind: String
+        if let chapter = profile.chapter?.trimmingCharacters(in: .whitespacesAndNewlines), !chapter.isEmpty {
+            dossierKind = "\(chapter) dossier"
+        } else {
+            dossierKind = "Academy dossier"
+        }
+        return "\(dossierKind). \(compactCore(for: profile)) Signature: \(profile.signature)."
+    }
+
+    private static func characterPageBody(for profile: CharacterIllustrationProfile, plate: LabyrinthIllustrationPlate) -> String {
+        let marginalia = profile.marginalia.prefix(3).joined(separator: " | ")
+        return """
+        \(characterAboutText(for: profile))
+
+        Silhouette: \(profile.silhouette).
+
+        Marginalia: \(marginalia).
+
+        \(plate.note)
+        """
+    }
+
+    private static func compactCore(for profile: CharacterIllustrationProfile) -> String {
+        let clauses = profile.core
+            .split(separator: ";")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let summary = clauses.prefix(2).joined(separator: "; ")
+        return summary.isEmpty ? profile.core : "\(summary)."
     }
 }
 

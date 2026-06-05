@@ -57,10 +57,10 @@ final class BookArchiveDatabaseTests: XCTestCase {
             mediaAssets: [
                 BookPageMediaAsset(
                     kind: .bundledImage,
-                    reference: "LabyrinthHourly01",
-                    caption: "Hourly Field-Journal Plate",
+                    reference: "IlluminatedPhotoSource",
+                    caption: "Character Dossier Plate",
                     sourceID: "labyrinth-illustrations",
-                    metadata: ["plateID": "hourly-01"]
+                    metadata: ["plateID": "character-headmistress-seraphina-thorne"]
                 )
             ]
         )
@@ -74,9 +74,9 @@ final class BookArchiveDatabaseTests: XCTestCase {
         let media = try XCTUnwrap(reloaded.first?.mediaAssets.first)
 
         XCTAssertEqual(media.kind, .bundledImage)
-        XCTAssertEqual(media.reference, "LabyrinthHourly01")
-        XCTAssertEqual(media.caption, "Hourly Field-Journal Plate")
-        XCTAssertEqual(media.metadata["plateID"], "hourly-01")
+        XCTAssertEqual(media.reference, "IlluminatedPhotoSource")
+        XCTAssertEqual(media.caption, "Character Dossier Plate")
+        XCTAssertEqual(media.metadata["plateID"], "character-headmistress-seraphina-thorne")
     }
 
     func testUpsertReplacesCalendarDayAndPreservesOtherDays() throws {

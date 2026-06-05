@@ -401,14 +401,14 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 20) {
             ZStack(alignment: .topTrailing) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("ReEnchanted")
-                        .font(.system(size: 46, weight: .semibold, design: .serif))
+                    Text("Real Life, ReEnchanted")
+                        .font(.system(size: 40, weight: .semibold, design: .serif))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.62)
-                        .frame(maxWidth: 260, alignment: .leading)
+                        .minimumScaleFactor(0.54)
+                        .frame(maxWidth: 330, alignment: .leading)
                         .padding(.trailing, 86)
 
-                    Text("Real Life, ReEnchanted. Play with Pages. Keep Some. Read Your Story.")
+                    Text("Play with Pages. Keep Some. Read Your Story.")
                         .font(.system(.callout, design: .serif, weight: .semibold))
                         .foregroundStyle(BookPalette.nightText.opacity(0.78))
                         .lineSpacing(2)
@@ -944,7 +944,7 @@ struct ContentView: View {
             let analysis = await analyzeAutomaticIlluminatedPhoto(image)
             let draft = IlluminatedPageComposer.compose(
                 analysis: analysis,
-                sourceAssetName: "LabyrinthHourly01",
+                sourceAssetName: "IlluminatedPhotoSource",
                 seed: abs(candidate.assetLocalIdentifier.hashValue ^ today.id.hashValue),
                 assetLocalIdentifier: candidate.assetLocalIdentifier
             )
