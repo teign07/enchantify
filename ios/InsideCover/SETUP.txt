@@ -1,4 +1,4 @@
-Enchantify Inside Cover iOS Widget
+ReEnchanted iOS App
 
 This is a small SwiftUI + WidgetKit companion app. The widget reads a compact
 state file exported by:
@@ -23,7 +23,7 @@ Install path:
 5. Run InsideCoverApp on the iPhone or iPad.
 6. On the device, open the app and import hooks/widget-state.json by AirDrop,
    iCloud Drive, or Files.
-7. Add the "Enchantify Inside Cover" widget from the Home Screen widget picker.
+7. Add the "ReEnchanted" widget from the Home Screen widget picker.
 
 Refresh path:
 

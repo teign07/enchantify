@@ -110,8 +110,8 @@ struct InsideCoverWidget: Widget {
         StaticConfiguration(kind: kind, provider: InsideCoverProvider()) { entry in
             InsideCoverWidgetView(entry: entry)
         }
-        .configurationDisplayName("Enchantify Inside Cover")
-        .description("A living page from the Labyrinth: schedule, practice, note, and generated scene art.")
+        .configurationDisplayName("ReEnchanted")
+        .description("A living page from ReEnchanted: schedule, practice, note, and generated scene art.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
