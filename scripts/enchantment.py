@@ -24,6 +24,29 @@ SESSION_DIR = BASE / "players"
 LEDGER = BASE / "logs" / "enchantments.jsonl"
 BELIEF_COST = 3
 BELIEF_REWARD = 9
+IMAGE_DIR = BASE / "memory" / "enchantments" / "images"
+VISUAL_ENCHANTMENTS = {
+    "Everything's Van Gogh": (
+        "Vincent van Gogh inspired post-impressionist painting, expressive swirling brushwork, thick impasto texture, luminous yellows and cobalt blues, emotionally charged sky and contours",
+        "van-gogh",
+    ),
+    "Everything's Monet": (
+        "Claude Monet inspired impressionist painting, soft broken color, plein-air light, shimmering atmosphere, loose brushwork, luminous reflections, gentle blurred edges",
+        "monet",
+    ),
+    "Everything's Anime": (
+        "expressive hand-drawn anime key art, clean characterful linework, cinematic composition, luminous color, emotional atmosphere, rich background detail",
+        "anime",
+    ),
+    "Everything's Shakespeare": (
+        "Renaissance theatrical manuscript illustration, dramatic chiaroscuro, velvet shadows, ornate stage-like composition, sonnet marginalia, Elizabethan pageantry",
+        "shakespeare",
+    ),
+    "Everything's Archive": (
+        "magical field-journal manuscript page, sparse pen-and-ink linework, lush watercolor washes on textured aged parchment, abundant handwritten marginalia, library stamps, wax seals, labels, tabs, arrows, archival overlays",
+        "archive",
+    ),
+}
 
 
 def now() -> str:
@@ -68,6 +91,78 @@ def append_ledger(event: str, player: str, payload: dict) -> None:
     row = {"timestamp": now(), "event": event, "player": player, **payload}
     with LEDGER.open("a", encoding="utf-8") as f:
         f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def telegram_send(message: str, media: Path | None = None) -> bool:
+    args = [
+        "openclaw", "message", "send",
+        "--target", "8729557865",
+        "--channel", "telegram",
+        "--account", "enchantify",
+        message,
+    ]
+    if media:
+        args += ["--media", str(media)]
+    try:
+        proc = subprocess.run(args, cwd=BASE, capture_output=True, text=True, timeout=60)
+        return proc.returncode == 0
+    except Exception:
+        return False
+
+
+def visual_prompt(spell: str, target: str, proof: str, outcome: str) -> str:
+    style, _slug = VISUAL_ENCHANTMENTS[spell]
+    return (
+        f"{style}. Transform the player's real-world proof into the visual result of the Enchantment. "
+        f"Subject/target: {target}. Proof details: {proof}. Story outcome: {outcome}. "
+        "Keep the composition clear and inspectable, with no random extra characters unless the proof names them. "
+        "No readable text except decorative marginalia when the style calls for it."
+    )
+
+
+def generate_visual_artifact(spell: str, target: str, proof: str, outcome: str, source_image: Path | None) -> dict:
+    if spell not in VISUAL_ENCHANTMENTS:
+        return {}
+    _style, slug = VISUAL_ENCHANTMENTS[spell]
+    prompt = visual_prompt(spell, target, proof, outcome)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    safe_target = "".join(ch.lower() if ch.isalnum() else "-" for ch in target)[:36].strip("-") or "target"
+    output = IMAGE_DIR / f"{stamp}-{slug}-{safe_target}.png"
+    prompt_file = IMAGE_DIR / f"{stamp}-{slug}-{safe_target}.txt"
+    prompt_file.parent.mkdir(parents=True, exist_ok=True)
+    prompt_file.write_text(prompt, encoding="utf-8")
+
+    try:
+        import drawthings_scene  # type: ignore
+
+        if source_image and source_image.exists():
+            ok, detail = drawthings_scene.generate_img2img(
+                prompt,
+                source_image,
+                output,
+                steps=8,
+                cfg_scale=1.5,
+                denoising_strength=0.72,
+                timeout_seconds=300,
+            )
+        else:
+            ok, detail = drawthings_scene.generate(
+                prompt,
+                output,
+                steps=8,
+                cfg_scale=1.2,
+                timeout_seconds=300,
+            )
+    except Exception as exc:
+        ok, detail = False, f"visual artifact generation failed: {exc}"
+
+    return {
+        "prompt": str(prompt_file),
+        "image": str(output) if ok else None,
+        "ok": ok,
+        "detail": detail,
+        "source_image": str(source_image) if source_image else None,
+    }
 
 
 def update_belief(player: str, delta: int, dry_run: bool) -> None:
@@ -190,6 +285,11 @@ def cmd_complete(args: argparse.Namespace) -> int:
     if len(proof) < 12 and not args.force:
         raise SystemExit("Proof is too thin. Require a photo description or vivid real-world detail before completion.")
 
+    visual = {}
+    source_image = args.proof_image if args.proof_image and args.proof_image.exists() else None
+    if active.get("spell") in VISUAL_ENCHANTMENTS and not args.no_image and not args.dry_run:
+        visual = generate_visual_artifact(active["spell"], active["target"], proof, args.outcome, source_image)
+
     completed = {
         **active,
         "completed_at": now(),
@@ -198,6 +298,8 @@ def cmd_complete(args: argparse.Namespace) -> int:
         "reward": BELIEF_REWARD,
         "status": "completed",
     }
+    if visual:
+        completed["visual_artifact"] = visual
     update_belief(args.player, BELIEF_REWARD, dry_run=args.dry_run)
     if not args.dry_run:
         mechanics_state.record_event(BASE, args.player, "complete-enchantment")
@@ -211,6 +313,14 @@ def cmd_complete(args: argparse.Namespace) -> int:
     print(f"TARGET: {completed['target']}")
     print(f"REWARD: +{BELIEF_REWARD} Belief")
     print(f"OUTCOME: {args.outcome}")
+    if visual:
+        if visual.get("ok"):
+            print(f"VISUAL_ARTIFACT: {visual.get('image')}")
+            if args.send_image and visual.get("image"):
+                sent = telegram_send(f"{completed['spell']} left an image in the margins.", Path(visual["image"]))
+                print(f"VISUAL_TELEGRAM_SENT: {sent}")
+        else:
+            print(f"VISUAL_ARTIFACT_FAILED: {visual.get('detail')}")
     print("SCENE_INSTRUCTION: Now narrate the sensory effect and how the real proof changes the story.")
     return 0
 
@@ -250,9 +360,12 @@ def build_parser() -> argparse.ArgumentParser:
     complete = sub.add_parser("complete")
     complete.add_argument("player")
     complete.add_argument("--proof", required=True)
+    complete.add_argument("--proof-image", type=Path)
     complete.add_argument("--outcome", required=True)
     complete.add_argument("--force", action="store_true")
     complete.add_argument("--dry-run", action="store_true")
+    complete.add_argument("--no-image", action="store_true")
+    complete.add_argument("--send-image", action="store_true")
     complete.set_defaults(func=cmd_complete)
 
     decline = sub.add_parser("decline")

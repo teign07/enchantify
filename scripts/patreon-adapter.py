@@ -270,6 +270,21 @@ def api_get(path: str, params: dict[str, str] | None = None, *, retry: bool = Tr
         raise RuntimeError(f"HTTP {exc.code}: {clean(body, 700)}") from exc
 
 
+def api_get_url(url: str, *, retry: bool = True) -> dict[str, Any]:
+    cfg = parse_env()
+    missing = required(cfg, "PATREON_ACCESS_TOKEN")
+    if missing:
+        raise RuntimeError(f"Missing PATREON_ACCESS_TOKEN in {CONFIG}")
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {cfg['PATREON_ACCESS_TOKEN']}"})
+    try:
+        return urlopen_json(req)
+    except urllib.error.HTTPError as exc:
+        if retry and exc.code == 401 and refresh_token().get("ok"):
+            return api_get_url(url, retry=False)
+        body = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"HTTP {exc.code}: {clean(body, 700)}") from exc
+
+
 def campaign_id() -> str:
     cfg = parse_env()
     if cfg.get("PATREON_CAMPAIGN_ID"):
@@ -284,19 +299,52 @@ def campaign_id() -> str:
     return ident
 
 
+def campaign_posts(campaign_id_value: str, *, page_count: int = 20, max_pages: int = 6) -> list[dict[str, Any]]:
+    if not campaign_id_value:
+        return []
+    first = api_get(f"/campaigns/{campaign_id_value}/posts", {
+        "page[count]": str(page_count),
+        "fields[post]": "title,published_at,url,content",
+    })
+    rows = list(first.get("data") or [])
+    next_url = str((first.get("links") or {}).get("next") or "").strip()
+    pages = 1
+    while next_url and pages < max_pages and len(rows) < (page_count * max_pages):
+        page = api_get_url(next_url)
+        rows.extend(page.get("data") or [])
+        next_url = str((page.get("links") or {}).get("next") or "").strip()
+        pages += 1
+    rows = sorted(
+        rows,
+        key=lambda row: str((row.get("attributes") or {}).get("published_at") or ""),
+        reverse=True,
+    )
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        rid = str(row.get("id") or "")
+        if rid and rid in seen:
+            continue
+        if rid:
+            seen.add(rid)
+        deduped.append(row)
+    return deduped
+
+
 def status() -> dict[str, Any]:
     try:
         cid = campaign_id()
         campaigns = api_get("/campaigns", {"fields[campaign]": "creation_name,patron_count,url"})
-        posts = api_get(f"/campaigns/{cid}/posts", {
-            "page[count]": "3",
-            "fields[post]": "title,published_at,url",
-        }) if cid else {}
+        all_posts = campaign_posts(cid, page_count=20, max_pages=8) if cid else []
+        post_rows = all_posts[:20]
+        latest_published_at = str(((post_rows[0].get("attributes") or {}).get("published_at")) if post_rows else "").strip()
         result = {
             "connected": True,
             "campaign_id": cid,
             "campaigns": campaigns.get("data", [])[:1],
-            "posts": posts.get("data", [])[:3],
+            "posts": post_rows,
+            "post_count_seen": len(all_posts),
+            "latest_published_at": latest_published_at,
             "diagnosis": "Enchantify-local Patreon read integration is live.",
         }
     except Exception as exc:

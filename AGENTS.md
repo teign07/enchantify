@@ -11,18 +11,16 @@ Always use the appropriate script for in-game replies. Never pretend the player 
 ## Open The Book
 
 When the player says "open the book":
-1. Run `python3 scripts/set-lock.py` unless already locked.
-2. Run `python3 scripts/session-entry.py [player_name]`.
-3. Read: `players/[name].md`, `HEARTBEAT.md`, `memory/tick-queue.md`, `lore/academy-state.md`, `lore/seasonal-calendar.md`, `mechanics/heartbeat-bleed.md`.
-4. Run `python3 scripts/story-context.py [player_name]`.
-5. Run `python3 scripts/scene-contract.py [player_name]` or choose `--mode slice|school-life|dorm|arc|mystery|aftermath|compass|enchantment`.
-6. Obey `ENTRY_MODE`; write a real opening scene, never a stub.
-7. For Telegram play, prepare `/tmp/enchantify-scene.txt` and `/tmp/enchantify-voice.txt`, validate contract and choices, then run `python3 scripts/run-live-scene.py [player_name] --text-file /tmp/enchantify-scene.txt --voice-file /tmp/enchantify-voice.txt`.
-8. Do not treat the book as open until live-scene delivery succeeds.
+1. Run `python3 scripts/open-book.py [player_name] --notify-telegram` (Telegram) or without that flag (Cursor). Obey `OPEN_BOOK_READY`.
+2. Read: `players/[name].md`, `HEARTBEAT.md`, `memory/tick-queue.md`, `lore/academy-state.md`, `lore/seasonal-calendar.md`, `mechanics/heartbeat-bleed.md`.
+3. Obey `ENTRY_MODE` and `SCENE_MODE`; write a full opening scene to `/tmp/enchantify-scene.txt` and `/tmp/enchantify-voice.txt`, never a stub.
+4. **Cursor/desktop:** `run-live-scene.py ... --surface chat`; paste `SCENE_FOR_PLAYER_BEGIN`…`END` into the reply (never `NO_REPLY` alone).
+5. **Telegram:** default surface; after `SCENE DELIVERED`, output exactly `NO_REPLY`. If delivery fails, send a short in-world line via `multi_voice_tts.py` — never silent failure.
+6. Do not treat the book as open until `run-live-scene.py` exits 0.
 
 Entry timing:
 - `<1 hour` since logout: `in_media_res`, resume with brief gap acknowledgment.
-- `>=1 hour`: `dorm_brief` or `dorm_full`, a **Dorm Page**. The dorm is the scene, not a loading screen: canonical room, one changed/waiting detail, the Book keeping the player's place. No guilt, no absence punishment, no forced plot escalation.
+- `>=1 hour`: `dorm_brief` or `dorm_full` (**Dorm Page**): the dorm is the scene—canonical room, one changed detail, no guilt or forced escalation.
 
 ---
 
@@ -40,11 +38,11 @@ Before ordinary narrative handling, check for routes that belong to scripts:
 7. **Calendar/time:** If the player asks about today, tomorrow, schedule, appointments, reminders, workday shape, transitions, or proactive day support, treat it as Bellkeeper / Today's Page and run `python3 scripts/bellkeeper.py today [player_name]` or `status`. Bellkeeper may propose calendar/reminder actions, but must not create, edit, delete, or move them without explicit permission.
 8. **Class:** If attending class, run `python3 scripts/class-lecture.py [player_name] --attend`; if continuing, run `--advance`. Use the directive as hard classroom context. Do not advance lessons offscreen.
 9. **Compass Run:** If the player starts, accepts, continues, returns from, or completes a Compass Run, run `python3 scripts/compass-run.py ...` using `start`, `answer`, `status`, or `complete-west`. Obey `COMPASS_DIRECTIVE`; never complete or reward one in prose alone.
-10. **Enchantment:** If the player casts/uses/tries an Enchantment, run `python3 scripts/enchantment.py start [player_name] --spell "Name" --target "target" --mode photo|description`, ask for proof, then run `complete` before narrating success. Never bypass the proof gate.
+10. **Enchantment:** Use only official spells in the player's Flyleaf. If the player casts/uses/tries one, run `python3 scripts/enchantment.py start [player_name] --spell "Name" --target "target" --mode photo|description`, ask for proof, then run `complete` before narrating success. Never bypass the proof gate.
 11. **Book Jump:** If the player starts, continues, stabilizes, returns from, or asks about a Book Jump, run `python3 scripts/book-jump.py ...` using `start`, `advance`, `stabilize`, `status`, `return`, or `cancel`. Obey `BOOK_JUMP_DIRECTIVE`; never resolve in prose alone.
 12. **Reality Wager:** For wild, impossible, scene-breaking, or reality-rewriting actions, read `mechanics/belief-dice.md`, classify the wager, spend up-front Belief with `python3 scripts/update-player.py [player_name] belief -N`, roll `python3 scripts/roll-dice.py [current_belief_after_spend] [difficulty]`, then narrate. Do not flatly refuse unless unsafe. Repeated arbitrary reality-breaking attracts the Nothing as coherence loss.
 
-For normal Telegram scenes, always use `scripts/run-live-scene.py`, never plain assistant prose or direct `play_scene.py`.
+For normal active-play scenes, always use `scripts/run-live-scene.py`, never plain assistant prose or direct `play_scene.py`. In Cursor, use `--surface chat` so the player gets the scene in-thread.
 
 ---
 
@@ -91,7 +89,7 @@ Bleed: translate heartbeat signals into atmosphere and NPC behavior. Never annou
 - The Nothing cannot be defeated by story combat. Only real-world Enchantments and Compass Runs count.
 - Fire at least one integration on every major scene change or emotional shift.
 - Record ordinary mechanic events with `python3 mechanics/mechanics_state.py [player] --event <offer-enchantment|decline-enchantment|accept-enchantment|complete-enchantment|offer-compass|decline-compass|accept-compass|complete-compass|roll-guidance>`.
-- At Belief 60 or below, the player is in recovery range: offer one formal Compass Run per day if not completed, and up to two real Enchantment opportunities per day when scene objects, class practice, clues, Nothing pressure, or quiet-life wonder make it natural. These must be script-backed, not flavor.
+- At Belief 60 or below, offer one formal Compass Run/day if not completed and up to two real Enchantments/day when objects, class, clues, Nothing pressure, or quiet-life wonder fit. Put due offers in numbered choices; script-backed, not flavor.
 - Foreground any thread tied to the current location.
 - For risky actions, read `mechanics/belief-dice.md` and roll.
 

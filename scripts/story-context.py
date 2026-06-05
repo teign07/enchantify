@@ -19,6 +19,7 @@ from typing import Any
 from scene_ledger import load_entries as load_scene_ledger_entries
 import action_lifecycle
 import entity_memory
+import relationships
 
 
 BASE = Path(__file__).resolve().parent.parent
@@ -701,6 +702,11 @@ def build_context(player: str) -> dict[str, Any]:
         "narrative_obligations": narrative_obligations(player),
     }
     context["entity_memories"] = relevant_entity_memories(context)
+    cast = []
+    anchor = context.get("scene_continuity_anchor") or {}
+    if anchor.get("cast"):
+        cast = [name.strip() for name in str(anchor["cast"]).split(",") if name.strip()]
+    context["social_graph"] = relationships.social_snapshot(player, cast=cast or None)
     context["continuity_threads"] = continuity_threads(context)
     context["quiet_life_threads"] = quiet_life_threads(context)
     context["model_guidance"] = [
@@ -715,6 +721,7 @@ def build_context(player: str) -> dict[str, Any]:
         "If a BLEED_RIPPLE is relevant, treat it as public interpretation or rumor pressure, not guaranteed objective truth.",
         "If RECENT_CHARACTER_OUTREACH includes a player reply, treat it as relationship continuity: the sender knows the player answered and scenes may acknowledge that.",
         "If ENTITY_MEMORY is present for a character, let it shape behavior, trust, hesitations, callbacks, and offscreen continuity. Do not repeat old actions unless there is a story reason.",
+        "If SOCIAL_GRAPH, NPC_AGENDA, or SOCIAL_PRESSURE is present, let relationship tiers, offscreen goals, and NPC↔NPC stances shape tone, who withholds, and who speaks for whom — without exposition dumps.",
         "Treat NARRATIVE_OBLIGATIONS as repair duties: satisfy, explicitly defer, or preserve them for closeout.",
     ]
     return context
@@ -778,6 +785,30 @@ def render_text(context: dict[str, Any]) -> str:
         lines.append("RECENT_CHARACTER_OUTREACH:")
         for item in context["recent_outreach"][-4:]:
             lines.append(f"- {item.get('hook')}")
+    social = context.get("social_graph") or {}
+    if social.get("player_npc"):
+        lines.append("SOCIAL_GRAPH:")
+        for row in social["player_npc"][:6]:
+            lines.append(
+                f"- {row['npc']}: {row['score']:+d} ({row['tier'].replace('_', ' ')}) — {row.get('notes') or ''}"
+            )
+    if social.get("npc_npc"):
+        lines.append("NPC_NPC_STANCES:")
+        for edge in social["npc_npc"][:6]:
+            lines.append(
+                f"- {edge['a']} ↔ {edge['b']}: {edge.get('stance')} ({edge.get('strength')})"
+            )
+    if social.get("npc_agenda"):
+        lines.append("NPC_AGENDA:")
+        for row in social["npc_agenda"][:4]:
+            watching = ", ".join(row.get("watching") or []) or "—"
+            lines.append(
+                f"- {row['npc']}: {row.get('goal')} | fear: {row.get('fear')} | watching: {watching}"
+            )
+    if social.get("propagation_hints"):
+        lines.append("SOCIAL_PRESSURE:")
+        for hint in social["propagation_hints"][:4]:
+            lines.append(f"- {hint}")
     if context.get("entity_memories"):
         lines.append("ENTITY_MEMORY:")
         for memory in context["entity_memories"]:

@@ -320,28 +320,13 @@ def parse_register_npcs() -> dict[str, dict]:
 # ─── Parse player relationships ───────────────────────────────────────────────
 
 def parse_relationships(player: str) -> dict[str, int]:
-    """Return {npc_name: score} from the player file's Relationships table."""
-    path = BASE_DIR / "players" / f"{player}.md"
-    if not path.exists():
+    """Return {npc_name: score} from the canonical relationship graph."""
+    try:
+        import relationships as rel
+
+        return rel.player_scores(player)
+    except Exception:
         return {}
-    text = path.read_text()
-    scores = {}
-    in_table = False
-    for line in text.splitlines():
-        if "## Relationships" in line:
-            in_table = True
-            continue
-        if in_table:
-            if line.startswith("##"):
-                break
-            if line.startswith("|") and "---" not in line and "NPC" not in line:
-                parts =[p.strip() for p in line.strip("|").split("|")]
-                if len(parts) >= 3:
-                    name    = parts[0]
-                    score_m = re.search(r"(-?\d+)", parts[2])
-                    if name and score_m:
-                        scores[name] = int(score_m.group(1))
-    return scores
 
 
 # ─── Cooldown cache ───────────────────────────────────────────────────────────

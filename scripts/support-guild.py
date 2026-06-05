@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import html
+import importlib.util
 import json
 import os
 import re
@@ -298,6 +299,18 @@ def latest_logged_actual_summary() -> dict[str, Any] | None:
     return None
 
 
+def postmaster_context(*, ensure_fresh: bool = False, max_age_hours: float = 9.0) -> dict[str, Any]:
+    try:
+        spec = importlib.util.spec_from_file_location("postmaster", BASE / "scripts" / "postmaster.py")
+        if not spec or not spec.loader:
+            raise RuntimeError("postmaster module unavailable")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.desk_context(ensure_fresh=ensure_fresh, max_age_hours=max_age_hours)
+    except Exception as exc:
+        return {"available": False, "diagnosis": clean(str(exc), 300)}
+
+
 def build_context() -> dict[str, Any]:
     inkrest = read_jsonl(INKREST_LOG, days=10)
     vellum = read_jsonl(VELLUM_LOG, days=10)
@@ -400,6 +413,7 @@ def build_context() -> dict[str, Any]:
         "guild_experiment_library": GUILD_EXPERIMENT_LIBRARY,
         "cross_domain_insights": guild_insights,
         "support_memory": load_json(SUPPORT_MEMORY),
+        "postmaster": postmaster_context(ensure_fresh=False),
     }
     return context
 
@@ -487,6 +501,7 @@ def prompt_context(context: dict[str, Any]) -> dict[str, Any]:
             "bellkeeper": clean((context.get("charts") or {}).get("bellkeeper"), 900),
             "goldwater": clean((context.get("charts") or {}).get("goldwater"), 1000),
         },
+        "postmaster": context.get("postmaster"),
     }
 
 
@@ -519,6 +534,10 @@ Rules:
   the Book should prepare or not prepare.
 - Goldweaver may discuss ethical monetization, offer ladders, product seeds, Patreon,
   pricing, and the smallest shippable revenue action.
+- Postmaster Finch may discuss filtered Gmail correspondence when postmaster.available
+  is true: business leads, attention queue items, and goldweaver_reply_suggestions.
+  He never sends mail. Use his notes to inform Penny/Goldweaver's Press and Revenue
+  Thread, not to expose private message bodies beyond what the packet already includes.
 - Use guild_research_lanes and recent_support_research as the council's research shelf.
 - If you discuss research, use source-family language unless a precise citation is present in context. Do not invent paper titles, authors, years, URLs, or fake browsing.
 - Use cross_domain_insights as hard observations. They are not flavor; they are
@@ -553,6 +572,8 @@ Use exactly this Markdown structure:
 ## Bellkeeper — Time and Proactive Support
 
 ## Professor Goldweaver — Offers and Abundance
+
+## Postmaster Finch — Correspondence
 
 ## Shared Hypothesis
 
@@ -615,6 +636,43 @@ def call_llm(context: dict[str, Any]) -> str:
         .get("content", "")
         .strip()
     )
+
+
+def normalize_meeting_markdown(markdown: str, context: dict[str, Any]) -> str:
+    text = (markdown or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:markdown)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*```$", "", text).strip()
+    header = f"# Support Guild Meeting — {context['date']}"
+    if "# Support Guild Meeting" not in text and "## Guild Weather" in text:
+        text = f"{header}\n\n{text}"
+    return text
+
+
+def meeting_markdown_valid(markdown: str) -> bool:
+    text = (markdown or "").strip()
+    if len(text) < 300:
+        return False
+    def has_heading(*keywords: str) -> bool:
+        for line in text.splitlines():
+            if not line.strip().startswith("##"):
+                continue
+            lowered = line.lower()
+            if all(word in lowered for word in keywords):
+                return True
+        return False
+
+    required = (
+        has_heading("guild", "weather"),
+        has_heading("vellum"),
+        has_heading("inkrest"),
+        has_heading("gimble"),
+        has_heading("penny"),
+        has_heading("bellkeeper"),
+        has_heading("goldweaver"),
+        has_heading("tiny", "plan"),
+    )
+    return all(required)
 
 
 def choose_guild_experiment(context: dict[str, Any]) -> dict[str, str]:
@@ -982,8 +1040,8 @@ def run_meeting(*, send: bool = False, dry_run: bool = False, no_llm: bool = Fal
         text = fallback_meeting(context, "LLM disabled")
     else:
         try:
-            text = call_llm(context)
-            if not text or "# Support Guild Meeting" not in text:
+            text = normalize_meeting_markdown(call_llm(context), context)
+            if not meeting_markdown_valid(text):
                 raise RuntimeError("model returned an empty or malformed meeting")
         except Exception as exc:
             llm_error = str(exc)

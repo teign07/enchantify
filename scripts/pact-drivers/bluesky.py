@@ -27,7 +27,7 @@ from .base import AppDriver
 
 BASE = Path(__file__).parent.parent.parent
 
-BSKY_PUBLIC_API = "https://public.api.bsky.app/xrpc"
+BSKY_PUBLIC_API = "https://api.bsky.app/xrpc"
 
 
 def _bsky_search(query: str, limit: int = 5) -> list[dict]:

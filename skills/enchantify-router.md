@@ -10,7 +10,7 @@
 ```
 sessions_spawn(
   agentId="enchantify",
-  task="Open the book for the current player. Follow AGENTS.md session-open rules, run session-entry, obey ENTRY_MODE, write a substantial opening active-play scene, and on Telegram send it through the full scene pipeline with play_scene.py rather than as plain chat text."
+  task="Open the book for bj on Telegram. First run: python3 scripts/open-book.py bj --notify-telegram. Obey OPEN_BOOK_READY and SCENE_MODE. Write the full opening scene to /tmp/enchantify-scene.txt and /tmp/enchantify-voice.txt (650+ words for dorm/slice unless brevity requested). Validate with scene-contract.py and scene-choices.py. Deliver with: python3 scripts/run-live-scene.py bj --text-file /tmp/enchantify-scene.txt --voice-file /tmp/enchantify-voice.txt --scene-mode [from open-book]. Only after stdout contains SCENE DELIVERED, reply exactly NO_REPLY. If delivery fails, send a short in-world error via multi_voice_tts.py — never silent NO_REPLY without Telegram text."
 )
 ```
 

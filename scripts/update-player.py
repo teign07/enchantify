@@ -142,78 +142,19 @@ def update_tutorial(name: str, step: str):
 # ─── NPC Relationships ───────────────────────────────────────────────────────
 
 def update_relationship(name: str, npc_name: str, delta_arg: str, note: str = ""):
-    path, content = load_player(name)
+    import relationships
 
-    mode, value = parse_delta(delta_arg)
-
-    # Find an existing row for this NPC in any relationship table
-    # Matches: | NPC Name | Chapter | Score | Notes |
-    row_pattern = re.compile(
-        r'(\| ' + re.escape(npc_name) + r' \| [^|]+ \| )([+-]?\d+)( \| [^|]* \|)',
-        re.MULTILINE
-    )
-    match = row_pattern.search(content)
-
-    if match:
-        current_score = int(match.group(2))
-        if mode == "delta":
-            new_score = current_score + value
-        else:
-            new_score = value
-
-        new_score = max(-100, min(100, new_score))
-        score_str = f"{new_score:+d}" if new_score != 0 else "0"
-
-        # Build updated row, appending note if provided
-        old_notes_col = match.group(3)  # " | existing notes |"
-        if note:
-            existing_notes = old_notes_col.strip(" |").strip()
-            new_notes = f"{existing_notes} {note}".strip() if existing_notes else note
-            new_notes_col = f" | {new_notes} |"
-        else:
-            new_notes_col = old_notes_col
-
-        replacement = match.group(1) + score_str + new_notes_col
-        new_content = content[:match.start()] + replacement + content[match.end():]
-        save_player(path, new_content)
-
-        change = new_score - current_score
-        print(f"✓ Relationship updated: {npc_name}  {current_score:+d} → {new_score:+d}  (change: {change:+d})")
-
+    result = relationships.apply_player_delta(name, npc_name, delta_arg, note, sync_md=True)
+    before = int(result["before"])
+    after = int(result["after"])
+    change = after - before
+    if before == 0 and change == after:
+        print(f"✓ New relationship added: {npc_name}  {after:+d}")
     else:
-        # NPC not in table yet — create or append to Relationships section
-        new_score = value if mode == "set" else value  # delta from 0 if new
-        new_score = max(-100, min(100, new_score))
-        score_str = f"{new_score:+d}" if new_score != 0 else "0"
-        note_text = note if note else "First interaction."
-
-        new_row = f"| {npc_name} | — | {score_str} | {note_text} |"
-
-        # Find the Relationships table header
-        table_header = re.search(
-            r'(\| NPC \| Chapter \| Score \| Notes \|\n\|[-| ]+\|\n)',
-            content, re.MULTILINE
-        )
-        if table_header:
-            insert_at = table_header.end()
-            new_content = content[:insert_at] + new_row + "\n" + content[insert_at:]
-        else:
-            # No table yet — append a Relationships section
-            relationships_section = (
-                "\n## Relationships\n\n"
-                "| NPC | Chapter | Score | Notes |\n"
-                "|---|---|---|---|\n"
-                f"{new_row}\n"
-            )
-            new_content = content.rstrip() + "\n" + relationships_section
-
-        save_player(path, new_content)
-        print(f"✓ New relationship added: {npc_name}  {new_score:+d}")
-
-    # Narrative cue for extreme scores
-    if abs(new_score) >= 75:
-        level = "Close Friend / Devoted" if new_score > 0 else "Enemy / Mortal Enemy"
-        print(f"  ⚡ Score {new_score:+d} — relationship level: {level}")
+        print(f"✓ Relationship updated: {npc_name}  {before:+d} → {after:+d}  (change: {change:+d})")
+    if abs(after) >= 75:
+        level = "Close Friend / Devoted" if after > 0 else "Enemy / Mortal Enemy"
+        print(f"  ⚡ Score {after:+d} — relationship level: {level}")
 
 
 # ─── Quest / Inside Cover ────────────────────────────────────────────────────

@@ -150,6 +150,18 @@ def entries(player: str, *, telegram: bool = True, drawthings: bool = True) -> l
             "scripts/support-faculty.py research --doctor inkrest",
         ),
         CronEntry(
+            "# Enchantify — Postmaster Finch: morning correspondence brief",
+            "50 7 * * *",
+            cd(f"{q(PYTHON)} scripts/postmaster.py daily", "logs/support-faculty/postmaster-cron.log"),
+            "scripts/postmaster.py daily",
+        ),
+        CronEntry(
+            "# Enchantify — Postmaster Finch: afternoon refresh before Press council",
+            "45 1 * * *",
+            cd(f"{q(PYTHON)} scripts/postmaster.py daily", "logs/support-faculty/postmaster-cron.log"),
+            "scripts/postmaster.py daily",
+        ),
+        CronEntry(
             "# Enchantify — support guild: daily council meeting",
             "10 8 * * *",
             cd(f"{q(PYTHON)} scripts/support-guild.py daily{send}", "logs/support-faculty.log"),
@@ -181,15 +193,24 @@ def entries(player: str, *, telegram: bool = True, drawthings: bool = True) -> l
         ),
         CronEntry(
             "# Enchantify — Listening Desk market research",
-            "5 13 * * *",
+            "5 2 * * *",
             cd(f"{q(PYTHON)} scripts/market-research.py daily{send}", "logs/publishing/market-research-cron.log"),
             "scripts/market-research.py daily",
         ),
         CronEntry(
             "# Enchantify — press abundance: Penny + Goldweaver daily council",
-            "35 13 * * *",
+            "35 2 * * *",
             cd(f"{q(PYTHON)} scripts/press-abundance.py daily {q(player)}{send}", "logs/publishing/press-abundance-cron.log"),
             "scripts/press-abundance.py daily",
+        ),
+        CronEntry(
+            "# Enchantify — Press Desk: content trunk execution",
+            "5 3 * * *",
+            cd(
+                f"{q(PYTHON)} scripts/press-desk.py execute {q(player)}{send}",
+                "logs/publishing/press-desk-cron.log",
+            ),
+            "scripts/press-desk.py execute",
         ),
         CronEntry(
             "# Enchantify — The Book of You: nightly illustrated storybook PDF",

@@ -42,6 +42,7 @@ ARC_SPINE_F = BASE / "memory" / "arc-spine.md"
 SCENE_LEDGER_DIR = BASE / "logs" / "scene-ledger"
 SCENE_OUTBOX_DIR = BASE / "tmp" / "scene-outbox"
 BOOK_JUMP_DIR = BASE / "memory" / "book-jumps"
+RELATIONSHIP_DIR = BASE / "memory" / "relationships"
 
 _OPENCLAW = shutil.which("openclaw") or "/opt/homebrew/bin/openclaw"
 
@@ -5075,7 +5076,166 @@ def render_scene_gallery(entries: list[dict]) -> str:
 
 # ── Full page ─────────────────────────────────────────────────────────────────
 
-def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, anchors=None, sched=None, forecast=None, heartbeat=None, vellum=None, inkrest=None, ledger=None, penny=None, goldwater=None, bellkeeper=None, compass=None, book_jump=None, attention=None, sim_feed=None, pact_actions=None, gallery_entries=None, narrative_health=None, page_contract=None, scene_director=None) -> str:
+def parse_relationship_graph(player: str = "bj") -> dict:
+    path = RELATIONSHIP_DIR / f"{player}.json"
+    data = read_json(path)
+    if not data:
+        return {"ok": False, "error": f"No relationship graph at {path}"}
+    player_rows = []
+    for name, row in sorted(
+        (data.get("player_npc") or {}).items(),
+        key=lambda kv: abs(int((kv[1] or {}).get("score", 0))),
+        reverse=True,
+    )[:10]:
+        score = int((row or {}).get("score", 0))
+        player_rows.append({
+            "name": name,
+            "score": score,
+            "tier": (row or {}).get("tier", ""),
+            "notes": (row or {}).get("notes", ""),
+        })
+    edges = []
+    for edge in sorted(
+        (data.get("npc_npc") or {}).values(),
+        key=lambda e: (0 if e.get("locked") or e.get("source") in {"manual", "lore"} else 1, -int(e.get("strength", 0))),
+    )[:20]:
+        edges.append(edge)
+    agendas = []
+    for name, row in (data.get("npc_agenda") or {}).items():
+        watching = row.get("watching") or []
+        if watching:
+            agendas.append({"name": name, **row})
+        if len(agendas) >= 12:
+            break
+    return {
+        "ok": True,
+        "updated_at": data.get("updated_at", ""),
+        "edge_count": len(data.get("npc_npc") or {}),
+        "agenda_count": len(data.get("npc_agenda") or {}),
+        "player_rows": player_rows,
+        "edges": edges,
+        "agendas": agendas,
+    }
+
+
+def render_relationship_tab(rel: dict) -> str:
+    if not rel or not rel.get("ok"):
+        return f'<div class="muted">{h((rel or {}).get("error", "No relationship graph data."))}</div>'
+    bonds = ""
+    for row in rel.get("player_rows", [])[:8]:
+        score = int(row.get("score", 0))
+        cls = "good" if score >= 25 else "warn" if score <= -25 else "muted"
+        bonds += f'''
+        <div class="support-row clickable" onclick="openModal(this)" data-modal={modal_attr(row.get("name","Relationship"), [("Score", score), ("Tier", row.get("tier","")), ("Notes", row.get("notes",""))])}>
+          <div><strong>{h(row.get("name",""))}</strong><div class="muted">{h(row.get("tier","neutral").replace("_"," "))}</div></div>
+          <div class="{cls}">{score:+d}</div>
+        </div>'''
+    edges = ""
+    for edge in rel.get("edges", [])[:12]:
+        title = f'{edge.get("a","")} ↔ {edge.get("b","")}'
+        edges += f'''
+        <div class="support-row clickable" onclick="openModal(this)" data-modal={modal_attr(title, [("Stance", edge.get("stance","")), ("Strength", edge.get("strength","")), ("Notes", edge.get("notes","")), ("Source", edge.get("source",""))])}>
+          <div><strong>{h(title)}</strong><div class="muted">{h(edge.get("stance",""))}</div></div>
+          <div>{h(edge.get("strength",""))}</div>
+        </div>'''
+    agendas = ""
+    for row in rel.get("agendas", [])[:8]:
+        watching = ", ".join(row.get("watching") or [])
+        agendas += f'''
+        <div class="support-row clickable" onclick="openModal(this)" data-modal={modal_attr(row.get("name","Agenda"), [("Goal", row.get("goal","")), ("Fear", row.get("fear","")), ("Watching", watching), ("Absent 24h", row.get("if_absent_24h",""))])}>
+          <div><strong>{h(row.get("name",""))}</strong><div class="muted">watching {h(watching or "—")}</div></div>
+        </div>'''
+    return f'''
+    <div class="support-grid">
+      <div class="support-card">
+        <div class="support-title">Relationship Field</div>
+        <div class="muted">Updated {h(rel.get("updated_at",""))} · {rel.get("edge_count",0)} NPC edges · {rel.get("agenda_count",0)} agendas</div>
+      </div>
+      <div class="support-card"><div class="support-title">BJ Gravity</div>{bonds or '<div class="muted">No player bonds yet.</div>'}</div>
+      <div class="support-card"><div class="support-title">Strong Social Edges</div>{edges or '<div class="muted">No NPC edges yet.</div>'}</div>
+      <div class="support-card"><div class="support-title">Watch-Lists</div>{agendas or '<div class="muted">No agendas with watch-lists yet.</div>'}</div>
+    </div>'''
+
+
+def parse_story_field(player: str = "bj") -> dict:
+    try:
+        path = BASE / "scripts" / "field-graph.py"
+        spec = importlib.util.spec_from_file_location("enchantify_field_graph", path)
+        if not spec or not spec.loader:
+            return {"ok": False, "error": "Could not load field-graph.py"}
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)  # type: ignore[union-attr]
+        payload = mod.build_field_graph(player)
+        payload["ok"] = True
+        return payload
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def render_story_field_tab(field: dict) -> str:
+    if not field or not field.get("ok"):
+        return f'<div class="muted">{h((field or {}).get("error", "No Story Field data."))}</div>'
+    nodes_all = field.get("nodes") or []
+    links_all = field.get("links") or []
+    meta = field.get("meta") or {}
+    priority = {"player": 0, "arc": 1, "scene": 2, "thread": 3, "artifact": 4, "compass": 5, "npc": 6, "object": 7, "image": 8}
+    nodes = sorted(
+        nodes_all,
+        key=lambda n: (priority.get(str(n.get("kind", "")), 9), -float(n.get("size") or 1), str(n.get("label", ""))),
+    )[:92]
+    kept = {str(n.get("id", "")) for n in nodes}
+    def _link_id(v):
+        return str((v or {}).get("id", "")) if isinstance(v, dict) else str(v)
+    links = [
+        l for l in links_all
+        if _link_id(l.get("source")) in kept and _link_id(l.get("target")) in kept
+    ][:170]
+    kinds = sorted({str(n.get("kind", "unknown")) for n in nodes})
+    chips = "".join(
+        f'<button class="field-chip active" data-kind="{h(kind)}" onclick="toggleStoryFieldKind(this)">{h(kind)} <span>{sum(1 for n in nodes if n.get("kind") == kind)}</span></button>'
+        for kind in kinds
+    )
+    featured = ""
+    for node in sorted(nodes, key=lambda n: float(n.get("size") or 1), reverse=True)[:9]:
+        featured += f'''<button class="field-list-item" onclick="focusStoryFieldNode('{h(node.get("id",""))}')">
+          <span>{h(node.get("label",""))}</span><em>{h(node.get("kind",""))}</em>
+        </button>'''
+    data = json.dumps({"nodes": nodes, "links": links, "meta": meta}, ensure_ascii=False)
+    data = data.replace("<", "\\u003c").replace("</", "<\\/")
+    return f'''
+    <div class="story-field-root" id="story-field-root">
+      <script type="application/json" id="story-field-data">{data}</script>
+      <div class="story-field-head">
+        <div>
+          <div class="support-title">Story Field Atlas</div>
+          <div class="muted">Generated {h(field.get("generated_at",""))} · showing {len(nodes)} of {meta.get("node_count", len(nodes))} nodes · {len(links)} live links</div>
+        </div>
+        <div class="story-field-search">
+          <input id="story-field-search" placeholder="Search the living index…" oninput="searchStoryField(this.value)">
+        </div>
+      </div>
+      <div class="field-chip-row">{chips}</div>
+      <div class="story-field-layout">
+        <div class="story-field-stage">
+          <svg id="story-field-svg" role="img" aria-label="Story Field Atlas"></svg>
+          <div class="story-field-caption">Click a node to inspect it. Drag the mouse through the field to wake the lines.</div>
+        </div>
+        <aside class="story-field-side">
+          <div class="story-field-inspector" id="story-field-inspector">
+            <div class="field-inspector-kind">Awaiting contact</div>
+            <div class="field-inspector-title">The atlas is open.</div>
+            <div class="field-inspector-detail">Player, NPCs, relationships, active threads, artifacts, images, inventory, the current arc, and Wonder Compass material are stitched into one browsable field.</div>
+          </div>
+          <div class="field-list">
+            <div class="field-list-title">Bright Nodes</div>
+            {featured}
+          </div>
+        </aside>
+      </div>
+    </div>'''
+
+
+def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, anchors=None, sched=None, forecast=None, heartbeat=None, vellum=None, inkrest=None, ledger=None, penny=None, goldwater=None, bellkeeper=None, compass=None, book_jump=None, relationship_graph=None, story_field=None, attention=None, sim_feed=None, pact_actions=None, gallery_entries=None, narrative_health=None, page_contract=None, scene_director=None) -> str:
     generated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # Arc banner
@@ -5120,6 +5280,8 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
     bellkeeper_html = render_bellkeeper_tab(bellkeeper or {})
     compass_html = render_compass_tab(compass or {})
     book_jump_html = render_book_jump_tab(book_jump or {})
+    relationship_html = render_relationship_tab(relationship_graph or {})
+    story_field_html = render_story_field_tab(story_field or {})
     attention_html = render_attention_board(attention or {})
 
     # Gallery
@@ -5625,6 +5787,62 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
   .gallery-thumb img {{ width:100%; height:88px; object-fit:cover; border-radius:2px; background:#efe0bd; }}
   .gallery-thumb-label {{ font-size:.68rem; line-height:1.3; white-space:normal; }}
 
+  /* ── Story Field Atlas ── */
+  .story-field-root {{ display:flex; flex-direction:column; gap:.7rem; }}
+  .story-field-head {{ display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; }}
+  .story-field-search input {{
+    width:min(280px, 100%); border:1px solid var(--border); border-radius:3px;
+    background:rgba(255,251,238,.68); color:var(--text); padding:.42rem .55rem;
+    font-family:"Courier New", monospace; font-size:.68rem;
+  }}
+  .field-chip-row {{ display:flex; gap:.35rem; flex-wrap:wrap; }}
+  .field-chip {{
+    border:1px solid rgba(89,62,35,.24); border-radius:3px; background:rgba(255,251,238,.42);
+    color:var(--muted); cursor:pointer; font-family:"Courier New", monospace; font-size:.6rem;
+    text-transform:uppercase; letter-spacing:.06em; padding:.22rem .42rem;
+  }}
+  .field-chip.active {{ color:var(--text); border-color:rgba(22,116,117,.44); background:rgba(22,116,117,.10); }}
+  .field-chip span {{ opacity:.68; margin-left:.16rem; }}
+  .story-field-layout {{ display:grid; grid-template-columns:minmax(0,1fr) 260px; gap:.75rem; align-items:stretch; }}
+  .story-field-stage {{
+    min-height:520px; position:relative; overflow:hidden; border:1px solid rgba(89,62,35,.30); border-radius:4px;
+    background:
+      radial-gradient(circle at 32% 26%, rgba(22,116,117,.20), transparent 28%),
+      radial-gradient(circle at 68% 72%, rgba(167,111,36,.16), transparent 30%),
+      linear-gradient(135deg, rgba(22,20,16,.94), rgba(36,28,19,.90));
+    box-shadow: inset 0 0 42px rgba(0,0,0,.24), 0 10px 28px rgba(49,31,13,.16);
+  }}
+  #story-field-svg {{ width:100%; height:100%; min-height:520px; display:block; cursor:crosshair; }}
+  #story-field-svg text {{ pointer-events:none; font-family:Georgia, serif; fill:rgba(255,251,238,.86); font-size:11px; }}
+  #story-field-svg .sf-link {{ stroke:rgba(255,251,238,.12); stroke-width:.8; fill:none; transition:stroke .15s, stroke-width .15s; }}
+  #story-field-svg .sf-link.hot {{ stroke:rgba(255,251,238,.48); stroke-width:1.55; }}
+  #story-field-svg .sf-node {{ cursor:pointer; filter:drop-shadow(0 0 8px rgba(255,251,238,.18)); }}
+  #story-field-svg .sf-node.hot {{ filter:drop-shadow(0 0 14px rgba(255,251,238,.44)); }}
+  .story-field-caption {{
+    position:absolute; left:.65rem; bottom:.55rem; font-family:"Courier New", monospace; font-size:.58rem;
+    color:rgba(255,251,238,.68); background:rgba(12,10,8,.42); padding:.25rem .4rem; border:1px solid rgba(255,251,238,.12);
+  }}
+  .story-field-side {{ display:flex; flex-direction:column; gap:.65rem; min-width:0; }}
+  .story-field-inspector, .field-list {{
+    border:1px solid var(--border); border-radius:3px; background:rgba(255,251,238,.52); padding:.65rem .75rem;
+  }}
+  .field-inspector-kind {{ font-family:"Courier New", monospace; font-size:.58rem; text-transform:uppercase; letter-spacing:.1em; color:var(--teal-ink); }}
+  .field-inspector-title {{ font-size:.9rem; font-weight:bold; margin:.18rem 0 .35rem; color:var(--text); }}
+  .field-inspector-detail {{ font-size:.7rem; line-height:1.5; color:var(--muted); white-space:pre-wrap; }}
+  .field-list-title {{ font-family:"Courier New", monospace; font-size:.6rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:.35rem; }}
+  .field-list-item {{
+    display:flex; justify-content:space-between; gap:.5rem; width:100%; text-align:left; cursor:pointer;
+    border:0; border-bottom:1px solid var(--border); background:transparent; color:var(--text); padding:.35rem 0;
+  }}
+  .field-list-item:last-child {{ border-bottom:0; }}
+  .field-list-item span {{ font-size:.7rem; line-height:1.25; }}
+  .field-list-item em {{ font-family:"Courier New", monospace; font-size:.55rem; color:var(--muted); font-style:normal; text-transform:uppercase; flex-shrink:0; }}
+  @media (max-width: 980px) {{
+    .story-field-layout {{ grid-template-columns:1fr; }}
+    .story-field-head {{ flex-direction:column; }}
+    .story-field-search input {{ width:100%; }}
+  }}
+
   .muted {{ color: var(--muted); }}
   .clickable {{ cursor: pointer; }}
   .clickable:hover {{ opacity: .85; }}
@@ -5966,6 +6184,8 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
         <button class="tab" onclick="switchTab(this,'bellkeeper')">Bellkeeper</button>
         <button class="tab" onclick="switchTab(this,'compass')">Compass</button>
         <button class="tab" onclick="switchTab(this,'book-jumps')">Book Jumps</button>
+        <button class="tab" onclick="switchTab(this,'story-field'); initStoryField()">Story Field</button>
+        <button class="tab" onclick="switchTab(this,'relationships')">Relationships</button>
         <button class="tab" onclick="switchTab(this,'entities')">Entities</button>
         <button class="tab" onclick="switchTab(this,'talismans')">Talisman War</button>
         <button class="tab" onclick="switchTab(this,'pact-actions')">App Actions</button>
@@ -6039,6 +6259,12 @@ def build_html(threads, npcs, talismans, player, queue, bleed, crons, arc=None, 
       </div>
       <div id="book-jumps" class="tab-content">
         {book_jump_html}
+      </div>
+      <div id="story-field" class="tab-content">
+        {story_field_html}
+      </div>
+      <div id="relationships" class="tab-content">
+        {relationship_html}
       </div>
     </div>
 
@@ -6117,6 +6343,8 @@ function switchTab(btn, id) {{
   panel.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById(id).classList.add('active');
+  if (id) history.replaceState(null, '', '#' + id);
+  if (id === 'story-field') initStoryField();
 }}
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
@@ -6160,11 +6388,255 @@ function closeModal() {{
 
 document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(); }});
 
+// ── Story Field Atlas ───────────────────────────────────────────────────────
+let storyFieldState = null;
+
+function storyFieldColor(kind) {{
+  return {{
+    player:'#f0b35a', npc:'#a7f3d0', thread:'#5ee7ff', scene:'#c084fc',
+    image:'#67e8f9', object:'#d4a574', artifact:'#fbbf24', compass:'#a3e635',
+    arc:'#f59e0b'
+  }}[kind] || '#cbd5e1';
+}}
+
+function initStoryField() {{
+  const root = document.getElementById('story-field-root');
+  const svg = document.getElementById('story-field-svg');
+  const dataEl = document.getElementById('story-field-data');
+  if (!root || !svg || !dataEl) return;
+  if (root.dataset.ready === 'yes') return;
+  root.dataset.ready = 'building';
+  try {{
+
+  let payload;
+  try {{ payload = JSON.parse(dataEl.textContent || '{{"nodes":[],"links":[]}}'); }}
+  catch(e) {{ payload = {{nodes:[], links:[]}}; }}
+
+  const nodes = (payload.nodes || []).map((n, i) => ({{
+    ...n, x:0, y:0, vx:0, vy:0, index:i, hidden:false, highlight:false, el:null, labelEl:null
+  }}));
+  const byId = new Map(nodes.map(n => [n.id, n]));
+  const links = (payload.links || []).map(l => ({{
+    ...l, el:null,
+    sourceNode: byId.get(typeof l.source === 'object' ? l.source.id : l.source),
+    targetNode: byId.get(typeof l.target === 'object' ? l.target.id : l.target)
+  }})).filter(l => l.sourceNode && l.targetNode);
+
+  const kinds = [...new Set(nodes.map(n => n.kind || 'unknown'))];
+  const activeKinds = new Set(kinds);
+  storyFieldState = {{root, svg, nodes, links, byId, activeKinds, selected:null, mouse:{{x:0,y:0,active:false}}, tick:0}};
+
+  const NS = 'http://www.w3.org/2000/svg';
+  svg.innerHTML = '';
+  const linkLayer = document.createElementNS(NS, 'g');
+  const nodeLayer = document.createElementNS(NS, 'g');
+  svg.appendChild(linkLayer); svg.appendChild(nodeLayer);
+  links.forEach(l => {{
+    const el = document.createElementNS(NS, 'path');
+    el.setAttribute('class', 'sf-link');
+    linkLayer.appendChild(el);
+    l.el = el;
+  }});
+  nodes.forEach(n => {{
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'sf-node');
+    const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('fill', n.color || storyFieldColor(n.kind));
+    const t = document.createElementNS(NS, 'text');
+    t.textContent = String(n.label || '').slice(0, 28);
+    t.style.display = 'none';
+    g.appendChild(c); g.appendChild(t);
+    g.addEventListener('click', () => selectStoryFieldNode(n));
+    nodeLayer.appendChild(g);
+    n.el = c; n.labelEl = t; n.groupEl = g;
+  }});
+
+  function resize() {{
+    const rect = svg.getBoundingClientRect();
+    svg.setAttribute('viewBox', `0 0 ${{Math.max(320, rect.width)}} ${{Math.max(360, rect.height)}}`);
+    seedPositions();
+  }}
+
+  function seedPositions() {{
+    const rect = svg.getBoundingClientRect();
+    const cx = rect.width / 2, cy = rect.height / 2;
+    const rings = {{player:.05, scene:.22, arc:.28, thread:.40, npc:.58, artifact:.72, compass:.78, object:.84, image:.90}};
+    nodes.forEach((n, i) => {{
+      const r = Math.min(rect.width, rect.height) * (rings[n.kind] || .66) * .48;
+      const angle = (i * 2.399963 + (n.kind || '').length) % (Math.PI * 2);
+      if (!n.x || !n.y) {{
+        n.x = cx + Math.cos(angle) * r;
+        n.y = cy + Math.sin(angle) * r;
+      }}
+    }});
+  }}
+
+  function visible(n) {{ return activeKinds.has(n.kind || 'unknown') && !n.hidden; }}
+
+  function step() {{
+    const rect = svg.getBoundingClientRect();
+    const cx = rect.width / 2, cy = rect.height / 2;
+    nodes.forEach(n => {{
+      if (!visible(n)) return;
+      const dx = cx - n.x, dy = cy - n.y;
+      n.vx += dx * 0.0007; n.vy += dy * 0.0007;
+      if (n.highlight || n === storyFieldState.selected) {{
+        n.vx += dx * 0.0018; n.vy += dy * 0.0018;
+      }}
+    }});
+    links.forEach(l => {{
+      const a = l.sourceNode, b = l.targetNode;
+      if (!visible(a) || !visible(b)) return;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.max(1, Math.hypot(dx, dy));
+      const target = 92 + Math.min(120, (a.size || 4) * 4 + (b.size || 4) * 4);
+      const force = (dist - target) * 0.0009 * Math.min(3, l.weight || 1);
+      const fx = dx / dist * force, fy = dy / dist * force;
+      a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+    }});
+    nodes.forEach(n => {{
+      if (!visible(n)) return;
+      n.vx *= .88; n.vy *= .88;
+      n.x += n.vx; n.y += n.vy;
+      n.x = Math.max(18, Math.min(rect.width - 18, n.x));
+      n.y = Math.max(18, Math.min(rect.height - 18, n.y));
+    }});
+  }}
+
+  function draw() {{
+    storyFieldState.tick += .012;
+    step();
+    links.forEach(l => {{
+      const a = l.sourceNode, b = l.targetNode;
+      if (!visible(a) || !visible(b)) {{
+        l.el.style.display = 'none';
+        return;
+      }}
+      l.el.style.display = '';
+      const important = a === storyFieldState.selected || b === storyFieldState.selected || a.highlight || b.highlight;
+      l.el.classList.toggle('hot', important);
+      const mx = (a.x + b.x) / 2 + Math.sin(storyFieldState.tick + a.index) * 8;
+      const my = (a.y + b.y) / 2 + Math.cos(storyFieldState.tick + b.index) * 8;
+      l.el.setAttribute('d', `M ${{a.x.toFixed(1)}} ${{a.y.toFixed(1)}} Q ${{mx.toFixed(1)}} ${{my.toFixed(1)}} ${{b.x.toFixed(1)}} ${{b.y.toFixed(1)}}`);
+    }});
+    nodes.forEach(n => {{
+      if (!visible(n)) {{
+        n.groupEl.style.display = 'none';
+        return;
+      }}
+      n.groupEl.style.display = '';
+      const r = Math.max(4, Math.min(16, Number(n.size || 5)));
+      const pulse = Math.sin(storyFieldState.tick * 4 + n.index) * 1.2;
+      const selected = n === storyFieldState.selected || n.highlight;
+      n.groupEl.classList.toggle('hot', selected);
+      n.el.setAttribute('cx', n.x.toFixed(1));
+      n.el.setAttribute('cy', n.y.toFixed(1));
+      n.el.setAttribute('r', (r + pulse + (selected ? 3 : 0)).toFixed(1));
+      n.labelEl.setAttribute('x', (n.x + r + 6).toFixed(1));
+      n.labelEl.setAttribute('y', (n.y + 4).toFixed(1));
+      n.labelEl.style.display = (selected || n.kind === 'player' || n.kind === 'arc') ? '' : 'none';
+    }});
+    requestAnimationFrame(draw);
+  }}
+
+  svg.addEventListener('mousemove', ev => {{
+    const rect = svg.getBoundingClientRect();
+    storyFieldState.mouse.x = ev.clientX - rect.left;
+    storyFieldState.mouse.y = ev.clientY - rect.top;
+    let hot = null;
+    nodes.forEach(n => {{
+      n.highlight = false;
+      if (!visible(n)) return;
+      const r = Math.max(7, Math.min(18, Number(n.size || 5) + 5));
+      if (Math.hypot(n.x - storyFieldState.mouse.x, n.y - storyFieldState.mouse.y) < r) hot = n;
+    }});
+    if (hot) hot.highlight = true;
+    svg.style.cursor = hot ? 'pointer' : 'crosshair';
+  }});
+
+  window.addEventListener('resize', resize);
+  resize();
+  root.dataset.ready = 'yes';
+  draw();
+  }} catch(e) {{
+    root.dataset.ready = 'error';
+    window.__sf_error = e && (e.stack || e.message) ? (e.stack || e.message) : String(e);
+    const inspector = document.getElementById('story-field-inspector');
+    if (inspector) inspector.innerHTML =
+      `<div class="field-inspector-kind">Atlas error</div>
+       <div class="field-inspector-title">The field failed to draw.</div>
+       <div class="field-inspector-detail">${{escHtml(window.__sf_error)}}</div>`;
+    console.error('Story Field failed:', e);
+  }}
+}}
+
+function selectStoryFieldNode(n) {{
+  if (!storyFieldState) return;
+  storyFieldState.selected = n;
+  const inspector = document.getElementById('story-field-inspector');
+  if (!inspector) return;
+  const parts = [];
+  if (n.score !== undefined) parts.push('Belief relation: ' + n.score);
+  if (n.belief !== undefined) parts.push('Belief: ' + n.belief);
+  if (n.phase) parts.push('Phase: ' + n.phase);
+  if (n.agenda) parts.push('Agenda: ' + n.agenda);
+  if (n.path) parts.push('Path: ' + n.path);
+  if (n.detail) parts.push(String(n.detail));
+  if (n.status) parts.push(String(n.status));
+  inspector.innerHTML =
+    `<div class="field-inspector-kind">${{escHtml(n.kind || 'node')}}</div>
+     <div class="field-inspector-title">${{escHtml(n.label || n.id)}}</div>
+     <div class="field-inspector-detail">${{escHtml(parts.filter(Boolean).join('\\n\\n') || 'No marginal note yet.')}}</div>`;
+}}
+
+function focusStoryFieldNode(id) {{
+  if (!storyFieldState) initStoryField();
+  if (!storyFieldState) return;
+  const n = storyFieldState.byId.get(id);
+  if (!n) return;
+  storyFieldState.nodes.forEach(node => node.highlight = false);
+  n.highlight = true;
+  selectStoryFieldNode(n);
+}}
+
+function toggleStoryFieldKind(btn) {{
+  if (!storyFieldState) initStoryField();
+  if (!storyFieldState) return;
+  const kind = btn.dataset.kind;
+  if (storyFieldState.activeKinds.has(kind)) {{
+    storyFieldState.activeKinds.delete(kind); btn.classList.remove('active');
+  }} else {{
+    storyFieldState.activeKinds.add(kind); btn.classList.add('active');
+  }}
+}}
+
+function searchStoryField(q) {{
+  if (!storyFieldState) initStoryField();
+  if (!storyFieldState) return;
+  q = String(q || '').toLowerCase().trim();
+  storyFieldState.nodes.forEach(n => {{
+    n.hidden = q && !String(n.label || '').toLowerCase().includes(q) && !String(n.detail || '').toLowerCase().includes(q);
+    n.highlight = q && !n.hidden;
+  }});
+}}
+
+function activateHashTab() {{
+  const id = (location.hash || '').replace(/^#/, '');
+  if (!id) return;
+  const content = document.getElementById(id);
+  if (!content || !content.classList.contains('tab-content')) return;
+  const panel = content.closest('.panel');
+  if (!panel) return;
+  const buttons = [...panel.querySelectorAll('.tab')];
+  const btn = buttons.find(b => (b.getAttribute('onclick') || '').includes("'" + id + "'") || (b.getAttribute('onclick') || '').includes('"' + id + '"'));
+  if (btn) switchTab(btn, id);
+}}
+
 // ── Soft refresh ──────────────────────────────────────────────────────────────
 const REFRESH_MS = 3 * 60 * 1000;  // 3 minutes
 const DATA_REGIONS =[
   'data-topbar', 'data-thread-count', 'data-arc-threads',
-  'tick', 'attention', 'page', 'director', 'entities', 'talismans', 'anchors', 'images', 'inventory', 'schedule', 'forecast', 'heartbeat', 'vellum', 'inkrest', 'ledger', 'compass', 'book-jumps',
+  'tick', 'attention', 'page', 'director', 'entities', 'talismans', 'anchors', 'images', 'inventory', 'schedule', 'forecast', 'heartbeat', 'vellum', 'inkrest', 'ledger', 'compass', 'book-jumps', 'story-field',
   'data-player', 'data-narrative-health', 'data-automation',
 ];
 
@@ -6207,6 +6679,10 @@ async function softRefresh(immediate) {{
     document.querySelectorAll('.tab-content').forEach(el => {{
       el.classList.toggle('active', !!activeTabIds[el.id]);
     }});
+    storyFieldState = null;
+    const sfRoot = document.getElementById('story-field-root');
+    if (sfRoot) sfRoot.dataset.ready = '';
+    if (activeTabIds['story-field']) initStoryField();
 
     const gen = doc.getElementById('data-generated');
     const dst = document.getElementById('data-generated');
@@ -6229,6 +6705,7 @@ function scheduleRefresh() {{
 }}
 
 scheduleRefresh();
+activateHashTab();
 </script>
 </body>
 </html>'''
@@ -6258,6 +6735,8 @@ def generate() -> str:
     bellkeeper = parse_bellkeeper_status(player.get("name", "bj"))
     compass = parse_compass_status(player.get("name", "bj"))
     book_jump = parse_book_jump_status(player.get("name", "bj"))
+    relationship_graph = parse_relationship_graph(player.get("name", "bj"))
+    story_field = parse_story_field(player.get("name", "bj"))
     attention = parse_attention_board(player.get("name", "bj"))
     gallery_entries = parse_scene_gallery()
     narrative_health = parse_narrative_health(player.get("name", "bj"))
@@ -6267,7 +6746,7 @@ def generate() -> str:
                       arc=arc, anchors=anchors, sched=sched, forecast=forecast, heartbeat=heartbeat, vellum=vellum, inkrest=inkrest, ledger=ledger,
                       penny=penny, bellkeeper=bellkeeper,
                       goldwater=goldwater,
-                      compass=compass, book_jump=book_jump, attention=attention,
+                      compass=compass, book_jump=book_jump, relationship_graph=relationship_graph, story_field=story_field, attention=attention,
                       sim_feed=sim_feed, pact_actions=pact_actions, gallery_entries=gallery_entries,
                       narrative_health=narrative_health, page_contract=page_contract, scene_director=scene_director)
 

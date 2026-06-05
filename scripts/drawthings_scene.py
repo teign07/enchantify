@@ -45,15 +45,60 @@ def generate(prompt: str, output: Path, width: int = 1280, height: int = 720, st
         return False, f"Draw Things error: {e}"
 
 
+def generate_img2img(
+    prompt: str,
+    source: Path,
+    output: Path,
+    width: int = 1280,
+    height: int = 720,
+    steps: int = 8,
+    cfg_scale: float = 1.5,
+    denoising_strength: float = 0.72,
+    timeout_seconds: int = 300,
+) -> tuple[bool, str]:
+    url = "http://127.0.0.1:8080/sdapi/v1/img2img"
+    if not source.exists():
+        return False, f"source image not found: {source}"
+    payload = {
+        "prompt": prompt,
+        "negative_prompt": "",
+        "init_images": [base64.b64encode(source.read_bytes()).decode("ascii")],
+        "width": width,
+        "height": height,
+        "steps": steps,
+        "cfg_scale": cfg_scale,
+        "denoising_strength": denoising_strength,
+        "seed": -1,
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = request.Request(url, data=data, headers={"Content-Type": "application/json"})
+
+    try:
+        with request.urlopen(req, timeout=timeout_seconds) as response:
+            result = json.loads(response.read().decode("utf-8"))
+        images = result.get("images") or []
+        if not images:
+            return False, "no image data returned from Draw Things img2img"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(base64.b64decode(images[0]))
+        return True, str(output)
+    except error.URLError as e:
+        return False, f"Draw Things img2img unavailable: {e}"
+    except Exception as e:
+        return False, f"Draw Things img2img error: {e}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt")
     parser.add_argument("--prompt-file", type=Path)
+    parser.add_argument("--source-image", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
     parser.add_argument("--steps", type=int, default=4)
     parser.add_argument("--cfg-scale", type=float, default=1.0)
+    parser.add_argument("--denoising-strength", type=float, default=0.72)
     parser.add_argument("--timeout-seconds", type=int, default=300)
     args = parser.parse_args()
 
@@ -63,7 +108,20 @@ def main() -> int:
     if not prompt:
         raise SystemExit("Provide --prompt or --prompt-file")
 
-    ok, detail = generate(prompt, args.output, width=args.width, height=args.height, steps=args.steps, cfg_scale=args.cfg_scale, timeout_seconds=args.timeout_seconds)
+    if args.source_image:
+        ok, detail = generate_img2img(
+            prompt,
+            args.source_image,
+            args.output,
+            width=args.width,
+            height=args.height,
+            steps=args.steps,
+            cfg_scale=args.cfg_scale,
+            denoising_strength=args.denoising_strength,
+            timeout_seconds=args.timeout_seconds,
+        )
+    else:
+        ok, detail = generate(prompt, args.output, width=args.width, height=args.height, steps=args.steps, cfg_scale=args.cfg_scale, timeout_seconds=args.timeout_seconds)
     print(detail)
     return 0 if ok else 1
 

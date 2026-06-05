@@ -293,6 +293,18 @@ def bluesky_status_summary() -> dict[str, Any]:
     }
 
 
+def postmaster_context(*, ensure_fresh: bool = False, max_age_hours: float = 8.0) -> dict[str, Any]:
+    try:
+        spec = importlib.util.spec_from_file_location("postmaster", BASE / "scripts" / "postmaster.py")
+        if not spec or not spec.loader:
+            raise RuntimeError("postmaster module unavailable")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.desk_context(ensure_fresh=ensure_fresh, max_age_hours=max_age_hours)
+    except Exception as exc:
+        return {"available": False, "diagnosis": clean(str(exc), 300)}
+
+
 def collect_context(player: str = "bj") -> dict[str, Any]:
     ensure_dirs()
     return {
@@ -316,6 +328,7 @@ def collect_context(player: str = "bj") -> dict[str, Any]:
         "latest_bleed": latest_files(BLEED_ISSUES, "*.md", 2),
         "capabilities_excerpt": read(CAPABILITIES, 2500),
         "wonder_compass_excerpt": wonder_compass_excerpt(),
+        "postmaster": postmaster_context(ensure_fresh=False),
     }
 
 
@@ -383,6 +396,15 @@ def deterministic_brief(context: dict[str, Any], focus: str = "") -> str:
         )
     else:
         bluesky_hint = "Bluesky status unavailable; keep all Bluesky drafts manual and review-ready."
+    postmaster = context.get("postmaster") or {}
+    if postmaster.get("available"):
+        postmaster_hint = (
+            f"{postmaster.get('message_count', 0)} actionable message(s); "
+            f"{len(postmaster.get('goldweaver_reply_suggestions') or [])} review-only reply draft(s); "
+            f"next: {clean(postmaster.get('smallest_next_action'), 220)}"
+        )
+    else:
+        postmaster_hint = clean(postmaster.get("diagnosis"), 220) or "No correspondence brief visible yet."
     return f"""# Professor Bastion Goldweaver Applied Abundance Brief - {context['date']}
 
 Goldweaver arrives in a waistcoat the color of unreasonable confidence, places Penny's latest clippings beside the product ledger, and taps the table once.
@@ -400,7 +422,11 @@ Goldweaver arrives in a waistcoat the color of unreasonable confidence, places P
 - YouTube read: {youtube_hint}
 - X read: {x_hint}
 - Bluesky read: {bluesky_hint}
+- Postmaster read: {postmaster_hint}
 - Current posture: draft only; no posting, spending, scheduling, or public promise without BJ's approval.
+
+## Correspondence And Reply Drafts
+When Postmaster Finch surfaced review-only reply suggestions, treat them as starting points for BJ to edit. The Postmaster never sends mail on his own. Prioritize human business leads over platform digests.
 
 ## Best Offer Candidate
 **The Wonder Compass Field Kit: A Small Door for a Flat Day**
