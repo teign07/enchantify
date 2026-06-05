@@ -1178,7 +1178,7 @@ private struct BookOfYouMediaThumbnail: View {
                     .scaledToFill()
             } else {
                 ZStack {
-                    BookPalette.parchment.opacity(0.72)
+                    BookPalette.page.opacity(0.72)
                     Image(systemName: "photo")
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(BookPalette.ink.opacity(0.42))
