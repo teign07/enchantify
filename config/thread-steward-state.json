@@ -28,7 +28,65 @@
         }
       },
       "applied_at": "2026-05-08"
+    },
+    {
+      "action": "PROMOTE_SEED",
+      "name": "Serenity's Unwritten Thread",
+      "reason": "Serenity Brown has Belief 34 and 5 queued seed signal(s); score 59.",
+      "confidence": "medium",
+      "payload": {
+        "name": "Serenity's Unwritten Thread",
+        "id": "serenity-unwritten-thread",
+        "type": "npc-subplot",
+        "phase": "setup",
+        "pressure": "low",
+        "npc_anchor": "Serenity Brown",
+        "locations": "Academy corridors, Library, Great Hall, and wherever the Unwritten Interest touches the day",
+        "entities": "Serenity Brown",
+        "nothing_pressure": "medium - the Nothing can flatten this into mere trivia instead of lived story",
+        "status": "Serenity Brown's their growing unwritten attention has begun affecting Academy life.",
+        "next_beat": "Serenity Brown leaves a concrete trace of this interest where bj can find it: a note, object, recommendation, or small request that reveals whether their gift is helping or becoming tangled in the risk that attention becomes avoidance.",
+        "starting_belief": 8,
+        "seed_count": 5,
+        "lore_basis": {
+          "personality": "Carefree, spontaneous, joyful",
+          "faults": "",
+          "quirks": "",
+          "interest": "their growing Unwritten attention",
+          "hooks": "Serenity Brown's attention has gathered enough mass to become a story of its own"
+        }
+      },
+      "applied_at": "2026-05-26"
+    },
+    {
+      "action": "PROMOTE_SEED",
+      "name": "Gimble's Unwritten Thread",
+      "reason": "Gimble of the Errata Registry has Belief 33 and 2 queued seed signal(s); score 43.",
+      "confidence": "medium",
+      "payload": {
+        "name": "Gimble's Unwritten Thread",
+        "id": "gimble-unwritten-thread",
+        "type": "npc-subplot",
+        "phase": "setup",
+        "pressure": "low",
+        "npc_anchor": "Gimble of the Errata Registry",
+        "locations": "Academy corridors, Library, Great Hall, and wherever the Unwritten Interest touches the day",
+        "entities": "Gimble of the Errata Registry",
+        "nothing_pressure": "medium - the Nothing can flatten this into mere trivia instead of lived story",
+        "status": "Gimble of the Errata Registry's practical personal finance, envelope budgeting, open-source budgeting tools, actual budget has begun affecting Academy life.",
+        "next_beat": "Gimble of the Errata Registry leaves a concrete trace of this interest where bj can find it: a note, object, recommendation, or small request that reveals whether their gift is helping or becoming tangled in can become too interested in classification; may mistake emotional avoidance for a filing problem; needs reminding that sometimes a person needs soup before categories..",
+        "starting_belief": 8,
+        "seed_count": 2,
+        "lore_basis": {
+          "personality": "Exact, fussy, transactional, unsentimental, oddly safe. Gimble does not care whether a purchase was elegant, tired, joyful, impulsive, or necessary; he cares that it is recorded truthfully and assigned a vessel.",
+          "faults": "Can become too interested in classification; may mistake emotional avoidance for a filing problem; needs reminding that sometimes a person needs soup before categories.",
+          "quirks": "Counts coins by sound, labels envelopes with a bone-nib pen, smells uncategorized transactions like smoke, uses a tiny brass stamp that says BOUND, and mutters exchange rates between shame and fog even though both are inadmissible currencies.",
+          "interest": "Practical personal finance, envelope budgeting, open-source budgeting tools, Actual Budget, SimpleFIN, anti-shame financial behavior design, executive dysfunction around money, small household systems, and how people convert anxiety into visibility without becoming cruel to themselves.",
+          "hooks": "Appears when money, spending, bills, bank sync, subscriptions, Doobaleedoos budgets, tiny adventures, debt, or financial avoidance enters play; may leave a Ledger Page, budget note, recurring-charge note, or Adventure Permission Slip."
+        }
+      },
+      "applied_at": "2026-06-02"
     }
   ],
-  "last_run_at": "2026-05-08T21:45:56"
+  "last_run_at": "2026-06-02T00:30:40"
 }

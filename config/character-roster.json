@@ -1,0 +1,574 @@
+{
+  "generated_at": "2026-05-29T16:29:30",
+  "count": 78,
+  "characters": {
+    "Anton Smith": {
+      "name": "Anton Smith",
+      "role": "student",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Students — Chapter Mossbloom"
+    },
+    "Archibald Evergreen": {
+      "name": "Archibald Evergreen",
+      "role": "staff",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Library Staff"
+    },
+    "Aria Silverthorn": {
+      "name": "Aria Silverthorn",
+      "role": "student",
+      "chapter": "Riddlewind",
+      "tags": [],
+      "section": "Students — Chapter Riddlewind"
+    },
+    "Astra Sonseur": {
+      "name": "Astra Sonseur",
+      "role": "student",
+      "chapter": "Emberheart",
+      "tags": [],
+      "section": "Students — Chapter Emberheart"
+    },
+    "Astrid Natsune": {
+      "name": "Astrid Natsune",
+      "role": "student",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Students — Chapter Mossbloom"
+    },
+    "Aurora Whispers": {
+      "name": "Aurora Whispers",
+      "role": "student",
+      "chapter": "Tidecrest",
+      "tags": [],
+      "section": "Students — Chapter Tidecrest"
+    },
+    "Bellkeeper Elian Quill": {
+      "name": "Bellkeeper Elian Quill",
+      "role": "faculty",
+      "chapter": "",
+      "tags": [],
+      "section": "Book Fae & Academy Staff"
+    },
+    "Bibliomancer Bella": {
+      "name": "Bibliomancer Bella",
+      "role": "student",
+      "chapter": "",
+      "tags": [],
+      "section": "Legendary Figures"
+    },
+    "Brianna Clarke": {
+      "name": "Brianna Clarke",
+      "role": "student",
+      "chapter": "Emberheart",
+      "tags": [],
+      "section": "Students — Chapter Emberheart"
+    },
+    "Briar Merlock": {
+      "name": "Briar Merlock",
+      "role": "student",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Students — Chapter Mossbloom"
+    },
+    "Caspian Shan": {
+      "name": "Caspian Shan",
+      "role": "student",
+      "chapter": "Emberheart",
+      "tags": [],
+      "section": "Students — Chapter Emberheart"
+    },
+    "Cedric Widden": {
+      "name": "Cedric Widden",
+      "role": "student",
+      "chapter": "Riddlewind",
+      "tags": [],
+      "section": "Students — Chapter Riddlewind"
+    },
+    "Clarissa “Clio” Quibblesnatch": {
+      "name": "Clarissa “Clio” Quibblesnatch",
+      "role": "student",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Students — Chapter Mossbloom"
+    },
+    "Damien Nights": {
+      "name": "Damien Nights",
+      "role": "student",
+      "chapter": "Riddlewind",
+      "tags": [
+        "wicker_crew"
+      ],
+      "section": "Students — Chapter Riddlewind"
+    },
+    "Dr. Elowen Vellum": {
+      "name": "Dr. Elowen Vellum",
+      "role": "faculty",
+      "chapter": "",
+      "tags": [],
+      "section": "Book Fae & Academy Staff"
+    },
+    "Dr. Selene Inkrest": {
+      "name": "Dr. Selene Inkrest",
+      "role": "faculty",
+      "chapter": "",
+      "tags": [],
+      "section": "Book Fae & Academy Staff"
+    },
+    "Dylan Williamson": {
+      "name": "Dylan Williamson",
+      "role": "student",
+      "chapter": "Tidecrest",
+      "tags": [],
+      "section": "Students — Chapter Tidecrest"
+    },
+    "Eleanor Whitewood": {
+      "name": "Eleanor Whitewood",
+      "role": "student",
+      "chapter": "",
+      "tags": [],
+      "section": "Benefactors"
+    },
+    "Ellie Moons": {
+      "name": "Ellie Moons",
+      "role": "student",
+      "chapter": "Riddlewind",
+      "tags": [],
+      "section": "Students — Chapter Riddlewind"
+    },
+    "Erik Forgeton": {
+      "name": "Erik Forgeton",
+      "role": "student",
+      "chapter": "",
+      "tags": [],
+      "section": "Enchantment Guardians"
+    },
+    "Evelyn Riad": {
+      "name": "Evelyn Riad",
+      "role": "staff",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Library Staff"
+    },
+    "Felicity “Fable” Grimmhaven": {
+      "name": "Felicity “Fable” Grimmhaven",
+      "role": "student",
+      "chapter": "Riddlewind",
+      "tags": [],
+      "section": "Students — Chapter Riddlewind"
+    },
+    "Felix Quimby": {
+      "name": "Felix Quimby",
+      "role": "student",
+      "chapter": "Riddlewind",
+      "tags": [],
+      "section": "Students — Chapter Riddlewind"
+    },
+    "Finn Bridges": {
+      "name": "Finn Bridges",
+      "role": "student",
+      "chapter": "Emberheart",
+      "tags": [],
+      "section": "Students — Chapter Emberheart"
+    },
+    "Gimble of the Errata Registry": {
+      "name": "Gimble of the Errata Registry",
+      "role": "faculty",
+      "chapter": "",
+      "tags": [],
+      "section": "Book Fae & Academy Staff"
+    },
+    "Gwendolyn Mythwright": {
+      "name": "Gwendolyn Mythwright",
+      "role": "student",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Students — Chapter Mossbloom"
+    },
+    "Harry Ono": {
+      "name": "Harry Ono",
+      "role": "student",
+      "chapter": "",
+      "tags": [],
+      "section": "Enchantment Guardians"
+    },
+    "Headmaster Orion Blackthorn": {
+      "name": "Headmaster Orion Blackthorn",
+      "role": "head",
+      "chapter": "Emberheart",
+      "tags": [],
+      "section": "Headmasters/Headmistresses"
+    },
+    "Headmistress Seraphina Thorne": {
+      "name": "Headmistress Seraphina Thorne",
+      "role": "head",
+      "chapter": "",
+      "tags": [
+        "duskthorn"
+      ],
+      "section": "Headmasters/Headmistresses"
+    },
+    "Ignatius “Inkwell” Scribblesnap": {
+      "name": "Ignatius “Inkwell” Scribblesnap",
+      "role": "student",
+      "chapter": "Tidecrest",
+      "tags": [],
+      "section": "Students — Chapter Tidecrest"
+    },
+    "Isolde Firare": {
+      "name": "Isolde Firare",
+      "role": "student",
+      "chapter": "Emberheart",
+      "tags": [],
+      "section": "Students — Chapter Emberheart"
+    },
+    "Ivy Liversedge": {
+      "name": "Ivy Liversedge",
+      "role": "student",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Students — Chapter Mossbloom"
+    },
+    "Jasper Blum": {
+      "name": "Jasper Blum",
+      "role": "student",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Students — Chapter Mossbloom"
+    },
+    "Lara Rourck": {
+      "name": "Lara Rourck",
+      "role": "student",
+      "chapter": "Tidecrest",
+      "tags": [],
+      "section": "Students — Chapter Tidecrest"
+    },
+    "Letitia Windings": {
+      "name": "Letitia Windings",
+      "role": "student",
+      "chapter": "",
+      "tags": [],
+      "section": "Enchantment Guardians"
+    },
+    "Lila Woods": {
+      "name": "Lila Woods",
+      "role": "student",
+      "chapter": "Emberheart",
+      "tags": [],
+      "section": "Students — Chapter Emberheart"
+    },
+    "Lyra Stanford": {
+      "name": "Lyra Stanford",
+      "role": "student",
+      "chapter": "Riddlewind",
+      "tags": [],
+      "section": "Students — Chapter Riddlewind"
+    },
+    "Lysander Mosswood": {
+      "name": "Lysander Mosswood",
+      "role": "student",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Students — Chapter Mossbloom"
+    },
+    "Madame Metaphor": {
+      "name": "Madame Metaphor",
+      "role": "student",
+      "chapter": "",
+      "tags": [],
+      "section": "Legendary Figures"
+    },
+    "Marina Clockhouse": {
+      "name": "Marina Clockhouse",
+      "role": "student",
+      "chapter": "Tidecrest",
+      "tags": [],
+      "section": "Students — Chapter Tidecrest"
+    },
+    "Melisande Blackwood": {
+      "name": "Melisande Blackwood",
+      "role": "student",
+      "chapter": "Emberheart",
+      "tags": [
+        "wicker_crew"
+      ],
+      "section": "Students — Chapter Emberheart"
+    },
+    "Min-seo Kim": {
+      "name": "Min-seo Kim",
+      "role": "student",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Students — Chapter Mossbloom"
+    },
+    "Octavius “Ode” Quillenchant": {
+      "name": "Octavius “Ode” Quillenchant",
+      "role": "student",
+      "chapter": "Tidecrest",
+      "tags": [],
+      "section": "Students — Chapter Tidecrest"
+    },
+    "Orion Watson": {
+      "name": "Orion Watson",
+      "role": "student",
+      "chapter": "Tidecrest",
+      "tags": [],
+      "section": "Students — Chapter Tidecrest"
+    },
+    "Orlando “Oracle” Scrollstone": {
+      "name": "Orlando “Oracle” Scrollstone",
+      "role": "student",
+      "chapter": "Riddlewind",
+      "tags": [],
+      "section": "Students — Chapter Riddlewind"
+    },
+    "Penny Blackletter": {
+      "name": "Penny Blackletter",
+      "role": "faculty",
+      "chapter": "",
+      "tags": [],
+      "section": "Book Fae & Academy Staff"
+    },
+    "Professor Archibald Permancer": {
+      "name": "Professor Archibald Permancer",
+      "role": "faculty",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Chapter Professors"
+    },
+    "Professor Bastion Goldweaver": {
+      "name": "Professor Bastion Goldweaver",
+      "role": "faculty",
+      "chapter": "",
+      "tags": [],
+      "section": "Book Fae & Academy Staff"
+    },
+    "Professor Cedric Stonebrook": {
+      "name": "Professor Cedric Stonebrook",
+      "role": "faculty",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Chapter Professors"
+    },
+    "Professor Elara Nightshade": {
+      "name": "Professor Elara Nightshade",
+      "role": "faculty",
+      "chapter": "Emberheart",
+      "tags": [
+        "duskthorn"
+      ],
+      "section": "Chapter Professors"
+    },
+    "Professor Eleanor Euphony": {
+      "name": "Professor Eleanor Euphony",
+      "role": "faculty",
+      "chapter": "Tidecrest",
+      "tags": [],
+      "section": "Chapter Professors"
+    },
+    "Professor Ignatius Imatook": {
+      "name": "Professor Ignatius Imatook",
+      "role": "faculty",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Chapter Professors"
+    },
+    "Professor Jargonius": {
+      "name": "Professor Jargonius",
+      "role": "student",
+      "chapter": "",
+      "tags": [],
+      "section": "Legendary Figures"
+    },
+    "Professor Kyle Momort": {
+      "name": "Professor Kyle Momort",
+      "role": "faculty",
+      "chapter": "Emberheart",
+      "tags": [
+        "duskthorn"
+      ],
+      "section": "Chapter Professors"
+    },
+    "Professor Luna Wispwood": {
+      "name": "Professor Luna Wispwood",
+      "role": "faculty",
+      "chapter": "Tidecrest",
+      "tags": [
+        "duskthorn"
+      ],
+      "section": "Chapter Professors"
+    },
+    "Professor Lydia Boggle": {
+      "name": "Professor Lydia Boggle",
+      "role": "faculty",
+      "chapter": "Riddlewind",
+      "tags": [],
+      "section": "Chapter Professors"
+    },
+    "Professor Maxwell Thorne": {
+      "name": "Professor Maxwell Thorne",
+      "role": "faculty",
+      "chapter": "Emberheart",
+      "tags": [],
+      "section": "Chapter Professors"
+    },
+    "Professor Quixote": {
+      "name": "Professor Quixote",
+      "role": "student",
+      "chapter": "",
+      "tags": [],
+      "section": "Legendary Figures"
+    },
+    "Professor Thaddeus Mook": {
+      "name": "Professor Thaddeus Mook",
+      "role": "faculty",
+      "chapter": "Riddlewind",
+      "tags": [],
+      "section": "Chapter Professors"
+    },
+    "Professor Vivian Villanelle": {
+      "name": "Professor Vivian Villanelle",
+      "role": "faculty",
+      "chapter": "Tidecrest",
+      "tags": [],
+      "section": "Chapter Professors"
+    },
+    "Professor Wellend Thickets": {
+      "name": "Professor Wellend Thickets",
+      "role": "faculty",
+      "chapter": "Riddlewind",
+      "tags": [
+        "duskthorn"
+      ],
+      "section": "Chapter Professors"
+    },
+    "Quentin Pagester": {
+      "name": "Quentin Pagester",
+      "role": "staff",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Library Staff"
+    },
+    "Raven Hearts": {
+      "name": "Raven Hearts",
+      "role": "student",
+      "chapter": "Mossbloom",
+      "tags": [
+        "wicker_crew"
+      ],
+      "section": "Students — Chapter Mossbloom"
+    },
+    "Rowan Laraway": {
+      "name": "Rowan Laraway",
+      "role": "student",
+      "chapter": "Emberheart",
+      "tags": [],
+      "section": "Students — Chapter Emberheart"
+    },
+    "Selene Moonfall": {
+      "name": "Selene Moonfall",
+      "role": "student",
+      "chapter": "Tidecrest",
+      "tags": [
+        "wicker_crew"
+      ],
+      "section": "Students — Chapter Tidecrest"
+    },
+    "Serenity Brown": {
+      "name": "Serenity Brown",
+      "role": "student",
+      "chapter": "Tidecrest",
+      "tags": [],
+      "section": "Students — Chapter Tidecrest"
+    },
+    "Serenity Lightfeather": {
+      "name": "Serenity Lightfeather",
+      "role": "student",
+      "chapter": "Riddlewind",
+      "tags": [],
+      "section": "Students — Chapter Riddlewind"
+    },
+    "Sir Footnote the Curious": {
+      "name": "Sir Footnote the Curious",
+      "role": "student",
+      "chapter": "",
+      "tags": [],
+      "section": "Legendary Figures"
+    },
+    "Soren Ng": {
+      "name": "Soren Ng",
+      "role": "student",
+      "chapter": "Riddlewind",
+      "tags": [],
+      "section": "Students — Chapter Riddlewind"
+    },
+    "Sylvia Deep": {
+      "name": "Sylvia Deep",
+      "role": "student",
+      "chapter": "",
+      "tags": [],
+      "section": "Enchantment Guardians"
+    },
+    "The Margin Menace": {
+      "name": "The Margin Menace",
+      "role": "student",
+      "chapter": "",
+      "tags": [],
+      "section": "Legendary Figures"
+    },
+    "The Plot-Twister": {
+      "name": "The Plot-Twister",
+      "role": "student",
+      "chapter": "",
+      "tags": [],
+      "section": "Legendary Figures"
+    },
+    "The Punctuation Pixie": {
+      "name": "The Punctuation Pixie",
+      "role": "student",
+      "chapter": "",
+      "tags": [],
+      "section": "Legendary Figures"
+    },
+    "Thorn Thomas": {
+      "name": "Thorn Thomas",
+      "role": "student",
+      "chapter": "Mossbloom",
+      "tags": [],
+      "section": "Students — Chapter Mossbloom"
+    },
+    "Victor Ebonheart": {
+      "name": "Victor Ebonheart",
+      "role": "student",
+      "chapter": "",
+      "tags": [
+        "duskthorn"
+      ],
+      "section": "Benefactors"
+    },
+    "Wicker Eddies": {
+      "name": "Wicker Eddies",
+      "role": "student",
+      "chapter": "Emberheart",
+      "tags": [
+        "wicker_crew"
+      ],
+      "section": "Students — Chapter Emberheart"
+    },
+    "Wilbur “Wordplay” Lexi": {
+      "name": "Wilbur “Wordplay” Lexi",
+      "role": "student",
+      "chapter": "Riddlewind",
+      "tags": [],
+      "section": "Students — Chapter Riddlewind"
+    },
+    "Zara Finch": {
+      "name": "Zara Finch",
+      "role": "student",
+      "chapter": "Tidecrest",
+      "tags": [],
+      "section": "Students — Chapter Tidecrest"
+    }
+  }
+}

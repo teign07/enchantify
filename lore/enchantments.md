@@ -15,12 +15,13 @@ In the world of the Labyrinth, Enchantments are spells cast with pens — the pl
 ### With a Vision-Capable Model
 
 1. The narrative presents an Enchantment opportunity.
-1. The Labyrinth offers the Enchantment as one of several choices.
+1. The Labyrinth offers only an official Enchantment already listed in the player's Flyleaf as one of several choices.
 1. Player selects the Enchantment.
 1. Deduct 1 Belief. Narrate the casting with full synesthetic detail.
 1. Ask the player to photograph something relevant and send it.
 1. When the photo arrives, the Labyrinth (OpenClaw) processes the image. Describe what you see woven into the narrative with wonder, synesthesia, and specificity.
 1. The Enchantment activates in the story. Award 3 Belief.
+1. If the Enchantment has a visual-art style effect, `scripts/enchantment.py complete` may generate a local Draw Things artifact from the proof image or description and optionally send it through Telegram.
 
 ### With a Text-Only Model
 
@@ -29,8 +30,8 @@ Same flow, but at step 5, ask the player to describe what they see in words. Pro
 ## Belief Economy
 
 - **Cost to cast:** 3 Belief
-- **Reward on completion:** 6 Belief
-- **Net gain:** +3 Belief per Enchantment
+- **Reward on completion:** 9 Belief
+- **Net gain:** +6 Belief per Enchantment
 - The Compass Run (cost 3, reward 9, net +6) is intentionally more rewarding to incentivize the full cycle.
 
 ## Enchantment Progression
@@ -85,18 +86,27 @@ The Labyrinth turns the subject into a lighthearted joke.
 ### Everything’s Van Gogh
 The Labyrinth interprets the photograph as if painted by Van Gogh, providing facts about the style and era.
 - **In-game effect:** Changes the visual texture of the narrative, often revealing high emotional intensity or vibrant "starry" patterns.
+- **Image artifact:** Generates a local Van Gogh-inspired transformation when completed with proof.
 
 ### Everything’s Monet
 The Labyrinth interprets the photograph as an impressionist work by Monet.
 - **In-game effect:** Softens the edges of reality, making it easier to slip past guards or find beauty in blurred details.
+- **Image artifact:** Generates a local Monet-inspired transformation when completed with proof.
 
 ### Everything’s Shakespeare
 The Labyrinth turns the subject into a Renaissance painting and writes a sonnet about it.
 - **In-game effect:** Imbues a scene with high drama and historical weight.
+- **Image artifact:** Generates a local Renaissance theatrical manuscript-style image when completed with proof.
+
+### Everything’s Anime
+The Labyrinth turns the subject into expressive hand-drawn anime key art, preserving the subject while heightening pose, emotion, light, and narrative drama.
+- **In-game effect:** Makes the scene feel vivid, kinetic, and emotionally legible, as if the subject has stepped into a decisive frame.
+- **Image artifact:** Generates a local anime-inspired transformation when completed with proof.
 
 ### Everything’s Archive
 The Labyrinth turns the photo into a magical field-journal manuscript page: sparse pen-and-ink linework, lush watercolor washes on textured aged parchment, visible paper grain, soft ink bleed, watercolor blooms, layered page composition, lush handwritten marginalia, library stamps, wax seals, labels, tabs, arrows, archival overlays, and selective pops of color.
 - **In-game effect:** Embeds the subject in an airy, literary, slightly unfinished archive page, with abundant page furniture — notes, labels, sketches, margin writing, stamps, seals, overlays, and restrained magical color where wonder gathers.
+- **Image artifact:** Generates the archive page as a local Draw Things image when completed with proof.
 
 ### Everything’s Nice
 The Labyrinth responds with compliments and "nice surprises" like haikus or illustrations based on a selfie or object.
@@ -136,4 +146,6 @@ The narrative should make clear that Enchantments work against the Nothing becau
 
 ## Creating New Enchantments
 
-The Labyrinth can improvise new ones when the narrative calls for it — “Everything’s Music” (photos become songs), “Everything’s Flavor” (photos become recipes), or “Everything’s Memory” (photos reveal their history). New Enchantments should follow the same pattern: the player engages with the real world, the Labyrinth responds with wonder, and the result advances the story.
+The Labyrinth must not improvise new Enchantment names during ordinary play. Player-facing Enchantment offers must come from the player's Flyleaf and pass `scripts/enchantment.py` validation.
+
+New Enchantments can exist only as deliberate unlocks: add them to the official catalog, add them to the player's Flyleaf through a scripted story event, then use the formal `scripts/enchantment.py offer|start|complete` flow. Until that happens, invented spell names are flavor at most, never options, never completions, and never rewards.

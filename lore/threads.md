@@ -112,16 +112,16 @@ Two endings:
 
 **id:** `zara-inkwright`
 **type:** npc-subplot
-**phase:** rising
+**phase:** climax
 **pressure:** low *(will rise — portfolio deadline is approaching, Wicker knows)*
 **npc_anchor:** Zara Finch (Belief 23)
 **locations:** The Library, Inkwright Society Hall, Zara's usual corner of the Great Hall
 **entities:** Zara Finch
 **Nothing pressure:** medium — the Nothing would love to make her doubt the portfolio is good enough. Self-erasure before the deadline.
 
-**Next beat:** Zara's open notebook has been left on a page dense with crossed-out lines — a portfolio artist's statement, every version abandoned mid-sentence. The folded paper under the Tide Glass price tag has been joined by a second, written in different handwriting.
+**Next beat:** By morning the sea glass chip has not moved, but a thin new ink line curves from it back to Zara's desk in a slow looping spiral that wasn't there at lights-out, ending at a fresh blank card laid face-up beside the lilac petal; the Inkwright Society Hall door has been propped open a hand's width from the inside, and a single white feather rests on the threshold where no bird could have entered.
 
-**Last advanced:** 2026-05-24
+**Last advanced:** 2026-06-05
 **born:** 2026-04-12
 **closed:** —
 
@@ -138,9 +138,9 @@ Two endings:
 **entities:** Wicker Eddies
 **Nothing pressure:** high — Wicker is adjacent to the Nothing. His schemes drain Belief from others as a feature, not a side effect. The Nothing doesn't control him; they simply have similar tastes.
 
-**Next beat:** Three students have already attempted the dare, believing the initials were a senior's endorsement — one of them is now nursing a bruised wrist and asking loudly who authorized it. The original errand it replaced is gone, but the receipt pinned beneath has been handled enough times that the margin note is smudged, almost unreadable.
+**Next beat:** By the time the lunch bell rings, the tutor's quiet question to the clerk has snagged a second pair of eyes — an under-steward who recognizes the looped-S from a discarded ledger margin last week — and the two of them quietly slide all three slips into a manila sleeve labeled simply *FOR REVIEW*, leaving it on the corner of Thorne's desk where the afternoon sun will hit it first. Meanwhile, Finn finishes the americano without noticing the spiral, but the betting slip under Thorne's saucer has shifted half an inch w…
 
-**Last advanced:** 2026-05-24
+**Last advanced:** 2026-06-05
 **born:** 2026-04-01
 **closed:** —
 
@@ -159,9 +159,9 @@ Two endings:
 **entities:** Headmistress Thorne, Dusk Thorn Talisman, Victor Ebonheart
 **Nothing pressure:** high — something in Duskthorn is already adjacent to absence. The sealed corridor smells of it.
 
-**Next beat:** The Second Floor Records Office lamp is burning past the building's posted closing hour — visible as a thin amber line beneath the frosted glass panel from the stairwell landing. The ghost-mark on the bulletin board, examined closely, carries the faint shadow of a prior notice's ink: the letterhead impression is consistent with documents originating from the Headmistress's office.
+**Next beat:** The tin button rolls free in the night and lodges itself behind the Registry's brass radiator, where a registry clerk's pre-dawn sweep catches its glint and pockets it without logging — the lintel splinter, dislodged, drifts down into the cavity's dust and settles atop a folded slip of carbon paper bearing the same un-Gimble initials. By morning, the Registry's brass radiator ticks louder than usual, and a faint smudge of soot has appeared on the clerk's left cuff that she keeps absently brushing.
 
-**Last advanced:** 2026-05-24
+**Last advanced:** 2026-06-05
 **born:** 2026-04-01
 **closed:** —
 
@@ -245,6 +245,42 @@ When a new subplot, mystery, or character goal emerges with enough Belief to sus
 
 **Last advanced:** 2026-05-14
 **born:** 2026-05-12
+**closed:** —
+
+
+## Thread: Serenity's Unwritten Thread
+
+**id:** `serenity-unwritten-thread`
+**type:** npc-subplot
+**phase:** setup
+**pressure:** low
+**npc_anchor:** Serenity Brown
+**locations:** Academy corridors, Library, Great Hall, and wherever the Unwritten Interest touches the day
+**entities:** Serenity Brown
+**Nothing pressure:** medium - the Nothing can flatten this into mere trivia instead of lived story
+
+**Next beat:** By midmorning the verdigris bloom has crept a hair's-breadth toward the Marathon-green slip, and the Tide Glass's outward barnacle has been joined by a second one ribbed in pewter — the rust filament now touches the Library's threshold tile without crossing it, waiting.
+
+**Last advanced:** 2026-06-04
+**born:** 2026-05-26
+**closed:** —
+
+
+## Thread: Gimble's Unwritten Thread
+
+**id:** `gimble-unwritten-thread`
+**type:** npc-subplot
+**phase:** setup
+**pressure:** low
+**npc_anchor:** Gimble of the Errata Registry
+**locations:** Academy corridors, Library, Great Hall, and wherever the Unwritten Interest touches the day
+**entities:** Gimble of the Errata Registry
+**Nothing pressure:** medium - the Nothing can flatten this into mere trivia instead of lived story
+
+**Next beat:** Gimble of the Errata Registry leaves a concrete trace of this interest where bj can find it: a note, object, recommendation, or small request that reveals whether their gift is helping or becoming tangled in can become too interested in classification; may mistake emotional avoidance for a filing problem; needs reminding that sometimes a person needs soup before categories..
+
+**Last advanced:** 2026-06-02
+**born:** 2026-06-02
 **closed:** —
 
 
