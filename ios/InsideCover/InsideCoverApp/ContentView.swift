@@ -1168,6 +1168,7 @@ struct ContentView: View {
             automaticIlluminatedSurface = surface
             userPhotoIlluminationFallbackAllowed = false
             surfaceRefreshDate = Date()
+            lastLocalBrainError = nil
             statusMessage = "Penny prepared an illuminated photo page. It is ready if the curator lets it rise."
             return true
         } catch {
@@ -1232,6 +1233,7 @@ struct ContentView: View {
             preparedStoryPageSurface = draft.preparedStoryPageCopy(prose: prose, slotID: slot)
             surfaceRefreshDate = Date()
             lastStoryPagePreparationFailure = nil
+            lastLocalBrainError = nil
             statusMessage = "The Story Page has dried and is waiting for the curator."
             return true
         } catch {
@@ -1287,6 +1289,7 @@ struct ContentView: View {
             #endif
             preparedGossipPageSurface = draft.preparedGossipPageCopy(prose: prose, slotID: slot)
             surfaceRefreshDate = Date()
+            lastLocalBrainError = nil
             statusMessage = "A Gossip Page has dried. The margins are pretending they did not gossip."
             return true
         } catch {
@@ -1335,6 +1338,7 @@ struct ContentView: View {
             #endif
             preparedFacultyResearchSurface = draft.preparedFacultyResearchCopy(prose: prose, slotID: slot)
             surfaceRefreshDate = Date()
+            lastLocalBrainError = nil
             statusMessage = "\(draft.payload.metadata["facultyName"] ?? "The Support Guild") prepared a research folio for tonight."
             return true
         } catch {
@@ -1536,6 +1540,7 @@ struct ContentView: View {
             }
             BookFeedback.play(.braidComplete)
             modelReport = LocalModelManager.report()
+            lastLocalBrainError = nil
         } catch {
             BookFeedback.play(.error)
             lastLocalBrainError = "braid: \(error.localizedDescription)"
