@@ -22,22 +22,22 @@ import HealthKit
 #if canImport(Vision)
 import Vision
 #endif
-#if canImport(MLXLLM)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLLM)
 import MLXLLM
 #endif
-#if canImport(MLXVLM)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXVLM)
 import MLXVLM
 #endif
-#if canImport(MLXLMCommon)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLMCommon)
 import MLXLMCommon
 #endif
-#if canImport(MLXLMTokenizers)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLMTokenizers)
 import MLXLMTokenizers
 #endif
-#if canImport(MLXLMHFAPI)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLMHFAPI)
 import MLXLMHFAPI
 #endif
-#if canImport(MLX)
+#if NATIVE_LOCAL_BRAIN && canImport(MLX)
 import MLX
 #endif
 
@@ -1164,7 +1164,7 @@ struct CapturePageSheet: View {
     }
 
     private func analyzeIlluminatedPhoto(_ image: UIImage) async -> PhotoAnalysis {
-        #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+        #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
         do {
             return try await GemmaPhotoIlluminationAnalyzer().analyze(photo: image)
         } catch {
@@ -1305,7 +1305,7 @@ struct CapturePageSheet: View {
 
         do {
             let result: String
-            #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
+            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
             result = try await MLXStoryPageResultWriter().write(context: context)
             #else
             result = try await FakeStoryPageResultWriter().write(context: context)
@@ -1337,7 +1337,7 @@ struct CapturePageSheet: View {
 
         do {
             let prose: StoryPageProse
-            #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
+            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
             prose = try await MLXStoryPageWriter().write(surface: continuationSurface)
             #else
             prose = try await FakeStoryPageWriter().write(surface: continuationSurface)
@@ -1727,7 +1727,7 @@ enum GossipPagePromptBuilder {
     }
 }
 
-#if !(canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator))
+#if !NATIVE_LOCAL_BRAIN || !(canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator))
 protocol GossipPageWriting {
     func write(surface: SurfacePage) async throws -> String
 }

@@ -22,26 +22,26 @@ import HealthKit
 #if canImport(Vision)
 import Vision
 #endif
-#if canImport(MLXLLM)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLLM)
 import MLXLLM
 #endif
-#if canImport(MLXVLM)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXVLM)
 import MLXVLM
 #endif
-#if canImport(MLXLMCommon)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLMCommon)
 import MLXLMCommon
 #endif
-#if canImport(MLXLMTokenizers)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLMTokenizers)
 import MLXLMTokenizers
 #endif
-#if canImport(MLXLMHFAPI)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLMHFAPI)
 import MLXLMHFAPI
 #endif
-#if canImport(MLX)
+#if NATIVE_LOCAL_BRAIN && canImport(MLX)
 import MLX
 #endif
 
-#if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX)
 let mlxRuntimeLinked = true
 #else
 let mlxRuntimeLinked = false
@@ -135,7 +135,7 @@ struct LocalBrainWorkSnapshot {
 enum AppMemoryLedger {
     static func record(_ checkpoint: String) {
         let resident = residentBytes()
-        #if canImport(MLX)
+        #if NATIVE_LOCAL_BRAIN && canImport(MLX)
         let mlx = Memory.snapshot()
         let message = "Memory checkpoint \(checkpoint); resident: \(resident); MLX active: \(mlx.activeMemory); MLX cache: \(mlx.cacheMemory); MLX peak: \(mlx.peakMemory)"
         appLog.info("\(message, privacy: .public)")

@@ -314,6 +314,18 @@ enum LocalModelManager {
     }
 
     static func report() -> LocalModelReport {
+        #if !NATIVE_LOCAL_BRAIN || !(canImport(MLXLMHFAPI) && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX))
+        return LocalModelReport(
+            state: .unavailable,
+            preferredModelID: preferredModelID,
+            fallbackModelID: fallbackModelID,
+            preferredModelSource: preferredModel.sourceURL,
+            fallbackModelSource: compactModel.sourceURL,
+            installPath: modelsDirectory.path,
+            detail: "The native local brain is disabled in this safe startup build while its launch-time package crash is isolated.",
+            deviceSummary: deviceSummary
+        )
+        #else
         do {
             try FileManager.default.createDirectory(
                 at: modelsDirectory,
@@ -355,6 +367,7 @@ enum LocalModelManager {
             detail: "The Book recommends \(preferredModel.label) for this device: \(preferredModel.reason). Install it here, then braiding can stay local.",
             deviceSummary: deviceSummary
         )
+        #endif
     }
 
     static func removeSupersededModels(for modelID: String, preserving activeDirectory: URL) {

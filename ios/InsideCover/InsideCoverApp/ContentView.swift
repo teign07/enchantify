@@ -22,22 +22,22 @@ import HealthKit
 #if canImport(Vision)
 import Vision
 #endif
-#if canImport(MLXLLM)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLLM)
 import MLXLLM
 #endif
-#if canImport(MLXVLM)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXVLM)
 import MLXVLM
 #endif
-#if canImport(MLXLMCommon)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLMCommon)
 import MLXLMCommon
 #endif
-#if canImport(MLXLMTokenizers)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLMTokenizers)
 import MLXLMTokenizers
 #endif
-#if canImport(MLXLMHFAPI)
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLMHFAPI)
 import MLXLMHFAPI
 #endif
-#if canImport(MLX)
+#if NATIVE_LOCAL_BRAIN && canImport(MLX)
 import MLX
 #endif
 
@@ -140,7 +140,7 @@ struct ContentView: View {
     }
 
     private var shouldPrepareGeneratedPagesAutomatically: Bool {
-        #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+        #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
         false
         #else
         true
@@ -214,7 +214,7 @@ struct ContentView: View {
         _entityMemories = State(initialValue: (try? BookDatabase.entityMemories(limit: 120)) ?? [])
         _facultyEntries = State(initialValue: (try? BookDatabase.facultyEntries(limit: 160)) ?? [])
 
-        #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
+        #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
         braider = AppBraider(local: MLXBookBraider())
         wonderCompassChooser = AppWonderCompassChooser(local: MLXWonderCompassChooser())
         weatherEnchanter = AppWeatherEnchanter(local: MLXWeatherEnchanter())
@@ -1168,7 +1168,7 @@ struct ContentView: View {
     }
 
     private func analyzeAutomaticIlluminatedPhoto(_ image: UIImage) async -> PhotoAnalysis {
-        #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+        #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
         do {
             return try await GemmaPhotoIlluminationAnalyzer().analyze(photo: image)
         } catch {
@@ -1209,7 +1209,7 @@ struct ContentView: View {
 
         do {
             let prose: StoryPageProse
-            #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
             prose = try await MLXStoryPageWriter().write(surface: draft)
             #else
             prose = try await FakeStoryPageWriter().write(surface: draft)
@@ -1270,7 +1270,7 @@ struct ContentView: View {
 
         do {
             let prose: String
-            #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
             prose = try await MLXGossipPageWriter().write(surface: draft)
             #else
             prose = try await FakeGossipPageWriter().write(surface: draft)
@@ -1325,7 +1325,7 @@ struct ContentView: View {
             )
             draft = draft.withFacultyResearchClippings(clippings)
             let prose: String
-            #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
             prose = try await MLXFacultyResearchWriter().write(surface: draft)
             #else
             prose = try await FallbackFacultyResearchWriter().write(surface: draft)
@@ -1785,7 +1785,7 @@ struct ContentView: View {
             modelReport = LocalModelManager.report()
         }
 
-        #if canImport(MLXLMHFAPI)
+        #if NATIVE_LOCAL_BRAIN && canImport(MLXLMHFAPI)
         do {
             let model = LocalModelManager.preferredModel
             let modelID = model.modelID

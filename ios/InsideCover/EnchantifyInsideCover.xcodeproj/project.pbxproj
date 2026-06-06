@@ -25,12 +25,6 @@
 		010000000000000000000009 /* InsideCoverStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000104 /* InsideCoverStore.swift */; };
 		01000000000000000000000A /* widget-state.json in Resources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000105 /* widget-state.json */; };
 		01000000000000000000000B /* InsideCoverWidgetExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 010000000000000000000202 /* InsideCoverWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		01000000000000000000000C /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001002 /* MLXLLM */; };
-		01000000000000000000000D /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001003 /* MLXLMCommon */; };
-		01000000000000000000000E /* MLXLMTokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001006 /* MLXLMTokenizers */; };
-		01000000000000000000000F /* MLXLMHFAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001007 /* MLXLMHFAPI */; };
-		010000000000000000000010 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = 01000000000000000000100A /* MLX */; };
-		010000000000000000000016 /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = 01000000000000000000100B /* MLXVLM */; };
 		010000000000000000000012 /* BookReferenceLibrary.json in Resources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010C /* BookReferenceLibrary.json */; };
 		010000000000000000000013 /* BookReferenceLibrary.json in Resources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010C /* BookReferenceLibrary.json */; };
 		010000000000000000000014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010D /* Assets.xcassets */; };
@@ -66,12 +60,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				01000000000000000000000C /* MLXLLM in Frameworks */,
-				01000000000000000000000D /* MLXLMCommon in Frameworks */,
-				01000000000000000000000E /* MLXLMTokenizers in Frameworks */,
-				01000000000000000000000F /* MLXLMHFAPI in Frameworks */,
-				010000000000000000000010 /* MLX in Frameworks */,
-				010000000000000000000016 /* MLXVLM in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -169,12 +157,6 @@
 			);
 			name = InsideCoverApp;
 			packageProductDependencies = (
-				010000000000000000001002 /* MLXLLM */,
-				010000000000000000001003 /* MLXLMCommon */,
-				010000000000000000001006 /* MLXLMTokenizers */,
-				010000000000000000001007 /* MLXLMHFAPI */,
-				01000000000000000000100A /* MLX */,
-				01000000000000000000100B /* MLXVLM */,
 			);
 			productName = InsideCoverApp;
 			productReference = 010000000000000000000201 /* InsideCoverApp.app */;
