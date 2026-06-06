@@ -114,6 +114,10 @@ struct ContentView: View {
     @State private var localBrainQueuedCount = 0
     @State private var localBrainQuipIndex = 0
     @State private var localBrainStartedAt: Date?
+    @State private var lastLocalBrainLabel = "none"
+    @State private var lastLocalBrainPromptCharacters = 0
+    @State private var lastLocalBrainFinishedAt: Date?
+    @State private var lastLocalBrainError: String?
     @State private var isOpeningMovieVisible = true
 
     private let braider: Braider
@@ -332,11 +336,14 @@ struct ContentView: View {
                     localBrainWorkLabel = snapshot.label ?? "the Book"
                     localBrainPromptCharacters = snapshot.promptCharacters
                     localBrainQueuedCount = snapshot.queuedCount
+                    lastLocalBrainLabel = snapshot.label ?? "the Book"
+                    lastLocalBrainPromptCharacters = snapshot.promptCharacters
                 } else {
                     isLocalBrainWorking = false
                     localBrainStartedAt = nil
                     localBrainQueuedCount = 0
                     localBrainPromptCharacters = 0
+                    lastLocalBrainFinishedAt = Date()
                 }
             }
             .onChange(of: scenePhase) { _, newPhase in
@@ -701,10 +708,14 @@ struct ContentView: View {
                 diagnosticRow("resurfacing", "\(resurfacedPages.count) candidates")
                 diagnosticRow("queued", queuedGeneratedPages.map(\.type.shortTitle).joined(separator: " | "))
                 diagnosticRow("work", labWorkStatus)
+                diagnosticRow("last brain", labLastBrainStatus)
                 diagnosticRow("last braid", lastBraidDuration.map { "\(Int($0.rounded()))s" } ?? "none")
 
+                if let lastLocalBrainError {
+                    diagnosticRow("brain error", lastLocalBrainError, isWarning: true)
+                }
                 if let lastError = databaseReport.lastError ?? storeReport.lastError {
-                    diagnosticRow("last error", lastError, isWarning: true)
+                    diagnosticRow("shelf error", lastError, isWarning: true)
                 }
                 if let lastBackupPath = databaseReport.lastBackupPath {
                     diagnosticRow("last backup", lastBackupPath)
@@ -734,6 +745,17 @@ struct ContentView: View {
         }
         return "idle"
     }
+
+    private var labLastBrainStatus: String {
+        let finishedText = lastLocalBrainFinishedAt.map { Self.labTimestampFormatter.string(from: $0) } ?? "not finished"
+        return "\(lastLocalBrainLabel) · \(lastLocalBrainPromptCharacters) chars · \(finishedText)"
+    }
+
+    private static let labTimestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter
+    }()
 
     private func diagnosticRow(_ label: String, _ value: String, isWarning: Bool = false) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -1150,6 +1172,7 @@ struct ContentView: View {
             return true
         } catch {
             appLog.error("Automatic illuminated page preparation failed: \(error.localizedDescription, privacy: .public)")
+            lastLocalBrainError = "illumination: \(error.localizedDescription)"
             statusMessage = "Penny tried to prepare an illuminated photo page, but the press snagged: \(error.localizedDescription)"
             userPhotoIlluminationFallbackAllowed = true
             return false
@@ -1165,6 +1188,7 @@ struct ContentView: View {
             return try await GemmaPhotoIlluminationAnalyzer().analyze(photo: image)
         } catch {
             appLog.error("Automatic photo Gemma analysis fell back: \(error.localizedDescription, privacy: .public)")
+            lastLocalBrainError = "photo analysis fallback: \(error.localizedDescription)"
             return PhotoAnalysis.academyFallback
         }
         #else
@@ -1212,6 +1236,7 @@ struct ContentView: View {
             return true
         } catch {
             appLog.error("Prepared Story Page failed: \(error.localizedDescription, privacy: .public)")
+            lastLocalBrainError = "story page: \(error.localizedDescription)"
             preparedStoryPageSurface = nil
             lastStoryPagePreparationFailure = Date()
             statusMessage = "The Story Page did not finish drying. The Book will try again later."
@@ -1266,6 +1291,7 @@ struct ContentView: View {
             return true
         } catch {
             appLog.error("Prepared Gossip Page failed: \(error.localizedDescription, privacy: .public)")
+            lastLocalBrainError = "gossip page: \(error.localizedDescription)"
             preparedGossipPageSurface = nil
             statusMessage = "The Gossip Page lost its whisper. The Book will try again later."
             return false
@@ -1313,6 +1339,7 @@ struct ContentView: View {
             return true
         } catch {
             appLog.error("Prepared faculty research failed: \(error.localizedDescription, privacy: .public)")
+            lastLocalBrainError = "faculty research: \(error.localizedDescription)"
             preparedFacultyResearchSurface = nil
             statusMessage = "The faculty research folio lost its place. The Book will try again later."
             return false
@@ -1511,6 +1538,7 @@ struct ContentView: View {
             modelReport = LocalModelManager.report()
         } catch {
             BookFeedback.play(.error)
+            lastLocalBrainError = "braid: \(error.localizedDescription)"
             statusMessage = "The braid snagged, but nothing was lost. Let the page breathe, then try again. \(error.localizedDescription)"
         }
     }
