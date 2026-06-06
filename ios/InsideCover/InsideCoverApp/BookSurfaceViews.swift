@@ -475,6 +475,8 @@ struct SurfaceCard: View {
             || surface.type == .illuminatedPhoto
             || surface.type == .quip
             || surface.type == .narrativeOS
+            || surface.type == .facultyResearch
+            || surface.type == .supportGuild
             || surface.renderStyle == .quoteCard
     }
 
@@ -482,7 +484,7 @@ struct SurfaceCard: View {
         guard isReadingCard else { return nil }
         let body = surface.payload.body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return nil }
-        if surface.type == .wonderCompass || surface.type == .narrativeOS || surface.type == .gossip {
+        if surface.type == .wonderCompass || surface.type == .narrativeOS || surface.type == .gossip || surface.type == .facultyResearch || surface.type == .supportGuild {
             return body.bookPreviewSentenceLimit(2)
         }
         return body
@@ -495,6 +497,10 @@ struct SurfaceCard: View {
         case .narrativeOS:
             return 4
         case .gossip:
+            return 4
+        case .facultyResearch:
+            return 4
+        case .supportGuild:
             return 4
         case .illustration, .illuminatedPhoto:
             return 4
@@ -1789,6 +1795,57 @@ struct PageVisualStyle {
                 smallMarginalia: "IlluminationScrapS03_25",
                 watermarkMarginalia: "MarginaliaLavender",
                 watermarkOpacity: 0.10
+            )
+        case .fuel:
+            return PageVisualStyle(
+                accent: Color(red: 0.42, green: 0.48, blue: 0.22),
+                symbolColor: Color(red: 0.42, green: 0.48, blue: 0.22),
+                paperTop: Color(red: 0.95, green: 0.89, blue: 0.70),
+                paperMiddle: Color(red: 0.82, green: 0.78, blue: 0.57),
+                paperBottom: Color(red: 0.66, green: 0.61, blue: 0.43),
+                scrapColor: Color(red: 0.86, green: 0.80, blue: 0.58),
+                sideMarginalia: "IlluminationScrapS01_14",
+                cornerMarginalia: "IlluminationScrapS02_26",
+                smallMarginalia: "IlluminationScrapS03_25",
+                watermarkMarginalia: "MarginaliaShell",
+                sideMarginaliaOpacity: 0.40,
+                watermarkOpacity: 0.11
+            )
+        case .supportGuild:
+            return PageVisualStyle(
+                accent: Color(red: 0.36, green: 0.48, blue: 0.50),
+                symbolColor: Color(red: 0.36, green: 0.48, blue: 0.50),
+                paperTop: Color(red: 0.94, green: 0.88, blue: 0.74),
+                paperMiddle: Color(red: 0.79, green: 0.74, blue: 0.62),
+                paperBottom: Color(red: 0.61, green: 0.56, blue: 0.50),
+                scrapColor: Color(red: 0.82, green: 0.78, blue: 0.66),
+                sideMarginalia: "IlluminationScrapS02_26",
+                cornerMarginalia: "IlluminationScrapS02_12",
+                smallMarginalia: "MarginaliaSeal",
+                watermarkMarginalia: "MarginaliaSeal",
+                sideMarginaliaWidth: 70,
+                cornerMarginaliaWidth: 84,
+                sideMarginaliaOpacity: 0.42,
+                watermarkOpacity: 0.12,
+                scrapWidth: 92
+            )
+        case .facultyResearch:
+            return PageVisualStyle(
+                accent: Color(red: 0.43, green: 0.34, blue: 0.58),
+                symbolColor: Color(red: 0.43, green: 0.34, blue: 0.58),
+                paperTop: Color(red: 0.93, green: 0.86, blue: 0.75),
+                paperMiddle: Color(red: 0.78, green: 0.70, blue: 0.66),
+                paperBottom: Color(red: 0.58, green: 0.50, blue: 0.54),
+                scrapColor: Color(red: 0.82, green: 0.72, blue: 0.70),
+                sideMarginalia: "IlluminationScrapS03_24",
+                cornerMarginalia: "IlluminationScrapS02_13",
+                smallMarginalia: "MarginaliaFeather",
+                watermarkMarginalia: "MarginaliaSeal",
+                sideMarginaliaWidth: 66,
+                cornerMarginaliaWidth: 82,
+                sideMarginaliaOpacity: 0.42,
+                watermarkOpacity: 0.12,
+                scrapWidth: 92
             )
         case .weather, .location:
             return PageVisualStyle(

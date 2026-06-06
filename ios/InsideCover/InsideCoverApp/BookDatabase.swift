@@ -99,6 +99,21 @@ enum BookDatabase {
         try database.upsertEntityMemory(memory)
     }
 
+    static func facultyEntries(
+        kind: FacultyEntryKind? = nil,
+        dayIDs: [String]? = nil,
+        since: Date? = nil,
+        limit: Int = 120
+    ) throws -> [FacultyEntry] {
+        refreshDatabaseIfNeeded()
+        return try database.facultyEntries(kind: kind, dayIDs: dayIDs, since: since, limit: limit)
+    }
+
+    static func upsertFacultyEntry(_ entry: FacultyEntry) throws {
+        refreshDatabaseIfNeeded()
+        try database.upsertFacultyEntry(entry)
+    }
+
     static func exportArchive(generatedAt: Date = Date()) throws -> BookArchiveExport {
         refreshDatabaseIfNeeded()
         return try database.exportArchive(generatedAt: generatedAt)

@@ -57,6 +57,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case souvenir
     case rest
     case body
+    case fuel
     case weather
     case location
     case quip
@@ -68,6 +69,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case illuminatedPhoto
     case narrativeOS
     case gossip
+    case facultyResearch
+    case supportGuild
     case bookOfYou
 
     var id: String { rawValue }
@@ -82,6 +85,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Center Page"
         case .body:
             return "Body Page"
+        case .fuel:
+            return "Fuel Log"
         case .weather:
             return "Weather Page"
         case .location:
@@ -104,6 +109,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Story Page"
         case .gossip:
             return "Gossip Page"
+        case .facultyResearch:
+            return "Faculty Research Note"
+        case .supportGuild:
+            return "Support Guild Page"
         case .bookOfYou:
             return "Book of You"
         }
@@ -119,6 +128,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Rest"
         case .body:
             return "Body"
+        case .fuel:
+            return "Fuel"
         case .weather:
             return "Weather"
         case .location:
@@ -141,6 +152,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Story"
         case .gossip:
             return "Gossip"
+        case .facultyResearch:
+            return "Research"
+        case .supportGuild:
+            return "Guild"
         case .bookOfYou:
             return "Braid"
         }
@@ -156,6 +171,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "moon.stars"
         case .body:
             return "figure.mind.and.body"
+        case .fuel:
+            return "fork.knife"
         case .weather:
             return "cloud.rain"
         case .location:
@@ -178,6 +195,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "point.3.connected.trianglepath.dotted"
         case .gossip:
             return "bubble.left.and.text.bubble.right"
+        case .facultyResearch:
+            return "doc.text.magnifyingglass"
+        case .supportGuild:
+            return "cross.case"
         case .bookOfYou:
             return "book.closed"
         }
@@ -318,6 +339,30 @@ enum BookPageSourceRegistry {
             note: "What moved while you were elsewhere."
         ),
         BookPageSource(
+            id: "support-guild",
+            type: .supportGuild,
+            title: "Support Guild Page",
+            shortTitle: "Guild",
+            symbolName: "cross.case",
+            origin: .generated,
+            privacy: .localSensitive,
+            isActive: true,
+            cadence: "daily synthesis",
+            note: "Vellum and Inkrest compare charts."
+        ),
+        BookPageSource(
+            id: "faculty-research",
+            type: .facultyResearch,
+            title: "Faculty Research Notes",
+            shortTitle: "Research",
+            symbolName: "doc.text.magnifyingglass",
+            origin: .generated,
+            privacy: .localSensitive,
+            isActive: true,
+            cadence: "before guild meeting",
+            note: "Vellum and Inkrest prepare private research."
+        ),
+        BookPageSource(
             id: "body-page",
             type: .body,
             title: "Body Page",
@@ -328,6 +373,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "responsive",
             note: "Care without naming sensors."
+        ),
+        BookPageSource(
+            id: "fuel-log",
+            type: .fuel,
+            title: "Fuel Log",
+            shortTitle: "Fuel",
+            symbolName: "fork.knife",
+            origin: .userAuthored,
+            privacy: .localSensitive,
+            isActive: true,
+            cadence: "bell windows",
+            note: "Dr. Vellum's plate notes."
         ),
         BookPageSource(
             id: "weather-page",
@@ -2255,7 +2312,7 @@ enum NarrativeEventResolver {
 
         var entityDeltas: [String: Int] = ["the-book": 1]
         var threadDeltas: [String: Int] = ["ordinary-magic": 1]
-        var relationshipDeltas: [String: Int] = ["book-authors-reader": 1]
+        let relationshipDeltas: [String: Int] = ["book-authors-reader": 1]
 
         for actorID in Set(actorIDs) {
             entityDeltas[actorID, default: 0] += includesAttack ? 1 : 2
@@ -2391,6 +2448,28 @@ enum NarrativeEventResolver {
             entityDeltas["dr-inkrest", default: 0] += 1
             threadDeltas["body-learns-trust", default: 0] += 2
             relationshipDeltas["inkrest-tends-body", default: 0] += 2
+        case .fuel:
+            entityDeltas["body-page", default: 0] += 2
+            entityDeltas["dr-vellum", default: 0] += 2
+            threadDeltas["body-learns-trust", default: 0] += 2
+            relationshipDeltas["vellum-tends-body-page", default: 0] += 2
+        case .supportGuild:
+            entityDeltas["dr-vellum", default: 0] += 2
+            entityDeltas["dr-inkrest", default: 0] += 2
+            threadDeltas["elowen-refectory-experiments", default: 0] += 2
+            threadDeltas["inkrest-difficult-pages", default: 0] += 2
+            relationshipDeltas["inkrest-vellum-compare-charts", default: 0] += 3
+        case .facultyResearch:
+            if tags.contains("faculty:dr-vellum") {
+                entityDeltas["dr-vellum", default: 0] += 2
+                threadDeltas["elowen-refectory-experiments", default: 0] += 2
+                relationshipDeltas["vellum-runs-refectory-experiments", default: 0] += 2
+            }
+            if tags.contains("faculty:dr-inkrest") {
+                entityDeltas["dr-inkrest", default: 0] += 2
+                threadDeltas["inkrest-difficult-pages", default: 0] += 2
+                relationshipDeltas["inkrest-holds-difficult-pages", default: 0] += 2
+            }
         case .souvenir, .quip, .wonderCompass, .illustration:
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 1
@@ -3855,7 +3934,7 @@ struct SurfacePage: Identifiable, Equatable {
             return .rest
         case .bookOfYou:
             return .braid
-        case .body, .weather:
+        case .body, .fuel, .facultyResearch, .supportGuild, .weather:
             return .reflect
         case .wonderCompass, .lore, .patreon, .illustration, .quip:
             return .importReference
@@ -5254,9 +5333,32 @@ struct CuratorContext: Equatable {
 }
 
 struct BodySourceSignal: Equatable {
+    struct Metric: Codable, Equatable, Identifiable {
+        var id: String
+        var label: String
+        var value: String
+        var unit: String
+        var kind: String
+        var observedAt: Date?
+
+        init(id: String, label: String, value: String, unit: String = "", kind: String = "quantity", observedAt: Date? = nil) {
+            self.id = id
+            self.label = label
+            self.value = value
+            self.unit = unit
+            self.kind = kind
+            self.observedAt = observedAt
+        }
+
+        var displayText: String {
+            [label, value, unit].filter { !$0.isEmpty }.joined(separator: " ")
+        }
+    }
+
     var status: String
     var score: Int
     var phrase: String
+    var metrics: [Metric] = []
 
     var isAvailable: Bool {
         !phrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -5409,11 +5511,13 @@ struct BookSourceInputs: Equatable {
     var enchantedWeather: EnchantedWeatherSignal?
     var narrative: NarrativeSourceSnapshot?
     var selfFacts: [SelfFact] = []
+    var facultyEntries: [FacultyEntry] = []
     var selectedWonderCompass: ReferenceSnippet?
     var selectedWonderCompassSelector: String?
     var preparedIlluminatedPhotoSurface: SurfacePage?
     var preparedStoryPageSurface: SurfacePage?
     var preparedGossipPageSurface: SurfacePage?
+    var preparedFacultyResearchSurface: SurfacePage?
     var userPhotoIlluminationFallbackAllowed = false
 
     static let empty = BookSourceInputs()
@@ -5431,10 +5535,12 @@ struct BookSourceInputs: Equatable {
             enchantedWeather: nil,
             narrative: nil,
             selfFacts: [],
+            facultyEntries: [],
             selectedWonderCompass: nil,
             selectedWonderCompassSelector: nil,
             preparedIlluminatedPhotoSurface: nil,
             preparedGossipPageSurface: nil,
+            preparedFacultyResearchSurface: nil,
             userPhotoIlluminationFallbackAllowed: false
         )
     }
@@ -5472,6 +5578,350 @@ enum SurfaceCadence {
         let day = components.day ?? 1
         let slot = (components.hour ?? 0) / max(1, hours)
         return String(format: "%04d-%02d-%02d-s%02d", year, month, day, slot)
+    }
+}
+
+enum FacultyEntryKind: String, Codable, CaseIterable, Identifiable {
+    case fuel
+    case innerWeather
+
+    var id: String { rawValue }
+
+    var facultyID: String {
+        switch self {
+        case .fuel:
+            return "dr-vellum"
+        case .innerWeather:
+            return "dr-inkrest"
+        }
+    }
+
+    var chartTitle: String {
+        switch self {
+        case .fuel:
+            return "Dr. Vellum's Chart"
+        case .innerWeather:
+            return "Dr. Inkrest's Chart"
+        }
+    }
+}
+
+struct FacultyEntry: Codable, Identifiable, Equatable {
+    var id: String
+    var kind: FacultyEntryKind
+    var facultyID: String
+    var dayID: String
+    var sourcePageID: String?
+    var createdAt: Date
+    var windowID: String
+    var windowName: String
+    var rawText: String
+    var tags: [String]
+
+    init(
+        id: String = UUID().uuidString,
+        kind: FacultyEntryKind,
+        facultyID: String? = nil,
+        dayID: String,
+        sourcePageID: String? = nil,
+        createdAt: Date = Date(),
+        windowID: String,
+        windowName: String,
+        rawText: String,
+        tags: [String] = []
+    ) {
+        self.id = id
+        self.kind = kind
+        self.facultyID = facultyID ?? kind.facultyID
+        self.dayID = dayID
+        self.sourcePageID = sourcePageID
+        self.createdAt = createdAt
+        self.windowID = windowID
+        self.windowName = windowName
+        self.rawText = rawText
+        self.tags = tags
+    }
+}
+
+struct FacultyLogWindow: Equatable {
+    var id: String
+    var name: String
+    var startMinute: Int
+    var endMinute: Int
+}
+
+enum FacultyLogCadence {
+    static let windows: [FacultyLogWindow] = [
+        FacultyLogWindow(id: "morning", name: "Morning Bell", startMinute: 5 * 60, endMinute: 11 * 60),
+        FacultyLogWindow(id: "midday", name: "Midday Bell", startMinute: 11 * 60, endMinute: 16 * 60),
+        FacultyLogWindow(id: "evening", name: "Evening Bell", startMinute: 16 * 60, endMinute: 21 * 60),
+        FacultyLogWindow(id: "night", name: "Night Bell", startMinute: 21 * 60, endMinute: 29 * 60)
+    ]
+
+    static func currentWindow(for date: Date = Date(), calendar: Calendar = .current) -> FacultyLogWindow {
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        let minute = (components.hour ?? 0) * 60 + (components.minute ?? 0)
+        let comparableMinute = minute < windows[0].startMinute ? minute + 24 * 60 : minute
+        return windows.first { window in
+            comparableMinute >= window.startMinute && comparableMinute < window.endMinute
+        } ?? windows[0]
+    }
+
+    static func didLog(kind: FacultyEntryKind, day: BookDay, entries: [FacultyEntry], now: Date = Date()) -> Bool {
+        let window = currentWindow(for: now)
+        if entries.contains(where: { $0.kind == kind && $0.dayID == day.id && $0.windowID == window.id }) {
+            return true
+        }
+        let kindTag = "faculty-kind:\(kind.rawValue)"
+        let windowTag = "faculty-window:\(window.id)"
+        return day.pages.contains { page in
+            page.tags.contains(kindTag) && page.tags.contains(windowTag)
+        }
+    }
+}
+
+enum SupportGuildSynthesisGenerator {
+    static func surface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date = Date()) -> SurfacePage? {
+        let source = BookPageSourceRegistry.source(for: .supportGuild)
+        guard Self.isGuildTime(now) else { return nil }
+        let slot = SurfaceCadence.slotID(for: now, hours: 8)
+        let alreadyKept = day.pages.contains { $0.type == .supportGuild && $0.tags.contains("support-guild:\(slot)") }
+        guard !alreadyKept else { return nil }
+
+        let recentEntries = inputs.facultyEntries
+            .filter { $0.dayID == day.id || $0.createdAt > Calendar.current.date(byAdding: .day, value: -3, to: now) ?? now }
+            .sorted { $0.createdAt > $1.createdAt }
+        guard recentEntries.count >= 2 || inputs.body?.metrics.isEmpty == false || context.distress.isActive else {
+            return nil
+        }
+
+        let fuelEntries = recentEntries.filter { $0.kind == .fuel }
+        let weatherEntries = recentEntries.filter { $0.kind == .innerWeather }
+        let researchNotes = day.pages
+            .filter { $0.type == .facultyResearch }
+            .sorted { $0.createdAt < $1.createdAt }
+        let metrics = inputs.body?.metrics ?? []
+        let vellum = NarrativePackRegistry.entities.first { $0.id == "dr-vellum" }
+        let inkrest = NarrativePackRegistry.entities.first { $0.id == "dr-inkrest" }
+        let connection = connectionLine(fuelEntries: fuelEntries, weatherEntries: weatherEntries, metrics: metrics, distressActive: context.distress.isActive)
+        let experiment = experimentLine(fuelEntries: fuelEntries, weatherEntries: weatherEntries, metrics: metrics, distressActive: context.distress.isActive)
+        let safety = "This is not diagnosis or treatment. It is a low-shame pattern note for deciding what to observe next."
+        let sections: [String: String] = [
+            "vellum": [
+                "Vellum reads: \(summaryList(for: fuelEntries, fallback: "no fuel notes yet"))",
+                "HealthKit margin: \(metricSummary(metrics))",
+                "Research note: \(researchSummary(for: "dr-vellum", pages: researchNotes))",
+                "Research docket: \(vellum?.unwrittenInterest ?? "longevity, fuel, recovery, and humane experiments")"
+            ].joined(separator: "\n"),
+            "inkrest": [
+                "Inkrest reads: \(summaryList(for: weatherEntries, fallback: "no inner-weather notes yet"))",
+                "Narrative pressure: \(context.distress.isActive ? "the page asks for gentleness before interpretation" : "patterns can be held lightly")",
+                "Research note: \(researchSummary(for: "dr-inkrest", pages: researchNotes))",
+                "Research docket: \(inkrest?.unwrittenInterest ?? "consciousness, narrative psychology, and reauthoring")"
+            ].joined(separator: "\n"),
+            "connections": connection,
+            "experiment": experiment,
+            "safety": safety
+        ]
+        let body = [
+            "Dr. Vellum and Dr. Inkrest compared the chart without making it a verdict.",
+            "",
+            "Connection: \(connection)",
+            "",
+            "Small experiment: \(experiment)",
+            "",
+            safety
+        ].joined(separator: "\n")
+
+        return SurfacePage(
+            id: "\(source.id)-\(day.id)-\(slot)",
+            type: .supportGuild,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .gentleTranslation,
+            score: context.distress.isActive ? 94 : 78,
+            reason: "The Support Guild has enough chart ink to compare patterns.",
+            prompt: "The Support Guild has opened a joint page.",
+            detail: "Vellum and Inkrest compare fuel, inner weather, body signals, and research dockets into one humane experiment.",
+            payload: BookPagePayload(
+                headline: "Support Guild Page",
+                body: body,
+                metadata: [
+                    "source": source.id,
+                    "slot": slot,
+                    "vellumSection": sections["vellum"] ?? "",
+                    "inkrestSection": sections["inkrest"] ?? "",
+                    "connectionsSection": sections["connections"] ?? "",
+                    "experimentSection": sections["experiment"] ?? "",
+                    "safetySection": sections["safety"] ?? "",
+                    "researchTopics": [
+                        vellum?.unwrittenInterest ?? "longevity, fuel, recovery, supplements, movement",
+                        inkrest?.unwrittenInterest ?? "consciousness, narrative psychology, brain studies"
+                    ].joined(separator: "\n"),
+                    "tags": "support-guild,support-guild:\(slot),dr-vellum,dr-inkrest,vellum-chart,therapy-chart,research,experiment"
+                ]
+            )
+        )
+    }
+
+    static func isGuildTime(_ date: Date = Date(), calendar: Calendar = .current) -> Bool {
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        return ((components.hour ?? 0) * 60 + (components.minute ?? 0)) >= 19 * 60
+    }
+
+    private static func summaryList(for entries: [FacultyEntry], fallback: String) -> String {
+        let snippets = entries.prefix(3).map { entry in
+            let text = entry.rawText.replacingOccurrences(of: "\n", with: " ")
+            return "\(entry.windowName): \(String(text.prefix(90)))"
+        }
+        return snippets.isEmpty ? fallback : snippets.joined(separator: " | ")
+    }
+
+    private static func metricSummary(_ metrics: [BodySourceSignal.Metric]) -> String {
+        let wanted = ["Sleep", "Steps", "Active energy", "Heart rate", "Resting heart rate", "HRV", "Blood pressure systolic", "Blood glucose", "Medication"]
+        let selected = wanted.compactMap { label in metrics.first { $0.label == label } }.prefix(6)
+        guard !selected.isEmpty else { return "no additional HealthKit metrics available" }
+        return selected.map(\.displayText).joined(separator: " | ")
+    }
+
+    private static func researchSummary(for facultyID: String, pages: [BookPage]) -> String {
+        guard let page = pages.last(where: { $0.tags.contains("faculty:\(facultyID)") }) else {
+            return "no saved research note yet"
+        }
+        return page.userInput
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .prefix(220)
+            .description
+    }
+
+    private static func connectionLine(
+        fuelEntries: [FacultyEntry],
+        weatherEntries: [FacultyEntry],
+        metrics: [BodySourceSignal.Metric],
+        distressActive: Bool
+    ) -> String {
+        let fuelText = fuelEntries.map(\.rawText).joined(separator: " ").lowercased()
+        let weatherText = weatherEntries.map(\.rawText).joined(separator: " ").lowercased()
+        let sleep = metrics.first { $0.label == "Sleep" }.flatMap { Double($0.value) } ?? 0
+        if distressActive || weatherText.contains("anx") || weatherText.contains("storm") || weatherText.contains("low") {
+            return "Inner weather is asking to be treated as context before it is treated as a problem; Vellum should keep the next body experiment smaller than ambition wants."
+        }
+        if sleep > 0 && sleep < 6 {
+            return "Short sleep changes the meaning of fuel, mood, and motivation. The Guild reads today through recovery first."
+        }
+        if fuelText.contains("coffee") && weatherText.contains("tired") {
+            return "Caffeine and tiredness are sharing a margin; the useful question is timing, not virtue."
+        }
+        if !fuelEntries.isEmpty && !weatherEntries.isEmpty {
+            return "Fuel notes and inner weather are now close enough on the page to compare timing, texture, and aftermath."
+        }
+        return "The chart has begun; the strongest current signal is that missing data should become a question, not a conclusion."
+    }
+
+    private static func experimentLine(
+        fuelEntries: [FacultyEntry],
+        weatherEntries: [FacultyEntry],
+        metrics: [BodySourceSignal.Metric],
+        distressActive: Bool
+    ) -> String {
+        let steps = metrics.first { $0.label == "Steps" }.flatMap { Double($0.value) } ?? 0
+        let sleep = metrics.first { $0.label == "Sleep" }.flatMap { Double($0.value) } ?? 0
+        if distressActive {
+            return "For one bell window, log fuel and inner weather without fixing either. Add one grounding sentence before any plan."
+        }
+        if sleep > 0 && sleep < 6 {
+            return "Run a recovery-first day: warm fuel, water, no heroic errands, and a one-line note about mood after the next meal."
+        }
+        if steps < 1_500 && !fuelEntries.isEmpty {
+            return "After the next fuel note, try five gentle minutes of movement and log whether the inner weather changes by one word."
+        }
+        if weatherEntries.isEmpty {
+            return "Pair the next Fuel Log with one Inner Weather word so Vellum and Inkrest can compare timing."
+        }
+        return "Choose one repeatable observation for today: what happened to energy and mood one hour after the most ordinary meal or drink?"
+    }
+}
+
+enum FacultyResearchNoteGenerator {
+    static func draftCandidate(for day: BookDay, inputs: BookSourceInputs, now: Date = Date()) -> SurfacePage? {
+        let source = BookPageSourceRegistry.source(for: .facultyResearch)
+        guard !SupportGuildSynthesisGenerator.isGuildTime(now) else { return nil }
+        let dueFaculty = nextDueFaculty(for: day)
+        guard let facultyID = dueFaculty else { return nil }
+        return draftCandidate(for: facultyID, source: source, day: day, inputs: inputs, now: now)
+    }
+
+    static func nextDueFaculty(for day: BookDay) -> String? {
+        let researched = Set(day.pages.filter { $0.type == .facultyResearch }.flatMap(\.tags).compactMap { tag -> String? in
+            guard tag.hasPrefix("faculty:") else { return nil }
+            return String(tag.dropFirst("faculty:".count))
+        })
+        if !researched.contains("dr-vellum") {
+            return "dr-vellum"
+        }
+        if !researched.contains("dr-inkrest") {
+            return "dr-inkrest"
+        }
+        return nil
+    }
+
+    static func draftCandidate(for facultyID: String, source: BookPageSource, day: BookDay, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        let entity = NarrativePackRegistry.entities.first { $0.id == facultyID }
+        let facultyName = entity?.name ?? facultyID
+        let chart = SupportFacultyPackRegistry.charts(for: [facultyID]).first
+        let topic = entity?.unwrittenInterest ?? chart?.purpose ?? "care research"
+        let slot = SurfaceCadence.slotID(for: now, hours: 12)
+        let body = promptBody(for: facultyID, topic: topic, day: day, inputs: inputs)
+        return SurfacePage(
+            id: "\(source.id)-\(day.id)-\(slot)-\(facultyID)",
+            type: .facultyResearch,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .gentleTranslation,
+            score: facultyID == "dr-vellum" ? 59 : 57,
+            reason: "\(facultyName) is preparing a private research note for the evening Guild page.",
+            prompt: "\(facultyName) opens a research folio.",
+            detail: "A local-brain research brief for tonight's Support Guild meeting.",
+            payload: BookPagePayload(
+                headline: "\(facultyName)'s Research Folio",
+                body: body,
+                metadata: [
+                    "source": source.id,
+                    "facultyID": facultyID,
+                    "facultyName": facultyName,
+                    "researchTopic": topic,
+                    "slotID": slot,
+                    "placeholder": "Keep this research note for tonight's Guild page.",
+                    "tags": "faculty-research,faculty:\(facultyID),support-guild,research"
+                ]
+            )
+        )
+    }
+
+    private static func promptBody(for facultyID: String, topic: String, day: BookDay, inputs: BookSourceInputs) -> String {
+        let metrics = inputs.body?.metrics.prefix(8).map(\.displayText).joined(separator: " | ") ?? "no HealthKit metrics"
+        let entries = inputs.facultyEntries.prefix(8).map { "\($0.windowName): \($0.rawText)" }.joined(separator: "\n")
+        if facultyID == "dr-vellum" {
+            return """
+            Research focus: \(topic)
+
+            Vellum should connect current body evidence to longevity, fuel, recovery, sleep, heart signals, medication cautions, and one humane experiment. Use uncertainty. No diagnosis. No protocol heroics.
+
+            Body signals: \(metrics)
+            Recent chart entries:
+            \(entries.isEmpty ? "No chart entries yet." : entries)
+            """
+        }
+        return """
+        Research focus: \(topic)
+
+        Inkrest should connect current inner weather to narrative psychology, consciousness, self-distancing, reauthoring, attention, and one gentle question. Use uncertainty. No diagnosis. No forced catharsis.
+
+        Body signals: \(metrics)
+        Recent chart entries:
+        \(entries.isEmpty ? "No chart entries yet." : entries)
+        """
     }
 }
 
@@ -6069,24 +6519,112 @@ struct MoodPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .mood)
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        guard !day.hasMood else { return [] }
+        let window = FacultyLogCadence.currentWindow(for: now)
+        guard !FacultyLogCadence.didLog(kind: .innerWeather, day: day, entries: inputs.facultyEntries, now: now) else {
+            return []
+        }
         return [
             SurfacePage(
+                id: "\(source.id)-\(day.id)-\(window.id)",
                 type: .mood,
                 sourceID: source.id,
                 intent: .capture,
                 renderStyle: .promptCard,
                 score: context.distress.isActive ? 72 : 64,
-                reason: context.distress.isActive ? "A hard signal asks for gentle naming." : "No inner weather has been named today.",
+                reason: context.distress.isActive ? "A hard signal asks for gentle naming." : "Dr. Inkrest has an open chart window.",
                 prompt: "What is the weather inside?",
-                detail: "Name the inner sky. One tap is enough.",
+                detail: "\(window.name). Name the inner sky. One tap is enough.",
                 payload: BookPagePayload(
                     headline: "Inner Weather",
                     body: "Name the inner sky. One tap is enough.",
-                    metadata: ["source": source.id]
+                    metadata: [
+                        "source": source.id,
+                        "facultyID": FacultyEntryKind.innerWeather.facultyID,
+                        "facultyKind": FacultyEntryKind.innerWeather.rawValue,
+                        "facultyWindowID": window.id,
+                        "facultyWindowName": window.name,
+                        "chartTitle": FacultyEntryKind.innerWeather.chartTitle,
+                        "tags": "inner-weather,faculty-kind:innerWeather,faculty-window:\(window.id),dr-inkrest,therapy-chart"
+                    ]
                 )
             )
         ]
+    }
+}
+
+struct FuelLogPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .fuel)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        let window = FacultyLogCadence.currentWindow(for: now)
+        guard !FacultyLogCadence.didLog(kind: .fuel, day: day, entries: inputs.facultyEntries, now: now) else {
+            return []
+        }
+
+        let detail: String
+        switch window.id {
+        case "morning":
+            detail = "What has crossed the threshold since waking: food, coffee, water, medicine, crumbs, anything."
+        case "midday":
+            detail = "What has kept the engine lit so far? Approximate is useful."
+        case "evening":
+            detail = "What did the body receive since the last bell? Meals, snacks, drinks, supplements, no ceremony required."
+        default:
+            detail = "A gentle closing note for the body: late drinks, bites, medicine, or simply nothing since the last bell."
+        }
+
+        return [
+            SurfacePage(
+                id: "\(source.id)-\(day.id)-\(window.id)",
+                type: .fuel,
+                sourceID: source.id,
+                intent: .capture,
+                renderStyle: .promptCard,
+                score: context.distress.isActive ? 70 : 66,
+                reason: "Dr. Vellum has an open plate-note window.",
+                prompt: "Dr. Vellum's Plate Note",
+                detail: "\(window.name). \(detail)",
+                payload: BookPagePayload(
+                    headline: "Fuel Log",
+                    body: detail,
+                    metadata: [
+                        "source": source.id,
+                        "facultyID": FacultyEntryKind.fuel.facultyID,
+                        "facultyKind": FacultyEntryKind.fuel.rawValue,
+                        "facultyWindowID": window.id,
+                        "facultyWindowName": window.name,
+                        "chartTitle": FacultyEntryKind.fuel.chartTitle,
+                        "placeholder": "Breakfast: coffee, toast, water...\nLunch: leftovers, soda...\nMedicine/supplements: ...",
+                        "tags": "fuel,faculty-kind:fuel,faculty-window:\(window.id),dr-vellum,vellum-chart,food,drink"
+                    ]
+                )
+            )
+        ]
+    }
+}
+
+struct SupportGuildPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .supportGuild)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard let surface = SupportGuildSynthesisGenerator.surface(for: day, context: context, inputs: inputs, now: now) else {
+            return []
+        }
+        return [surface]
+    }
+}
+
+struct FacultyResearchPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .facultyResearch)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        if let prepared = inputs.preparedFacultyResearchSurface {
+            return [prepared]
+        }
+        guard let draft = FacultyResearchNoteGenerator.draftCandidate(for: day, inputs: inputs, now: now) else {
+            return []
+        }
+        return [draft]
     }
 }
 
@@ -6627,7 +7165,7 @@ struct EnchantifyLorePageSourceAdapter: BookPageSourceAdapter {
                 sourceID: source.id,
                 intent: .importReference,
                 renderStyle: .loreLetter,
-                score: context.distress.isActive ? 44 : 63,
+                score: context.distress.isActive ? 44 : 68,
                 reason: context.distress.isActive ? "Lore waits behind gentler pages when the day is hard." : "A lore card can bring the world closer without asking anything of you.",
                 prompt: snippet.prompt,
                 detail: snippet.title,
@@ -6894,6 +7432,9 @@ enum BookPageSourceAdapters {
         SouvenirPageSourceAdapter(),
         BookOfYouPageSourceAdapter(),
         BodyPageSourceAdapter(),
+        FuelLogPageSourceAdapter(),
+        FacultyResearchPageSourceAdapter(),
+        SupportGuildPageSourceAdapter(),
         WeatherPageSourceAdapter(),
         QuipPageSourceAdapter(),
         AboutYouPageSourceAdapter(),

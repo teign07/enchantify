@@ -239,9 +239,63 @@ final class StoredNarrativeEntityMemory {
     }
 }
 
+@Model
+final class StoredFacultyEntry {
+    @Attribute(.unique) var id: String
+    var kindRawValue: String
+    var facultyID: String
+    var dayID: String
+    var sourcePageID: String?
+    var createdAt: Date
+    var windowID: String
+    var windowName: String
+    var rawText: String
+    var tagsData: Data
+
+    init(entry: FacultyEntry) {
+        id = entry.id
+        kindRawValue = entry.kind.rawValue
+        facultyID = entry.facultyID
+        dayID = entry.dayID
+        sourcePageID = entry.sourcePageID
+        createdAt = entry.createdAt
+        windowID = entry.windowID
+        windowName = entry.windowName
+        rawText = entry.rawText
+        tagsData = (try? JSONEncoder().encode(entry.tags)) ?? Data()
+    }
+
+    var facultyEntry: FacultyEntry {
+        FacultyEntry(
+            id: id,
+            kind: FacultyEntryKind(rawValue: kindRawValue) ?? .fuel,
+            facultyID: facultyID,
+            dayID: dayID,
+            sourcePageID: sourcePageID,
+            createdAt: createdAt,
+            windowID: windowID,
+            windowName: windowName,
+            rawText: rawText,
+            tags: (try? JSONDecoder().decode([String].self, from: tagsData)) ?? []
+        )
+    }
+
+    func update(with entry: FacultyEntry) {
+        kindRawValue = entry.kind.rawValue
+        facultyID = entry.facultyID
+        dayID = entry.dayID
+        sourcePageID = entry.sourcePageID
+        createdAt = entry.createdAt
+        windowID = entry.windowID
+        windowName = entry.windowName
+        rawText = entry.rawText
+        tagsData = (try? JSONEncoder().encode(entry.tags)) ?? Data()
+    }
+}
+
 @MainActor
 final class BookArchiveDatabase {
-    static let schemaVersion = 3
+    static let schemaVersion = 4
     static let backupDirectoryName = "BookArchiveBackups"
 
     enum LoadSource: String, Equatable {
@@ -459,6 +513,48 @@ final class BookArchiveDatabase {
         try context.save()
     }
 
+    func facultyEntries(kind: FacultyEntryKind? = nil, dayIDs: [String]? = nil, since: Date? = nil, limit: Int = 120) throws -> [FacultyEntry] {
+        let context = try makeContext()
+        let wantedDayIDs = dayIDs.map(Set.init)
+        var descriptor = FetchDescriptor<StoredFacultyEntry>(
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = max(limit * 3, limit)
+        return try context.fetch(descriptor)
+            .lazy
+            .map(\.facultyEntry)
+            .filter { entry in
+                if let kind, entry.kind != kind {
+                    return false
+                }
+                if let wantedDayIDs, !wantedDayIDs.contains(entry.dayID) {
+                    return false
+                }
+                if let since, entry.createdAt < since {
+                    return false
+                }
+                return true
+            }
+            .prefix(max(limit, 0))
+            .map { $0 }
+    }
+
+    func upsertFacultyEntry(_ entry: FacultyEntry) throws {
+        let context = try makeContext()
+        var descriptor = FetchDescriptor<StoredFacultyEntry>(
+            predicate: #Predicate { storedEntry in
+                storedEntry.id == entry.id
+            }
+        )
+        descriptor.fetchLimit = 1
+        if let existing = try context.fetch(descriptor).first {
+            existing.update(with: entry)
+        } else {
+            context.insert(StoredFacultyEntry(entry: entry))
+        }
+        try context.save()
+    }
+
     func exportArchive(generatedAt: Date = Date()) throws -> BookArchiveExport {
         let context = try makeContext()
         return BookArchiveExport(generatedAt: generatedAt, days: try fetchDays(in: context))
@@ -513,7 +609,8 @@ final class BookArchiveDatabase {
             StoredArchiveResurfacingEvent.self,
             StoredSelfFact.self,
             StoredNarrativeEvent.self,
-            StoredNarrativeEntityMemory.self
+            StoredNarrativeEntityMemory.self,
+            StoredFacultyEntry.self
         ])
         let configuration = ModelConfiguration(
             "LabyrinthBook",

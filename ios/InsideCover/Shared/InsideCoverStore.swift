@@ -830,6 +830,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "a request for rest" : "rest appearing as \(clipped)"
         case .body:
             return clipped.isEmpty ? "the body lowering a lamp" : "the body saying \(clipped)"
+        case .fuel:
+            return clipped.isEmpty ? "a plate note entering Vellum's chart" : "Vellum noting \(clipped)"
         case .weather:
             return clipped.isEmpty ? "weather at the window" : "weather answering as \(clipped)"
         case .location:
@@ -848,6 +850,10 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "a story thread waking" : "a story thread tugging \(clipped)"
         case .gossip:
             return clipped.isEmpty ? "a rumor moving in the margins" : "the margins reporting \(clipped)"
+        case .facultyResearch:
+            return clipped.isEmpty ? "a faculty research note" : "faculty research finding \(clipped)"
+        case .supportGuild:
+            return clipped.isEmpty ? "the Support Guild comparing charts" : "the Support Guild connecting \(clipped)"
         case .quip:
             return clipped.isEmpty ? "a quip lighting a match" : "a quip insisting \(clipped)"
         case .aboutYou:

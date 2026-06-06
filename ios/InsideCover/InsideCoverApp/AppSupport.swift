@@ -230,19 +230,48 @@ enum HealthKitBodyReader {
         }
 
         let store = HKHealthStore()
-        let readTypes: Set<HKObjectType> = [stepType, distanceType, activeEnergyType, sleepType]
+        let optionalQuantityTypes: [HKQuantityType] = [
+            .quantityType(forIdentifier: .heartRate),
+            .quantityType(forIdentifier: .restingHeartRate),
+            .quantityType(forIdentifier: .heartRateVariabilitySDNN),
+            .quantityType(forIdentifier: .walkingHeartRateAverage),
+            .quantityType(forIdentifier: .oxygenSaturation),
+            .quantityType(forIdentifier: .respiratoryRate),
+            .quantityType(forIdentifier: .bloodPressureSystolic),
+            .quantityType(forIdentifier: .bloodPressureDiastolic),
+            .quantityType(forIdentifier: .bloodGlucose),
+            .quantityType(forIdentifier: .bodyMass),
+            .quantityType(forIdentifier: .bodyMassIndex),
+            .quantityType(forIdentifier: .dietaryEnergyConsumed),
+            .quantityType(forIdentifier: .dietaryWater),
+            .quantityType(forIdentifier: .dietaryProtein),
+            .quantityType(forIdentifier: .dietaryCarbohydrates),
+            .quantityType(forIdentifier: .dietaryFatTotal),
+            .quantityType(forIdentifier: .dietaryFiber)
+        ].compactMap(\.self)
+        let optionalClinicalTypes: [HKClinicalType] = [
+            .clinicalType(forIdentifier: .medicationRecord),
+            .clinicalType(forIdentifier: .allergyRecord),
+            .clinicalType(forIdentifier: .conditionRecord),
+            .clinicalType(forIdentifier: .labResultRecord),
+            .clinicalType(forIdentifier: .immunizationRecord),
+            .clinicalType(forIdentifier: .vitalSignRecord)
+        ].compactMap(\.self)
+        let readTypes = Set<HKObjectType>([stepType, distanceType, activeEnergyType, sleepType] + optionalQuantityTypes + optionalClinicalTypes)
         try await store.requestAuthorization(toShare: [], read: readTypes)
 
         async let steps = optionalQuantitySum(for: stepType, unit: .count(), store: store, daysBack: 1)
         async let distance = optionalQuantitySum(for: distanceType, unit: .meter(), store: store, daysBack: 1)
         async let energy = optionalQuantitySum(for: activeEnergyType, unit: .kilocalorie(), store: store, daysBack: 1)
         async let sleep = optionalSleepHours(for: sleepType, store: store)
+        async let richerMetrics = optionalDoctorMetrics(store: store)
 
         return translate(
             steps: await steps,
             distanceMeters: await distance,
             activeKilocalories: await energy,
-            sleepHours: await sleep
+            sleepHours: await sleep,
+            metrics: await richerMetrics
         )
         #else
         throw ReaderError.unavailable
@@ -288,6 +317,134 @@ enum HealthKitBodyReader {
         (try? await sleepHours(for: type, store: store)) ?? 0
     }
 
+    private static func optionalDoctorMetrics(store: HKHealthStore) async -> [BodySourceSignal.Metric] {
+        await withTaskGroup(of: BodySourceSignal.Metric?.self) { group in
+            func addLatest(_ identifier: HKQuantityTypeIdentifier, label: String, unit: HKUnit, displayUnit: String, decimals: Int = 0) {
+                guard let type = HKQuantityType.quantityType(forIdentifier: identifier) else { return }
+                group.addTask {
+                    await optionalLatestMetric(for: type, label: label, unit: unit, displayUnit: displayUnit, decimals: decimals, store: store)
+                }
+            }
+
+            func addSum(_ identifier: HKQuantityTypeIdentifier, label: String, unit: HKUnit, displayUnit: String, daysBack: Int = 1, decimals: Int = 0) {
+                guard let type = HKQuantityType.quantityType(forIdentifier: identifier) else { return }
+                group.addTask {
+                    let value = await optionalQuantitySum(for: type, unit: unit, store: store, daysBack: daysBack)
+                    guard value > 0 else { return nil }
+                    return BodySourceSignal.Metric(
+                        id: identifier.rawValue,
+                        label: label,
+                        value: formatted(value, decimals: decimals),
+                        unit: displayUnit,
+                        kind: "sum"
+                    )
+                }
+            }
+
+            func addClinicalCount(_ identifier: HKClinicalTypeIdentifier, label: String) {
+                guard let type = HKClinicalType.clinicalType(forIdentifier: identifier) else { return }
+                group.addTask {
+                    let count = await optionalSampleCount(for: type, store: store, daysBack: 365)
+                    guard count > 0 else { return nil }
+                    return BodySourceSignal.Metric(id: identifier.rawValue, label: label, value: "\(count)", unit: "records", kind: "clinical")
+                }
+            }
+
+            addLatest(.heartRate, label: "Heart rate", unit: HKUnit.count().unitDivided(by: .minute()), displayUnit: "bpm")
+            addLatest(.restingHeartRate, label: "Resting heart rate", unit: HKUnit.count().unitDivided(by: .minute()), displayUnit: "bpm")
+            addLatest(.heartRateVariabilitySDNN, label: "HRV", unit: .secondUnit(with: .milli), displayUnit: "ms")
+            addLatest(.walkingHeartRateAverage, label: "Walking heart rate", unit: HKUnit.count().unitDivided(by: .minute()), displayUnit: "bpm")
+            addLatest(.oxygenSaturation, label: "Oxygen saturation", unit: .percent(), displayUnit: "%", decimals: 1)
+            addLatest(.respiratoryRate, label: "Respiratory rate", unit: HKUnit.count().unitDivided(by: .minute()), displayUnit: "/min", decimals: 1)
+            addLatest(.bloodPressureSystolic, label: "Blood pressure systolic", unit: .millimeterOfMercury(), displayUnit: "mmHg")
+            addLatest(.bloodPressureDiastolic, label: "Blood pressure diastolic", unit: .millimeterOfMercury(), displayUnit: "mmHg")
+            addLatest(.bloodGlucose, label: "Blood glucose", unit: HKUnit.gramUnit(with: .milli).unitDivided(by: .literUnit(with: .deci)), displayUnit: "mg/dL")
+            addLatest(.bodyMass, label: "Body mass", unit: .pound(), displayUnit: "lb", decimals: 1)
+            addLatest(.bodyMassIndex, label: "BMI", unit: .count(), displayUnit: "", decimals: 1)
+            addSum(.dietaryEnergyConsumed, label: "Dietary energy", unit: .kilocalorie(), displayUnit: "kcal")
+            addSum(.dietaryWater, label: "Water", unit: .literUnit(with: .milli), displayUnit: "mL")
+            addSum(.dietaryProtein, label: "Protein", unit: .gram(), displayUnit: "g")
+            addSum(.dietaryCarbohydrates, label: "Carbohydrates", unit: .gram(), displayUnit: "g")
+            addSum(.dietaryFatTotal, label: "Fat", unit: .gram(), displayUnit: "g")
+            addSum(.dietaryFiber, label: "Fiber", unit: .gram(), displayUnit: "g")
+            addClinicalCount(.medicationRecord, label: "Medication")
+            addClinicalCount(.allergyRecord, label: "Allergy")
+            addClinicalCount(.conditionRecord, label: "Condition")
+            addClinicalCount(.labResultRecord, label: "Lab")
+            addClinicalCount(.immunizationRecord, label: "Immunization")
+            addClinicalCount(.vitalSignRecord, label: "Vital sign")
+
+            var metrics: [BodySourceSignal.Metric] = []
+            for await metric in group {
+                if let metric {
+                    metrics.append(metric)
+                }
+            }
+            return metrics.sorted { $0.label < $1.label }
+        }
+    }
+
+    private static func optionalLatestMetric(
+        for type: HKQuantityType,
+        label: String,
+        unit: HKUnit,
+        displayUnit: String,
+        decimals: Int,
+        store: HKHealthStore
+    ) async -> BodySourceSignal.Metric? {
+        guard let sample = try? await latestQuantitySample(for: type, store: store),
+              sample.quantity.doubleValue(for: unit) > 0 else {
+            return nil
+        }
+        return BodySourceSignal.Metric(
+            id: type.identifier,
+            label: label,
+            value: formatted(sample.quantity.doubleValue(for: unit), decimals: decimals),
+            unit: displayUnit,
+            kind: "latest",
+            observedAt: sample.endDate
+        )
+    }
+
+    private static func latestQuantitySample(for type: HKQuantityType, store: HKHealthStore) async throws -> HKQuantitySample? {
+        let start = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: Date())
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: 1, sortDescriptors: [sort]) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                continuation.resume(returning: (samples as? [HKQuantitySample])?.first)
+            }
+            store.execute(query)
+        }
+    }
+
+    private static func optionalSampleCount(for type: HKSampleType, store: HKHealthStore, daysBack: Int) async -> Int {
+        (try? await sampleCount(for: type, store: store, daysBack: daysBack)) ?? 0
+    }
+
+    private static func sampleCount(for type: HKSampleType, store: HKHealthStore, daysBack: Int) async throws -> Int {
+        let start = Calendar.current.date(byAdding: .day, value: -daysBack, to: Date()) ?? Date()
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: Date())
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                continuation.resume(returning: samples?.count ?? 0)
+            }
+            store.execute(query)
+        }
+    }
+
+    private static func formatted(_ value: Double, decimals: Int) -> String {
+        String(format: "%.\(decimals)f", value)
+    }
+
     private static func sleepHours(for type: HKCategoryType, store: HKHealthStore) async throws -> Double {
         let start = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
         let predicate = HKQuery.predicateForSamples(withStart: start, end: Date())
@@ -323,7 +480,8 @@ enum HealthKitBodyReader {
         steps: Double,
         distanceMeters: Double,
         activeKilocalories: Double,
-        sleepHours: Double
+        sleepHours: Double,
+        metrics: [BodySourceSignal.Metric]
     ) -> BodySourceSignal {
         let status: String
         let score: Int
@@ -347,7 +505,14 @@ enum HealthKitBodyReader {
             phrase = "The body page is steady enough for ordinary magic: a little movement, a little rest, and one honest page."
         }
 
-        return BodySourceSignal(status: status, score: score, phrase: phrase)
+        let baseMetrics: [BodySourceSignal.Metric] = [
+            BodySourceSignal.Metric(id: "stepCount", label: "Steps", value: formatted(steps, decimals: 0), kind: "sum"),
+            BodySourceSignal.Metric(id: "distanceWalkingRunning", label: "Distance", value: formatted(distanceMeters / 1_609.344, decimals: 2), unit: "mi", kind: "sum"),
+            BodySourceSignal.Metric(id: "activeEnergyBurned", label: "Active energy", value: formatted(activeKilocalories, decimals: 0), unit: "kcal", kind: "sum"),
+            BodySourceSignal.Metric(id: "sleepAnalysis", label: "Sleep", value: formatted(sleepHours, decimals: 1), unit: "h", kind: "category")
+        ].filter { Double($0.value) ?? 0 > 0 }
+
+        return BodySourceSignal(status: status, score: score, phrase: phrase, metrics: baseMetrics + metrics)
     }
 }
 
@@ -627,4 +792,3 @@ private final class OneShotLocationReader: NSObject, CLLocationManagerDelegate {
     }
 }
 #endif
-

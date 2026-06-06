@@ -42,6 +42,8 @@ import MLX
 #endif
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
+
     @State private var days: [BookDay]
     @State private var selectedSurface: SurfacePage?
     @State private var isBraiding = false
@@ -57,6 +59,7 @@ struct ContentView: View {
     @State private var selfFacts: [SelfFact]
     @State private var narrativeEvents: [NarrativeEvent]
     @State private var entityMemories: [NarrativeEntityMemory]
+    @State private var facultyEntries: [FacultyEntry]
     @State private var bodySignal: BodySourceSignal?
     @State private var weatherSignal: WeatherSourceSignal?
     @State private var enchantedWeather: EnchantedWeatherSignal?
@@ -78,6 +81,8 @@ struct ContentView: View {
     @State private var lastStoryPagePreparationFailure: Date?
     @State private var preparedGossipPageSurface: SurfacePage?
     @State private var isPreparingGossipPage = false
+    @State private var preparedFacultyResearchSurface: SurfacePage?
+    @State private var isPreparingFacultyResearchPage = false
     @State private var userPhotoIlluminationFallbackAllowed = false
     @AppStorage("didRequestHealthKitBodySignal") private var didRequestHealthKitBodySignal = false
     @AppStorage("didRequestWeatherLocation") private var didRequestWeatherLocation = false
@@ -123,6 +128,14 @@ struct ContentView: View {
         BookStore.today(from: days)
     }
 
+    private var shouldPrepareGeneratedPagesAutomatically: Bool {
+        #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+        false
+        #else
+        true
+        #endif
+    }
+
     private var sourceInputs: BookSourceInputs {
         var inputs = BookSourceInputs.from(insideCover: InsideCoverStore.load())
         inputs.body = bodySignal
@@ -135,8 +148,10 @@ struct ContentView: View {
         inputs.preparedIlluminatedPhotoSurface = automaticIlluminatedSurface
         inputs.preparedStoryPageSurface = preparedStoryPageSurface
         inputs.preparedGossipPageSurface = preparedGossipPageSurface
+        inputs.preparedFacultyResearchSurface = preparedFacultyResearchSurface
         inputs.userPhotoIlluminationFallbackAllowed = userPhotoIlluminationFallbackAllowed
         inputs.selfFacts = selfFacts
+        inputs.facultyEntries = facultyEntries
         inputs.narrative = NarrativeSourceSnapshotBuilder.snapshot(
             from: narrativeEvents,
             memories: entityMemories,
@@ -186,6 +201,7 @@ struct ContentView: View {
         _selfFacts = State(initialValue: (try? BookDatabase.selfFacts()) ?? [])
         _narrativeEvents = State(initialValue: (try? BookDatabase.narrativeEvents(limit: 100)) ?? [])
         _entityMemories = State(initialValue: (try? BookDatabase.entityMemories(limit: 120)) ?? [])
+        _facultyEntries = State(initialValue: (try? BookDatabase.facultyEntries(limit: 160)) ?? [])
 
         #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
         braider = AppBraider(local: MLXBookBraider())
@@ -257,6 +273,7 @@ struct ContentView: View {
             .task {
                 try? await Task.sleep(for: launchGeneratedPageDelay)
                 guard !Task.isCancelled else { return }
+                guard shouldPrepareGeneratedPagesAutomatically else { return }
                 await prepareOneGeneratedPageIfPossible()
             }
             .task {
@@ -266,7 +283,9 @@ struct ContentView: View {
                     await refreshDynamicSourcesIfNeeded()
                     surfaceRefreshDate = Date()
                     await autoBraidIfNeeded()
-                    await prepareOneGeneratedPageIfPossible()
+                    if shouldPrepareGeneratedPagesAutomatically {
+                        await prepareOneGeneratedPageIfPossible()
+                    }
                 }
             }
             .task(id: wonderCompassSelectionSignature) {
@@ -318,6 +337,10 @@ struct ContentView: View {
                     localBrainPromptCharacters = 0
                 }
             }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase != .active else { return }
+                resetTransientWorkStateForBackgrounding()
+            }
             .sheet(item: $selectedSurface) { surface in
                 CapturePageSheet(
                     surface: surface,
@@ -348,6 +371,20 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    private func resetTransientWorkStateForBackgrounding() {
+        isLocalBrainReading = false
+        isLocalBrainWorking = false
+        localBrainStartedAt = nil
+        localBrainQueuedCount = 0
+        localBrainPromptCharacters = 0
+        isBraiding = false
+        braidingStartedAt = nil
+        isPreparingStoryPage = false
+        isPreparingGossipPage = false
+        isPreparingFacultyResearchPage = false
+        isPreparingAutomaticIllumination = false
     }
 
     @ViewBuilder
@@ -401,9 +438,9 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 20) {
             ZStack(alignment: .topTrailing) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Real Life, ReEnchanted")
+                    Text("Real Life,\nReEnchanted")
                         .font(.system(size: 40, weight: .semibold, design: .serif))
-                        .lineLimit(1)
+                        .lineLimit(2)
                         .minimumScaleFactor(0.54)
                         .frame(maxWidth: 330, alignment: .leading)
                         .padding(.trailing, 86)
@@ -526,6 +563,8 @@ struct ContentView: View {
             return (surface.payload.metadata["renderedPreviewPath"] ?? "").isEmpty
         case .narrativeOS:
             return (surface.payload.metadata["storyScene"] ?? "").isEmpty
+        case .facultyResearch:
+            return (surface.payload.metadata["researchProse"] ?? "").isEmpty
         default:
             return false
         }
@@ -800,6 +839,10 @@ struct ContentView: View {
         if surface.type == .illuminatedPhoto {
             markAutomaticIlluminatedSurfaceKept(surface)
         }
+        if surface.type == .facultyResearch,
+           preparedFacultyResearchSurface?.id == surface.id {
+            preparedFacultyResearchSurface = nil
+        }
         let page = BookPage(
             type: surface.type,
             promptText: surface.prompt,
@@ -813,6 +856,7 @@ struct ContentView: View {
         day.pages.append(page)
         recordNarrativeEvent(for: page)
         saveSelfFactIfNeeded(surface: surface, answer: input)
+        saveFacultyEntryIfNeeded(surface: surface, page: page, answer: input, tags: tags, dayID: day.id)
         awardBelief(for: surface)
         persist(day: day, message: "The Book tucked the \(surface.type.shortTitle.lowercased()) page into the margin.")
     }
@@ -874,6 +918,55 @@ struct ContentView: View {
         }
     }
 
+    private func saveFacultyEntryIfNeeded(
+        surface: SurfacePage,
+        page: BookPage,
+        answer: String,
+        tags: [String],
+        dayID: String
+    ) {
+        let metadata = surface.payload.metadata
+        let kind: FacultyEntryKind?
+        if let metadataKind = metadata["facultyKind"].flatMap(FacultyEntryKind.init(rawValue:)) {
+            kind = metadataKind
+        } else if surface.type == .fuel || surface.sourceID == "fuel-log" {
+            kind = .fuel
+        } else if surface.type == .mood || surface.sourceID == "inner-weather" {
+            kind = .innerWeather
+        } else {
+            kind = nil
+        }
+        guard let kind else { return }
+
+        let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let window = FacultyLogCadence.currentWindow(for: page.createdAt)
+        let entry = FacultyEntry(
+            id: "faculty-entry-\(page.id)",
+            kind: kind,
+            facultyID: metadata["facultyID"],
+            dayID: dayID,
+            sourcePageID: page.id,
+            createdAt: page.createdAt,
+            windowID: metadata["facultyWindowID"] ?? window.id,
+            windowName: metadata["facultyWindowName"] ?? window.name,
+            rawText: trimmed,
+            tags: Array(Set(tags + [
+                "faculty-kind:\(kind.rawValue)",
+                "faculty-window:\(metadata["facultyWindowID"] ?? window.id)",
+                kind.facultyID
+            ])).sorted()
+        )
+
+        do {
+            try BookDatabase.upsertFacultyEntry(entry)
+            facultyEntries = (try? BookDatabase.facultyEntries(limit: 160)) ?? (facultyEntries.filter { $0.id != entry.id } + [entry])
+        } catch {
+            appLog.error("Faculty entry save failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     private func awardBelief(for surface: SurfacePage) {
         let newScore = min(100, max(0, beliefScore + 1))
         guard newScore != beliefScore else { return }
@@ -888,6 +981,9 @@ struct ContentView: View {
             return true
         }
         if await prepareGossipPageIfPossible() {
+            return true
+        }
+        if await prepareFacultyResearchPageIfPossible() {
             return true
         }
         return await prepareAutomaticIlluminatedPageIfPossible()
@@ -1095,6 +1191,69 @@ struct ContentView: View {
         }
     }
 
+    @MainActor
+    @discardableResult
+    private func prepareFacultyResearchPageIfPossible() async -> Bool {
+        guard !isPreparingFacultyResearchPage, !isLocalBrainWorking else { return false }
+        let slot = SurfaceCadence.slotID(for: surfaceRefreshDate, hours: 12)
+        if let preparedFacultyResearchSurface,
+           preparedFacultyResearchSurface.payload.metadata["slotID"] == slot,
+           preparedFacultyResearchSurface.payload.metadata["researchProse"]?.isEmpty == false {
+            return false
+        }
+
+        var draftInputs = sourceInputs
+        draftInputs.preparedFacultyResearchSurface = nil
+        guard var draft = FacultyResearchNoteGenerator.draftCandidate(for: today, inputs: draftInputs, now: surfaceRefreshDate),
+              isSourceEnabled(sourceID: draft.sourceID) else {
+            return false
+        }
+
+        isPreparingFacultyResearchPage = true
+        defer { isPreparingFacultyResearchPage = false }
+
+        do {
+            let facultyID = draft.payload.metadata["facultyID"] ?? ""
+            let clippings = await ScholarlyFacultyResearcher().clippings(
+                for: facultyResearchQueries(for: draft),
+                facultyID: facultyID,
+                limit: 3
+            )
+            draft = draft.withFacultyResearchClippings(clippings)
+            let prose: String
+            #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+            prose = try await MLXFacultyResearchWriter().write(surface: draft)
+            #else
+            prose = try await FallbackFacultyResearchWriter().write(surface: draft)
+            #endif
+            preparedFacultyResearchSurface = draft.preparedFacultyResearchCopy(prose: prose, slotID: slot)
+            surfaceRefreshDate = Date()
+            statusMessage = "\(draft.payload.metadata["facultyName"] ?? "The Support Guild") prepared a research folio for tonight."
+            return true
+        } catch {
+            appLog.error("Prepared faculty research failed: \(error.localizedDescription, privacy: .public)")
+            preparedFacultyResearchSurface = nil
+            statusMessage = "The faculty research folio lost its place. The Book will try again later."
+            return false
+        }
+    }
+
+    private func facultyResearchQueries(for surface: SurfacePage) -> [String] {
+        let facultyID = surface.payload.metadata["facultyID"] ?? ""
+        if facultyID == "dr-vellum" {
+            return [
+                "longevity research sleep exercise nutrition 2026",
+                "medication adherence health behavior research",
+                "heart rate variability recovery longevity study"
+            ]
+        }
+        return [
+            "narrative psychology reauthoring self distancing research",
+            "consciousness attention rumination self distancing study",
+            "expressive writing narrative identity mental health research"
+        ]
+    }
+
     private func markAutomaticIlluminatedSurfaceKept(_ surface: SurfacePage) {
         guard let assetID = surface.payload.metadata["assetLocalIdentifier"] else {
             return
@@ -1138,6 +1297,10 @@ struct ContentView: View {
             if automaticIlluminatedSurface?.id == surface.id {
                 automaticIlluminatedSurface = nil
             }
+        }
+        if surface.type == .facultyResearch,
+           preparedFacultyResearchSurface?.id == surface.id {
+            preparedFacultyResearchSurface = nil
         }
         if selectedSurface?.id == surface.id {
             selectedSurface = nil
@@ -1594,5 +1757,22 @@ private struct LocalBrainReadingRoom: View {
                 glow = true
             }
         }
+    }
+}
+
+private struct FallbackFacultyResearchWriter {
+    func write(surface: SurfacePage) async throws -> String {
+        try await Task.sleep(nanoseconds: 250_000_000)
+        let faculty = surface.payload.metadata["facultyName"] ?? "Support Faculty"
+        let topic = surface.payload.metadata["researchTopic"] ?? "care research"
+        return """
+        Field finding: \(faculty) reviewed the chart through the Margin-Glass and found one useful question inside the noise.
+
+        What it might mean: \(topic) matters most here when it becomes small enough to try today, not when it becomes an identity.
+
+        Tiny experiment: Track one before/after signal around the next ordinary care action.
+
+        Uncertainty: This is research for attention, not a diagnosis or treatment plan.
+        """
     }
 }

@@ -459,6 +459,10 @@ struct CapturePageSheet: View {
                 compassPracticeView
             }
 
+            if surface.type == .supportGuild {
+                supportGuildPageView
+            }
+
             if allowsCompassPhotoProof {
                 compassProofPhotoPicker
             }
@@ -474,7 +478,7 @@ struct CapturePageSheet: View {
                     .foregroundStyle(BookPalette.teal)
             }
 
-            if surface.type != .narrativeOS && !isCompassPracticePage {
+            if surface.type != .narrativeOS && !isCompassPracticePage && surface.type != .supportGuild {
                 Text(surface.payload.body)
                     .font(.system(.body, design: .serif))
                     .foregroundStyle(BookPalette.ink)
@@ -486,6 +490,44 @@ struct CapturePageSheet: View {
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+        }
+    }
+
+    private var supportGuildPageView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(surface.payload.body)
+                .font(.system(.callout, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.82))
+                .fixedSize(horizontal: false, vertical: true)
+
+            supportGuildDisclosure("Dr. Vellum", systemImage: "heart.text.square", value: surface.payload.metadata["vellumSection"])
+            supportGuildDisclosure("Dr. Inkrest", systemImage: "cloud.sun", value: surface.payload.metadata["inkrestSection"])
+            supportGuildDisclosure("Connections", systemImage: "point.3.connected.trianglepath.dotted", value: surface.payload.metadata["connectionsSection"])
+            supportGuildDisclosure("Experiment", systemImage: "checklist", value: surface.payload.metadata["experimentSection"])
+            supportGuildDisclosure("Safety", systemImage: "lock.shield", value: surface.payload.metadata["safetySection"])
+        }
+    }
+
+    @ViewBuilder
+    private func supportGuildDisclosure(_ title: String, systemImage: String, value: String?) -> some View {
+        if let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
+            DisclosureGroup {
+                Text(value)
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.ink.opacity(0.76))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 6)
+            } label: {
+                Label(title, systemImage: systemImage)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.teal)
+            }
+            .padding(10)
+            .background(BookPalette.paper.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(BookPalette.ink.opacity(0.12), lineWidth: 1)
+            }
         }
     }
 
@@ -1422,6 +1464,15 @@ struct CapturePageSheet: View {
         }
         if let status = surface.payload.metadata["status"], !status.isEmpty {
             tags.append(status.lowercased())
+        }
+        if let facultyID = surface.payload.metadata["facultyID"], !facultyID.isEmpty {
+            tags.append(facultyID)
+        }
+        if let facultyKind = surface.payload.metadata["facultyKind"], !facultyKind.isEmpty {
+            tags.append("faculty-kind:\(facultyKind)")
+        }
+        if let facultyWindowID = surface.payload.metadata["facultyWindowID"], !facultyWindowID.isEmpty {
+            tags.append("faculty-window:\(facultyWindowID)")
         }
         if surface.type == .illuminatedPhoto {
             tags.append("illuminated-photo")

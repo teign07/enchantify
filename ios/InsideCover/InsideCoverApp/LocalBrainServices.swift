@@ -198,6 +198,36 @@ struct MLXBookBraider: Braider {
     """
 }
 
+enum MLXBraidTaskRunner {
+    static func run(
+        prompt: String,
+        instructions: String,
+        maxTokens: Int,
+        sourceID: String,
+        tags: [String]
+    ) async throws -> String {
+        var day = BookDay(id: "gemma-task-\(UUID().uuidString)", date: Date(), pages: [])
+        day.pages = [
+            BookPage(
+                type: .bookOfYou,
+                promptText: "Run a local Gemma task through the standard Braid path.",
+                userInput: prompt,
+                tags: Array(Set(tags + ["gemma", "braid-task"])).sorted(),
+                sourceID: sourceID,
+                origin: .imported,
+                privacy: .privateLocal
+            )
+        ]
+
+        let page = try await MLXBookBraider(
+            maxTokens: maxTokens,
+            mode: .task,
+            instructions: instructions
+        ).braid(day: day)
+        return page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 struct MLXWonderCompassChooser: WonderCompassPassageChoosing {
     func chooseWonderCompassSnippet(
         day: BookDay,
@@ -210,34 +240,16 @@ struct MLXWonderCompassChooser: WonderCompassPassageChoosing {
             candidates: candidates
         )
 
-        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-
-        let response = try await LocalBrainInferenceGate.shared.run(label: "wonder-compass", promptCharacters: prompt.count) {
-            try await Device.withDefaultDevice(.gpu) {
-                let container = try await LLMModelFactory.shared.loadContainer(
-                    from: modelDirectory,
-                    using: TokenizersLoader()
-                )
-                let session = ChatSession(
-                    container,
-                    instructions: """
-                    You are the Wonder Compass librarian inside ReEnchanted.
-                    Choose one supplied passage ID for the user's real day. Reply only with the exact ID.
-                    """,
-                    generateParameters: GenerateParameters(
-                        maxTokens: 32,
-                        maxKVSize: 2_048,
-                        temperature: 0.2,
-                        topP: 0.75,
-                        prefillStepSize: 256
-                    )
-                )
-                return try await session.respond(to: prompt)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
+        let response = try await MLXBraidTaskRunner.run(
+            prompt: prompt,
+            instructions: """
+            You are the Wonder Compass librarian inside ReEnchanted.
+            Choose one supplied passage ID for the user's real day. Reply only with the exact ID.
+            """,
+            maxTokens: 32,
+            sourceID: "wonder-compass",
+            tags: ["wonder-compass"]
+        )
 
         if let exact = candidates.first(where: { $0.id == response }) {
             return exact
@@ -295,33 +307,15 @@ struct MLXWeatherEnchanter: WeatherEnchanting {
 
 struct MLXStoryPageWriter: StoryPageWriting {
     func write(surface: SurfacePage) async throws -> StoryPageProse {
-        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-
         let draft = StoryPageSceneDraft(surface: surface)
         let prompt = StoryPagePromptBuilder.prompt(for: draft)
-        let response = try await LocalBrainInferenceGate.shared.run(label: "story-page", promptCharacters: prompt.count) {
-            try await Device.withDefaultDevice(.gpu) {
-                let container = try await LLMModelFactory.shared.loadContainer(
-                    from: modelDirectory,
-                    using: TokenizersLoader()
-                )
-                let session = ChatSession(
-                    container,
-                    instructions: StoryPagePromptBuilder.instructions,
-                    generateParameters: GenerateParameters(
-                        maxTokens: 360,
-                        maxKVSize: 1_024,
-                        temperature: 0.72,
-                        topP: 0.9,
-                        prefillStepSize: 128
-                    )
-                )
-                return try await session.respond(to: prompt)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
+        let response = try await MLXBraidTaskRunner.run(
+            prompt: prompt,
+            instructions: StoryPagePromptBuilder.instructions,
+            maxTokens: 360,
+            sourceID: "story-page",
+            tags: ["story-page"]
+        )
 
         return StoryPageProseParser.parse(response, fallback: draft)
     }
@@ -329,32 +323,14 @@ struct MLXStoryPageWriter: StoryPageWriting {
 
 struct MLXStoryPageResultWriter: StoryPageResultWriting {
     func write(context: StoryPageResultContext) async throws -> String {
-        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-
         let prompt = StoryPageResultPromptBuilder.prompt(for: context)
-        let response = try await LocalBrainInferenceGate.shared.run(label: "story-result", promptCharacters: prompt.count) {
-            try await Device.withDefaultDevice(.gpu) {
-                let container = try await LLMModelFactory.shared.loadContainer(
-                    from: modelDirectory,
-                    using: TokenizersLoader()
-                )
-                let session = ChatSession(
-                    container,
-                    instructions: StoryPageResultPromptBuilder.instructions,
-                    generateParameters: GenerateParameters(
-                        maxTokens: 240,
-                        maxKVSize: 1_024,
-                        temperature: 0.7,
-                        topP: 0.9,
-                        prefillStepSize: 128
-                    )
-                )
-                return try await session.respond(to: prompt)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
+        let response = try await MLXBraidTaskRunner.run(
+            prompt: prompt,
+            instructions: StoryPageResultPromptBuilder.instructions,
+            maxTokens: 240,
+            sourceID: "story-page-result",
+            tags: ["story-page", "story-result"]
+        )
 
         let cleaned = StoryPageResultPromptBuilder.clean(response)
         return cleaned.nonEmpty ?? context.fallbackResult
@@ -367,32 +343,14 @@ protocol GossipPageWriting {
 
 struct MLXGossipPageWriter: GossipPageWriting {
     func write(surface: SurfacePage) async throws -> String {
-        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-
         let prompt = GossipPagePromptBuilder.prompt(for: surface)
-        let response = try await LocalBrainInferenceGate.shared.run(label: "gossip-page", promptCharacters: prompt.count) {
-            try await Device.withDefaultDevice(.gpu) {
-                let container = try await LLMModelFactory.shared.loadContainer(
-                    from: modelDirectory,
-                    using: TokenizersLoader()
-                )
-                let session = ChatSession(
-                    container,
-                    instructions: GossipPagePromptBuilder.instructions,
-                    generateParameters: GenerateParameters(
-                        maxTokens: 420,
-                        maxKVSize: 2_048,
-                        temperature: 0.76,
-                        topP: 0.9,
-                        prefillStepSize: 256
-                    )
-                )
-                return try await session.respond(to: prompt)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
+        let response = try await MLXBraidTaskRunner.run(
+            prompt: prompt,
+            instructions: GossipPagePromptBuilder.instructions,
+            maxTokens: 420,
+            sourceID: "gossip-page",
+            tags: ["gossip-page"]
+        )
 
         return GossipPagePromptBuilder.clean(response, fallback: surface.payload.body)
     }
@@ -409,6 +367,76 @@ struct FakeGossipPageWriter: GossipPageWriting {
 
         From the ordinary world:
         \(clippings)
+        """
+    }
+}
+
+protocol FacultyResearchWriting {
+    func write(surface: SurfacePage) async throws -> String
+}
+
+struct FacultyResearchPromptBuilder {
+    static let instructions = """
+    You are writing as a private Academy research folio for ReEnchantify.
+    Be specific, warm, strange, and careful. Do not diagnose, prescribe, or cite fake papers.
+    Prefer the supplied scholarly clippings over general web notes. Name real source titles plainly when useful.
+    Use the provided research focus and chart evidence. Return a short research note with:
+    1. Field finding
+    2. What it might mean
+    3. One tiny experiment
+    4. One safety or uncertainty line
+    """
+
+    static func prompt(for surface: SurfacePage) -> String {
+        let faculty = surface.payload.metadata["facultyName"] ?? "Support Faculty"
+        let topic = surface.payload.metadata["researchTopic"] ?? "care research"
+        return """
+        Faculty: \(faculty)
+        Research focus: \(topic)
+
+        Chart packet:
+        \(surface.payload.body)
+
+        Write the saved research note for tonight's Support Guild page. Make it feel like real faculty research conducted through the Margin-Glass, but keep it clinically humble.
+        """
+    }
+
+    static func clean(_ response: String, fallback: String) -> String {
+        let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? fallback : trimmed
+    }
+}
+
+#if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+struct MLXFacultyResearchWriter: FacultyResearchWriting {
+    func write(surface: SurfacePage) async throws -> String {
+        let prompt = FacultyResearchPromptBuilder.prompt(for: surface)
+        let response = try await MLXBraidTaskRunner.run(
+            prompt: prompt,
+            instructions: FacultyResearchPromptBuilder.instructions,
+            maxTokens: 420,
+            sourceID: "faculty-research",
+            tags: ["faculty-research"]
+        )
+
+        return FacultyResearchPromptBuilder.clean(response, fallback: surface.payload.body)
+    }
+}
+#endif
+
+struct FakeFacultyResearchWriter: FacultyResearchWriting {
+    func write(surface: SurfacePage) async throws -> String {
+        try await Task.sleep(nanoseconds: 250_000_000)
+        let faculty = surface.payload.metadata["facultyName"] ?? "Support Faculty"
+        let topic = surface.payload.metadata["researchTopic"] ?? "care research"
+        return """
+        Field finding: \(faculty) reviewed the chart through the Margin-Glass and found one useful question inside the noise.
+
+        What it might mean: \(topic) matters most here when it becomes small enough to try today, not when it becomes an identity.
+
+        Tiny experiment: Track one before/after signal around the next ordinary care action.
+
+        Uncertainty: This is research for attention, not a diagnosis or treatment plan.
         """
     }
 }
@@ -1313,6 +1341,16 @@ struct RealInterestGossipSearcher {
         return clippings
     }
 
+    func clippings(for interests: [String], limit: Int = 2) async -> [RealInterestGossipClipping] {
+        var clippings: [RealInterestGossipClipping] = []
+        for interest in interests where !interest.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            guard let clipping = try? await search(interest: interest) else { continue }
+            clippings.append(clipping)
+            if clippings.count >= limit { break }
+        }
+        return clippings
+    }
+
     private func selectedInterests(from facts: [SelfFact], dayID: String, slotID: String) -> [String] {
         let candidates = facts
             .filter { fact in
@@ -1392,6 +1430,190 @@ struct RealInterestGossipSearcher {
     }
 }
 
+struct ScholarlyFacultyResearcher {
+    private struct PubMedSearchResponse: Decodable {
+        var esearchresult: SearchResult
+
+        struct SearchResult: Decodable {
+            var idlist: [String]
+        }
+    }
+
+    private struct PubMedSummaryResponse: Decodable {
+        var result: [String: PubMedSummaryValue]
+
+        private enum CodingKeys: String, CodingKey {
+            case result
+        }
+
+        private struct DynamicKey: CodingKey {
+            var stringValue: String
+            var intValue: Int?
+
+            init?(stringValue: String) {
+                self.stringValue = stringValue
+            }
+
+            init?(intValue: Int) {
+                self.stringValue = "\(intValue)"
+                self.intValue = intValue
+            }
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let resultContainer = try container.nestedContainer(keyedBy: DynamicKey.self, forKey: .result)
+            var papers: [String: PubMedSummaryValue] = [:]
+            for key in resultContainer.allKeys where key.stringValue != "uids" {
+                if let value = try? resultContainer.decode(PubMedSummaryValue.self, forKey: key) {
+                    papers[key.stringValue] = value
+                }
+            }
+            result = papers
+        }
+    }
+
+    private struct PubMedSummaryValue: Decodable {
+        var uid: String?
+        var title: String?
+        var fulljournalname: String?
+        var pubdate: String?
+        var elocationid: String?
+    }
+
+    private struct SemanticScholarResponse: Decodable {
+        var data: [Paper]
+
+        struct Paper: Decodable {
+            var title: String?
+            var abstract: String?
+            var year: Int?
+            var venue: String?
+            var url: String?
+            var externalIds: ExternalIDs?
+        }
+
+        struct ExternalIDs: Decodable {
+            var DOI: String?
+        }
+    }
+
+    func clippings(for queries: [String], facultyID: String, limit: Int = 3) async -> [RealInterestGossipClipping] {
+        let cleaned = queries
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !cleaned.isEmpty else { return [] }
+
+        var clippings: [RealInterestGossipClipping] = []
+        for query in cleaned {
+            let result: RealInterestGossipClipping?
+            if facultyID == "dr-vellum" {
+                result = try? await pubMedClipping(for: query)
+            } else {
+                result = try? await semanticScholarClipping(for: query)
+            }
+            if let result, !containsDuplicate(result, in: clippings) {
+                clippings.append(result)
+            }
+            if clippings.count >= limit { return clippings }
+        }
+
+        let fallback = await RealInterestGossipSearcher().clippings(for: cleaned, limit: limit - clippings.count)
+        for clipping in fallback where !containsDuplicate(clipping, in: clippings) {
+            clippings.append(clipping)
+            if clippings.count >= limit { break }
+        }
+        return clippings
+    }
+
+    private func pubMedClipping(for query: String) async throws -> RealInterestGossipClipping? {
+        var searchComponents = URLComponents(string: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi")!
+        searchComponents.queryItems = [
+            URLQueryItem(name: "db", value: "pubmed"),
+            URLQueryItem(name: "term", value: "\(query) randomized OR review OR cohort"),
+            URLQueryItem(name: "retmode", value: "json"),
+            URLQueryItem(name: "retmax", value: "4"),
+            URLQueryItem(name: "sort", value: "relevance"),
+            URLQueryItem(name: "tool", value: "ReEnchantifyInsideCover")
+        ]
+        guard let searchURL = searchComponents.url else { return nil }
+        let searchData = try await fetch(searchURL)
+        let search = try JSONDecoder().decode(PubMedSearchResponse.self, from: searchData)
+        guard let firstID = search.esearchresult.idlist.first else { return nil }
+
+        var summaryComponents = URLComponents(string: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi")!
+        summaryComponents.queryItems = [
+            URLQueryItem(name: "db", value: "pubmed"),
+            URLQueryItem(name: "id", value: firstID),
+            URLQueryItem(name: "retmode", value: "json"),
+            URLQueryItem(name: "tool", value: "ReEnchantifyInsideCover")
+        ]
+        guard let summaryURL = summaryComponents.url else { return nil }
+        let summaryData = try await fetch(summaryURL)
+        let summary = try JSONDecoder().decode(PubMedSummaryResponse.self, from: summaryData)
+        guard let paper = summary.result[firstID],
+              let title = paper.title?.nonEmpty else {
+            return nil
+        }
+
+        let journal = paper.fulljournalname?.nonEmpty ?? "PubMed"
+        let date = paper.pubdate?.nonEmpty.map { " (\($0))" } ?? ""
+        let locator = paper.elocationid?.nonEmpty.map { " \($0)" } ?? ""
+        return RealInterestGossipClipping(
+            interest: query,
+            fact: "\(title)\(date). \(journal).\(locator)".bookPreviewSentenceLimit(2),
+            sourceName: "PubMed",
+            sourceURL: "https://pubmed.ncbi.nlm.nih.gov/\(firstID)/"
+        )
+    }
+
+    private func semanticScholarClipping(for query: String) async throws -> RealInterestGossipClipping? {
+        var components = URLComponents(string: "https://api.semanticscholar.org/graph/v1/paper/search")!
+        components.queryItems = [
+            URLQueryItem(name: "query", value: query),
+            URLQueryItem(name: "limit", value: "4"),
+            URLQueryItem(name: "fields", value: "title,abstract,year,venue,url,externalIds")
+        ]
+        guard let url = components.url else { return nil }
+        let data = try await fetch(url)
+        let response = try JSONDecoder().decode(SemanticScholarResponse.self, from: data)
+        guard let paper = response.data.first(where: { $0.title?.nonEmpty != nil }),
+              let title = paper.title?.nonEmpty else {
+            return nil
+        }
+
+        let venue = paper.venue?.nonEmpty ?? "Semantic Scholar"
+        let year = paper.year.map { " (\($0))" } ?? ""
+        let abstract = paper.abstract?.nonEmpty.map { " \($0.bookPreviewSentenceLimit(1))" } ?? ""
+        let doiURL = paper.externalIds?.DOI?.nonEmpty.map { "https://doi.org/\($0)" }
+        return RealInterestGossipClipping(
+            interest: query,
+            fact: "\(title)\(year). \(venue).\(abstract)".bookPreviewSentenceLimit(2),
+            sourceName: "Semantic Scholar",
+            sourceURL: paper.url?.nonEmpty ?? doiURL ?? "https://www.semanticscholar.org/search?q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)"
+        )
+    }
+
+    private func fetch(_ url: URL) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+        request.setValue("ReEnchantify/1.0", forHTTPHeaderField: "User-Agent")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return data
+    }
+
+    private func containsDuplicate(_ clipping: RealInterestGossipClipping, in clippings: [RealInterestGossipClipping]) -> Bool {
+        clippings.contains { existing in
+            existing.sourceURL == clipping.sourceURL
+                || existing.fact.localizedCaseInsensitiveCompare(clipping.fact) == .orderedSame
+        }
+    }
+}
+
 extension SurfacePage {
     func withRealInterestGossip(_ clippings: [RealInterestGossipClipping]) -> SurfacePage {
         guard !clippings.isEmpty else { return self }
@@ -1418,6 +1640,32 @@ extension SurfacePage {
             payload: BookPagePayload(
                 headline: payload.headline,
                 body: payload.body,
+                metadata: metadata
+            )
+        )
+    }
+
+    func withFacultyResearchClippings(_ clippings: [RealInterestGossipClipping]) -> SurfacePage {
+        guard !clippings.isEmpty else { return self }
+        let clippingLines = clippings.map { "- \($0.promptLine)" }.joined(separator: "\n")
+        let sourceLines = clippings.map { "\($0.interest): \($0.sourceURL)" }.joined(separator: "\n")
+        var metadata = payload.metadata
+        metadata["researchClippings"] = clippingLines
+        metadata["researchSources"] = sourceLines
+        metadata["researchClippingCount"] = "\(clippings.count)"
+        return SurfacePage(
+            id: id,
+            type: type,
+            sourceID: sourceID,
+            intent: intent,
+            renderStyle: renderStyle,
+            score: min(score + clippings.count * 5, 98),
+            reason: reason,
+            prompt: prompt,
+            detail: detail,
+            payload: BookPagePayload(
+                headline: payload.headline,
+                body: "\(payload.body)\n\nLive research clippings:\n\(clippingLines)",
                 metadata: metadata
             )
         )
@@ -1469,6 +1717,29 @@ extension SurfacePage {
         var metadata = payload.metadata
         metadata["slotID"] = slotID
         metadata["gossipProse"] = prose
+        metadata["proseStatus"] = "generated"
+        return SurfacePage(
+            id: id,
+            type: type,
+            sourceID: sourceID,
+            intent: intent,
+            renderStyle: renderStyle,
+            score: score,
+            reason: reason,
+            prompt: prompt,
+            detail: detail,
+            payload: BookPagePayload(
+                headline: payload.headline,
+                body: prose,
+                metadata: metadata
+            )
+        )
+    }
+
+    func preparedFacultyResearchCopy(prose: String, slotID: String) -> SurfacePage {
+        var metadata = payload.metadata
+        metadata["slotID"] = slotID
+        metadata["researchProse"] = prose
         metadata["proseStatus"] = "generated"
         return SurfacePage(
             id: id,
