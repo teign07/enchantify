@@ -127,6 +127,18 @@ struct ContentView: View {
         BookStore.today(from: days)
     }
 
+    private var workBlockingState: WorkBlockingState {
+        WorkBlockingState(
+            isLocalBrainWorking: localBrainTelemetry.isWorking,
+            localBrainStatus: localBrainTelemetry.currentWorkStatus,
+            isBraiding: isBraiding,
+            isPreparingAutomaticIllumination: isPreparingAutomaticIllumination,
+            isPreparingStoryPage: isPreparingStoryPage,
+            isPreparingGossipPage: isPreparingGossipPage,
+            isPreparingFacultyResearchPage: isPreparingFacultyResearchPage
+        )
+    }
+
     private var shouldPrepareGeneratedPagesAutomatically: Bool {
         #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
         false
@@ -516,9 +528,9 @@ struct ContentView: View {
 
             LazyVStack(spacing: 12) {
                 ForEach(surfaces) { surface in
-                    SwipeDismissSurfaceCard(surface: surface, isBusy: isBraiding && surface.type == .bookOfYou) {
+                    SwipeDismissSurfaceCard(surface: surface, isBusy: workBlockingState.surfaceBusyIndicator(for: surface.type)) {
                         BookFeedback.play(surface.type == .bookOfYou ? .tap : .openPage)
-                        if localBrainTelemetry.isWorking, surfaceNeedsLocalBrainToOpen(surface) {
+                        if !workBlockingState.canOpenSurface(needsLocalBrain: surfaceNeedsLocalBrainToOpen(surface)) {
                             BookFeedback.play(.error)
                             statusMessage = "The Book is already writing. One moment, please."
                         } else if surface.type == .bookOfYou {
@@ -727,25 +739,7 @@ struct ContentView: View {
     }
 
     private var labWorkStatus: String {
-        if let currentWorkStatus = localBrainTelemetry.currentWorkStatus {
-            return currentWorkStatus
-        }
-        if isBraiding {
-            return "braiding"
-        }
-        if isPreparingAutomaticIllumination {
-            return "preparing illumination"
-        }
-        if isPreparingStoryPage {
-            return "preparing story"
-        }
-        if isPreparingGossipPage {
-            return "preparing gossip"
-        }
-        if isPreparingFacultyResearchPage {
-            return "preparing faculty research"
-        }
-        return "idle"
+        workBlockingState.labWorkStatus
     }
 
     private var labLastBrainStatus: String {
@@ -903,11 +897,11 @@ struct ContentView: View {
                     WeatherSourceCard(
                         weatherSignal: sourceInputs.weather,
                         message: weatherMessage,
-                        isRequesting: isRequestingWeather || localBrainTelemetry.isWorking,
+                        isRequesting: isRequestingWeather || !workBlockingState.canRequestWeather,
                         hasRequested: didRequestWeatherLocation,
                         isAvailable: WeatherLocationReader.isAvailable
                     ) {
-                        guard !localBrainTelemetry.isWorking else {
+                        guard workBlockingState.canRequestWeather else {
                             weatherMessage = "The Book is already using the local brain. Let that ink dry first."
                             return
                         }
@@ -1510,7 +1504,7 @@ struct ContentView: View {
 
     private func braidToday() async {
         guard !isBraiding else { return }
-        guard !localBrainTelemetry.isWorking else {
+        guard workBlockingState.canStartBraid else {
             BookFeedback.play(.error)
             statusMessage = "The Book is already writing one page. Let that ink dry first."
             return

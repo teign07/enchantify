@@ -3853,6 +3853,54 @@ struct LocalBrainTelemetryState: Codable, Equatable {
     }
 }
 
+struct WorkBlockingState: Codable, Equatable {
+    var isLocalBrainWorking = false
+    var localBrainStatus: String?
+    var isBraiding = false
+    var isPreparingAutomaticIllumination = false
+    var isPreparingStoryPage = false
+    var isPreparingGossipPage = false
+    var isPreparingFacultyResearchPage = false
+
+    var labWorkStatus: String {
+        if let localBrainStatus {
+            return localBrainStatus
+        }
+        if isBraiding {
+            return "braiding"
+        }
+        if isPreparingAutomaticIllumination {
+            return "preparing illumination"
+        }
+        if isPreparingStoryPage {
+            return "preparing story"
+        }
+        if isPreparingGossipPage {
+            return "preparing gossip"
+        }
+        if isPreparingFacultyResearchPage {
+            return "preparing faculty research"
+        }
+        return "idle"
+    }
+
+    func canOpenSurface(needsLocalBrain: Bool) -> Bool {
+        !(isLocalBrainWorking && needsLocalBrain)
+    }
+
+    func surfaceBusyIndicator(for type: BookPageType) -> Bool {
+        isBraiding && type == .bookOfYou
+    }
+
+    var canStartBraid: Bool {
+        !isBraiding && !isLocalBrainWorking
+    }
+
+    var canRequestWeather: Bool {
+        !isLocalBrainWorking
+    }
+}
+
 struct BookArchiveExport: Codable, Equatable {
     static let schemaVersion = 1
 
