@@ -74,6 +74,7 @@ struct ContentView: View {
     @State private var surfaceRefreshDate = Date()
     @State private var undoSurface: SurfacePage?
     @State private var undoDayID: String?
+    @State private var canRetryBraid = false
     @State private var automaticIlluminatedSurface: SurfacePage?
     @State private var isPreparingAutomaticIllumination = false
     @State private var preparedStoryPageSurface: SurfacePage?
@@ -557,11 +558,33 @@ struct ContentView: View {
             if !statusMessage.isEmpty {
                 StatusBanner(
                     message: statusMessage,
-                    actionTitle: undoSurface == nil ? nil : "Call it back",
-                    action: undoSurface == nil ? nil : { undoLastSurfaceDismissal() }
+                    actionTitle: statusActionTitle,
+                    action: statusAction
                 )
             }
         }
+    }
+
+    private var statusActionTitle: String? {
+        if undoSurface != nil {
+            return "Call it back"
+        }
+        if canRetryBraid {
+            return "Try again"
+        }
+        return nil
+    }
+
+    private var statusAction: (() -> Void)? {
+        if undoSurface != nil {
+            return { undoLastSurfaceDismissal() }
+        }
+        if canRetryBraid {
+            return {
+                Task { await braidToday() }
+            }
+        }
+        return nil
     }
 
     private func surfaceNeedsLocalBrainToOpen(_ surface: SurfacePage) -> Bool {
@@ -1508,6 +1531,7 @@ struct ContentView: View {
             return
         }
         BookFeedback.play(.braidStart)
+        canRetryBraid = false
         let start = Date()
         isBraiding = true
         braidingStartedAt = start
@@ -1541,9 +1565,11 @@ struct ContentView: View {
             BookFeedback.play(.braidComplete)
             modelReport = LocalModelManager.report()
             lastLocalBrainError = nil
+            canRetryBraid = false
         } catch {
             BookFeedback.play(.error)
             lastLocalBrainError = "braid: \(error.localizedDescription)"
+            canRetryBraid = true
             statusMessage = "The braid snagged, but nothing was lost. Let the page breathe, then try again. \(error.localizedDescription)"
         }
     }
