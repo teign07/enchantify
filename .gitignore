@@ -84,6 +84,10 @@ iphone-location.txt
 .openclaw/
 workspace/
 test-app.js
+ios/InsideCover/.build/
+ios/InsideCover/DerivedData/
+ios/InsideCover/EnchantifyInsideCover.xcodeproj/project.xcworkspace/xcuserdata/
+ios/InsideCover/EnchantifyInsideCover.xcodeproj/xcuserdata/
 
 # ─── Generated / personal live files ─────────────────────────────────────────
 bleed/
