@@ -119,9 +119,9 @@ Two endings:
 **entities:** Zara Finch
 **Nothing pressure:** medium — the Nothing would love to make her doubt the portfolio is good enough. Self-erasure before the deadline.
 
-**Next beat:** By morning the sea glass chip has not moved, but a thin new ink line curves from it back to Zara's desk in a slow looping spiral that wasn't there at lights-out, ending at a fresh blank card laid face-up beside the lilac petal; the Inkwright Society Hall door has been propped open a hand's width from the inside, and a single white feather rests on the threshold where no bird could have entered.
+**Next beat:** Through the propped-open Hall door drifts the dry-paper smell of old ledgers and a faint scratching as if a quill works alone; by midday the feather has drifted three steps into the Hall and the spiral of ink on Zara's desk has darkened where it loops, as though re-traced by an unseen hand. The blank card beside the lilac petal now bears a single faint watermark in its corner — the Inkwright seal — pressed but not signed.
 
-**Last advanced:** 2026-06-05
+**Last advanced:** 2026-06-06
 **born:** 2026-04-12
 **closed:** —
 
@@ -138,9 +138,9 @@ Two endings:
 **entities:** Wicker Eddies
 **Nothing pressure:** high — Wicker is adjacent to the Nothing. His schemes drain Belief from others as a feature, not a side effect. The Nothing doesn't control him; they simply have similar tastes.
 
-**Next beat:** By the time the lunch bell rings, the tutor's quiet question to the clerk has snagged a second pair of eyes — an under-steward who recognizes the looped-S from a discarded ledger margin last week — and the two of them quietly slide all three slips into a manila sleeve labeled simply *FOR REVIEW*, leaving it on the corner of Thorne's desk where the afternoon sun will hit it first. Meanwhile, Finn finishes the americano without noticing the spiral, but the betting slip under Thorne's saucer has shifted half an inch w…
+**Next beat:** By mid-afternoon, the manila sleeve on Thorne's desk has been opened, the three slips fanned across the blotter under a brass weight; Thorne sends a junior clerk to quietly pull the original ledger from the vault, and word ripples through the under-stewards that something with a looped-S is being matched. A second sleeve, thicker, joins the first by evening — and someone has begun a small list of names in pencil.
 
-**Last advanced:** 2026-06-05
+**Last advanced:** 2026-06-06
 **born:** 2026-04-01
 **closed:** —
 
@@ -159,9 +159,9 @@ Two endings:
 **entities:** Headmistress Thorne, Dusk Thorn Talisman, Victor Ebonheart
 **Nothing pressure:** high — something in Duskthorn is already adjacent to absence. The sealed corridor smells of it.
 
-**Next beat:** The tin button rolls free in the night and lodges itself behind the Registry's brass radiator, where a registry clerk's pre-dawn sweep catches its glint and pockets it without logging — the lintel splinter, dislodged, drifts down into the cavity's dust and settles atop a folded slip of carbon paper bearing the same un-Gimble initials. By morning, the Registry's brass radiator ticks louder than usual, and a faint smudge of soot has appeared on the clerk's left cuff that she keeps absently brushing.
+**Next beat:** By midmorning the annex clerk, returning to flatten Raven Hearts' open case-log, finds the lost-and-found drawer's unmarked envelope already gone — only a single horsehair thread snagged on the wax seal and a faint wax-smear shaped like a plumb-bob's tip remain, while the ledger sheet now lies open to the freshly inked 1864 lintel date with a brass-thin scrape along its margin where something heavy was set and lifted. Whoever the next reader is will see the smear, the thread, and the date together before they see w…
 
-**Last advanced:** 2026-06-05
+**Last advanced:** 2026-06-06
 **born:** 2026-04-01
 **closed:** —
 
@@ -259,9 +259,9 @@ When a new subplot, mystery, or character goal emerges with enough Belief to sus
 **entities:** Serenity Brown
 **Nothing pressure:** medium - the Nothing can flatten this into mere trivia instead of lived story
 
-**Next beat:** By midmorning the verdigris bloom has crept a hair's-breadth toward the Marathon-green slip, and the Tide Glass's outward barnacle has been joined by a second one ribbed in pewter — the rust filament now touches the Library's threshold tile without crossing it, waiting.
+**Next beat:** By late afternoon a faint salt-bloom dusts the felt sheet's lower edge, as if the Tide Glass's outward barnacle has been quietly reading the green terminal text back to itself; a third barnacle has budded on the Glass — ribbed in copper this time — and the Daedric X in the margin shows a hairline crack of verdigris running through it, pointing toward the Library's threshold tile.
 
-**Last advanced:** 2026-06-04
+**Last advanced:** 2026-06-06
 **born:** 2026-05-26
 **closed:** —
 

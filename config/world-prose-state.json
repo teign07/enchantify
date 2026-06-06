@@ -126,6 +126,12 @@
       "register_note": "Mark spreads to three hands; alcove huddle forms; smudged slip dropped under table.",
       "thread": "Wicker's Campaign"
     },
+    "23d58328cf9e6b21433da4e0": {
+      "beat": "By morning the sea glass chip has not moved, but a thin new ink line curves from it back to Zara's desk in a slow looping spiral that wasn't there at lights-out, ending at a fresh blank card laid face-up beside the lilac petal; the Inkwright Society Hall door has been propped open a hand's width from the inside, and a single white feather rests on the threshold where no bird could have entered.",
+      "date": "2026-06-06",
+      "register_note": "Hall door breathes open; ink spiral darkens; blank card now bears unsigned Inkwright watermark.",
+      "thread": "Zara's Inkwright Application"
+    },
     "25369d498adbccb8a98cfb20": {
       "beat": "The folded ledger page now bears a faint pencil notation in Zara's hand \u2014 a single question mark beside a cargo line reading 'ballast: common salt (returned, unsold)' \u2014 and a chip of pale green sea glass has been placed atop the fogged vessel like a marker, the kind she uses when she's still thinking. The vessel itself has been moved three inches to the left, as though someone needed to see what was underneath it.",
       "date": "2026-05-18",
@@ -312,6 +318,12 @@
       "register_note": "Vulnerable record locked; key-tag bears two names, drawer warded against casual Nothing-touch.",
       "thread": "The Duskthorn Investigation"
     },
+    "6515b6d728dc10b4eec31cdf": {
+      "beat": "At moonshift the Dusk Thorn's shadow falls across Dr. Elowen Vellum's open monograph on the Registry vestibule shelf and one page warps along the gutter \u2014 the page where she countersigned the lintel's 1804 dating \u2014 so her ink runs outward into a damp halo and the year smears into something a clerk could read as 1864 if she wanted to.",
+      "date": "2026-06-05",
+      "register_note": "Vellum's countersigned lintel date altered 1804\u21921864 in registry; signature unchanged, contradiction now public.",
+      "thread": "The Duskthorn Investigation"
+    },
     "6524baad5a88414c204877c5": {
       "beat": "Headmistress Thorne protected The Duskthorn Investigation: kept the frightened witness away from the crowded corridor. As a result, one useful voice remains intact. Headmistress Thorne's personal pattern shaped the method: unwritten interest: Architecture, foundation stones, historical preservation. She is fascinated by what humans decide is worth saving, and the structural integrity of old\u2026. Pressure source: Dusk Th\u2026",
       "date": "2026-05-14",
@@ -396,6 +408,12 @@
       "register_note": "Students self-segregating from long table; Wicker's mark spreading via imitator, not just Wicker.",
       "thread": "Wicker's Campaign"
     },
+    "7d70f493736ef2091b290d25": {
+      "beat": "At first light the Dusk Thorn's shadow stretches sideways across Raven Hearts' open case-log on the registry annex desk and the page-corner where she'd written 'lintel cavity: empty, swept thrice, signed R.H.' curls upward of its own accord \u2014 beneath the curl, pressed flat to the paper, lies a thumbnail of charred 1804 plaster with one bright thread of horsehair still clinging, the same kind the original carpenters b\u2026",
+      "date": "2026-06-06",
+      "register_note": "Charred 1804 plaster pocketed near falsified 1864 ledger; both await discovery.",
+      "thread": "The Duskthorn Investigation"
+    },
     "7db344433d3e91c3dcd65c22": {
       "beat": "Headmistress Thorne protected The Duskthorn Investigation: locked the vulnerable record in a drawer with two names on the key-tag. As a result, the Nothing cannot erase that detail casually. Headmistress Thorne's personal pattern shaped the method: unwritten interest: Architecture, foundation stones, historical preservation. She is fascinated by what humans decide is worth saving, and the structural integrity of old\u2026\u2026",
       "date": "2026-05-14",
@@ -472,6 +490,18 @@
       "beat": "The Errata Registry now shows a third notation beneath the impossible annotation: a procedural citation, in the same later ink, referencing a Board amendment that technically permits retroactive dating under 'archival correction protocol' \u2014 a rule that exists, was never used for this, and appears freshly stamped as applicable. Gimble's office door has been closed for two days.",
       "date": "2026-05-23",
       "register_note": "Registry cloth swapped; east-corridor clerk absent since third notation surfaced.",
+      "thread": "The Duskthorn Investigation"
+    },
+    "952a2ed16c5f058a01181d1b": {
+      "beat": "Serenity Brown tapes a hand-blocked sheet of green felt-tip terminal text inside the Tidecrest library nook \u2014 *WELCOME, WANDERER. THE BARNACLE IS A TERMINAL TOO. PRESS TIDE TO CONTINUE. S>_* \u2014 with a tiny Daedric X doodled in the margin, and shelves the Tide Glass one inch closer to the page so its outward barnacle catches the green light.",
+      "date": "2026-06-05",
+      "register_note": "Felt-sheet salt-bloomed; third copper barnacle budded; Daedric X verdigris-cracked toward threshold.",
+      "thread": "Serenity's Unwritten Thread"
+    },
+    "9840388613479f2d6eb6f43d": {
+      "beat": "Headmistress Thorne walks the registry vestibule before dawn-bell and presses a flake of the academy's 1804 cornerstone \u2014 still wrapped in its linen square \u2014 into the wax-puddle of last night's guttered lamp on the copy-desk, sealing it to the underside of the ledger sheet where the smeared year now reads 1864, then sets beside it a thumb-sized brass plumb-bob from her artifact case with a slip tied to its string: *w\u2026",
+      "date": "2026-06-06",
+      "register_note": "Evidence envelope vanished overnight; thread, wax-smear, and altered 1864 date remain visible together.",
       "thread": "The Duskthorn Investigation"
     },
     "98ab7d872df91fc70aded30e": {
@@ -641,6 +671,12 @@
       "date": "2026-05-14",
       "register_note": "Witness diverted; east stair candle signals concealment, not flight.",
       "thread": "The Duskthorn Investigation"
+    },
+    "bb22d73a4ed290053eb04cac": {
+      "beat": "By the time the lunch bell rings, the tutor's quiet question to the clerk has snagged a second pair of eyes \u2014 an under-steward who recognizes the looped-S from a discarded ledger margin last week \u2014 and the two of them quietly slide all three slips into a manila sleeve labeled simply *FOR REVIEW*, leaving it on the corner of Thorne's desk where the afternoon sun will hit it first. Meanwhile, Finn finishes the american\u2026",
+      "date": "2026-06-06",
+      "register_note": "FOR REVIEW sleeve opened; Thorne pulling vault ledger, pencil list of names started.",
+      "thread": "Wicker's Campaign"
     },
     "bc3e371964ec26abb3e30c81": {
       "beat": "A bead of black resin wells up from the spine of Dr. Elowen Vellum's locked footnote-cabinet and crawls across her marginal note reading *Thorne reliable on dates pre-1850*, drying into a thumbnail-sized scab over the word *reliable* \u2014 and beneath the scab, in handwriting that is almost but not quite her own, three new words have surfaced in dried resin: *and after, too*.",
@@ -874,6 +910,12 @@
       "beat": "Dusk Thorn protected The Duskthorn Investigation: locked the vulnerable record in a drawer with two names on the key-tag. As a result, the Nothing cannot erase that detail casually. Pressure source: Dusk Thorn (talisman 87), Headmistress Thorne (npc 82), Victor Ebonheart (npc 6). Offscreen reason: Dusk Thorn resists thinning where its chapter still has claim under pressure from Dusk Thorn (talisman 87), Headmistress \u2026",
       "date": "2026-05-08",
       "register_note": "Vulnerable record warded and locked; absence replaced by intentional difficulty.",
+      "thread": "The Duskthorn Investigation"
+    },
+    "ed5a75b71cc99e9bc8f8a6ea": {
+      "beat": "Headmistress Thorne unwraps a chip of the academy's 1804 cornerstone from a linen square in her artifact collection and lays it on the registry vestibule sill directly beneath the corkboard's scorch outline \u2014 beside it she sets a sealed unaddressed envelope, the wax pressed with a star-map seal Orion does not own, then hesitates a full minute before walking off without signing the visitors' book.",
+      "date": "2026-06-05",
+      "register_note": "Cornerstone chip removed overnight; sealed star-map envelope queued in outgoing tray, unlogged.",
       "thread": "The Duskthorn Investigation"
     },
     "edf7d40abe410bad1d778393": {

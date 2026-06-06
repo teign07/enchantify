@@ -15,13 +15,13 @@
 | Entity | Type | Belief | Notes |
 |---|---|---|---|
 | Gimble's Unwritten Thread | Thread | 8 | [id:gimble-unwritten-thread] Phase: setup — Gimble of the Errata Registry's practical personal finance, envelope budgeting, open-source budgeting tools, actual budget has begun affecting Academy life. |
-| Serenity's Unwritten Thread | Thread | 11 | [id:serenity-unwritten-thread] Phase: setup — Quorum-of-four holds; verdigris and rust converge on Library threshold, uncrossed. |
+| Serenity's Unwritten Thread | Thread | 11 | [id:serenity-unwritten-thread] Phase: setup — Felt-sheet salt-bloomed; third copper barnacle budded; Daedric X verdigris-cracked toward threshold. |
 | Inkrest's Difficult Pages | Thread | 7 | [id:inkrest-difficult-pages] Phase: setup — Dr. Inkrest has opened Tuesday/Thursday office hours for Difficult Pages, daydream work, consciousness/brain-study translation, reauthoring notes, and grounded next-hour actions. |
 | Elowen's Refectory Experiments | Thread | 8 | [id:elowen-refectory-experiments] Phase: setup — Elowen has begun translating fuel, health, and longevity research into small practical experiments for bj. |
 | Academy Daily Life | Thread | 65 | [id:academy-daily] Phase: quiet — Wandering day — Book Jumpers meeting opened a mystery thread about compromised books; bj met Corin for the first time |
-| Wicker's Campaign | Thread | 65 | [id:wicker-schemes] Phase: resolution — Three looped-S slips bundled in FOR REVIEW sleeve on Thorne's desk; whose? smudged by unknown thumb. |
-| Zara's Inkwright Application | Thread | 31 | [id:zara-inkwright] Phase: climax — Sea glass anchors the trail; ink answers back, Hall door cracks open from within. |
-| The Duskthorn Investigation | Thread | 65 | [id:duskthorn-investigation] Phase: resolution — Button pocketed by clerk, splinter settled atop carbon-paper slip beneath cavity. |
+| Wicker's Campaign | Thread | 65 | [id:wicker-schemes] Phase: resolution — FOR REVIEW sleeve opened; Thorne pulling vault ledger, pencil list of names started. |
+| Zara's Inkwright Application | Thread | 32 | [id:zara-inkwright] Phase: climax — Hall door breathes open; ink spiral darkens; blank card now bears unsigned Inkwright watermark. |
+| The Duskthorn Investigation | Thread | 65 | [id:duskthorn-investigation] Phase: resolution — Evidence envelope vanished overnight; thread, wax-smear, and altered 1864 date remain visible together. |
 
 ---
 
@@ -70,7 +70,7 @@
 
 
 
-| Professor Bastion Goldweaver | NPC | 38 | [thread:academy-daily,press-and-peculiar-commerce] Flamboyant Chair of Applied Abundance; entrepreneurial professor for ethical monetization, products, Patreon, pricing, offer ladders, launch experiments, and sustainable revenue around Wonder Compass, The Doobaleedoos, and free open-source Enchantify; drafts only, never spends/posts/promises without consent |
+| Professor Bastion Goldweaver | NPC | 37 | [thread:academy-daily,press-and-peculiar-commerce] Flamboyant Chair of Applied Abundance; entrepreneurial professor for ethical monetization, products, Patreon, pricing, offer ladders, launch experiments, and sustainable revenue around Wonder Compass, The Doobaleedoos, and free open-source Enchantify; drafts only, never spends/posts/promises without consent |
 
 
 
@@ -182,23 +182,28 @@
 
 
 | Orlando "Oracle" Scrollstone | NPC | 19 | [thread:academy-daily] Riddlewind; predicts things one beat too late; unsettlingly accurate |
-| Bellkeeper Elian Quill | NPC | 31 | [thread:academy-daily] Book Fae; Registrar of Hours; proactive support character who reads schedule, calendar, Heartbeat, and support signals to prepare Today’s Page cards, transition supports, Compass windows, and evening scraps; simple language; no calendar/reminder writes without explicit consent |
+
 
 | Professor Maxwell Thorne | NPC | 15 | [thread:academy-daily] Emberheart; every sentence has a second meaning; speaks in metaphors; collection of allegorical works |
 
 | Professor Kyle Momort | NPC | 22 | [thread:academy-daily] Emberheart; smooth, measured; teaches Wayfinding as escape routes not arrivals; secretly Duskthorn |
-| Dr. Elowen Vellum | NPC | 26 | [thread:academy-daily,elowen-refectory-experiments] Book Fae; Literary Elf; Academy Longevity Physician; reads fuel, health, BP/labs when provided, supplements, movement, recovery, and Vellum Chart context into precise daily longevity experiments; no Chapter allegiance |
+
 | Headmaster Orion Blackthorn | NPC | 18 | [thread:academy-daily] Emberheart; clipped, precise; loves innovation, ignores the human cost; challenges are demanding but fair |
 
 
 | Dr. Selene Inkrest | NPC | 32 | [thread:academy-daily,inkrest-difficult-pages] Book Fae; Academy Narrative Therapist; Unwritten Interest: consciousness and brain studies as they relate to BJ; scheduled Tuesday/Thursday 9:30 PM office hours; reads therapy chart, Vellum chart, fuel, heartbeat, diary/daydreams; supports narrative therapy, reauthoring, grounding, and Difficult Pages; no Chapter allegiance |
-| Professor Luna Wispwood | NPC | 22 | [thread:academy-daily] Head of Tidecrest; adventurous, flighty; always planning the next thing; changes topics mid-sentence |
+| Professor Luna Wispwood | NPC | 26 | [thread:academy-daily] Head of Tidecrest; adventurous, flighty; always planning the next thing; changes topics mid-sentence |
 | Professor Elara Nightshade | NPC | 22 | [thread:academy-daily] Head of Emberheart; competitive, passionate; everything she says sounds like a dare; biased toward her chapter |
 
 | Gimble of the Errata Registry | NPC | 34 | [thread:academy-daily,gimble-unwritten-thread] Goblin; Errata Registry Bursar of Small Abundances; finance support; reads Ledger Chart and Actual Budget/SimpleFIN when configured; binds money fog without shame; no Chapter allegiance |
 | Wicker Eddies | NPC | 62 | [thread:wicker-schemes] Primary antagonist; Duskthorn; charismatic, cunning, always three moves ahead |
-| Headmistress Thorne | NPC | 55 | [thread:duskthorn-investigation] Leads the Academy; sees the Unwritten; the most powerful presence in the Labyrinth |
-| Serenity Brown | NPC | 25 | [thread:academy-daily,serenity-unwritten-thread] Tidecrest; carefree, spontaneous; keeps everyone from being too serious; 50 Belief invested by bj (20 on 2026-04-30, 30 on 2026-05-18) — Bond tier |
+
+
+| Dr. Elowen Vellum | NPC | 25 | [thread:academy-daily,elowen-refectory-experiments] Book Fae; Literary Elf; Academy Longevity Physician; reads fuel, health, BP/labs when provided, supplements, movement, recovery, and Vellum Chart context into precise daily longevity experiments; no Chapter allegiance |
+| Raven Hearts | NPC | 19 | [thread:wicker-schemes,academy-daily] Mossbloom; Wicker's crew; quiet, calculating; watches for strange shadows |
+| Bellkeeper Elian Quill | NPC | 30 | [thread:academy-daily] Book Fae; Registrar of Hours; proactive support character who reads schedule, calendar, Heartbeat, and support signals to prepare Today’s Page cards, transition supports, Compass windows, and evening scraps; simple language; no calendar/reminder writes without explicit consent |
+| Headmistress Thorne | NPC | 54 | [thread:duskthorn-investigation] Leads the Academy; sees the Unwritten; the most powerful presence in the Labyrinth |
+| Serenity Brown | NPC | 24 | [thread:academy-daily,serenity-unwritten-thread] Tidecrest; carefree, spontaneous; keeps everyone from being too serious; 50 Belief invested by bj (20 on 2026-04-30, 30 on 2026-05-18) — Bond tier |
 
 ## Fading Presence (Belief 5–14)
 
@@ -227,7 +232,7 @@
 
 
 | Felicity "Fable" Grimmhaven | NPC | 13 | [thread:academy-daily] Riddlewind; collects folklore; stories about things that haven't happened yet |
-| Raven Hearts | NPC | 18 | [thread:wicker-schemes,academy-daily] Mossbloom; Wicker's crew; quiet, calculating; watches for strange shadows |
+
 
 
 | The Obsidian Chronograph | Object | 8 | Anchor pen; cool, heavy, precise — waits in the Quillquarium for its bearer |
@@ -278,12 +283,12 @@
 
 | Eleanor Whitewood | NPC | 8 | [thread:academy-daily] Emberheart benefactor; real-world believer in storytelling magic; genuinely warm |
 | Serenity Lightfeather | NPC | 10 | [thread:academy-daily] Riddlewind; free-spirited dreamer; optimistic to the point of missing danger |
-| Professor Wellend Thickets | NPC | 15 | [thread:academy-daily] Head of Riddlewind; speaks only in questions and riddles; uses cooperative philosophy as cover; secretly Duskthorn |
+
 | Isolde Firare | NPC | 6 | [thread:academy-daily] Emberheart; competitive, adventurous; first to challenge and first to respect competence |
-| Harry Ono | NPC | 14 | [thread:academy-daily] Tidecrest Enchantment Guardian; encourages present-moment magic and spontaneity |
 
 
-| Clarissa "Clio" Quibblesnatch | NPC | 8 | [thread:academy-daily] Mossbloom; poetic daydreamer; open mic nights; sees stories in everything |
+
+| Clarissa "Clio" Quibblesnatch | NPC | 11 | [thread:academy-daily] Mossbloom; poetic daydreamer; open mic nights; sees stories in everything |
 
 | Soren Ng | NPC | 13 | [thread:academy-daily] Riddlewind; methodical; growing riddle collection; quietly building something |
 | Quentin Pagester | NPC | 8 | [thread:academy-daily] Riddlewind; meticulous archivist; catalogues enchanted books; organizational systems are sacred |
@@ -300,7 +305,7 @@
 | Evelyn Riad | NPC | 8 | [thread:academy-daily] Mossbloom; library researcher; finds Nothing-related clues in obscure academic papers |
 | Marina Clockhouse | NPC | 7 | [thread:academy-daily] Tidecrest; serene, mysterious; bond with aquatic creatures; the tide hears her |
 
-| Briar Merlock | NPC | 17 | [thread:academy-daily] Mossbloom; forest-dweller wisdom; foraging; wild mushroom identification |
+| Briar Merlock | NPC | 19 | [thread:academy-daily] Mossbloom; forest-dweller wisdom; foraging; wild mushroom identification |
 
 
 | Selene Moonfall | NPC | 16 | [thread:wicker-schemes,academy-daily] Tidecrest; Wicker's crew; mysterious, alluring, deceptive; social climbing as a skill |
@@ -310,12 +315,15 @@
 | Caspian Shan | NPC | 14 | [thread:academy-daily] Emberheart; stealthy, secretive; merges with shadows; night photographer |
 | Finn Bridges | NPC | 10 | [thread:academy-daily] Emberheart; independent, determined; antagonistic but honorable; a rival who respects competence |
 
-| Wilbur "Wordplay" Lexi | NPC | 9 | [thread:academy-daily] Riddlewind; pun-first personality; the one who makes Boggle laugh |
+
 | Zara Finch | NPC | 8 | [thread:main-arc,zara-inkwright] House guide and first friend at Enchantify; Riddlewind; warm, curious, fiercely loyal |
 | Erik Forgeton | NPC | 13 | [thread:academy-daily] Emberheart Enchantment Guardian; safeguards individuality and passion |
 | Professor Ignatius Imatook | NPC | 7 | [thread:academy-daily] Mossbloom; drifts mid-conversation into describing places that don't exist; stormchaser in spirit |
 | Letitia Windings | NPC | 11 | [thread:academy-daily] Riddlewind Enchantment Guardian; ensures cooperation and unity remain strong |
 | Astrid Natsune | NPC | 7 | [thread:academy-daily] Mossbloom; dreamy, philosophical; constellations; hard to reach when she's up there |
+| Professor Wellend Thickets | NPC | 14 | [thread:academy-daily] Head of Riddlewind; speaks only in questions and riddles; uses cooperative philosophy as cover; secretly Duskthorn |
+| Wilbur "Wordplay" Lexi | NPC | 8 | [thread:academy-daily] Riddlewind; pun-first personality; the one who makes Boggle laugh |
+| Harry Ono | NPC | 13 | [thread:academy-daily] Tidecrest Enchantment Guardian; encourages present-moment magic and spontaneity |
 
 ## Whisper Register (Belief <5)
 
@@ -334,8 +342,8 @@
 
 | Talisman | Chapter | Belief | Philosophy & Goal |
 |---|---|---|---|
-| Dusk Thorn | Duskthorn | 101 | [thread:duskthorn-investigation] Goal: Introduce conflict, obstacles, or drama. Philosophy: No conflict, no story. |
+| Dusk Thorn | Duskthorn | 97 | [thread:duskthorn-investigation] Goal: Introduce conflict, obstacles, or drama. Philosophy: No conflict, no story. |
 | Wind Cipher | Riddlewind | 40 | Goal: Force collaborative puzzles or shared encounters. Philosophy: Coauthored story. |
-| Ember Seal | Emberheart | 54 | Goal: Generate Embark opportunities for self-agency. Philosophy: Self-authorship. |
-| Moss Clasp | Mossbloom | 24 | Goal: Enhance receptive experiences and quiet reflection. Philosophy: Surrender/higher power. |
+| Ember Seal | Emberheart | 53 | Goal: Generate Embark opportunities for self-agency. Philosophy: Self-authorship. |
+| Moss Clasp | Mossbloom | 20 | Goal: Enhance receptive experiences and quiet reflection. Philosophy: Surrender/higher power. |
 | Tide Glass | Tidecrest | 43 | Goal: Inject spontaneity and unpredictable changes. Philosophy: Life is a poem/unscripted. |

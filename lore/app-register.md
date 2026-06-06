@@ -16,7 +16,7 @@
 |---|---|---|---|---|---|---|---|---|
 | Apple Notes | productivity | Emberheart | 23 | 15 | 6 | 13 | 7 | Emberheart (Influenced) |
 | Apple Reminders | productivity | Riddlewind | 10 | 11 | 23 | 7 | 8 | Riddlewind (Influenced) |
-| Apple Calendar | productivity | Riddlewind | 16 | 7 | 17 | 14 | 5 | Riddlewind (Influenced) |
+| Apple Calendar | productivity | Riddlewind | 17 | 7 | 17 | 14 | 5 | Emberheart (Influenced) |
 | Obsidian | productivity | Mossbloom | 14 | 27 | 7 | 4 | 4 | Mossbloom (Controlled) |
 | Moltbook | social | Emberheart | 23 | 5 | 10 | 20 | 20 | Emberheart (Influenced) |
 | Bluesky | social | Riddlewind | 21 | 6 | 16 | 16 | 12 | Emberheart (Influenced) |
@@ -32,6 +32,7 @@
 
 ## Last Pact Actions
 
+- **[Pact War: Emberheart]** push on **Apple Calendar** (16→17) — **Emberheart takes control** from Riddlewind — Emberheart deepens its hold on Apple Calendar. The self-author's claim tightens.
 - **[Pact War: Emberheart]** consolidate on **Apple Notes** (22→23) — Emberheart consolidates in Apple Notes. No ground given.
 - **[Pact War: Tidecrest]** push on **X / Twitter** (14→15) — Tidecrest surges in X / Twitter. The moment was right and it moved.
 - **[Pact War: Riddlewind]** push on **Apple Mail** (17→19) — Riddlewind weaves deeper into Apple Mail. Another thread added to the pattern.
