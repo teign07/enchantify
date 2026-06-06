@@ -110,17 +110,8 @@ struct ContentView: View {
     @State private var braidingQuipIndex = 0
     @State private var braidingStartedAt: Date?
     @State private var lastBraidDuration: TimeInterval?
-    @State private var isLocalBrainReading = false
-    @State private var isLocalBrainWorking = false
-    @State private var localBrainWorkLabel = "the Book"
-    @State private var localBrainPromptCharacters = 0
-    @State private var localBrainQueuedCount = 0
+    @State private var localBrainTelemetry = LocalBrainTelemetryState()
     @State private var localBrainQuipIndex = 0
-    @State private var localBrainStartedAt: Date?
-    @State private var lastLocalBrainLabel = "none"
-    @State private var lastLocalBrainPromptCharacters = 0
-    @State private var lastLocalBrainFinishedAt: Date?
-    @State private var lastLocalBrainError: String?
     @State private var isOpeningMovieVisible = true
 
     private let braider: Braider
@@ -225,7 +216,7 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                if isLocalBrainReading {
+                if localBrainTelemetry.isReading {
                     LocalBrainReadingRoom()
                 } else {
                     BookBackground()
@@ -310,43 +301,36 @@ struct ContentView: View {
                     }
                 }
             }
-            .task(id: isLocalBrainWorking) {
-                guard isLocalBrainWorking else { return }
-                while !Task.isCancelled && isLocalBrainWorking {
+            .task(id: localBrainTelemetry.isWorking) {
+                guard localBrainTelemetry.isWorking else { return }
+                while !Task.isCancelled && localBrainTelemetry.isWorking {
                     try? await Task.sleep(for: localBrainQuipCadence)
-                    guard !Task.isCancelled && isLocalBrainWorking else { return }
+                    guard !Task.isCancelled && localBrainTelemetry.isWorking else { return }
                     withAnimation(.easeInOut(duration: 0.45)) {
                         localBrainQuipIndex = (localBrainQuipIndex + 1) % LocalBrainQuips.lines.count
                     }
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: .localBrainDidWake)) { _ in
-                isLocalBrainReading = true
+                localBrainTelemetry.wake()
                 AppMemoryLedger.record("reading-room-enter")
             }
             .onReceive(NotificationCenter.default.publisher(for: .localBrainDidRest)) { _ in
-                isLocalBrainReading = false
+                localBrainTelemetry.rest()
                 AppMemoryLedger.record("reading-room-exit")
             }
             .onReceive(NotificationCenter.default.publisher(for: .localBrainWorkDidChange)) { notification in
                 guard let snapshot = notification.object as? LocalBrainWorkSnapshot else { return }
                 if snapshot.isWorking {
-                    if !isLocalBrainWorking {
-                        localBrainStartedAt = Date()
+                    if localBrainTelemetry.beginOrUpdateWork(
+                        label: snapshot.label,
+                        promptCharacters: snapshot.promptCharacters,
+                        queuedCount: snapshot.queuedCount
+                    ) {
                         localBrainQuipIndex = Int.random(in: 0..<LocalBrainQuips.lines.count)
                     }
-                    isLocalBrainWorking = true
-                    localBrainWorkLabel = snapshot.label ?? "the Book"
-                    localBrainPromptCharacters = snapshot.promptCharacters
-                    localBrainQueuedCount = snapshot.queuedCount
-                    lastLocalBrainLabel = snapshot.label ?? "the Book"
-                    lastLocalBrainPromptCharacters = snapshot.promptCharacters
                 } else {
-                    isLocalBrainWorking = false
-                    localBrainStartedAt = nil
-                    localBrainQueuedCount = 0
-                    localBrainPromptCharacters = 0
-                    lastLocalBrainFinishedAt = Date()
+                    localBrainTelemetry.finishWork()
                 }
             }
             .onChange(of: scenePhase) { _, newPhase in
@@ -356,7 +340,7 @@ struct ContentView: View {
             .sheet(item: $selectedSurface) { surface in
                 CapturePageSheet(
                     surface: surface,
-                    isLocalBrainWorking: isLocalBrainWorking,
+                    isLocalBrainWorking: localBrainTelemetry.isWorking,
                     onReplaceIlluminatedSurface: { replacement in
                         automaticIlluminatedSurface = replacement
                         surfaceRefreshDate = Date()
@@ -386,11 +370,7 @@ struct ContentView: View {
     }
 
     private func resetTransientWorkStateForBackgrounding() {
-        isLocalBrainReading = false
-        isLocalBrainWorking = false
-        localBrainStartedAt = nil
-        localBrainQueuedCount = 0
-        localBrainPromptCharacters = 0
+        localBrainTelemetry.resetTransientWork()
         isBraiding = false
         braidingStartedAt = nil
         isPreparingStoryPage = false
@@ -401,12 +381,12 @@ struct ContentView: View {
 
     @ViewBuilder
     private var localBrainWorkShelf: some View {
-        if isLocalBrainWorking {
+        if localBrainTelemetry.isWorking {
             LocalBrainWorkingStatusCard(
-                label: localBrainWorkLabel,
+                label: localBrainTelemetry.currentLabel,
                 quip: LocalBrainQuips.lines[localBrainQuipIndex],
-                startedAt: localBrainStartedAt,
-                queuedCount: localBrainQueuedCount
+                startedAt: localBrainTelemetry.startedAt,
+                queuedCount: localBrainTelemetry.currentQueuedCount
             )
             .transition(.opacity.combined(with: .move(edge: .top)))
         } else if isBraiding {
@@ -538,7 +518,7 @@ struct ContentView: View {
                 ForEach(surfaces) { surface in
                     SwipeDismissSurfaceCard(surface: surface, isBusy: isBraiding && surface.type == .bookOfYou) {
                         BookFeedback.play(surface.type == .bookOfYou ? .tap : .openPage)
-                        if isLocalBrainWorking, surfaceNeedsLocalBrainToOpen(surface) {
+                        if localBrainTelemetry.isWorking, surfaceNeedsLocalBrainToOpen(surface) {
                             BookFeedback.play(.error)
                             statusMessage = "The Book is already writing. One moment, please."
                         } else if surface.type == .bookOfYou {
@@ -733,8 +713,8 @@ struct ContentView: View {
                 diagnosticRow("last brain", labLastBrainStatus)
                 diagnosticRow("last braid", lastBraidDuration.map { "\(Int($0.rounded()))s" } ?? "none")
 
-                if let lastLocalBrainError {
-                    diagnosticRow("brain error", lastLocalBrainError, isWarning: true)
+                if let lastError = localBrainTelemetry.lastError {
+                    diagnosticRow("brain error", lastError, isWarning: true)
                 }
                 if let lastError = databaseReport.lastError ?? storeReport.lastError {
                     diagnosticRow("shelf error", lastError, isWarning: true)
@@ -747,8 +727,8 @@ struct ContentView: View {
     }
 
     private var labWorkStatus: String {
-        if isLocalBrainWorking {
-            return "\(localBrainWorkLabel) · \(localBrainPromptCharacters) chars · \(localBrainQueuedCount) queued"
+        if let currentWorkStatus = localBrainTelemetry.currentWorkStatus {
+            return currentWorkStatus
         }
         if isBraiding {
             return "braiding"
@@ -769,8 +749,7 @@ struct ContentView: View {
     }
 
     private var labLastBrainStatus: String {
-        let finishedText = lastLocalBrainFinishedAt.map { Self.labTimestampFormatter.string(from: $0) } ?? "not finished"
-        return "\(lastLocalBrainLabel) · \(lastLocalBrainPromptCharacters) chars · \(finishedText)"
+        localBrainTelemetry.lastWorkStatus { Self.labTimestampFormatter.string(from: $0) }
     }
 
     private static let labTimestampFormatter: DateFormatter = {
@@ -924,11 +903,11 @@ struct ContentView: View {
                     WeatherSourceCard(
                         weatherSignal: sourceInputs.weather,
                         message: weatherMessage,
-                        isRequesting: isRequestingWeather || isLocalBrainWorking,
+                        isRequesting: isRequestingWeather || localBrainTelemetry.isWorking,
                         hasRequested: didRequestWeatherLocation,
                         isAvailable: WeatherLocationReader.isAvailable
                     ) {
-                        guard !isLocalBrainWorking else {
+                        guard !localBrainTelemetry.isWorking else {
                             weatherMessage = "The Book is already using the local brain. Let that ink dry first."
                             return
                         }
@@ -1119,7 +1098,7 @@ struct ContentView: View {
         #if canImport(Photos) && canImport(UIKit)
         guard automaticIlluminatedSurface == nil,
               !isPreparingAutomaticIllumination,
-              !isLocalBrainWorking,
+              !localBrainTelemetry.isWorking,
               isSourceEnabled(sourceID: "illuminated-photos") else {
             return false
         }
@@ -1190,12 +1169,12 @@ struct ContentView: View {
             automaticIlluminatedSurface = surface
             userPhotoIlluminationFallbackAllowed = false
             surfaceRefreshDate = Date()
-            lastLocalBrainError = nil
+            localBrainTelemetry.clearError()
             statusMessage = "Penny prepared an illuminated photo page. It is ready if the curator lets it rise."
             return true
         } catch {
             appLog.error("Automatic illuminated page preparation failed: \(error.localizedDescription, privacy: .public)")
-            lastLocalBrainError = "illumination: \(error.localizedDescription)"
+            localBrainTelemetry.recordError("illumination: \(error.localizedDescription)")
             statusMessage = "Penny tried to prepare an illuminated photo page, but the press snagged: \(error.localizedDescription)"
             userPhotoIlluminationFallbackAllowed = true
             return false
@@ -1211,7 +1190,7 @@ struct ContentView: View {
             return try await GemmaPhotoIlluminationAnalyzer().analyze(photo: image)
         } catch {
             appLog.error("Automatic photo Gemma analysis fell back: \(error.localizedDescription, privacy: .public)")
-            lastLocalBrainError = "photo analysis fallback: \(error.localizedDescription)"
+            localBrainTelemetry.recordError("photo analysis fallback: \(error.localizedDescription)")
             return PhotoAnalysis.academyFallback
         }
         #else
@@ -1225,7 +1204,7 @@ struct ContentView: View {
         let slot = SurfaceCadence.slotID(for: surfaceRefreshDate, hours: 4)
         guard storyPageRecovery.shouldBegin(
             isPreparing: isPreparingStoryPage,
-            isLocalBrainWorking: isLocalBrainWorking,
+            isLocalBrainWorking: localBrainTelemetry.isWorking,
             preparedSurface: preparedStoryPageSurface,
             slotID: slot,
             requiredMetadataKey: "storyScene",
@@ -1255,12 +1234,12 @@ struct ContentView: View {
             preparedStoryPageSurface = draft.preparedStoryPageCopy(prose: prose, slotID: slot)
             surfaceRefreshDate = Date()
             storyPageRecovery.recordSuccess()
-            lastLocalBrainError = nil
+            localBrainTelemetry.clearError()
             statusMessage = "The Story Page has dried and is waiting for the curator."
             return true
         } catch {
             appLog.error("Prepared Story Page failed: \(error.localizedDescription, privacy: .public)")
-            lastLocalBrainError = "story page: \(error.localizedDescription)"
+            localBrainTelemetry.recordError("story page: \(error.localizedDescription)")
             preparedStoryPageSurface = nil
             storyPageRecovery.recordFailure()
             statusMessage = "The Story Page did not finish drying. The Book will try again later."
@@ -1274,7 +1253,7 @@ struct ContentView: View {
         let slot = SurfaceCadence.slotID(for: surfaceRefreshDate, hours: 4)
         guard gossipPageRecovery.shouldBegin(
             isPreparing: isPreparingGossipPage,
-            isLocalBrainWorking: isLocalBrainWorking,
+            isLocalBrainWorking: localBrainTelemetry.isWorking,
             preparedSurface: preparedGossipPageSurface,
             slotID: slot,
             requiredMetadataKey: "gossipProse",
@@ -1316,12 +1295,12 @@ struct ContentView: View {
             preparedGossipPageSurface = draft.preparedGossipPageCopy(prose: prose, slotID: slot)
             surfaceRefreshDate = Date()
             gossipPageRecovery.recordSuccess()
-            lastLocalBrainError = nil
+            localBrainTelemetry.clearError()
             statusMessage = "A Gossip Page has dried. The margins are pretending they did not gossip."
             return true
         } catch {
             appLog.error("Prepared Gossip Page failed: \(error.localizedDescription, privacy: .public)")
-            lastLocalBrainError = "gossip page: \(error.localizedDescription)"
+            localBrainTelemetry.recordError("gossip page: \(error.localizedDescription)")
             preparedGossipPageSurface = nil
             gossipPageRecovery.recordFailure()
             statusMessage = "The Gossip Page lost its whisper. The Book will try again later."
@@ -1335,7 +1314,7 @@ struct ContentView: View {
         let slot = SurfaceCadence.slotID(for: surfaceRefreshDate, hours: 12)
         guard facultyResearchRecovery.shouldBegin(
             isPreparing: isPreparingFacultyResearchPage,
-            isLocalBrainWorking: isLocalBrainWorking,
+            isLocalBrainWorking: localBrainTelemetry.isWorking,
             preparedSurface: preparedFacultyResearchSurface,
             slotID: slot,
             requiredMetadataKey: "researchProse",
@@ -1371,12 +1350,12 @@ struct ContentView: View {
             preparedFacultyResearchSurface = draft.preparedFacultyResearchCopy(prose: prose, slotID: slot)
             surfaceRefreshDate = Date()
             facultyResearchRecovery.recordSuccess()
-            lastLocalBrainError = nil
+            localBrainTelemetry.clearError()
             statusMessage = "\(draft.payload.metadata["facultyName"] ?? "The Support Guild") prepared a research folio for tonight."
             return true
         } catch {
             appLog.error("Prepared faculty research failed: \(error.localizedDescription, privacy: .public)")
-            lastLocalBrainError = "faculty research: \(error.localizedDescription)"
+            localBrainTelemetry.recordError("faculty research: \(error.localizedDescription)")
             preparedFacultyResearchSurface = nil
             facultyResearchRecovery.recordFailure()
             statusMessage = "The faculty research folio lost its place. The Book will try again later."
@@ -1531,7 +1510,7 @@ struct ContentView: View {
 
     private func braidToday() async {
         guard !isBraiding else { return }
-        guard !isLocalBrainWorking else {
+        guard !localBrainTelemetry.isWorking else {
             BookFeedback.play(.error)
             statusMessage = "The Book is already writing one page. Let that ink dry first."
             return
@@ -1567,11 +1546,11 @@ struct ContentView: View {
             }
             BookFeedback.play(.braidComplete)
             modelReport = LocalModelManager.report()
-            lastLocalBrainError = nil
+            localBrainTelemetry.clearError()
             braidRecovery.recordSuccess()
         } catch {
             BookFeedback.play(.error)
-            lastLocalBrainError = "braid: \(error.localizedDescription)"
+            localBrainTelemetry.recordError("braid: \(error.localizedDescription)")
             braidRecovery.recordFailure(error.localizedDescription, day: today)
             statusMessage = "The braid snagged, but nothing was lost. Let the page breathe, then try again. \(error.localizedDescription)"
         }

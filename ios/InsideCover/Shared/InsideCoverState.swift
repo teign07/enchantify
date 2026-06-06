@@ -3778,6 +3778,81 @@ struct PreparedPageRecoveryState: Codable, Equatable {
     }
 }
 
+struct LocalBrainTelemetryState: Codable, Equatable {
+    private(set) var isReading = false
+    private(set) var isWorking = false
+    private(set) var currentLabel = "the Book"
+    private(set) var currentPromptCharacters = 0
+    private(set) var currentQueuedCount = 0
+    private(set) var startedAt: Date?
+    private(set) var lastLabel = "none"
+    private(set) var lastPromptCharacters = 0
+    private(set) var lastFinishedAt: Date?
+    private(set) var lastError: String?
+
+    var currentWorkStatus: String? {
+        guard isWorking else { return nil }
+        return "\(currentLabel) · \(currentPromptCharacters) chars · \(currentQueuedCount) queued"
+    }
+
+    func lastWorkStatus(formatDate: (Date) -> String) -> String {
+        let finishedText = lastFinishedAt.map(formatDate) ?? "not finished"
+        return "\(lastLabel) · \(lastPromptCharacters) chars · \(finishedText)"
+    }
+
+    mutating func wake() {
+        isReading = true
+    }
+
+    mutating func rest() {
+        isReading = false
+    }
+
+    mutating func beginOrUpdateWork(
+        label: String?,
+        promptCharacters: Int,
+        queuedCount: Int,
+        now: Date = Date()
+    ) -> Bool {
+        let didBegin = !isWorking
+        if didBegin {
+            startedAt = now
+        }
+        let displayLabel = label ?? "the Book"
+        isWorking = true
+        currentLabel = displayLabel
+        currentPromptCharacters = promptCharacters
+        currentQueuedCount = queuedCount
+        lastLabel = displayLabel
+        lastPromptCharacters = promptCharacters
+        return didBegin
+    }
+
+    mutating func finishWork(now: Date = Date()) {
+        isWorking = false
+        startedAt = nil
+        currentQueuedCount = 0
+        currentPromptCharacters = 0
+        lastFinishedAt = now
+    }
+
+    mutating func resetTransientWork() {
+        isReading = false
+        isWorking = false
+        startedAt = nil
+        currentQueuedCount = 0
+        currentPromptCharacters = 0
+    }
+
+    mutating func recordError(_ error: String) {
+        lastError = error
+    }
+
+    mutating func clearError() {
+        lastError = nil
+    }
+}
+
 struct BookArchiveExport: Codable, Equatable {
     static let schemaVersion = 1
 
