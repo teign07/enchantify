@@ -249,15 +249,7 @@ enum HealthKitBodyReader {
             .quantityType(forIdentifier: .dietaryFatTotal),
             .quantityType(forIdentifier: .dietaryFiber)
         ].compactMap(\.self)
-        let optionalClinicalTypes: [HKClinicalType] = [
-            .clinicalType(forIdentifier: .medicationRecord),
-            .clinicalType(forIdentifier: .allergyRecord),
-            .clinicalType(forIdentifier: .conditionRecord),
-            .clinicalType(forIdentifier: .labResultRecord),
-            .clinicalType(forIdentifier: .immunizationRecord),
-            .clinicalType(forIdentifier: .vitalSignRecord)
-        ].compactMap(\.self)
-        let readTypes = Set<HKObjectType>([stepType, distanceType, activeEnergyType, sleepType] + optionalQuantityTypes + optionalClinicalTypes)
+        let readTypes = Set<HKObjectType>([stepType, distanceType, activeEnergyType, sleepType] + optionalQuantityTypes)
         try await store.requestAuthorization(toShare: [], read: readTypes)
 
         async let steps = optionalQuantitySum(for: stepType, unit: .count(), store: store, daysBack: 1)
@@ -341,15 +333,6 @@ enum HealthKitBodyReader {
                 }
             }
 
-            func addClinicalCount(_ identifier: HKClinicalTypeIdentifier, label: String) {
-                guard let type = HKClinicalType.clinicalType(forIdentifier: identifier) else { return }
-                group.addTask {
-                    let count = await optionalSampleCount(for: type, store: store, daysBack: 365)
-                    guard count > 0 else { return nil }
-                    return BodySourceSignal.Metric(id: identifier.rawValue, label: label, value: "\(count)", unit: "records", kind: "clinical")
-                }
-            }
-
             addLatest(.heartRate, label: "Heart rate", unit: HKUnit.count().unitDivided(by: .minute()), displayUnit: "bpm")
             addLatest(.restingHeartRate, label: "Resting heart rate", unit: HKUnit.count().unitDivided(by: .minute()), displayUnit: "bpm")
             addLatest(.heartRateVariabilitySDNN, label: "HRV", unit: .secondUnit(with: .milli), displayUnit: "ms")
@@ -367,13 +350,6 @@ enum HealthKitBodyReader {
             addSum(.dietaryCarbohydrates, label: "Carbohydrates", unit: .gram(), displayUnit: "g")
             addSum(.dietaryFatTotal, label: "Fat", unit: .gram(), displayUnit: "g")
             addSum(.dietaryFiber, label: "Fiber", unit: .gram(), displayUnit: "g")
-            addClinicalCount(.medicationRecord, label: "Medication")
-            addClinicalCount(.allergyRecord, label: "Allergy")
-            addClinicalCount(.conditionRecord, label: "Condition")
-            addClinicalCount(.labResultRecord, label: "Lab")
-            addClinicalCount(.immunizationRecord, label: "Immunization")
-            addClinicalCount(.vitalSignRecord, label: "Vital sign")
-
             var metrics: [BodySourceSignal.Metric] = []
             for await metric in group {
                 if let metric {
@@ -417,25 +393,6 @@ enum HealthKitBodyReader {
                     return
                 }
                 continuation.resume(returning: (samples as? [HKQuantitySample])?.first)
-            }
-            store.execute(query)
-        }
-    }
-
-    private static func optionalSampleCount(for type: HKSampleType, store: HKHealthStore, daysBack: Int) async -> Int {
-        (try? await sampleCount(for: type, store: store, daysBack: daysBack)) ?? 0
-    }
-
-    private static func sampleCount(for type: HKSampleType, store: HKHealthStore, daysBack: Int) async throws -> Int {
-        let start = Calendar.current.date(byAdding: .day, value: -daysBack, to: Date()) ?? Date()
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: Date())
-        return try await withCheckedThrowingContinuation { continuation in
-            let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-                continuation.resume(returning: samples?.count ?? 0)
             }
             store.execute(query)
         }
