@@ -3934,6 +3934,26 @@ struct SurfaceReadinessState: Codable, Equatable {
     }
 }
 
+enum SurfaceActionDecision: Codable, Equatable {
+    case blocked(message: String)
+    case braid
+    case open
+}
+
+struct SurfaceActionRouter: Codable, Equatable {
+    var workState: WorkBlockingState
+
+    func decision(for type: BookPageType, readiness: SurfaceReadinessState) -> SurfaceActionDecision {
+        guard workState.canOpenSurface(needsLocalBrain: readiness.needsLocalBrainToOpen) else {
+            return .blocked(message: "The Book is already writing. One moment, please.")
+        }
+        if type == .bookOfYou {
+            return .braid
+        }
+        return .open
+    }
+}
+
 struct BookArchiveExport: Codable, Equatable {
     static let schemaVersion = 1
 

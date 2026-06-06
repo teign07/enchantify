@@ -530,12 +530,16 @@ struct ContentView: View {
                 ForEach(surfaces) { surface in
                     SwipeDismissSurfaceCard(surface: surface, isBusy: workBlockingState.surfaceBusyIndicator(for: surface.type)) {
                         BookFeedback.play(surface.type == .bookOfYou ? .tap : .openPage)
-                        if !workBlockingState.canOpenSurface(needsLocalBrain: SurfaceReadinessState(surface: surface).needsLocalBrainToOpen) {
+                        switch SurfaceActionRouter(workState: workBlockingState).decision(
+                            for: surface.type,
+                            readiness: SurfaceReadinessState(surface: surface)
+                        ) {
+                        case .blocked(let message):
                             BookFeedback.play(.error)
-                            statusMessage = "The Book is already writing. One moment, please."
-                        } else if surface.type == .bookOfYou {
+                            statusMessage = message
+                        case .braid:
                             Task { await braidToday() }
-                        } else {
+                        case .open:
                             selectedSurface = surface
                         }
                     } onDismiss: {
