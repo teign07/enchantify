@@ -530,7 +530,7 @@ struct ContentView: View {
                 ForEach(surfaces) { surface in
                     SwipeDismissSurfaceCard(surface: surface, isBusy: workBlockingState.surfaceBusyIndicator(for: surface.type)) {
                         BookFeedback.play(surface.type == .bookOfYou ? .tap : .openPage)
-                        if !workBlockingState.canOpenSurface(needsLocalBrain: surfaceNeedsLocalBrainToOpen(surface)) {
+                        if !workBlockingState.canOpenSurface(needsLocalBrain: SurfaceReadinessState(surface: surface).needsLocalBrainToOpen) {
                             BookFeedback.play(.error)
                             statusMessage = "The Book is already writing. One moment, please."
                         } else if surface.type == .bookOfYou {
@@ -576,21 +576,6 @@ struct ContentView: View {
             }
         }
         return nil
-    }
-
-    private func surfaceNeedsLocalBrainToOpen(_ surface: SurfacePage) -> Bool {
-        switch surface.type {
-        case .bookOfYou:
-            return true
-        case .illuminatedPhoto:
-            return (surface.payload.metadata["renderedPreviewPath"] ?? "").isEmpty
-        case .narrativeOS:
-            return (surface.payload.metadata["storyScene"] ?? "").isEmpty
-        case .facultyResearch:
-            return (surface.payload.metadata["researchProse"] ?? "").isEmpty
-        default:
-            return false
-        }
     }
 
     private func foldedShelf<Content: View>(

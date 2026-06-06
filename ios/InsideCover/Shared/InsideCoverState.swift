@@ -3901,6 +3901,39 @@ struct WorkBlockingState: Codable, Equatable {
     }
 }
 
+struct SurfaceReadinessState: Codable, Equatable {
+    var type: BookPageType
+    var metadata: [String: String]
+
+    init(surface: SurfacePage) {
+        self.init(type: surface.type, metadata: surface.payload.metadata)
+    }
+
+    init(type: BookPageType, metadata: [String: String] = [:]) {
+        self.type = type
+        self.metadata = metadata
+    }
+
+    var needsLocalBrainToOpen: Bool {
+        switch type {
+        case .bookOfYou:
+            return true
+        case .illuminatedPhoto:
+            return !hasNonEmptyMetadata("renderedPreviewPath")
+        case .narrativeOS:
+            return !hasNonEmptyMetadata("storyScene")
+        case .facultyResearch:
+            return !hasNonEmptyMetadata("researchProse")
+        default:
+            return false
+        }
+    }
+
+    private func hasNonEmptyMetadata(_ key: String) -> Bool {
+        metadata[key]?.isEmpty == false
+    }
+}
+
 struct BookArchiveExport: Codable, Equatable {
     static let schemaVersion = 1
 
