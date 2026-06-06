@@ -3725,6 +3725,59 @@ struct BraidRecoveryState: Codable, Equatable {
     }
 }
 
+struct PreparedPageRecoveryState: Codable, Equatable {
+    private(set) var lastFailureAt: Date?
+    var cooldown: TimeInterval
+
+    init(lastFailureAt: Date? = nil, cooldown: TimeInterval = 20 * 60) {
+        self.lastFailureAt = lastFailureAt
+        self.cooldown = cooldown
+    }
+
+    func shouldBegin(
+        isPreparing: Bool,
+        isLocalBrainWorking: Bool,
+        preparedSurface: SurfacePage?,
+        slotID: String,
+        requiredMetadataKey: String,
+        now: Date
+    ) -> Bool {
+        guard !isPreparing, !isLocalBrainWorking else { return false }
+        guard !isCoolingDown(now: now) else { return false }
+        return !Self.preparedSurfaceIsCurrent(
+            preparedSurface,
+            slotID: slotID,
+            requiredMetadataKey: requiredMetadataKey
+        )
+    }
+
+    func isCoolingDown(now: Date) -> Bool {
+        guard let lastFailureAt else { return false }
+        return now.timeIntervalSince(lastFailureAt) < cooldown
+    }
+
+    mutating func recordFailure(at date: Date = Date()) {
+        lastFailureAt = date
+    }
+
+    mutating func recordSuccess() {
+        lastFailureAt = nil
+    }
+
+    static func preparedSurfaceIsCurrent(
+        _ surface: SurfacePage?,
+        slotID: String,
+        requiredMetadataKey: String
+    ) -> Bool {
+        guard let surface,
+              surface.payload.metadata["slotID"] == slotID,
+              surface.payload.metadata[requiredMetadataKey]?.isEmpty == false else {
+            return false
+        }
+        return true
+    }
+}
+
 struct BookArchiveExport: Codable, Equatable {
     static let schemaVersion = 1
 

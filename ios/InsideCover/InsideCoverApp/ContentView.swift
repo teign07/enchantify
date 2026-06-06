@@ -79,7 +79,7 @@ struct ContentView: View {
     @State private var isPreparingAutomaticIllumination = false
     @State private var preparedStoryPageSurface: SurfacePage?
     @State private var isPreparingStoryPage = false
-    @State private var lastStoryPagePreparationFailure: Date?
+    @State private var storyPageRecovery = PreparedPageRecoveryState()
     @State private var preparedGossipPageSurface: SurfacePage?
     @State private var isPreparingGossipPage = false
     @State private var preparedFacultyResearchSurface: SurfacePage?
@@ -1220,15 +1220,15 @@ struct ContentView: View {
     @MainActor
     @discardableResult
     private func prepareStoryPageIfPossible() async -> Bool {
-        guard !isPreparingStoryPage, !isLocalBrainWorking else { return false }
-        if let lastStoryPagePreparationFailure,
-           surfaceRefreshDate.timeIntervalSince(lastStoryPagePreparationFailure) < 20 * 60 {
-            return false
-        }
         let slot = SurfaceCadence.slotID(for: surfaceRefreshDate, hours: 4)
-        if let preparedStoryPageSurface,
-           preparedStoryPageSurface.payload.metadata["slotID"] == slot,
-           preparedStoryPageSurface.payload.metadata["storyScene"]?.isEmpty == false {
+        guard storyPageRecovery.shouldBegin(
+            isPreparing: isPreparingStoryPage,
+            isLocalBrainWorking: isLocalBrainWorking,
+            preparedSurface: preparedStoryPageSurface,
+            slotID: slot,
+            requiredMetadataKey: "storyScene",
+            now: surfaceRefreshDate
+        ) else {
             return false
         }
 
@@ -1252,7 +1252,7 @@ struct ContentView: View {
             #endif
             preparedStoryPageSurface = draft.preparedStoryPageCopy(prose: prose, slotID: slot)
             surfaceRefreshDate = Date()
-            lastStoryPagePreparationFailure = nil
+            storyPageRecovery.recordSuccess()
             lastLocalBrainError = nil
             statusMessage = "The Story Page has dried and is waiting for the curator."
             return true
@@ -1260,7 +1260,7 @@ struct ContentView: View {
             appLog.error("Prepared Story Page failed: \(error.localizedDescription, privacy: .public)")
             lastLocalBrainError = "story page: \(error.localizedDescription)"
             preparedStoryPageSurface = nil
-            lastStoryPagePreparationFailure = Date()
+            storyPageRecovery.recordFailure()
             statusMessage = "The Story Page did not finish drying. The Book will try again later."
             return false
         }
