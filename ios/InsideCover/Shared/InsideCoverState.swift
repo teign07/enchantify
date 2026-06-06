@@ -3684,6 +3684,47 @@ struct BookDay: Codable, Identifiable, Equatable {
     }
 }
 
+struct BraidRecoveryState: Codable, Equatable {
+    private(set) var canRetry = false
+    private(set) var lastError: String?
+
+    var retryActionTitle: String? {
+        canRetry ? "Try again" : nil
+    }
+
+    mutating func beginAttempt() {
+        canRetry = false
+    }
+
+    mutating func recordFailure(_ error: String, day: BookDay) {
+        guard day.bookOfYou == nil, !day.capturedPages.isEmpty else {
+            canRetry = false
+            lastError = nil
+            return
+        }
+        canRetry = true
+        lastError = error
+    }
+
+    mutating func recordSuccess() {
+        canRetry = false
+        lastError = nil
+    }
+
+    static func dayByMarkingCapturedPagesUsed(_ day: BookDay, braid: BookPage) -> BookDay {
+        var updatedDay = day
+        updatedDay.pages = updatedDay.pages.map { page in
+            var updated = page
+            if updated.type != .bookOfYou {
+                updated.usedInBookOfYou = true
+            }
+            return updated
+        }
+        updatedDay.pages.append(braid)
+        return updatedDay
+    }
+}
+
 struct BookArchiveExport: Codable, Equatable {
     static let schemaVersion = 1
 

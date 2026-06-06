@@ -74,7 +74,7 @@ struct ContentView: View {
     @State private var surfaceRefreshDate = Date()
     @State private var undoSurface: SurfacePage?
     @State private var undoDayID: String?
-    @State private var canRetryBraid = false
+    @State private var braidRecovery = BraidRecoveryState()
     @State private var automaticIlluminatedSurface: SurfacePage?
     @State private var isPreparingAutomaticIllumination = false
     @State private var preparedStoryPageSurface: SurfacePage?
@@ -569,17 +569,14 @@ struct ContentView: View {
         if undoSurface != nil {
             return "Call it back"
         }
-        if canRetryBraid {
-            return "Try again"
-        }
-        return nil
+        return braidRecovery.retryActionTitle
     }
 
     private var statusAction: (() -> Void)? {
         if undoSurface != nil {
             return { undoLastSurfaceDismissal() }
         }
-        if canRetryBraid {
+        if braidRecovery.canRetry {
             return {
                 Task { await braidToday() }
             }
@@ -1531,7 +1528,7 @@ struct ContentView: View {
             return
         }
         BookFeedback.play(.braidStart)
-        canRetryBraid = false
+        braidRecovery.beginAttempt()
         let start = Date()
         isBraiding = true
         braidingStartedAt = start
@@ -1544,17 +1541,9 @@ struct ContentView: View {
         }
 
         do {
-            var day = today
-            var braid = try await braider.braid(day: day)
-            braid.mediaAssets = day.capturedPages.flatMap(\.mediaAssets)
-            day.pages = day.pages.map { page in
-                var updated = page
-                if updated.type != .bookOfYou {
-                    updated.usedInBookOfYou = true
-                }
-                return updated
-            }
-            day.pages.append(braid)
+            var braid = try await braider.braid(day: today)
+            braid.mediaAssets = today.capturedPages.flatMap(\.mediaAssets)
+            let day = BraidRecoveryState.dayByMarkingCapturedPagesUsed(today, braid: braid)
             if braid.tags.contains("local-model-missing") {
                 persist(day: day, message: "The Book kept today's page in its fallback hand. The local brain is still waking.")
             } else if braid.tags.contains("mlx-hook") {
@@ -1565,11 +1554,11 @@ struct ContentView: View {
             BookFeedback.play(.braidComplete)
             modelReport = LocalModelManager.report()
             lastLocalBrainError = nil
-            canRetryBraid = false
+            braidRecovery.recordSuccess()
         } catch {
             BookFeedback.play(.error)
             lastLocalBrainError = "braid: \(error.localizedDescription)"
-            canRetryBraid = true
+            braidRecovery.recordFailure(error.localizedDescription, day: today)
             statusMessage = "The braid snagged, but nothing was lost. Let the page breathe, then try again. \(error.localizedDescription)"
         }
     }
