@@ -97,6 +97,7 @@ struct ContentView: View {
     @AppStorage("isReturnedStacksExpanded") private var isReturnedStacksExpanded = false
     @AppStorage("isBookOfYouShelfExpanded") private var isBookOfYouShelfExpanded = false
     @AppStorage("isQuietMechanicsExpanded") private var isQuietMechanicsExpanded = false
+    @AppStorage("isLabPanelExpanded") private var isLabPanelExpanded = false
     @State private var healthKitMessage = HealthKitBodyReader.isAvailable
         ? "If you open the door, the Book can listen for the body's weather without showing the numbers."
         : "This room has no HealthKit doorway."
@@ -232,6 +233,7 @@ struct ContentView: View {
                                 databaseReport: databaseReport,
                                 lastBraidDuration: lastBraidDuration
                             )
+                            labPanelShelf
                             localBrainWorkShelf
                             surfaceShelf
                             pageSourceShelf
@@ -667,6 +669,85 @@ struct ContentView: View {
                 }
                 .padding(.bottom, 2)
             }
+        }
+    }
+
+    private var labPanelShelf: some View {
+        let eligibleBraidCount = today.capturedPages.filter { !$0.usedInBookOfYou }.count
+        let queuedGeneratedPages = [
+            preparedStoryPageSurface,
+            preparedGossipPageSurface,
+            preparedFacultyResearchSurface,
+            automaticIlluminatedSurface
+        ].compactMap(\.self)
+
+        return foldedShelf(
+            title: "Lab Panel",
+            status: databaseReport.loadSource.rawValue,
+            accent: BookPalette.teal,
+            isExpanded: $isLabPanelExpanded
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                diagnosticRow("model", modelReport.title)
+                diagnosticRow("preferred", modelReport.preferredModelID)
+                diagnosticRow("device", modelReport.deviceSummary)
+                diagnosticRow("store", "\(storeReport.loadSource.rawValue) · \(storeReport.dayCount)d · \(storeReport.pageCount)p")
+                diagnosticRow("database", "v\(databaseReport.schemaVersion) · \(databaseReport.loadSource.rawValue) · \(databaseReport.backupCount) backups")
+                diagnosticRow("today", "\(today.pages.count)p · \(today.capturedPages.count) captured · \(eligibleBraidCount) eligible")
+                diagnosticRow("book of you", today.bookOfYou == nil ? "not kept today" : "kept today")
+                diagnosticRow("surfaces", surfaces.map(\.id).joined(separator: " | "))
+                diagnosticRow("sources", "\(enabledActiveSourceCount)/\(BookPageSourceRegistry.activeSources.count) active")
+                diagnosticRow("faculty", "\(facultyEntries.count) entries")
+                diagnosticRow("resurfacing", "\(resurfacedPages.count) candidates")
+                diagnosticRow("queued", queuedGeneratedPages.map(\.type.shortTitle).joined(separator: " | "))
+                diagnosticRow("work", labWorkStatus)
+                diagnosticRow("last braid", lastBraidDuration.map { "\(Int($0.rounded()))s" } ?? "none")
+
+                if let lastError = databaseReport.lastError ?? storeReport.lastError {
+                    diagnosticRow("last error", lastError, isWarning: true)
+                }
+                if let lastBackupPath = databaseReport.lastBackupPath {
+                    diagnosticRow("last backup", lastBackupPath)
+                }
+            }
+        }
+    }
+
+    private var labWorkStatus: String {
+        if isLocalBrainWorking {
+            return "\(localBrainWorkLabel) · \(localBrainPromptCharacters) chars · \(localBrainQueuedCount) queued"
+        }
+        if isBraiding {
+            return "braiding"
+        }
+        if isPreparingAutomaticIllumination {
+            return "preparing illumination"
+        }
+        if isPreparingStoryPage {
+            return "preparing story"
+        }
+        if isPreparingGossipPage {
+            return "preparing gossip"
+        }
+        if isPreparingFacultyResearchPage {
+            return "preparing faculty research"
+        }
+        return "idle"
+    }
+
+    private func diagnosticRow(_ label: String, _ value: String, isWarning: Bool = false) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label)
+                .font(.caption2.monospaced().weight(.bold))
+                .foregroundStyle(BookPalette.gold.opacity(0.78))
+                .frame(width: 82, alignment: .leading)
+
+            Text(value.isEmpty ? "none" : value)
+                .font(.caption.monospaced())
+                .foregroundStyle(isWarning ? .red.opacity(0.86) : BookPalette.nightText.opacity(0.76))
+                .lineLimit(3)
+                .minimumScaleFactor(0.82)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
