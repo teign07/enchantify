@@ -82,8 +82,10 @@ struct ContentView: View {
     @State private var storyPageRecovery = PreparedPageRecoveryState()
     @State private var preparedGossipPageSurface: SurfacePage?
     @State private var isPreparingGossipPage = false
+    @State private var gossipPageRecovery = PreparedPageRecoveryState()
     @State private var preparedFacultyResearchSurface: SurfacePage?
     @State private var isPreparingFacultyResearchPage = false
+    @State private var facultyResearchRecovery = PreparedPageRecoveryState()
     @State private var userPhotoIlluminationFallbackAllowed = false
     @AppStorage("didRequestHealthKitBodySignal") private var didRequestHealthKitBodySignal = false
     @AppStorage("didRequestWeatherLocation") private var didRequestWeatherLocation = false
@@ -1269,11 +1271,15 @@ struct ContentView: View {
     @MainActor
     @discardableResult
     private func prepareGossipPageIfPossible() async -> Bool {
-        guard !isPreparingGossipPage, !isLocalBrainWorking else { return false }
         let slot = SurfaceCadence.slotID(for: surfaceRefreshDate, hours: 4)
-        if let preparedGossipPageSurface,
-           preparedGossipPageSurface.payload.metadata["slotID"] == slot,
-           preparedGossipPageSurface.payload.metadata["gossipProse"]?.isEmpty == false {
+        guard gossipPageRecovery.shouldBegin(
+            isPreparing: isPreparingGossipPage,
+            isLocalBrainWorking: isLocalBrainWorking,
+            preparedSurface: preparedGossipPageSurface,
+            slotID: slot,
+            requiredMetadataKey: "gossipProse",
+            now: surfaceRefreshDate
+        ) else {
             return false
         }
 
@@ -1309,6 +1315,7 @@ struct ContentView: View {
             #endif
             preparedGossipPageSurface = draft.preparedGossipPageCopy(prose: prose, slotID: slot)
             surfaceRefreshDate = Date()
+            gossipPageRecovery.recordSuccess()
             lastLocalBrainError = nil
             statusMessage = "A Gossip Page has dried. The margins are pretending they did not gossip."
             return true
@@ -1316,6 +1323,7 @@ struct ContentView: View {
             appLog.error("Prepared Gossip Page failed: \(error.localizedDescription, privacy: .public)")
             lastLocalBrainError = "gossip page: \(error.localizedDescription)"
             preparedGossipPageSurface = nil
+            gossipPageRecovery.recordFailure()
             statusMessage = "The Gossip Page lost its whisper. The Book will try again later."
             return false
         }
@@ -1324,11 +1332,15 @@ struct ContentView: View {
     @MainActor
     @discardableResult
     private func prepareFacultyResearchPageIfPossible() async -> Bool {
-        guard !isPreparingFacultyResearchPage, !isLocalBrainWorking else { return false }
         let slot = SurfaceCadence.slotID(for: surfaceRefreshDate, hours: 12)
-        if let preparedFacultyResearchSurface,
-           preparedFacultyResearchSurface.payload.metadata["slotID"] == slot,
-           preparedFacultyResearchSurface.payload.metadata["researchProse"]?.isEmpty == false {
+        guard facultyResearchRecovery.shouldBegin(
+            isPreparing: isPreparingFacultyResearchPage,
+            isLocalBrainWorking: isLocalBrainWorking,
+            preparedSurface: preparedFacultyResearchSurface,
+            slotID: slot,
+            requiredMetadataKey: "researchProse",
+            now: surfaceRefreshDate
+        ) else {
             return false
         }
 
@@ -1358,6 +1370,7 @@ struct ContentView: View {
             #endif
             preparedFacultyResearchSurface = draft.preparedFacultyResearchCopy(prose: prose, slotID: slot)
             surfaceRefreshDate = Date()
+            facultyResearchRecovery.recordSuccess()
             lastLocalBrainError = nil
             statusMessage = "\(draft.payload.metadata["facultyName"] ?? "The Support Guild") prepared a research folio for tonight."
             return true
@@ -1365,6 +1378,7 @@ struct ContentView: View {
             appLog.error("Prepared faculty research failed: \(error.localizedDescription, privacy: .public)")
             lastLocalBrainError = "faculty research: \(error.localizedDescription)"
             preparedFacultyResearchSurface = nil
+            facultyResearchRecovery.recordFailure()
             statusMessage = "The faculty research folio lost its place. The Book will try again later."
             return false
         }

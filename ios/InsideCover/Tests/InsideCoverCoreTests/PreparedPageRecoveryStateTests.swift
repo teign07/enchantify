@@ -102,7 +102,37 @@ final class PreparedPageRecoveryStateTests: XCTestCase {
         ))
     }
 
+    func testCurrentPreparedSurfaceUsesRequestedMetadataKey() {
+        let recovery = PreparedPageRecoveryState()
+        let surface = preparedSurface(
+            slotID: "slot-1",
+            metadataKey: "gossipProse",
+            prose: "The margins whispered something specific."
+        )
+
+        XCTAssertFalse(recovery.shouldBegin(
+            isPreparing: false,
+            isLocalBrainWorking: false,
+            preparedSurface: surface,
+            slotID: "slot-1",
+            requiredMetadataKey: "gossipProse",
+            now: Date()
+        ))
+        XCTAssertTrue(recovery.shouldBegin(
+            isPreparing: false,
+            isLocalBrainWorking: false,
+            preparedSurface: surface,
+            slotID: "slot-1",
+            requiredMetadataKey: "researchProse",
+            now: Date()
+        ))
+    }
+
     private func preparedSurface(slotID: String, storyScene: String) -> SurfacePage {
+        preparedSurface(slotID: slotID, metadataKey: "storyScene", prose: storyScene)
+    }
+
+    private func preparedSurface(slotID: String, metadataKey: String, prose: String) -> SurfacePage {
         SurfacePage(
             id: "story-\(slotID)",
             type: .narrativeOS,
@@ -115,10 +145,10 @@ final class PreparedPageRecoveryStateTests: XCTestCase {
             detail: "A page is gathering.",
             payload: BookPagePayload(
                 headline: "Story Page",
-                body: storyScene,
+                body: prose,
                 metadata: [
                     "slotID": slotID,
-                    "storyScene": storyScene
+                    metadataKey: prose
                 ]
             )
         )
