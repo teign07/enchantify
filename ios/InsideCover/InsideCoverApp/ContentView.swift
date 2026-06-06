@@ -1789,27 +1789,17 @@ struct ContentView: View {
         do {
             let model = LocalModelManager.preferredModel
             let modelID = model.modelID
-            appLog.info("Starting Hugging Face download for \(modelID, privacy: .public)")
-            let directory = try await Task.detached(priority: .userInitiated) {
-                try await HubClient.default.download(
-                    id: modelID,
-                    revision: "main",
-                    matching: ["*.safetensors", "*.json", "*.jinja", "*.model", "*.txt"],
-                    useLatest: false
-                ) { progress in
-                    Task { @MainActor in
-                        if progress.totalUnitCount > 0 {
-                            let fraction = min(max(Double(progress.completedUnitCount) / Double(progress.totalUnitCount), 0), 1)
-                            let percent = Int(fraction * 100)
-                            installProgress = fraction
-                            installMessage = "Downloading \(model.label)... \(percent)%"
-                        } else {
-                            installProgress = nil
-                            installMessage = "Downloading \(model.label)... measuring the bundle"
-                        }
-                    }
-                }
-            }.value
+            appLog.info("Starting streaming Hugging Face download for \(modelID, privacy: .public)")
+            let directory = LocalModelManager.modelDirectory(for: modelID)
+            try await LocalModelStreamingInstaller.download(
+                modelID: modelID,
+                revision: "main",
+                to: directory
+            ) { progress in
+                let percent = Int(progress.fraction * 100)
+                installProgress = progress.fraction
+                installMessage = "Downloading \(model.label)... \(percent)%"
+            }
             try LocalModelManager.activateModel(
                 modelID: modelID,
                 directory: directory
@@ -1827,6 +1817,227 @@ struct ContentView: View {
         installProgress = nil
         installMessage = "The Hugging Face downloader is not linked in this build."
         #endif
+    }
+}
+
+private struct LocalModelDownloadProgress: Sendable {
+    var completedBytes: Int64
+    var totalBytes: Int64
+
+    var fraction: Double {
+        guard totalBytes > 0 else { return 0 }
+        return min(max(Double(completedBytes) / Double(totalBytes), 0), 1)
+    }
+}
+
+private enum LocalModelStreamingInstaller {
+    private struct RepoInfo: Decodable {
+        var siblings: [Sibling]
+    }
+
+    private struct Sibling: Decodable {
+        var rfilename: String
+        var size: Int64?
+    }
+
+    static func download(
+        modelID: String,
+        revision: String,
+        to directory: URL,
+        progressHandler: @MainActor @Sendable @escaping (LocalModelDownloadProgress) -> Void
+    ) async throws {
+        let files = try await filesToDownload(modelID: modelID, revision: revision)
+        let totalBytes = files.reduce(Int64(0)) { $0 + ($1.size ?? 1) }
+        var completedBytes = Int64(0)
+        let fileManager = FileManager.default
+
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        for file in files {
+            try Task.checkCancellation()
+            let destination = directory.appendingPathComponent(file.rfilename)
+            try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+
+            let expectedSize = file.size
+            if let expectedSize,
+               let currentSize = existingFileSize(at: destination),
+               currentSize == expectedSize {
+                completedBytes += expectedSize
+                await progressHandler(LocalModelDownloadProgress(completedBytes: completedBytes, totalBytes: totalBytes))
+                continue
+            }
+
+            let temporaryURL = destination
+                .deletingLastPathComponent()
+                .appendingPathComponent(".\(destination.lastPathComponent).download")
+            try? fileManager.removeItem(at: temporaryURL)
+
+            let startingBytes = completedBytes
+            let downloader = LocalModelFileDownloader(destination: temporaryURL) { bytesWritten, expectedBytes in
+                let fileBytes = expectedSize ?? expectedBytes
+                let downloadTotal = max(totalBytes - (expectedSize ?? 1) + fileBytes, 1)
+                let downloadProgress = LocalModelDownloadProgress(
+                    completedBytes: startingBytes + min(bytesWritten, fileBytes),
+                    totalBytes: downloadTotal
+                )
+                Task { @MainActor in
+                    progressHandler(downloadProgress)
+                }
+            }
+            try await downloader.download(from: resolveURL(modelID: modelID, revision: revision, path: file.rfilename))
+
+            if let expectedSize {
+                let actualSize = fileSize(from: try fileManager.attributesOfItem(atPath: temporaryURL.path)[.size])
+                guard actualSize == expectedSize else {
+                    try? fileManager.removeItem(at: temporaryURL)
+                    throw CocoaError(.fileReadCorruptFile)
+                }
+            }
+
+            try? fileManager.removeItem(at: destination)
+            try fileManager.moveItem(at: temporaryURL, to: destination)
+            completedBytes += expectedSize ?? (existingFileSize(at: destination) ?? 1)
+            await progressHandler(LocalModelDownloadProgress(completedBytes: completedBytes, totalBytes: totalBytes))
+        }
+    }
+
+    private static func filesToDownload(modelID: String, revision: String) async throws -> [Sibling] {
+        let infoURL = apiURL(modelID: modelID, revision: revision)
+        let (data, response) = try await URLSession.shared.data(from: infoURL)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let repoInfo = try JSONDecoder().decode(RepoInfo.self, from: data)
+        return repoInfo.siblings
+            .filter { shouldInstall(path: $0.rfilename) }
+            .sorted { left, right in
+                let leftWeight = left.rfilename.hasSuffix(".safetensors") ? 1 : 0
+                let rightWeight = right.rfilename.hasSuffix(".safetensors") ? 1 : 0
+                if leftWeight != rightWeight {
+                    return leftWeight < rightWeight
+                }
+                return left.rfilename < right.rfilename
+            }
+    }
+
+    private static func shouldInstall(path: String) -> Bool {
+        let allowedSuffixes = [".safetensors", ".json", ".jinja", ".model", ".txt"]
+        return allowedSuffixes.contains { path.hasSuffix($0) }
+    }
+
+    private static func existingFileSize(at url: URL) -> Int64? {
+        guard let size = try? FileManager.default.attributesOfItem(atPath: url.path)[.size] else {
+            return nil
+        }
+        return fileSize(from: size)
+    }
+
+    private static func fileSize(from value: Any?) -> Int64? {
+        if let size = value as? Int64 {
+            return size
+        }
+        if let number = value as? NSNumber {
+            return number.int64Value
+        }
+        return nil
+    }
+
+    private static func apiURL(modelID: String, revision: String) -> URL {
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "huggingface.co"
+        components.path = "/api/models/\(modelID)/revision/\(revision)"
+        return components.url!
+    }
+
+    private static func resolveURL(modelID: String, revision: String, path: String) -> URL {
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "huggingface.co"
+        components.path = "/\(modelID)/resolve/\(revision)/\(path)"
+        components.queryItems = [URLQueryItem(name: "download", value: "true")]
+        return components.url!
+    }
+}
+
+private final class LocalModelFileDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    private let destination: URL
+    private let progressHandler: @Sendable (Int64, Int64) -> Void
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Error>?
+    private var session: URLSession?
+
+    init(destination: URL, progressHandler: @escaping @Sendable (Int64, Int64) -> Void) {
+        self.destination = destination
+        self.progressHandler = progressHandler
+    }
+
+    func download(from url: URL) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            lock.withLock {
+                self.continuation = continuation
+                let configuration = URLSessionConfiguration.default
+                configuration.timeoutIntervalForRequest = 120
+                configuration.timeoutIntervalForResource = 3600
+                let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+                self.session = session
+                session.downloadTask(with: url).resume()
+            }
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        progressHandler(totalBytesWritten, max(totalBytesExpectedToWrite, totalBytesWritten))
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {
+        do {
+            guard let response = downloadTask.response as? HTTPURLResponse,
+                  (200..<300).contains(response.statusCode) else {
+                throw URLError(.badServerResponse)
+            }
+            try FileManager.default.moveItem(at: location, to: destination)
+            finish(with: .success(()))
+        } catch {
+            finish(with: .failure(error))
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        if let error {
+            finish(with: .failure(error))
+        }
+    }
+
+    private func finish(with result: Result<Void, Error>) {
+        let continuation = lock.withLock {
+            let continuation = self.continuation
+            self.continuation = nil
+            self.session?.invalidateAndCancel()
+            self.session = nil
+            return continuation
+        }
+        switch result {
+        case .success:
+            continuation?.resume()
+        case let .failure(error):
+            continuation?.resume(throwing: error)
+        }
     }
 }
 
