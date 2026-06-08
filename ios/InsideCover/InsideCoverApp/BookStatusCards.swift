@@ -476,6 +476,7 @@ struct StatusBanner: View {
 
 struct BeliefScoreBadge: View {
     let score: Int
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isBreathing = false
 
@@ -539,6 +540,769 @@ struct BeliefScoreBadge: View {
         }
         .accessibilityLabel("Belief \(tierName), \(clampedScore) out of 100")
         .help("Belief \(clampedScore) out of 100")
+    }
+}
+
+struct GlowEntityMenuItem: Identifiable, Equatable {
+    var id: String
+    var name: String
+    var kind: String
+    var glow: Int
+    var line: String
+
+    var glowName: String {
+        BeliefLexicon.glowName(for: glow)
+    }
+}
+
+struct GlowPageMenuItem: Identifiable, Equatable {
+    var id: String
+    var type: BookPageType
+    var sourceID: String
+    var title: String
+    var detail: String
+    var symbolName: String
+    var glow: Int
+    var narrativeWeight: Int
+
+    var glowName: String {
+        BeliefLexicon.glowName(for: glow)
+    }
+
+    var curationWeight: Int {
+        glow + narrativeWeight
+    }
+}
+
+struct GlowBookSectionMenuItem: Identifiable, Equatable {
+    var id: String
+    var title: String
+    var detail: String
+}
+
+struct GlowEnchantmentMenuItem: Identifiable, Equatable {
+    var id: String
+    var title: String
+    var detail: String
+}
+
+enum GlowBeliefMode {
+    case give
+    case take
+}
+
+enum GlowMenuAction {
+    case giveBelief(GlowEntityMenuItem)
+    case takeBelief(GlowEntityMenuItem)
+    case givePageBelief(GlowPageMenuItem)
+    case takePageBelief(GlowPageMenuItem)
+    case spellCompass
+    case openEnchantment(GlowEnchantmentMenuItem)
+    case openPage(BookPageType)
+    case openBookSection(String)
+}
+
+private enum GlowMenuSection: String, CaseIterable, Identifiable {
+    case belief
+    case spells
+    case pages
+    case book
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .belief:
+            return "Belief"
+        case .spells:
+            return "Spells"
+        case .pages:
+            return "Pages"
+        case .book:
+            return "Book"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .belief:
+            return "Give or take Belief among the Cast."
+        case .spells:
+            return "Open a Compass Run or Enchantment."
+        case .pages:
+            return "Tune which Pages the Book notices."
+        case .book:
+            return "Read the Wonder Compass source."
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .belief:
+            return "sparkle.magnifyingglass"
+        case .spells:
+            return "wand.and.stars"
+        case .pages:
+            return "book.pages"
+        case .book:
+            return "book.closed"
+        }
+    }
+
+    var assetName: String {
+        switch self {
+        case .belief:
+            return "MarginaliaLavender"
+        case .spells:
+            return "MarginaliaCompass"
+        case .pages:
+            return "MarginaliaScrap"
+        case .book:
+            return "MarginaliaStar"
+        }
+    }
+
+    var rowOffset: CGFloat {
+        switch self {
+        case .belief:
+            return 192
+        case .spells:
+            return 300
+        case .pages:
+            return 408
+        case .book:
+            return 516
+        }
+    }
+
+}
+
+struct GlowCommandMenu: View {
+    let score: Int
+    let surfaceCount: Int
+    let capturedPageCount: Int
+    let entities: [GlowEntityMenuItem]
+    let pageTypes: [GlowPageMenuItem]
+    let bookSections: [GlowBookSectionMenuItem]
+    let enchantments: [GlowEnchantmentMenuItem]
+    let onClose: () -> Void
+    let onSelectAction: (GlowMenuAction) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var selectedSection: GlowMenuSection?
+    @State private var beliefMode: GlowBeliefMode = .give
+    @State private var selectedEntity: GlowEntityMenuItem?
+    @State private var selectedPage: GlowPageMenuItem?
+    @State private var isLit = false
+
+    private var tierName: String {
+        BeliefLexicon.glowName(for: score)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let panelWidth = min(430, max(294, proxy.size.width * 0.76))
+            let panelTop = max(proxy.safeAreaInsets.top + 74, 98)
+            let panelHeight = min(proxy.size.height - panelTop - 30, selectedSection == nil ? 574 : 690)
+            let isCompact = proxy.size.width < 720
+            let submenuWidth = isCompact ? panelWidth - 28 : min(280, max(232, panelWidth * 0.68))
+            let submenuTop = panelTop + (selectedSection?.rowOffset ?? 0) + 44
+            let submenuTrailing = isCompact ? 26 : panelWidth + 22
+
+            ZStack {
+                Color.black.opacity(0.48)
+                    .ignoresSafeArea()
+                    .onTapGesture(perform: onClose)
+
+                ambientRings
+                    .allowsHitTesting(false)
+
+                VStack(spacing: 0) {
+                    headerBadge
+                        .frame(width: min(250, panelWidth * 0.72))
+                        .offset(y: 12)
+                        .zIndex(3)
+
+                    mainPanel(width: panelWidth, height: panelHeight)
+                }
+                .position(
+                    x: proxy.size.width - (panelWidth / 2) - 14,
+                    y: panelTop + (panelHeight / 2)
+                )
+                .zIndex(1)
+
+                if let selectedSection, !isCompact {
+                    submenu(width: submenuWidth, section: selectedSection)
+                        .position(
+                            x: proxy.size.width - (submenuWidth / 2) - submenuTrailing,
+                            y: submenuTop + 58
+                        )
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.86, anchor: .trailing)
+                                .combined(with: .move(edge: .trailing))
+                                .combined(with: .opacity),
+                            removal: .opacity
+                        ))
+                        .zIndex(2)
+                }
+            }
+        }
+        .onAppear {
+            BookFeedback.play(.sourceRefresh)
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                isLit = true
+            }
+        }
+    }
+
+    private func mainPanel(width: CGFloat, height: CGFloat) -> some View {
+        VStack(spacing: 10) {
+            crest
+
+            VStack(spacing: 5) {
+                Text(tierName)
+                    .font(.system(.title2, design: .serif, weight: .semibold))
+                    .foregroundStyle(BookPalette.ink)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.72)
+
+                Text("The current belief state is steady\nand gently luminous.")
+                    .font(.system(.caption, design: .serif).italic())
+                    .foregroundStyle(BookPalette.ink.opacity(0.76))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 20)
+
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 8) {
+                    ForEach(GlowMenuSection.allCases) { section in
+                        glowMenuRow(section)
+                        if selectedSection == section {
+                            inlineSubmenu(section)
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 4)
+                .padding(.bottom, 30)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(maxHeight: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .padding(.top, 17)
+        .padding(.bottom, 10)
+        .frame(width: width, height: height)
+        .background {
+            outerFrame
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(alignment: .bottomTrailing) {
+            closeSeal
+                .offset(x: -20, y: 18)
+        }
+        .overlay(alignment: .top) {
+            topNotch
+                .offset(y: -23)
+        }
+        .shadow(color: .black.opacity(0.50), radius: 30, x: 0, y: 20)
+    }
+
+    private var headerBadge: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkle")
+                .font(.headline.weight(.bold))
+            Text(tierName)
+                .font(.headline.weight(.black))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .foregroundStyle(BookPalette.lampGold)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background(BookPalette.nightPanel.opacity(0.96), in: Capsule(style: .continuous))
+        .overlay {
+            Capsule(style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.72), lineWidth: 1)
+        }
+        .overlay {
+            Capsule(style: .continuous)
+                .stroke(.white.opacity(0.08), lineWidth: 3)
+                .padding(4)
+        }
+        .shadow(color: BookPalette.lampGold.opacity(isLit ? 0.62 : 0.26), radius: isLit ? 18 : 8)
+    }
+
+    private var crest: some View {
+        Color.clear
+        .frame(height: 44)
+        .padding(.top, 4)
+        .accessibilityHidden(true)
+    }
+
+    private func glowMenuRow(_ section: GlowMenuSection) -> some View {
+        let isSelected = section == selectedSection
+
+        return Button {
+            BookFeedback.play(.select)
+            withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
+                selectedSection = selectedSection == section ? nil : section
+            }
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    Image("ParchmentFiber")
+                        .resizable()
+                        .scaledToFill()
+                        .opacity(0.42)
+                    Image(section.assetName)
+                        .resizable()
+                        .scaledToFit()
+                        .padding(section == .book ? 7 : 6)
+                        .opacity(isSelected ? 0.96 : 0.76)
+                        .shadow(color: BookPalette.lampGold.opacity(0.22), radius: 7)
+                }
+                .frame(width: 58, height: 58)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.lampGold.opacity(isSelected ? 0.58 : 0.22), lineWidth: 1)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(section.title)
+                        .font(.system(.headline, design: .serif, weight: .bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(section.subtitle)
+                        .font(.system(.caption, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.74))
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.right")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.38))
+                    .rotationEffect(.degrees(isSelected ? 90 : 0))
+            }
+            .padding(9)
+            .frame(maxWidth: .infinity, minHeight: 78, maxHeight: 78, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                BookPalette.paper.opacity(isSelected ? 0.99 : 0.92),
+                                BookPalette.page.opacity(isSelected ? 0.96 : 0.86)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(BookPalette.ink.opacity(isSelected ? 0.20 : 0.10), lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .scaleEffect(isSelected && !reduceMotion ? 1.012 : 1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(section.title). \(section.subtitle)")
+    }
+
+    private func inlineSubmenu(_ section: GlowMenuSection) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label(section.title, systemImage: section.symbolName)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+                Spacer()
+                Text("\(surfaceCount) rising · \(capturedPageCount) kept")
+                    .font(.caption2.monospacedDigit().weight(.bold))
+                    .foregroundStyle(BookPalette.teal)
+            }
+
+            submenuContent(section: section, compact: true)
+        }
+        .padding(10)
+        .background {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(BookPalette.page.opacity(0.96))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.34), lineWidth: 1)
+        }
+        .transition(.scale(scale: 0.96, anchor: .top).combined(with: .opacity))
+    }
+
+    private func submenu(width: CGFloat, section: GlowMenuSection) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label(section.title, systemImage: section.symbolName)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(BookPalette.ink.opacity(0.64))
+                Spacer()
+                Text("\(surfaceCount) rising · \(capturedPageCount) kept")
+                    .font(.caption2.monospacedDigit().weight(.bold))
+                    .foregroundStyle(BookPalette.teal)
+            }
+
+            ScrollView(.vertical, showsIndicators: true) {
+                submenuContent(section: section, compact: false)
+            }
+            .frame(maxHeight: 390)
+        }
+        .padding(12)
+        .frame(width: width)
+        .background {
+            ZStack {
+                Image("ParchmentFiber")
+                    .resizable()
+                    .scaledToFill()
+                    .opacity(0.22)
+                BookPalette.page.opacity(0.96)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.36), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 10)
+        .id(section.id)
+    }
+
+    @ViewBuilder
+    private func submenuContent(section: GlowMenuSection, compact: Bool) -> some View {
+        switch section {
+        case .belief:
+            beliefSubmenu(compact: compact)
+        case .spells:
+            menuButton(
+                title: "Compass Run",
+                detail: "Start a Compass Run Page.",
+                systemImage: "safari",
+                compact: compact
+            ) {
+                onSelectAction(.spellCompass)
+            }
+            Text("Enchantment")
+                .font(.caption2.weight(.black))
+                .foregroundStyle(BookPalette.ink.opacity(0.58))
+                .padding(.top, 2)
+            ForEach(enchantments) { enchantment in
+                menuButton(
+                    title: enchantment.title,
+                    detail: enchantment.detail,
+                    systemImage: "wand.and.stars",
+                    compact: compact
+                ) {
+                    onSelectAction(.openEnchantment(enchantment))
+                }
+            }
+        case .pages:
+            pageBeliefSubmenu(compact: compact)
+        case .book:
+            ForEach(bookSections) { section in
+                menuButton(
+                    title: section.title,
+                    detail: section.detail,
+                    systemImage: "text.book.closed",
+                    compact: compact
+                ) {
+                    onSelectAction(.openBookSection(section.id))
+                }
+            }
+        }
+    }
+
+    private func pageBeliefSubmenu(compact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Page belief action", selection: $beliefMode) {
+                Text("Give Belief").tag(GlowBeliefMode.give)
+                Text("Take Belief").tag(GlowBeliefMode.take)
+            }
+            .pickerStyle(.segmented)
+
+            ForEach(pageTypes) { page in
+                Button {
+                    BookFeedback.play(.select)
+                    selectedPage = page
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: page.symbolName)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(BookPalette.lampGold)
+                            .frame(width: 18)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(page.title)
+                                .font((compact ? Font.caption : Font.subheadline).weight(.bold))
+                                .foregroundStyle(BookPalette.ink)
+                            Text(page.detail)
+                                .font(compact ? .caption2 : .caption)
+                                .foregroundStyle(BookPalette.ink.opacity(0.66))
+                                .lineLimit(2)
+                        }
+
+                        Spacer()
+
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(page.glowName)
+                                .font(.caption2.weight(.black))
+                                .foregroundStyle(BookPalette.teal)
+                                .multilineTextAlignment(.trailing)
+                                .lineLimit(2)
+                            Text("weight \(page.curationWeight)")
+                                .font(.caption2.monospacedDigit().weight(.bold))
+                                .foregroundStyle(BookPalette.ink.opacity(0.48))
+                        }
+                    }
+                    .padding(.horizontal, compact ? 10 : 12)
+                    .padding(.vertical, compact ? 8 : 10)
+                    .background(.white.opacity(0.28), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(page.title), \(page.glowName)")
+            }
+        }
+        .confirmationDialog(
+            selectedPage.map { confirmationTitle(for: $0) } ?? "Move Page Belief?",
+            isPresented: Binding(
+                get: { selectedPage != nil },
+                set: { if !$0 { selectedPage = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let selectedPage {
+                Button("Open \(selectedPage.title)") {
+                    onSelectAction(.openPage(selectedPage.type))
+                    self.selectedPage = nil
+                }
+                Button(confirmationButtonTitle(for: selectedPage), role: beliefMode == .take ? .destructive : nil) {
+                    let action: GlowMenuAction = beliefMode == .give
+                        ? .givePageBelief(selectedPage)
+                        : .takePageBelief(selectedPage)
+                    onSelectAction(action)
+                    self.selectedPage = nil
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                selectedPage = nil
+            }
+        }
+    }
+
+    private func beliefSubmenu(compact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Belief action", selection: $beliefMode) {
+                Text("Give Belief").tag(GlowBeliefMode.give)
+                Text("Take Belief").tag(GlowBeliefMode.take)
+            }
+            .pickerStyle(.segmented)
+
+            ForEach(entities) { entity in
+                Button {
+                    BookFeedback.play(.select)
+                    selectedEntity = entity
+                } label: {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(entity.name)
+                                .font((compact ? Font.caption : Font.subheadline).weight(.bold))
+                                .foregroundStyle(BookPalette.ink)
+                            Text(entity.line)
+                                .font(compact ? .caption2 : .caption)
+                                .foregroundStyle(BookPalette.ink.opacity(0.66))
+                                .lineLimit(2)
+                        }
+                        Spacer()
+                        Text(entity.glowName)
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(BookPalette.teal)
+                            .multilineTextAlignment(.trailing)
+                            .lineLimit(2)
+                    }
+                    .padding(.horizontal, compact ? 10 : 12)
+                    .padding(.vertical, compact ? 8 : 10)
+                    .background(.white.opacity(0.28), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(entity.name), \(entity.glowName)")
+            }
+        }
+        .confirmationDialog(
+            selectedEntity.map { confirmationTitle(for: $0) } ?? "Move Belief?",
+            isPresented: Binding(
+                get: { selectedEntity != nil },
+                set: { if !$0 { selectedEntity = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let selectedEntity {
+                Button(confirmationButtonTitle(for: selectedEntity), role: beliefMode == .take ? .destructive : nil) {
+                    let action: GlowMenuAction = beliefMode == .give
+                        ? .giveBelief(selectedEntity)
+                        : .takeBelief(selectedEntity)
+                    onSelectAction(action)
+                    self.selectedEntity = nil
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                selectedEntity = nil
+            }
+        }
+    }
+
+    private func confirmationTitle(for entity: GlowEntityMenuItem) -> String {
+        switch beliefMode {
+        case .give:
+            return "Are you sure you want to give belief to \(entity.name)?"
+        case .take:
+            return "Are you sure you want to take belief from \(entity.name)?"
+        }
+    }
+
+    private func confirmationTitle(for page: GlowPageMenuItem) -> String {
+        switch beliefMode {
+        case .give:
+            return "Give belief to \(page.title)?"
+        case .take:
+            return "Take belief from \(page.title)?"
+        }
+    }
+
+    private func confirmationButtonTitle(for entity: GlowEntityMenuItem) -> String {
+        switch beliefMode {
+        case .give:
+            return "Give \(entity.name) +3 Belief"
+        case .take:
+            return "Try to Take Belief"
+        }
+    }
+
+    private func confirmationButtonTitle(for page: GlowPageMenuItem) -> String {
+        switch beliefMode {
+        case .give:
+            return "Give \(page.title) +3 Belief"
+        case .take:
+            return "Take \(page.title) -3 Belief"
+        }
+    }
+
+    private func menuButton(
+        title: String,
+        detail: String,
+        systemImage: String,
+        compact: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            BookFeedback.play(.openPage)
+            action()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold)
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font((compact ? Font.caption : Font.subheadline).weight(.bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(detail)
+                        .font(compact ? .caption2 : .caption)
+                        .foregroundStyle(BookPalette.ink.opacity(0.66))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold)
+            }
+            .padding(.horizontal, compact ? 10 : 12)
+            .padding(.vertical, compact ? 8 : 10)
+            .background(.white.opacity(0.30), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var closeSeal: some View {
+        Button(action: onClose) {
+            ZStack {
+                Circle()
+                    .fill(BookPalette.nightPanel)
+                Circle()
+                    .stroke(BookPalette.lampGold.opacity(0.72), lineWidth: 1.4)
+                Image(systemName: "xmark")
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(BookPalette.lampGold)
+            }
+            .frame(width: 54, height: 54)
+            .shadow(color: .black.opacity(0.32), radius: 10, x: 0, y: 6)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Close Glow menu")
+    }
+
+    private var topNotch: some View {
+        ZStack {
+            Circle()
+                .fill(BookPalette.nightPanel)
+                .frame(width: 74, height: 74)
+            Circle()
+                .stroke(BookPalette.lampGold.opacity(0.80), lineWidth: 1.5)
+                .frame(width: 74, height: 74)
+            Image(systemName: "sparkle")
+                .font(.title.weight(.bold))
+                .foregroundStyle(BookPalette.lampGold)
+                .shadow(color: BookPalette.lampGold.opacity(isLit ? 0.78 : 0.32), radius: isLit ? 14 : 7)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var outerFrame: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(BookPalette.nightPanel)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.78), lineWidth: 1.4)
+
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        BookPalette.paper,
+                        BookPalette.page.opacity(0.99),
+                        BookPalette.lampGold.opacity(0.12)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(8)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    private var ambientRings: some View {
+        ZStack {
+            ForEach(0..<4, id: \.self) { index in
+                Circle()
+                    .stroke(BookPalette.lampGold.opacity(0.08), lineWidth: 1)
+                    .frame(width: CGFloat(360 + index * 160), height: CGFloat(360 + index * 160))
+                    .offset(x: 150, y: -180)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
     }
 }
 

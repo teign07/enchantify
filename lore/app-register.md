@@ -14,24 +14,31 @@
 
 | App | System | Natural Alignment | Emberheart | Mossbloom | Riddlewind | Tidecrest | Duskthorn | Controller |
 |---|---|---|---|---|---|---|---|---|
-| Apple Notes | productivity | Emberheart | 23 | 15 | 6 | 13 | 7 | Emberheart (Influenced) |
-| Apple Reminders | productivity | Riddlewind | 10 | 11 | 23 | 7 | 8 | Riddlewind (Influenced) |
+| Apple Notes | productivity | Emberheart | 23 | 15 | 6 | 14 | 7 | Emberheart (Influenced) |
+| Apple Reminders | productivity | Riddlewind | 10 | 11 | 25 | 7 | 8 | Riddlewind (Controlled) |
 | Apple Calendar | productivity | Riddlewind | 17 | 7 | 17 | 14 | 5 | Emberheart (Influenced) |
 | Obsidian | productivity | Mossbloom | 14 | 27 | 7 | 4 | 4 | Mossbloom (Controlled) |
 | Moltbook | social | Emberheart | 23 | 5 | 10 | 20 | 20 | Emberheart (Influenced) |
-| Bluesky | social | Riddlewind | 21 | 6 | 16 | 16 | 12 | Emberheart (Influenced) |
+| Bluesky | social | Riddlewind | 22 | 6 | 16 | 16 | 12 | Emberheart (Influenced) |
 | X / Twitter | social | Duskthorn | 10 | 3 | 14 | 15 | 28 | Duskthorn (Controlled) |
-| Reddit | social | Riddlewind | 6 | 7 | 18 | 15 | 16 | Riddlewind (Influenced) |
-| Spotify | music | Tidecrest | 12 | 17 | 10 | 23 | 5 | Tidecrest (Influenced) |
+| Reddit | social | Riddlewind | 6 | 7 | 17 | 16 | 16 | Riddlewind (Influenced) |
+| Spotify | music | Tidecrest | 12 | 17 | 10 | 24 | 5 | Tidecrest (Influenced) |
 | Telegram | messaging | Tidecrest | 13 | 5 | 12 | 12 | 12 | Emberheart (Influenced) |
 | iMessage | messaging | Riddlewind | 17 | 7 | 17 | 19 | 10 | Tidecrest (Influenced) |
-| Apple Mail | messaging | Riddlewind | 16 | 6 | 19 | 20 | 8 | Tidecrest (Influenced) |
+| Apple Mail | messaging | Riddlewind | 19 | 6 | 18 | 19 | 8 | Emberheart (Influenced) |
 | Safari | browser | Riddlewind | 13 | 12 | 20 | 13 | 15 | Riddlewind (Influenced) |
 
 ---
 
 ## Last Pact Actions
 
+- **[Pact War: Riddlewind]** push on **Apple Reminders** (23→25) — **reaches Controlled** — Riddlewind weaves deeper into Apple Reminders. Another thread added to the pattern.
+- **[Pact War: Emberheart]** push on **Bluesky** (21→22) — Emberheart deepens its hold on Bluesky. The self-author's claim tightens.
+- **[Pact War: Tidecrest]** push on **Apple Notes** (13→14) — Tidecrest surges in Apple Notes. The moment was right and it moved.
+- **[Pact War: Emberheart]** challenge on **Apple Mail** (18→19) — **Emberheart takes control** from Riddlewind — Emberheart challenges Riddlewind's hold on Apple Mail. Individual voice asserts itself.
+- **[Pact War: Tidecrest]** consolidate on **Spotify** (23→24) — Tidecrest locks in its surge in Spotify. The wave found its shore.
+- **[Pact War: Tidecrest]** challenge on **Reddit** (15→16) — Tidecrest surges against Riddlewind in Reddit. Now or never.
+- **[Pact War: Emberheart]** challenge on **Apple Mail** (16→18) — Emberheart challenges Tidecrest's hold on Apple Mail. Individual voice asserts itself.
 - **[Pact War: Emberheart]** push on **Apple Calendar** (16→17) — **Emberheart takes control** from Riddlewind — Emberheart deepens its hold on Apple Calendar. The self-author's claim tightens.
 - **[Pact War: Emberheart]** consolidate on **Apple Notes** (22→23) — Emberheart consolidates in Apple Notes. No ground given.
 - **[Pact War: Tidecrest]** push on **X / Twitter** (14→15) — Tidecrest surges in X / Twitter. The moment was right and it moved.

@@ -96,6 +96,24 @@ protocol WeatherEnchanting {
     func enchantWeather(weather: WeatherSourceSignal, day: BookDay) async throws -> EnchantedWeatherSignal
 }
 
+protocol AskTheBookAnswering {
+    func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn]) async throws -> String
+}
+
+struct AskTheBookTurn: Codable, Identifiable, Equatable {
+    var id: String
+    var prompt: String
+    var answer: String
+    var createdAt: Date
+
+    init(id: String = UUID().uuidString, prompt: String, answer: String, createdAt: Date = Date()) {
+        self.id = id
+        self.prompt = prompt
+        self.answer = answer
+        self.createdAt = createdAt
+    }
+}
+
 enum LocalModelState: String, Codable, Equatable {
     case missing
     case ready
@@ -142,6 +160,7 @@ enum LocalModelError: LocalizedError {
 struct ActiveLocalModel: Codable, Equatable {
     var modelID: String
     var path: String
+    var revision: String?
     var activatedAt: Date
 }
 
@@ -152,6 +171,7 @@ enum LocalModelManager {
         var minimumMemoryGB: Int
         var sourceURL: String
         var reason: String
+        var revision: String = "main"
         var supersedes: [String] = []
     }
 
@@ -163,23 +183,23 @@ enum LocalModelManager {
         reason: "smallest local brain, best for standard iPhones"
     )
     static let balancedModel = ModelChoice(
-        modelID: "mlx-community/gemma-4-e2b-it-OptiQ-4bit",
-        label: "Gemma 4 E2B OptiQ 4-bit",
+        modelID: "mlx-community/gemma-4-e2b-it-4bit",
+        label: "Gemma 4 E2B 4-bit",
         minimumMemoryGB: 6,
-        sourceURL: "https://huggingface.co/mlx-community/gemma-4-e2b-it-OptiQ-4bit",
-        reason: "recommended local brain for iPhone 15-class devices; MLX-ready 4-bit upgrade aligned with the Gemma 4 QAT/edge release",
+        sourceURL: "https://huggingface.co/mlx-community/gemma-4-e2b-it-4bit",
+        reason: "recommended local brain for iPhone 15-class devices; this is the Gemma 4 E2B checkpoint shipped in the current MLX Swift model catalog",
         supersedes: [
-            "mlx-community/gemma-4-e2b-it-4bit"
+            "mlx-community/gemma-4-e2b-it-OptiQ-4bit"
         ]
     )
     static let expansiveModel = ModelChoice(
-        modelID: "mlx-community/gemma-4-e4b-it-OptiQ-4bit",
-        label: "Gemma 4 E4B OptiQ 4-bit",
+        modelID: "mlx-community/gemma-4-e4b-it-4bit",
+        label: "Gemma 4 E4B 4-bit",
         minimumMemoryGB: 8,
-        sourceURL: "https://huggingface.co/mlx-community/gemma-4-e4b-it-OptiQ-4bit",
-        reason: "larger local brain for iPhone 17-class devices and high-memory iPads; keeps iPhone 15-class hardware on E2B for memory headroom",
+        sourceURL: "https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit",
+        reason: "larger local brain for iPhone 17-class devices and high-memory iPads; this is the Gemma 4 E4B checkpoint shipped in the current MLX Swift model catalog",
         supersedes: [
-            "mlx-community/gemma-4-e4b-it-4bit"
+            "mlx-community/gemma-4-e4b-it-OptiQ-4bit"
         ]
     )
     static let allModelChoices = [compactModel, balancedModel, expansiveModel]
@@ -268,6 +288,7 @@ enum LocalModelManager {
         if let marker = activeModelMarker,
            activeModelIDs.contains(marker.modelID),
            let choice = allModelChoices.first(where: { $0.modelID == marker.modelID }),
+           marker.revision == choice.revision,
            modelFilesArePresent(at: URL(fileURLWithPath: marker.path)) {
             return (choice, URL(fileURLWithPath: marker.path))
         }
@@ -276,7 +297,10 @@ enum LocalModelManager {
             ([modelDirectory(for: choice.modelID)] + huggingFaceSnapshotDirectories(for: choice.modelID))
                 .map { directory in (choice: choice, directory: directory) }
         }
-        return candidates.first { modelFilesArePresent(at: $0.directory) }
+        return candidates.first {
+            directoryRevision(at: $0.directory) == $0.choice.revision
+                && modelFilesArePresent(at: $0.directory)
+        }
     }
 
     private static var activeModelIDs: [String] {
@@ -297,6 +321,7 @@ enum LocalModelManager {
     }
 
     static func activateModel(modelID: String, directory: URL) throws {
+        let revision = allModelChoices.first(where: { $0.modelID == modelID })?.revision
         try FileManager.default.createDirectory(
             at: modelsDirectory,
             withIntermediateDirectories: true
@@ -304,6 +329,7 @@ enum LocalModelManager {
         let marker = ActiveLocalModel(
             modelID: modelID,
             path: directory.path,
+            revision: revision,
             activatedAt: Date()
         )
         let encoder = JSONEncoder()
@@ -311,6 +337,7 @@ enum LocalModelManager {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(marker)
         try data.write(to: activeModelMarkerURL, options: [.atomic])
+        try data.write(to: directory.appendingPathComponent(activeModelMarkerName), options: [.atomic])
     }
 
     static func report() -> LocalModelReport {
@@ -386,6 +413,25 @@ enum LocalModelManager {
         }
     }
 
+    static func removeKnownLocalModels() {
+        let fileManager = FileManager.default
+        let modelIDs = Set(allModelChoices.flatMap { [$0.modelID] + $0.supersedes })
+
+        try? fileManager.removeItem(at: activeModelMarkerURL)
+
+        for modelID in modelIDs {
+            let directory = modelDirectory(for: modelID)
+            if fileManager.fileExists(atPath: directory.path) {
+                try? fileManager.removeItem(at: directory)
+            }
+
+            let cacheDirectory = huggingFaceModelCacheDirectory(for: modelID)
+            if fileManager.fileExists(atPath: cacheDirectory.path) {
+                try? fileManager.removeItem(at: cacheDirectory)
+            }
+        }
+    }
+
     private static func modelFilesArePresent(at directory: URL) -> Bool {
         let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: directory.path) else {
@@ -401,12 +447,18 @@ enum LocalModelManager {
         return hasConfig && hasWeights && hasTokenizer
     }
 
+    private static func directoryRevision(at directory: URL) -> String? {
+        let markerURL = directory.appendingPathComponent(activeModelMarkerName)
+        guard let data = try? Data(contentsOf: markerURL) else {
+            return nil
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return (try? decoder.decode(ActiveLocalModel.self, from: data))?.revision
+    }
+
     private static func huggingFaceSnapshotDirectories(for modelID: String) -> [URL] {
-        let cacheModelName = "models--" + modelID.replacingOccurrences(of: "/", with: "--")
-        let snapshotsDirectory = cacheDirectory
-            .appendingPathComponent("huggingface", isDirectory: true)
-            .appendingPathComponent("hub", isDirectory: true)
-            .appendingPathComponent(cacheModelName, isDirectory: true)
+        let snapshotsDirectory = huggingFaceModelCacheDirectory(for: modelID)
             .appendingPathComponent("snapshots", isDirectory: true)
 
         guard let snapshots = try? FileManager.default.contentsOfDirectory(
@@ -422,6 +474,14 @@ enum LocalModelManager {
             let rightDate = (try? right.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
             return leftDate > rightDate
         }
+    }
+
+    private static func huggingFaceModelCacheDirectory(for modelID: String) -> URL {
+        let cacheModelName = "models--" + modelID.replacingOccurrences(of: "/", with: "--")
+        return cacheDirectory
+            .appendingPathComponent("huggingface", isDirectory: true)
+            .appendingPathComponent("hub", isDirectory: true)
+            .appendingPathComponent(cacheModelName, isDirectory: true)
     }
 
     static func prompt(for day: BookDay) -> String {
@@ -441,6 +501,48 @@ enum LocalModelManager {
             .joined(separator: "\n\n")
 
         return fragments.isEmpty ? "No task page was supplied." : fragments
+    }
+
+    static func askTheBookPrompt(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn]) -> String {
+        let recentPages = braidEvidenceLines(for: day, characterLimit: 360)
+            .prefix(8)
+            .joined(separator: "\n\n")
+        let history = previousTurns
+            .suffix(6)
+            .enumerated()
+            .map { index, turn in
+                """
+                TURN \(index + 1)
+                Reader: \(clippedBraidText(turn.prompt, limit: 420))
+                Book: \(clippedBraidText(turn.answer, limit: 700))
+                """
+            }
+            .joined(separator: "\n\n")
+
+        return """
+        You are the Labyrinth of Stories inside ReEnchanted and The Wonder Compass.
+        Answer as the living Book: short, clear, useful, and gently animist.
+
+        RULES:
+        - Stay in the Labyrinth's voice. Never say you are a generic assistant or language model.
+        - Use short sentences. Prefer plain verbs.
+        - Give the reader one practical next step when possible.
+        - Let objects, rooms, weather, pages, and places have quiet agency. Do not over-explain the magic.
+        - Use ReEnchanted, the Academy, Pages, Belief, and The Wonder Compass only when they clarify the answer.
+        - Do not claim the reader completed real-world tasks, Enchantments, Compass Runs, classes, visits, or rituals.
+        - Do not invent private facts. Use the supplied kept pages only as soft context.
+        - Avoid ornate fantasy phrasing, therapy-speak, pep-talk filler, and "as a living book" explanations.
+        - Keep the answer to 1 to 3 short paragraphs unless the reader asks for a list, code, or structure.
+
+        RECENT KEPT PAGES:
+        \(recentPages.isEmpty ? "No kept pages supplied." : recentPages)
+
+        CURRENT ASK CHAIN:
+        \(history.isEmpty ? "This is the first ask in the chain." : history)
+
+        READER PROMPT:
+        \(prompt)
+        """
     }
 
     static func bookOfYouBraidPrompt(for day: BookDay) -> String {
@@ -837,6 +939,8 @@ struct FakeBraider: Braider {
         switch page.type {
         case .mood:
             return clipped.isEmpty ? "an unnamed inner weather" : "an inner weather of \(clipped)"
+        case .diary:
+            return clipped.isEmpty ? "a diary page held open" : "a diary page saying \(clipped)"
         case .souvenir:
             return clipped.isEmpty ? "a souvenir still forming" : "a souvenir about \(clipped)"
         case .rest:
@@ -873,6 +977,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "one fact about the keeper" : "the keeper answering \(clipped)"
         case .bookOfYou:
             return clipped.isEmpty ? "an earlier braid" : "an earlier braid remembering \(clipped)"
+        case .askTheBook:
+            return clipped.isEmpty ? "a question left in the Book" : "the Book answering \(clipped)"
         }
     }
 
@@ -903,6 +1009,26 @@ struct ResilientBraider: Braider {
             page.tags.append("local-model-missing")
             return page
         }
+    }
+}
+
+struct FakeAskTheBookAnswerer: AskTheBookAnswering {
+    func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn]) async throws -> String {
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let question = trimmed.isEmpty ? "the blank place on the page" : trimmed
+        let callback = day.capturedPages.last.map { page in
+            "One recent page is under my hand: \(page.type.title.lowercased()). I will use it lightly."
+        } ?? "No kept page is under this one yet. I will answer from the room as it stands."
+        let chainLine = previousTurns.isEmpty
+            ? "This is the first door."
+            : "The earlier doors are still open."
+
+        return """
+        I hear the question: \(question).
+        \(callback)
+
+        \(chainLine) Make the thought small enough to hold. Name the next true action. Then let the nearest object help: a door, a cup, a shoe, a page. Start there.
+        """
     }
 }
 

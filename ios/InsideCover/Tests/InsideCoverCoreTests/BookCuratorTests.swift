@@ -705,6 +705,66 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(pages.first?.type, .rest)
     }
 
+    func testPageBeliefRaisesEligiblePageInCuratorRanking() throws {
+        let diary = SurfacePage(
+            id: "diary-test",
+            type: .diary,
+            sourceID: "diary-page",
+            intent: .capture,
+            renderStyle: .promptCard,
+            score: 60,
+            reason: "Diary is nearby.",
+            prompt: "Diary",
+            detail: "Diary",
+            payload: BookPagePayload(headline: "Diary", body: "Diary")
+        )
+        let lore = SurfacePage(
+            id: "lore-test",
+            type: .lore,
+            sourceID: "labyrinth-lore",
+            intent: .importReference,
+            renderStyle: .loreLetter,
+            score: 62,
+            reason: "Lore is nearby.",
+            prompt: "Lore",
+            detail: "Lore",
+            payload: BookPagePayload(headline: "Lore", body: "Lore")
+        )
+        let profiles = BookPageSourceRegistry.beliefProfiles(ledger: ["diary-page": 50])
+        let preferences = CuratorSurfacePreferences(
+            pageBeliefProfiles: Dictionary(uniqueKeysWithValues: profiles.map { ($0.sourceID, $0) })
+        )
+
+        let ranked = BookCurator.rankedPages(
+            from: [lore, diary],
+            limit: 2,
+            preferences: preferences
+        )
+
+        XCTAssertEqual(ranked.first?.page.sourceID, "diary-page")
+    }
+
+    func testAutomagicPageKeepsFloorWhenBeliefIsLow() {
+        let fuel = SurfacePage(
+            id: "fuel-test",
+            type: .fuel,
+            sourceID: "fuel-log",
+            intent: .capture,
+            renderStyle: .promptCard,
+            score: 52,
+            reason: "Fuel window.",
+            prompt: "Fuel",
+            detail: "Fuel",
+            payload: BookPagePayload(headline: "Fuel", body: "Fuel")
+        )
+        let profiles = BookPageSourceRegistry.beliefProfiles(ledger: ["fuel-log": -36])
+        let preferences = CuratorSurfacePreferences(
+            pageBeliefProfiles: Dictionary(uniqueKeysWithValues: profiles.map { ($0.sourceID, $0) })
+        )
+
+        XCTAssertGreaterThanOrEqual(preferences.adjustedScore(for: fuel), 68)
+    }
+
     private func emptyDay() -> BookDay {
         BookDay(id: "2026-06-01", date: localDate(hour: 0), pages: [])
     }

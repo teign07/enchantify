@@ -27,7 +27,7 @@ final class SurfaceReadinessStateTests: XCTestCase {
 
     func testOtherPagesDoNotNeedLocalBrainToOpen() {
         XCTAssertFalse(SurfaceReadinessState(type: .mood).needsLocalBrainToOpen)
-        XCTAssertFalse(SurfaceReadinessState(type: .gossip).needsLocalBrainToOpen)
+        XCTAssertFalse(SurfaceReadinessState(type: .gossip, metadata: ["gossipProse": "The whisper is ready."]).needsLocalBrainToOpen)
         XCTAssertFalse(SurfaceReadinessState(type: .weather).needsLocalBrainToOpen)
     }
 

@@ -44,9 +44,15 @@ import MLX
 #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
 enum LocalBrainGateError: LocalizedError {
     case busy
+    case inactive
 
     var errorDescription: String? {
-        "The Book is already writing. Let that ink dry first."
+        switch self {
+        case .busy:
+            return "The Book is already writing. Let that ink dry first."
+        case .inactive:
+            return "Gemma can only write while ReEnchanted is open on screen."
+        }
     }
 }
 
@@ -63,10 +69,11 @@ actor LocalBrainInferenceGate {
         presentation: LocalBrainPresentation = .live,
         operation: () async throws -> T
     ) async throws -> T {
+        try await requireForeground()
         try await enter(label: label, promptCharacters: promptCharacters)
         appLog.info("Local brain starting \(label, privacy: .public); prompt characters: \(promptCharacters)")
         if presentation == .readingRoom {
-            NotificationCenter.default.post(name: .localBrainDidWake, object: nil)
+            postOnMain(name: .localBrainDidWake, object: nil)
         }
         AppMemoryLedger.record("\(label)-gate-enter")
         Memory.cacheLimit = cacheLimit
@@ -79,11 +86,22 @@ actor LocalBrainInferenceGate {
             Memory.clearCache()
             AppMemoryLedger.record("\(label)-gate-exit")
             if presentation == .readingRoom {
-                NotificationCenter.default.post(name: .localBrainDidRest, object: nil)
+                postOnMain(name: .localBrainDidRest, object: nil)
             }
             leave()
         }
         return try await operation()
+    }
+
+    private func requireForeground() async throws {
+        #if canImport(UIKit)
+        let isActive = await MainActor.run {
+            UIApplication.shared.applicationState == .active
+        }
+        guard isActive else {
+            throw LocalBrainGateError.inactive
+        }
+        #endif
     }
 
     private func enter(label: String, promptCharacters: Int) async throws {
@@ -106,7 +124,7 @@ actor LocalBrainInferenceGate {
         promptCharacters: Int,
         queuedCount: Int
     ) {
-        NotificationCenter.default.post(
+        postOnMain(
             name: .localBrainWorkDidChange,
             object: LocalBrainWorkSnapshot(
                 isWorking: isWorking,
@@ -115,6 +133,12 @@ actor LocalBrainInferenceGate {
                 queuedCount: queuedCount
             )
         )
+    }
+
+    private nonisolated func postOnMain(name: Notification.Name, object: Any?) {
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: name, object: object)
+        }
     }
 }
 
@@ -206,6 +230,57 @@ enum MLXBraidTaskRunner {
         sourceID: String,
         tags: [String]
     ) async throws -> String {
+        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
+            throw LocalModelError.missingModel(LocalModelManager.report())
+        }
+
+        let taskLabel = sourceID.isEmpty ? "gemma-task" : sourceID
+        let response = try await LocalBrainInferenceGate.shared.run(
+            label: taskLabel,
+            promptCharacters: prompt.count,
+            presentation: .live
+        ) {
+            try await Device.withDefaultDevice(.gpu) {
+                let container = try await LLMModelFactory.shared.loadContainer(
+                    from: modelDirectory,
+                    using: TokenizersLoader()
+                )
+                let session = ChatSession(
+                    container,
+                    instructions: instructions,
+                    generateParameters: GenerateParameters(
+                        maxTokens: maxTokens,
+                        maxKVSize: 2_048,
+                        temperature: 0.68,
+                        topP: 0.9,
+                        prefillStepSize: 256
+                    )
+                )
+                return try await session.respond(to: prompt)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        appLog.info(
+            "Local brain finished task \(taskLabel, privacy: .public); tags: \(Array(Set(tags + ["gemma", "task"])).sorted().joined(separator: ","), privacy: .public); response characters: \(response.count, privacy: .public)"
+        )
+
+        guard !response.isEmpty else {
+            throw LocalModelError.missingModel(LocalModelManager.report())
+        }
+
+        return response
+    }
+}
+
+enum MLXBraidLegacyTaskRunner {
+    static func run(
+        prompt: String,
+        instructions: String,
+        maxTokens: Int,
+        sourceID: String,
+        tags: [String]
+    ) async throws -> String {
         var day = BookDay(id: "gemma-task-\(UUID().uuidString)", date: Date(), pages: [])
         day.pages = [
             BookPage(
@@ -225,6 +300,55 @@ enum MLXBraidTaskRunner {
             instructions: instructions
         ).braid(day: day)
         return page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+struct MLXAskTheBookAnswerer: AskTheBookAnswering {
+    var maxTokens = 520
+
+    func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn]) async throws -> String {
+        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
+            throw LocalModelError.missingModel(LocalModelManager.report())
+        }
+
+        let taskPrompt = LocalModelManager.askTheBookPrompt(
+            prompt: prompt,
+            day: day,
+            previousTurns: previousTurns
+        )
+
+        let response = try await LocalBrainInferenceGate.shared.run(
+            label: "ask-the-book",
+            promptCharacters: taskPrompt.count,
+            presentation: .live
+        ) {
+            try await Device.withDefaultDevice(.gpu) {
+                let container = try await LLMModelFactory.shared.loadContainer(
+                    from: modelDirectory,
+                    using: TokenizersLoader()
+                )
+                let session = ChatSession(
+                    container,
+                    instructions: """
+                    You are the Labyrinth of Stories inside ReEnchanted. Answer as the living Book: concrete, warm, strange, lucid, useful, and never generic.
+                    """,
+                    generateParameters: GenerateParameters(
+                        maxTokens: maxTokens,
+                        maxKVSize: 2_048,
+                        temperature: 0.72,
+                        topP: 0.92,
+                        prefillStepSize: 256
+                    )
+                )
+                return try await session.respond(to: taskPrompt)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        guard !response.isEmpty else {
+            throw LocalModelError.missingModel(LocalModelManager.report())
+        }
+        return response
     }
 }
 
@@ -317,7 +441,20 @@ struct MLXStoryPageWriter: StoryPageWriting {
             tags: ["story-page"]
         )
 
-        return StoryPageProseParser.parse(response, fallback: draft)
+        appLog.info("Story Page Gemma raw response (\(response.count, privacy: .public) chars): \(StoryPageDebugLog.preview(response), privacy: .public)")
+        return try StoryPageProseParser.parse(response, fallback: draft)
+    }
+}
+
+enum StoryPageDebugLog {
+    static func preview(_ response: String, limit: Int = 1_800) -> String {
+        let cleaned = response
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\u{0}", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.count > limit else { return cleaned.isEmpty ? "<empty>" : cleaned }
+        let end = cleaned.index(cleaned.startIndex, offsetBy: limit)
+        return String(cleaned[..<end]) + "\n...[truncated]"
     }
 }
 
@@ -449,12 +586,14 @@ struct GemmaPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
     func analyze(photo: UIImage) async throws -> PhotoAnalysis {
         if LocalModelManager.canAttemptVisionPhotoIllumination {
             do {
+                appLog.info("Photo illumination attempting VLM Gemma path.")
                 return try await VLMPhotoIlluminationAnalyzer().analyze(photo: photo)
             } catch {
                 appLog.error("Vision Gemma photo illumination fell back to caption path: \(error.localizedDescription, privacy: .public)")
             }
         }
 
+        appLog.info("Photo illumination attempting caption-seed Gemma path.")
         return try await CaptionSeedPhotoIlluminationAnalyzer().analyze(photo: photo)
     }
 }
@@ -463,25 +602,16 @@ struct CaptionSeedPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
     func analyze(photo: UIImage) async throws -> PhotoAnalysis {
         let seed = try await VisionPhotoCaptioner().caption(photo: photo.downsampledForLocalBrain(maxSide: 512))
         let fallback = PhotoAnalysis.fallback(for: seed)
-        var day = BookDay(id: "photo-illumination-\(UUID().uuidString)", date: Date(), pages: [])
-        day.pages = [
-            BookPage(
-                type: .souvenir,
-                promptText: "Write Penny Blackletter marginalia JSON from local photo facts.",
-                userInput: PhotoIlluminationPromptBuilder.prompt(for: seed),
-                tags: ["photo", "illumination", "vision-caption", "gemma"],
-                sourceID: "illuminated-photos",
-                origin: .imported,
-                privacy: .privateLocal
-            )
-        ]
-
-        let page = try await MLXBookBraider(
+        let prompt = PhotoIlluminationPromptBuilder.prompt(for: seed)
+        let response = try await MLXBraidTaskRunner.run(
+            prompt: prompt,
+            instructions: MLXBookBraider.photoIlluminationInstructions,
             maxTokens: 220,
-            mode: .task,
-            instructions: MLXBookBraider.photoIlluminationInstructions
-        ).braid(day: day)
-        return PhotoAnalysisValidator.decodeAndValidate(page.userInput, fallback: fallback)
+            sourceID: "photo-illumination-caption",
+            tags: ["photo", "illumination", "vision-caption"]
+        )
+        appLog.info("Caption-seed photo illumination Gemma response returned; response characters: \(response.count, privacy: .public)")
+        return PhotoAnalysisValidator.decodeAndValidate(response, fallback: fallback)
     }
 }
 
@@ -592,6 +722,7 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
             }
         }
 
+        appLog.info("VLM photo illumination Gemma response returned; response characters: \(response.count, privacy: .public)")
         return PhotoAnalysisValidator.decodeAndValidate(response, fallback: .academyFallback)
     }
 
@@ -1281,14 +1412,9 @@ struct AppWonderCompassChooser: WonderCompassPassageChoosing {
 
 struct AppWeatherEnchanter: WeatherEnchanting {
     let local: WeatherEnchanting
-    private let fallback = FakeWeatherEnchanter()
 
     func enchantWeather(weather: WeatherSourceSignal, day: BookDay) async throws -> EnchantedWeatherSignal {
-        do {
-            return try await local.enchantWeather(weather: weather, day: day)
-        } catch {
-            return try await fallback.enchantWeather(weather: weather, day: day)
-        }
+        try await local.enchantWeather(weather: weather, day: day)
     }
 }
 
@@ -1675,6 +1801,7 @@ extension SurfacePage {
         var metadata = payload.metadata
         metadata["slotID"] = slotID
         metadata["storyScene"] = prose.scene
+        metadata["storyWriter"] = prose.source
         metadata["storyResultSliceOfLife"] = prose.results["sliceoflife"] ?? ""
         metadata["storyResultProgressArc"] = prose.results["progressarc"] ?? ""
         metadata["storyResultSurprise"] = prose.results["surprise"] ?? ""
@@ -1693,8 +1820,13 @@ extension SurfacePage {
             metadata["\(prefix)Title"] = choice.title
             metadata["\(prefix)Prompt"] = choice.prompt
             metadata["\(prefix)Effect"] = choice.effectLine
+            metadata["\(prefix)Mechanic"] = choice.mechanic.kind.rawValue
+            if let enchantmentID = choice.mechanic.enchantmentID {
+                metadata["\(prefix)EnchantmentID"] = enchantmentID
+                metadata["\(prefix)EnchantmentName"] = StoryEnchantmentCatalog.spell(id: enchantmentID)?.title
+            }
         }
-        metadata["proseStatus"] = "generated"
+        metadata["proseStatus"] = prose.source == "gemma" ? "gemma" : prose.source
         return SurfacePage(
             id: id,
             type: type,

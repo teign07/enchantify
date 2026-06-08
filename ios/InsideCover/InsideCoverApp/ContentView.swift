@@ -44,7 +44,7 @@ import MLX
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var days: [BookDay]
+    @State private var days: [BookDay] = [BookDay.today()]
     @State private var selectedSurface: SurfacePage?
     @State private var isBraiding = false
     @State private var isInstallingModel = false
@@ -52,14 +52,15 @@ struct ContentView: View {
     @State private var statusMessage = ""
     @State private var installMessage = ""
     @State private var installProgress: Double?
-    @State private var modelReport = LocalModelManager.report()
-    @State private var storeReport: BookStore.Report
-    @State private var databaseReport: BookDatabase.Report
-    @State private var resurfacedPages: [BookPage]
-    @State private var selfFacts: [SelfFact]
-    @State private var narrativeEvents: [NarrativeEvent]
-    @State private var entityMemories: [NarrativeEntityMemory]
-    @State private var facultyEntries: [FacultyEntry]
+    @State private var modelReport = Self.placeholderModelReport
+    @State private var storeReport = Self.placeholderStoreReport
+    @State private var databaseReport = Self.placeholderDatabaseReport
+    @State private var resurfacedPages: [BookPage] = []
+    @State private var surfacedPages: [SurfacePage] = []
+    @State private var selfFacts: [SelfFact] = []
+    @State private var narrativeEvents: [NarrativeEvent] = []
+    @State private var entityMemories: [NarrativeEntityMemory] = []
+    @State private var facultyEntries: [FacultyEntry] = []
     @State private var bodySignal: BodySourceSignal?
     @State private var weatherSignal: WeatherSourceSignal?
     @State private var enchantedWeather: EnchantedWeatherSignal?
@@ -74,6 +75,8 @@ struct ContentView: View {
     @State private var surfaceRefreshDate = Date()
     @State private var undoSurface: SurfacePage?
     @State private var undoDayID: String?
+    @State private var undoRemovedPage: BookPage?
+    @State private var undoRemovedPageDayID: String?
     @State private var braidRecovery = BraidRecoveryState()
     @State private var automaticIlluminatedSurface: SurfacePage?
     @State private var isPreparingAutomaticIllumination = false
@@ -95,6 +98,9 @@ struct ContentView: View {
     @AppStorage("lastAutomaticBodySourceRefreshSlot") private var lastAutomaticBodySourceRefreshSlot = ""
     @AppStorage("lastAutomaticWeatherSourceRefreshSlot") private var lastAutomaticWeatherSourceRefreshSlot = ""
     @AppStorage("beliefScore") private var beliefScore = 30
+    @AppStorage("completedCompassRunLedger") private var completedCompassRunLedger = ""
+    @AppStorage("entityBeliefLedger") private var entityBeliefLedgerData = "{}"
+    @AppStorage("pageBeliefLedger") private var pageBeliefLedgerData = "{}"
     @AppStorage("isDoorwaysExpanded") private var isDoorwaysExpanded = false
     @AppStorage("isTodaysMarginsExpanded") private var isTodaysMarginsExpanded = false
     @AppStorage("isReturnedStacksExpanded") private var isReturnedStacksExpanded = false
@@ -113,15 +119,58 @@ struct ContentView: View {
     @State private var localBrainTelemetry = LocalBrainTelemetryState()
     @State private var localBrainQuipIndex = 0
     @State private var isOpeningMovieVisible = true
+    @State private var isGlowMenuPresented = false
+    @State private var didHydrateLaunchState = false
+    @State private var didRunPostLaunchTasks = false
 
     private let braider: Braider
     private let wonderCompassChooser: WonderCompassPassageChoosing
     private let weatherEnchanter: WeatherEnchanting
     private let surfaceDismissalTTL: TimeInterval = 90 * 60
     private let surfaceRefreshCadence: Duration = .seconds(20 * 60)
-    private let launchGeneratedPageDelay: Duration = .seconds(180)
     private let braidingQuipCadence: Duration = .seconds(3)
     private let localBrainQuipCadence: Duration = .seconds(7)
+
+    private static var placeholderModelReport: LocalModelReport {
+        LocalModelReport(
+            state: .unavailable,
+            preferredModelID: LocalModelManager.preferredModelID,
+            fallbackModelID: LocalModelManager.fallbackModelID,
+            preferredModelSource: LocalModelManager.preferredModel.sourceURL,
+            fallbackModelSource: LocalModelManager.compactModel.sourceURL,
+            installPath: LocalModelManager.modelsDirectory.path,
+            detail: "ReEnchanted is opening the cover before checking the local brain.",
+            deviceSummary: LocalModelManager.deviceSummary
+        )
+    }
+
+    private static var placeholderStoreReport: BookStore.Report {
+        let today = BookDay.today()
+        return BookStore.Report(
+            schemaVersion: BookStore.schemaVersion,
+            storagePath: BookStore.fileURL.path,
+            dayCount: 1,
+            pageCount: 0,
+            todayID: today.id,
+            todayPageCount: 0,
+            todayBookOfYouCount: 0,
+            loadSource: .fallbackToday,
+            lastError: nil
+        )
+    }
+
+    private static var placeholderDatabaseReport: BookDatabase.Report {
+        BookDatabase.Report(
+            schemaVersion: BookDatabase.schemaVersion,
+            storagePath: BookDatabase.storeURL.path,
+            dayCount: 1,
+            pageCount: 0,
+            loadSource: .fallbackJSON,
+            lastError: nil,
+            backupCount: 0,
+            lastBackupPath: nil
+        )
+    }
 
     private var today: BookDay {
         BookStore.today(from: days)
@@ -135,16 +184,9 @@ struct ContentView: View {
             isPreparingAutomaticIllumination: isPreparingAutomaticIllumination,
             isPreparingStoryPage: isPreparingStoryPage,
             isPreparingGossipPage: isPreparingGossipPage,
-            isPreparingFacultyResearchPage: isPreparingFacultyResearchPage
+            isPreparingFacultyResearchPage: isPreparingFacultyResearchPage,
+            isRequestingWeather: isRequestingWeather
         )
-    }
-
-    private var shouldPrepareGeneratedPagesAutomatically: Bool {
-        #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
-        false
-        #else
-        true
-        #endif
     }
 
     private var sourceInputs: BookSourceInputs {
@@ -171,29 +213,26 @@ struct ContentView: View {
         return inputs
     }
 
-    private var wonderCompassSelectionSignature: String {
-        let pageBits = today.capturedPages
-            .map { "\($0.id):\($0.userInput):\($0.tags.joined(separator: ","))" }
-            .joined(separator: "|")
-        return [
-            today.id,
-            SurfaceCadence.slotID(for: surfaceRefreshDate),
-            pageBits,
-            bodySignal?.status ?? "",
-            bodySignal?.phrase ?? "",
-            sourceInputs.weather?.phrase ?? ""
-        ].joined(separator: "::")
+    private var selectedCuratorSurfaces: [SurfacePage] {
+        buildCuratorSurfaces(now: surfaceRefreshDate)
     }
 
     private var surfaces: [SurfacePage] {
+        surfacedPages
+    }
+
+    private func buildCuratorSurfaces(now: Date) -> [SurfacePage] {
         BookCurator.surfacedPages(
             for: today,
             inputs: sourceInputs,
-            now: surfaceRefreshDate,
+            now: now,
             limit: 3,
             preferences: CuratorSurfacePreferences(
-                dismissedSurfaceIDs: dismissedSurfaceIDs(for: today.id, now: surfaceRefreshDate),
-                disabledSourceIDs: disabledSourceIDs()
+                dismissedSurfaceIDs: dismissedSurfaceIDs(for: today.id, now: now),
+                disabledSourceIDs: disabledSourceIDs(),
+                pageBeliefProfiles: Dictionary(
+                    uniqueKeysWithValues: pageBeliefProfiles.map { ($0.sourceID, $0) }
+                )
             )
         )
     }
@@ -202,18 +241,78 @@ struct ContentView: View {
         BookPageSourceRegistry.activeSources.filter { isSourceEnabled(sourceID: $0.id) }.count
     }
 
-    init() {
-        let legacyDays = BookStore.loadDays()
-        let initialDays = BookDatabase.loadDays(migratingFrom: legacyDays)
-        _days = State(initialValue: initialDays)
-        _storeReport = State(initialValue: BookStore.report(for: initialDays))
-        _databaseReport = State(initialValue: BookDatabase.report(for: initialDays))
-        _resurfacedPages = State(initialValue: (try? BookDatabase.resurfacingCandidates(limit: 3)) ?? [])
-        _selfFacts = State(initialValue: (try? BookDatabase.selfFacts()) ?? [])
-        _narrativeEvents = State(initialValue: (try? BookDatabase.narrativeEvents(limit: 100)) ?? [])
-        _entityMemories = State(initialValue: (try? BookDatabase.entityMemories(limit: 120)) ?? [])
-        _facultyEntries = State(initialValue: (try? BookDatabase.facultyEntries(limit: 160)) ?? [])
+    private var entityBeliefLedger: [String: Int] {
+        (try? JSONDecoder().decode([String: Int].self, from: Data(entityBeliefLedgerData.utf8))) ?? [:]
+    }
 
+    private var pageBeliefLedger: [String: Int] {
+        (try? JSONDecoder().decode([String: Int].self, from: Data(pageBeliefLedgerData.utf8))) ?? [:]
+    }
+
+    private var pageBeliefProfiles: [PageBeliefProfile] {
+        BookPageSourceRegistry.beliefProfiles(ledger: pageBeliefLedger)
+    }
+
+    private var glowEntityMenuItems: [GlowEntityMenuItem] {
+        let ledger = entityBeliefLedger
+        return NarrativePackRegistry.entities
+            .map { entity in
+                let glow = max(0, min(100, entity.belief + (ledger[entity.id] ?? 0)))
+                return GlowEntityMenuItem(
+                    id: entity.id,
+                    name: entity.name,
+                    kind: entity.kind.rawValue,
+                    glow: glow,
+                    line: glowLine(for: entity)
+                )
+            }
+            .sorted { left, right in
+                if left.glow == right.glow {
+                    return left.name < right.name
+                }
+                return left.glow > right.glow
+            }
+    }
+
+    private var glowPageMenuItems: [GlowPageMenuItem] {
+        pageBeliefProfiles.map { profile in
+            let source = BookPageSourceRegistry.source(id: profile.sourceID, fallbackType: profile.type)
+            return GlowPageMenuItem(
+                id: profile.sourceID,
+                type: profile.type,
+                sourceID: profile.sourceID,
+                title: profile.title,
+                detail: "\(profile.cadence). \(profile.note)",
+                symbolName: source.symbolName,
+                glow: profile.belief,
+                narrativeWeight: profile.narrativeWeight
+            )
+        }
+        .sorted { left, right in
+            if left.curationWeight == right.curationWeight {
+                return left.title < right.title
+            }
+            return left.curationWeight > right.curationWeight
+        }
+    }
+
+    private var glowBookSectionMenuItems: [GlowBookSectionMenuItem] {
+        BookReferenceCatalog.wonderCompass.map { snippet in
+            GlowBookSectionMenuItem(
+                id: snippet.id,
+                title: snippet.title,
+                detail: snippet.prompt
+            )
+        }
+    }
+
+    private var glowEnchantmentMenuItems: [GlowEnchantmentMenuItem] {
+        StoryEnchantmentCatalog.spells.map {
+            GlowEnchantmentMenuItem(id: $0.id, title: $0.title, detail: $0.detail)
+        }
+    }
+
+    init() {
         #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
         braider = AppBraider(local: MLXBookBraider())
         wonderCompassChooser = AppWonderCompassChooser(local: MLXWonderCompassChooser())
@@ -233,75 +332,79 @@ struct ContentView: View {
                 } else {
                     BookBackground()
 
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 26) {
-                            topBanner
-                            hero
-                            LabStatusCard(
-                                report: modelReport,
-                                storeReport: storeReport,
-                                databaseReport: databaseReport,
-                                lastBraidDuration: lastBraidDuration
-                            )
-                            labPanelShelf
-                            localBrainWorkShelf
-                            surfaceShelf
-                            pageSourceShelf
-                            todayFragments
-                            resurfacedShelf
-                            archiveShelf
-                            sourceControlsShelf
+                    if didHydrateLaunchState {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 26) {
+                                topBanner
+                                hero
+                                LabStatusCard(
+                                    report: modelReport,
+                                    storeReport: storeReport,
+                                    databaseReport: databaseReport,
+                                    lastBraidDuration: lastBraidDuration
+                                )
+                                labPanelShelf
+                                localBrainWorkShelf
+                                surfaceShelf
+                                pageSourceShelf
+                                todayFragments
+                                resurfacedShelf
+                                archiveShelf
+                                sourceControlsShelf
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 18)
+                            .frame(maxWidth: 920)
+                            .frame(maxWidth: .infinity)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 18)
-                        .frame(maxWidth: 920)
-                        .frame(maxWidth: .infinity)
                     }
                 }
 
                 if isOpeningMovieVisible {
                     OpeningMovieView {
-                        withAnimation(.easeInOut(duration: 0.28)) {
-                            isOpeningMovieVisible = false
+                        Task {
+                            await waitForLaunchStateHydration()
+                            withAnimation(.easeInOut(duration: 0.28)) {
+                                isOpeningMovieVisible = false
+                            }
                         }
+                    }
+                    .task {
+                        await hydrateLaunchStateIfNeeded()
                     }
                     .transition(.opacity)
                     .zIndex(20)
                 }
+
+                if isGlowMenuPresented {
+                    GlowCommandMenu(
+                        score: beliefScore,
+                        surfaceCount: surfaces.count,
+                        capturedPageCount: today.capturedPages.count,
+                        entities: glowEntityMenuItems,
+                        pageTypes: glowPageMenuItems,
+                        bookSections: glowBookSectionMenuItems,
+                        enchantments: glowEnchantmentMenuItems,
+                        onClose: closeGlowMenu,
+                        onSelectAction: handleGlowMenuAction
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .ignoresSafeArea()
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.82, anchor: .topTrailing)
+                            .combined(with: .move(edge: .trailing))
+                            .combined(with: .opacity),
+                        removal: .scale(scale: 0.96, anchor: .topTrailing)
+                            .combined(with: .opacity)
+                    ))
+                    .zIndex(15)
+                }
             }
             .navigationTitle("ReEnchanted")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(isGlowMenuPresented ? .hidden : .visible, for: .navigationBar)
             .task {
-                surfaceRefreshDate = Date()
-                modelReport = LocalModelManager.report()
-                storeReport = BookStore.report(for: days)
-                databaseReport = BookDatabase.report(for: days)
-                refreshResurfacedPages()
-                AppMemoryLedger.record("app-launch-idle")
-                await refreshDynamicSourcesIfNeeded()
-                await runLaunchSmokeTestIfRequested()
-                await autoBraidIfNeeded()
-            }
-            .task {
-                try? await Task.sleep(for: launchGeneratedPageDelay)
-                guard !Task.isCancelled else { return }
-                guard shouldPrepareGeneratedPagesAutomatically else { return }
-                await prepareOneGeneratedPageIfPossible()
-            }
-            .task {
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: surfaceRefreshCadence)
-                    guard !Task.isCancelled else { return }
-                    await refreshDynamicSourcesIfNeeded()
-                    surfaceRefreshDate = Date()
-                    await autoBraidIfNeeded()
-                    if shouldPrepareGeneratedPagesAutomatically {
-                        await prepareOneGeneratedPageIfPossible()
-                    }
-                }
-            }
-            .task(id: wonderCompassSelectionSignature) {
-                await refreshWonderCompassSelection()
+                await runPostLaunchTasksIfNeeded()
             }
             .task(id: isBraiding) {
                 guard isBraiding else { return }
@@ -349,17 +452,34 @@ struct ContentView: View {
                 guard newPhase != .active else { return }
                 resetTransientWorkStateForBackgrounding()
             }
+            .onChange(of: didHydrateLaunchState) { _, _ in
+                rebuildSurfaceCache()
+            }
+            .onChange(of: surfaceRefreshDate) { _, _ in
+                rebuildSurfaceCache()
+            }
             .sheet(item: $selectedSurface) { surface in
                 CapturePageSheet(
                     surface: surface,
+                    day: today,
                     isLocalBrainWorking: localBrainTelemetry.isWorking,
                     onReplaceIlluminatedSurface: { replacement in
                         automaticIlluminatedSurface = replacement
                         surfaceRefreshDate = Date()
+                    },
+                    onNavigateToSurface: { nextSurface in
+                        selectedSurface = nextSurface
+                    },
+                    onCompleteCompassRun: { completedSurface in
+                        completeCompassRunIfNeeded(completedSurface)
+                    },
+                    onStoryMechanicCompleted: { completedSurface, outcome in
+                        openStoryMechanicReturnPage(from: completedSurface, outcome: outcome)
                     }
                 ) { savedSurface, input, tags in
                     savePage(surface: savedSurface, input: input, tags: tags)
                 }
+                .id(surface.id)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
@@ -375,10 +495,459 @@ struct ContentView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    BeliefScoreBadge(score: beliefScore)
+                    Button {
+                        toggleGlowMenu()
+                    } label: {
+                        BeliefScoreBadge(score: beliefScore)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isGlowMenuPresented ? "Close Glow menu" : "Open Glow menu")
                 }
             }
         }
+    }
+
+    @MainActor
+    private func hydrateLaunchStateIfNeeded() async {
+        guard !didHydrateLaunchState else { return }
+
+        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(700))
+
+        let initialDays = BookDatabase.loadDays(migratingFrom: BookStore.loadDays())
+        await Task.yield()
+
+        surfaceRefreshDate = Date()
+        days = initialDays
+        storeReport = BookStore.report(for: initialDays)
+        await Task.yield()
+        databaseReport = BookDatabase.report(for: initialDays)
+        await Task.yield()
+        resurfacedPages = (try? BookDatabase.resurfacingCandidates(limit: 3)) ?? []
+        await Task.yield()
+        selfFacts = (try? BookDatabase.selfFacts()) ?? []
+        await Task.yield()
+        narrativeEvents = (try? BookDatabase.narrativeEvents(limit: 100)) ?? []
+        await Task.yield()
+        entityMemories = (try? BookDatabase.entityMemories(limit: 120)) ?? []
+        await Task.yield()
+        facultyEntries = (try? BookDatabase.facultyEntries(limit: 160)) ?? []
+        await Task.yield()
+        modelReport = LocalModelManager.report()
+        didHydrateLaunchState = true
+    }
+
+    @MainActor
+    private func waitForLaunchStateHydration() async {
+        while !didHydrateLaunchState && !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+    }
+
+    @MainActor
+    private func runPostLaunchTasksIfNeeded() async {
+        guard !didRunPostLaunchTasks else { return }
+        await waitForLaunchStateHydration()
+        guard !Task.isCancelled, !didRunPostLaunchTasks else { return }
+
+        didRunPostLaunchTasks = true
+        AppMemoryLedger.record("app-launch-idle")
+        await runLaunchSmokeTestIfRequested()
+    }
+
+    @MainActor
+    private func rebuildSurfaceCache() {
+        guard didHydrateLaunchState else {
+            surfacedPages = []
+            return
+        }
+        surfacedPages = buildCuratorSurfaces(now: surfaceRefreshDate)
+    }
+
+    private func toggleGlowMenu() {
+        BookFeedback.play(isGlowMenuPresented ? .dismissPage : .sourceRefresh)
+        withAnimation(.spring(response: 0.48, dampingFraction: 0.78)) {
+            isGlowMenuPresented.toggle()
+        }
+    }
+
+    private func closeGlowMenu() {
+        BookFeedback.play(.dismissPage)
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
+            isGlowMenuPresented = false
+        }
+    }
+
+    private func handleGlowMenuAction(_ action: GlowMenuAction) {
+        switch action {
+        case let .giveBelief(entity):
+            adjustEntityBelief(entity, delta: 3, kind: .beliefInvested)
+            statusMessage = "\(entity.name) takes on three brighter points of Glow."
+        case let .takeBelief(entity):
+            takeBelief(from: entity)
+        case let .givePageBelief(page):
+            adjustPageBelief(page, delta: 3)
+            statusMessage = "\(page.title) takes on three brighter points of Glow."
+        case let .takePageBelief(page):
+            adjustPageBelief(page, delta: -3)
+            statusMessage = "\(page.title) dims by three points. The Book will still remember it can surface."
+        case .spellCompass:
+            selectedSurface = compassRunSurface()
+            closeGlowMenu()
+        case let .openEnchantment(enchantment):
+            selectedSurface = enchantmentSurface(enchantment)
+            closeGlowMenu()
+        case let .openPage(type):
+            Task { await openManualPage(type) }
+            closeGlowMenu()
+        case let .openBookSection(sectionID):
+            selectedSurface = readingSurface(forWonderCompassSectionID: sectionID)
+            closeGlowMenu()
+        }
+    }
+
+    private func glowLine(for entity: NarrativeWorldEntity) -> String {
+        if let descriptor = compactCastDescriptor(for: entity.id) {
+            return descriptor
+        }
+
+        let source: String
+        if !entity.traits.isEmpty {
+            source = entity.traits.prefix(2).joined(separator: ", ")
+        } else if let interest = entity.unwrittenInterest?.trimmingCharacters(in: .whitespacesAndNewlines), !interest.isEmpty {
+            source = interest
+        } else if let goal = entity.goals.first {
+            source = goal
+        } else if let belief = entity.beliefs.first {
+            source = belief
+        } else {
+            source = entity.kind.rawValue
+        }
+        return compactGlowLine(source)
+    }
+
+    private func compactCastDescriptor(for id: String) -> String? {
+        switch id {
+        case "the-book":
+            return "Attentive living book"
+        case "penny-blackletter":
+            return "Sharp student editor"
+        case "dr-inkrest":
+            return "Gentle narrative therapist"
+        case "dr-vellum":
+            return "Precise longevity physician"
+        case "headmistress-thorne":
+            return "Watchful headmistress"
+        case "orion-blackthorn":
+            return "Stern impossible architect"
+        case "zara-finch":
+            return "Loyal house guide"
+        case "wicker-eddies":
+            return "Sharp belief challenger"
+        case "gwendolyn-mythwright":
+            return "Steadfast cryptid scholar"
+        case "lydia-boggle":
+            return "Wry glint professor"
+        case "soren-ng":
+            return "Quiet riddle cartographer"
+        case "weather-page":
+            return "Atmospheric weather page"
+        case "body-page":
+            return "Humane body pacing"
+        default:
+            return nil
+        }
+    }
+
+    private func compactGlowLine(_ source: String) -> String {
+        let separators = CharacterSet(charactersIn: ",;.-")
+        let fragments = source
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let phrase = fragments.first ?? source.trimmingCharacters(in: .whitespacesAndNewlines)
+        let words = phrase.split(separator: " ")
+        if words.count <= 4 {
+            return phrase
+        }
+        return words.prefix(4).joined(separator: " ")
+    }
+
+    private func takeBelief(from entity: GlowEntityMenuItem) {
+        let attack = BeliefCombatResolver.resolve(
+            attackerName: "The reader",
+            attackerKind: .player,
+            attackerBelief: beliefScore,
+            targetName: entity.name,
+            targetKind: .entity,
+            targetBelief: entity.glow,
+            spend: 3,
+            difficulty: BeliefCombatResolver.difficulty(forTargetBelief: entity.glow)
+        )
+        let playerDelta = attack.attackerBeliefAfter - attack.attackerBeliefBefore
+        let entityDelta = attack.targetBeliefAfter - attack.targetBeliefBefore
+        if entityDelta != 0 {
+            adjustEntityBelief(entity, delta: entityDelta, kind: .beliefAttacked, playerBeliefDelta: playerDelta)
+        } else {
+            recordGlowBeliefEvent(entity: entity, delta: 0, kind: .beliefAttacked, playerBeliefDelta: playerDelta)
+        }
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+            beliefScore = min(100, max(0, attack.attackerBeliefAfter))
+        }
+        if attack.backlash > 0 {
+            statusMessage = "\(entity.name)'s Glow snaps back. \(attack.summaryLine)"
+        } else if attack.dealt > 0 {
+            statusMessage = "The attack lands. \(attack.summaryLine)"
+        } else {
+            statusMessage = "\(entity.name)'s Glow holds. \(attack.summaryLine)"
+        }
+    }
+
+    private func adjustEntityBelief(
+        _ entity: GlowEntityMenuItem,
+        delta: Int,
+        kind: NarrativeEventKind,
+        playerBeliefDelta: Int = 0
+    ) {
+        var ledger = entityBeliefLedger
+        ledger[entity.id, default: 0] += delta
+        if let data = try? JSONEncoder().encode(ledger),
+           let encoded = String(data: data, encoding: .utf8) {
+            entityBeliefLedgerData = encoded
+        }
+        recordGlowBeliefEvent(entity: entity, delta: delta, kind: kind, playerBeliefDelta: playerBeliefDelta)
+    }
+
+    private func recordGlowBeliefEvent(
+        entity: GlowEntityMenuItem,
+        delta: Int,
+        kind: NarrativeEventKind,
+        playerBeliefDelta: Int = 0
+    ) {
+        let event = NarrativeEvent(
+            id: "glow-\(kind.rawValue)-\(entity.id)-\(UUID().uuidString)",
+            kind: kind,
+            sourcePageType: nil,
+            sourcePageID: nil,
+            createdAt: Date(),
+            summary: delta > 0
+                ? "The reader gave \(entity.name) \(delta) Belief through the Glow menu."
+                : (delta < 0 ? "The reader took \(abs(delta)) Belief from \(entity.name) through the Glow menu." : "The reader tested \(entity.name)'s Belief through the Glow menu."),
+            tags: ["glow", "belief", "entity:\(entity.id)"],
+            effect: NarrativeEventEffect(
+                beliefDelta: playerBeliefDelta,
+                entityWeightDeltas: [entity.id: delta]
+            )
+        )
+        do {
+            try BookDatabase.upsertNarrativeEvent(event)
+            narrativeEvents = try BookDatabase.narrativeEvents(limit: 100)
+        } catch {
+            statusMessage = "The Glow moved, but the hidden ledger missed a line: \(error.localizedDescription)"
+        }
+    }
+
+    private func adjustPageBelief(_ page: GlowPageMenuItem, delta: Int) {
+        var ledger = pageBeliefLedger
+        let source = BookPageSourceRegistry.source(id: page.sourceID, fallbackType: page.type)
+        let defaultBelief = BookPageSourceRegistry.defaultBelief(for: source)
+        let currentDelta = ledger[page.sourceID] ?? 0
+        let nextBelief = max(0, min(100, defaultBelief + currentDelta + delta))
+        ledger[page.sourceID] = nextBelief - defaultBelief
+        if ledger[page.sourceID] == 0 {
+            ledger[page.sourceID] = nil
+        }
+        if let data = try? JSONEncoder().encode(ledger),
+           let encoded = String(data: data, encoding: .utf8) {
+            pageBeliefLedgerData = encoded
+        }
+        recordGlowPageBeliefEvent(page: page, delta: nextBelief - page.glow)
+        surfaceRefreshDate = Date()
+        rebuildSurfaceCache()
+    }
+
+    private func recordGlowPageBeliefEvent(page: GlowPageMenuItem, delta: Int) {
+        let event = NarrativeEvent(
+            id: "glow-page-belief-\(page.sourceID)-\(UUID().uuidString)",
+            kind: delta >= 0 ? .beliefInvested : .beliefAttacked,
+            sourcePageType: page.type,
+            sourcePageID: nil,
+            createdAt: Date(),
+            summary: delta >= 0
+                ? "The reader gave \(page.title) \(delta) Page Belief through the Glow menu."
+                : "The reader took \(abs(delta)) Page Belief from \(page.title) through the Glow menu.",
+            tags: ["glow", "belief", "page:\(page.sourceID)", "page-type:\(page.type.rawValue)"],
+            effect: NarrativeEventEffect()
+        )
+        do {
+            try BookDatabase.upsertNarrativeEvent(event)
+            narrativeEvents = try BookDatabase.narrativeEvents(limit: 100)
+        } catch {
+            statusMessage = "The Page Glow moved, but the hidden ledger missed a line: \(error.localizedDescription)"
+        }
+    }
+
+    private func compassRunSurface() -> SurfacePage {
+        BookPageSourceAdapters.manualSurface(
+            for: .wonderCompass,
+            day: today,
+            context: CuratorContext.make(for: today),
+            inputs: sourceInputs,
+            now: Date()
+        )
+    }
+
+    private func enchantmentSurface(_ enchantment: GlowEnchantmentMenuItem) -> SurfacePage {
+        SurfacePage(
+            id: "manual-enchantment-\(enchantment.id)-\(today.id)-\(Int(Date().timeIntervalSince1970))",
+            type: .lore,
+            sourceID: BookPageSourceRegistry.source(for: .lore).id,
+            intent: .capture,
+            renderStyle: .promptCard,
+            score: 64,
+            reason: "An Enchantment needs a chosen working and real proof before the Book counts it.",
+            prompt: enchantment.title,
+            detail: enchantment.detail,
+            payload: BookPagePayload(
+                headline: "Enchantment Page: \(enchantment.title)",
+                body: "\(enchantment.detail)\n\nDo the real working, then keep the proof here. The Book will not count magic that only happened in prose.",
+                metadata: [
+                    "source": "enchantment",
+                    "enchantmentID": enchantment.id,
+                    "enchantmentName": enchantment.title,
+                    "placeholder": "Add the proof: what changed, what you did, or what image shows \(enchantment.title) touched the real world.",
+                    "tags": "enchantment,proof,real-world-magic,\(enchantment.id)"
+                ]
+            )
+        )
+    }
+
+    private func surface(forManualPageType type: BookPageType) -> SurfacePage {
+        if let existing = surfaces.first(where: { $0.type == type }) {
+            return existing
+        }
+        return freshManualSurface(for: type)
+    }
+
+    private func freshManualSurface(for type: BookPageType) -> SurfacePage {
+        BookPageSourceAdapters.manualSurface(
+            for: type,
+            day: today,
+            context: CuratorContext.make(for: today),
+            inputs: sourceInputs,
+            now: Date()
+        )
+    }
+
+    @MainActor
+    private func openManualPage(_ type: BookPageType) async {
+        switch type {
+        case .narrativeOS:
+            if preparedStoryPageSurface == nil {
+                statusMessage = "The Story Page is calling the local Book brain..."
+                _ = await prepareStoryPageIfPossible(force: true)
+            }
+            selectedSurface = preparedStoryPageSurface ?? localBrainIssueSurface(
+                type: type,
+                title: "Story Page",
+                action: "write a Story Page"
+            )
+        case .gossip:
+            if preparedGossipPageSurface == nil {
+                statusMessage = "The Gossip Page is waking the whisper engine..."
+                _ = await prepareGossipPageIfPossible(force: true)
+            }
+            selectedSurface = preparedGossipPageSurface ?? localBrainIssueSurface(
+                type: type,
+                title: "Gossip Page",
+                action: "write a Gossip Page"
+            )
+        case .facultyResearch:
+            if preparedFacultyResearchSurface == nil {
+                statusMessage = "The faculty folio is asking Gemma to read the clippings..."
+                _ = await prepareFacultyResearchPageIfPossible(force: true)
+            }
+            selectedSurface = preparedFacultyResearchSurface ?? localBrainIssueSurface(
+                type: type,
+                title: "Faculty Research",
+                action: "write a Faculty Research Page"
+            )
+        case .weather:
+            if weatherPageSignal == nil || enchantedWeather == nil {
+                statusMessage = "The Weather Page is asking the sky, then Gemma."
+                _ = await refreshWeatherSignal(isUserInitiated: true, shouldEnchant: true)
+            }
+            if weatherPageSignal != nil, enchantedWeather != nil {
+                selectedSurface = freshManualSurface(for: type)
+            } else {
+                selectedSurface = localBrainIssueSurface(
+                    type: type,
+                    title: "Weather Page",
+                    action: "translate the weather"
+                )
+            }
+        default:
+            selectedSurface = surface(forManualPageType: type)
+        }
+    }
+
+    private func localBrainIssueSurface(type: BookPageType, title: String, action: String) -> SurfacePage {
+        let detail = localBrainTelemetry.lastError ?? localBrainTelemetry.currentWorkStatus ?? "The local model did not return a page."
+        return SurfacePage(
+            id: "local-brain-issue-\(type.rawValue)-\(Int(Date().timeIntervalSince1970))",
+            type: type,
+            sourceID: "local-brain",
+            intent: .reflect,
+            renderStyle: .promptCard,
+            score: 1,
+            reason: "The local model did not finish this generated Page.",
+            prompt: "\(title) could not be generated yet.",
+            detail: detail,
+            payload: BookPagePayload(
+                headline: "\(title) Still Waking",
+                body: "Gemma tried to \(action), but did not finish.\n\n\(detail)",
+                metadata: [
+                    "source": "local-brain",
+                    "status": "failed",
+                    "pageType": type.rawValue
+                ]
+            )
+        )
+    }
+
+    private func readingSurface(forWonderCompassSectionID sectionID: String) -> SurfacePage {
+        let snippet = BookReferenceCatalog.wonderCompass.first { $0.id == sectionID }
+            ?? BookReferenceCatalog.wonderCompass.first
+            ?? ReferenceSnippet(
+                id: "wonder-compass-empty",
+                sourceID: "wonder-compass",
+                title: "The Wonder Compass",
+                prompt: "Read the source text.",
+                body: "The Wonder Compass text is not bundled in this build.",
+                tags: ["wonder-compass"]
+            )
+        let source = BookPageSourceRegistry.source(for: .wonderCompass)
+        return SurfacePage(
+            id: "\(source.id)-reading-\(snippet.id)",
+            type: .wonderCompass,
+            sourceID: source.id,
+            intent: .importReference,
+            renderStyle: .quoteCard,
+            score: 70,
+            reason: "Opened from the Wonder Compass table of contents.",
+            prompt: "Reading Page",
+            detail: snippet.title,
+            payload: BookPagePayload(
+                headline: snippet.title,
+                body: snippet.body,
+                metadata: [
+                    "source": source.id,
+                    "snippetID": snippet.id,
+                    "tags": snippet.tags.joined(separator: ","),
+                    "readingPage": "true"
+                ]
+            )
+        )
     }
 
     private func resetTransientWorkStateForBackgrounding() {
@@ -540,7 +1109,11 @@ struct ContentView: View {
                         case .braid:
                             Task { await braidToday() }
                         case .open:
-                            selectedSurface = surface
+                            if SurfaceReadinessState(surface: surface).needsLocalBrainToOpen {
+                                Task { await generateAndOpenSurface(surface) }
+                            } else {
+                                selectedSurface = surface
+                            }
                         }
                     } onDismiss: {
                         dismissSurface(surface)
@@ -564,6 +1137,9 @@ struct ContentView: View {
     }
 
     private var statusActionTitle: String? {
+        if undoRemovedPage != nil {
+            return "Put it back"
+        }
         if undoSurface != nil {
             return "Call it back"
         }
@@ -571,6 +1147,9 @@ struct ContentView: View {
     }
 
     private var statusAction: (() -> Void)? {
+        if undoRemovedPage != nil {
+            return { restoreLastRemovedPage() }
+        }
         if undoSurface != nil {
             return { undoLastSurfaceDismissal() }
         }
@@ -772,9 +1351,16 @@ struct ContentView: View {
             } else {
                 VStack(spacing: 10) {
                     ForEach(today.capturedPages.sorted { $0.createdAt > $1.createdAt }) { page in
-                        FragmentRow(page: page)
+                        FragmentRow(page: page) {
+                            removeKeptPage(page)
+                        }
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .top).combined(with: .opacity),
+                            removal: .move(edge: .trailing).combined(with: .opacity)
+                        ))
                     }
                 }
+                .animation(.spring(response: 0.48, dampingFraction: 0.84), value: today.capturedPages.map(\.id))
             }
         }
     }
@@ -1055,25 +1641,194 @@ struct ContentView: View {
     }
 
     private func awardBelief(for surface: SurfacePage) {
-        let newScore = min(100, max(0, beliefScore + 1))
+        let delta: Int
+        if surface.type == .wonderCompass, surface.payload.metadata["runID"] != nil {
+            delta = surface.payload.metadata["compassStep"] == "rest" ? 6 : 0
+        } else {
+            delta = 1
+        }
+        guard delta != 0 else { return }
+        let newScore = min(100, max(0, beliefScore + delta))
         guard newScore != beliefScore else { return }
         withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
             beliefScore = newScore
         }
     }
 
-    @discardableResult
-    private func prepareOneGeneratedPageIfPossible() async -> Bool {
-        if await prepareStoryPageIfPossible() {
-            return true
+    private func completeCompassRunIfNeeded(_ surface: SurfacePage) {
+        guard surface.type == .wonderCompass,
+              surface.payload.metadata["compassStep"] == "rest",
+              let runID = surface.payload.metadata["runID"] else {
+            return
         }
-        if await prepareGossipPageIfPossible() {
-            return true
+        var completed = Set(completedCompassRunLedger
+            .split(separator: ",")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty })
+        guard !completed.contains(runID) else { return }
+        completed.insert(runID)
+        completedCompassRunLedger = completed.sorted().joined(separator: ",")
+        let newScore = min(100, max(0, beliefScore + 6))
+        guard newScore != beliefScore else { return }
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+            beliefScore = newScore
         }
-        if await prepareFacultyResearchPageIfPossible() {
-            return true
+    }
+
+    private func openStoryMechanicReturnPage(from completedSurface: SurfacePage, outcome: String) {
+        guard completedSurface.payload.metadata["storyMechanicReturn"] == "true" else { return }
+        Task { await prepareAndOpenStoryMechanicReturnPage(from: completedSurface, outcome: outcome) }
+    }
+
+    @MainActor
+    private func prepareAndOpenStoryMechanicReturnPage(from completedSurface: SurfacePage, outcome: String) async {
+        guard !localBrainTelemetry.isWorking else {
+            statusMessage = "The Story Page heard the result. Let the current ink dry, then continue the thread."
+            return
         }
-        return await prepareAutomaticIlluminatedPageIfPossible()
+
+        let returnSurface = storyMechanicReturnSurface(from: completedSurface, outcome: outcome)
+        statusMessage = "The Story Page is folding the \(completedSurface.prompt) result back into the thread..."
+
+        do {
+            let prose: StoryPageProse
+            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
+            prose = try await MLXStoryPageWriter().write(surface: returnSurface)
+            #else
+            prose = try await FakeStoryPageWriter().write(surface: returnSurface)
+            #endif
+            let prepared = returnSurface.preparedStoryPageCopy(
+                prose: prose,
+                slotID: "mechanic-return-\(Int(Date().timeIntervalSince1970))"
+            )
+            selectedSurface = prepared
+            statusMessage = "The mechanic result has become the next Story Page."
+        } catch {
+            selectedSurface = localBrainIssueSurface(
+                type: .narrativeOS,
+                title: "Story Page",
+                action: "fold the mechanic result back into the story"
+            )
+            statusMessage = "The Story Page could not fold the mechanic result yet."
+        }
+    }
+
+    private func storyMechanicReturnSurface(from completedSurface: SurfacePage, outcome: String) -> SurfacePage {
+        let metadata = completedSurface.payload.metadata
+        let mechanic = metadata["storyMechanicKind"] ?? "story-mechanic"
+        let thread = metadata["storyThread"] ?? "Ordinary Magic"
+        let choiceTitle = metadata["storyChoiceTitle"] ?? completedSurface.prompt
+        let choicePrompt = metadata["storyChoicePrompt"] ?? completedSurface.detail
+        let choiceEffect = metadata["storyChoiceEffect"] ?? "The mechanic result changes what the thread can do next."
+        let priorScene = metadata["storyScene"] ?? "A previous Story Page asked for a real mechanic before the thread moved on."
+        let outcomeText = outcome.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? completedSurface.payload.body
+        let source = BookPageSourceRegistry.source(for: .narrativeOS)
+        let continuation = """
+        A Story Page choice asked for \(mechanic).
+
+        Previous scene:
+        \(priorScene)
+
+        Chosen story action:
+        \(choiceTitle) — \(choicePrompt)
+
+        Intended movement:
+        \(choiceEffect)
+
+        Completed mechanic page:
+        \(completedSurface.prompt)
+
+        Player-kept result:
+        \(outcomeText)
+
+        Continue the thread from the real completed mechanic. Do not claim any extra real-world action beyond this result.
+        """
+
+        return SurfacePage(
+            id: "story-mechanic-return-\(completedSurface.id)-\(Int(Date().timeIntervalSince1970))",
+            type: .narrativeOS,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .promptCard,
+            score: max(completedSurface.score, 74),
+            reason: "A completed mechanic is ready to become the next Story Page beat.",
+            prompt: "Story Page Return",
+            detail: "The thread continues from \(completedSurface.prompt).",
+            payload: BookPagePayload(
+                headline: "Story Page Return",
+                body: continuation.bookPreviewSentenceLimit(2),
+                metadata: [
+                    "source": source.id,
+                    "selectedThreads": thread,
+                    "selectedEntities": "the-book",
+                    "realSignals": "A completed \(mechanic) page is feeding back into the story.",
+                    "relationshipPressures": "The Story Page must honor the mechanic result before offering the next choice.",
+                    "storyContinuationContext": continuation,
+                    "tags": "story-mechanic-return,\(mechanic)"
+                ]
+            )
+        )
+    }
+
+    @MainActor
+    private func generateAndOpenSurface(_ surface: SurfacePage) async {
+        guard scenePhase == .active else {
+            statusMessage = "The Book can only write while ReEnchanted is open on screen."
+            return
+        }
+
+        switch surface.type {
+        case .narrativeOS:
+            statusMessage = "The Story Page is calling the local Book brain..."
+            _ = await prepareStoryPageIfPossible(force: true)
+            selectedSurface = preparedStoryPageSurface ?? localBrainIssueSurface(
+                type: surface.type,
+                title: "Story Page",
+                action: "write a Story Page"
+            )
+        case .gossip:
+            statusMessage = "The Gossip Page is waking the whisper engine..."
+            _ = await prepareGossipPageIfPossible(force: true)
+            selectedSurface = preparedGossipPageSurface ?? localBrainIssueSurface(
+                type: surface.type,
+                title: "Gossip Page",
+                action: "write a Gossip Page"
+            )
+        case .facultyResearch:
+            statusMessage = "The faculty folio is asking Gemma to read the clippings..."
+            _ = await prepareFacultyResearchPageIfPossible(force: true)
+            selectedSurface = preparedFacultyResearchSurface ?? localBrainIssueSurface(
+                type: surface.type,
+                title: "Faculty Research",
+                action: "write a Faculty Research Page"
+            )
+        case .weather:
+            statusMessage = "The Weather Page is asking the sky, then Gemma."
+            if weatherPageSignal == nil {
+                _ = await refreshWeatherSignal(isUserInitiated: true, shouldEnchant: true)
+            } else if enchantedWeather == nil {
+                _ = await prepareWeatherPageIfPossible()
+            }
+            selectedSurface = enchantedWeather == nil
+                ? localBrainIssueSurface(type: surface.type, title: "Weather Page", action: "translate the weather")
+                : freshManualSurface(for: .weather)
+        case .wonderCompass:
+            statusMessage = "The Compass is asking Gemma which passage belongs here."
+            _ = await prepareWonderCompassSelectionIfPossible(force: true)
+            selectedSurface = selectedCuratorSurfaces.first {
+                $0.type == .wonderCompass && $0.payload.metadata["selector"] == "gemma"
+            } ?? surface
+        case .illuminatedPhoto:
+            statusMessage = "Penny is asking Gemma to illuminate a photo."
+            _ = await prepareAutomaticIlluminatedPageIfPossible()
+            selectedSurface = automaticIlluminatedSurface ?? localBrainIssueSurface(
+                type: surface.type,
+                title: "Illuminated Photo",
+                action: "illuminate a photo"
+            )
+        default:
+            selectedSurface = surface
+        }
     }
 
     @discardableResult
@@ -1168,7 +1923,7 @@ struct ContentView: View {
     }
 
     private func analyzeAutomaticIlluminatedPhoto(_ image: UIImage) async -> PhotoAnalysis {
-        #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+        #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
         do {
             return try await GemmaPhotoIlluminationAnalyzer().analyze(photo: image)
         } catch {
@@ -1183,17 +1938,27 @@ struct ContentView: View {
 
     @MainActor
     @discardableResult
-    private func prepareStoryPageIfPossible() async -> Bool {
-        let slot = SurfaceCadence.slotID(for: surfaceRefreshDate, hours: 4)
-        guard storyPageRecovery.shouldBegin(
-            isPreparing: isPreparingStoryPage,
-            isLocalBrainWorking: localBrainTelemetry.isWorking,
-            preparedSurface: preparedStoryPageSurface,
-            slotID: slot,
-            requiredMetadataKey: "storyScene",
-            now: surfaceRefreshDate
-        ) else {
+    private func prepareStoryPageIfPossible(force: Bool = false) async -> Bool {
+        guard scenePhase == .active else {
+            localBrainTelemetry.recordError("story page: Gemma can only write while ReEnchanted is open on screen.")
             return false
+        }
+        let slot = SurfaceCadence.slotID(for: surfaceRefreshDate, hours: 4)
+        if force {
+            guard !isPreparingStoryPage, !localBrainTelemetry.isWorking else {
+                return false
+            }
+        } else {
+            guard storyPageRecovery.shouldBegin(
+                isPreparing: isPreparingStoryPage,
+                isLocalBrainWorking: localBrainTelemetry.isWorking,
+                preparedSurface: preparedStoryPageSurface,
+                slotID: slot,
+                requiredMetadataKey: "storyScene",
+                now: surfaceRefreshDate
+            ) else {
+                return false
+            }
         }
 
         var draftInputs = sourceInputs
@@ -1209,7 +1974,7 @@ struct ContentView: View {
 
         do {
             let prose: StoryPageProse
-            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
             prose = try await MLXStoryPageWriter().write(surface: draft)
             #else
             prose = try await FakeStoryPageWriter().write(surface: draft)
@@ -1232,17 +1997,23 @@ struct ContentView: View {
 
     @MainActor
     @discardableResult
-    private func prepareGossipPageIfPossible() async -> Bool {
+    private func prepareGossipPageIfPossible(force: Bool = false) async -> Bool {
         let slot = SurfaceCadence.slotID(for: surfaceRefreshDate, hours: 4)
-        guard gossipPageRecovery.shouldBegin(
-            isPreparing: isPreparingGossipPage,
-            isLocalBrainWorking: localBrainTelemetry.isWorking,
-            preparedSurface: preparedGossipPageSurface,
-            slotID: slot,
-            requiredMetadataKey: "gossipProse",
-            now: surfaceRefreshDate
-        ) else {
-            return false
+        if force {
+            guard !isPreparingGossipPage, !localBrainTelemetry.isWorking else {
+                return false
+            }
+        } else {
+            guard gossipPageRecovery.shouldBegin(
+                isPreparing: isPreparingGossipPage,
+                isLocalBrainWorking: localBrainTelemetry.isWorking,
+                preparedSurface: preparedGossipPageSurface,
+                slotID: slot,
+                requiredMetadataKey: "gossipProse",
+                now: surfaceRefreshDate
+            ) else {
+                return false
+            }
         }
 
         var draftInputs = sourceInputs
@@ -1270,7 +2041,7 @@ struct ContentView: View {
 
         do {
             let prose: String
-            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
             prose = try await MLXGossipPageWriter().write(surface: draft)
             #else
             prose = try await FakeGossipPageWriter().write(surface: draft)
@@ -1293,17 +2064,23 @@ struct ContentView: View {
 
     @MainActor
     @discardableResult
-    private func prepareFacultyResearchPageIfPossible() async -> Bool {
+    private func prepareFacultyResearchPageIfPossible(force: Bool = false) async -> Bool {
         let slot = SurfaceCadence.slotID(for: surfaceRefreshDate, hours: 12)
-        guard facultyResearchRecovery.shouldBegin(
-            isPreparing: isPreparingFacultyResearchPage,
-            isLocalBrainWorking: localBrainTelemetry.isWorking,
-            preparedSurface: preparedFacultyResearchSurface,
-            slotID: slot,
-            requiredMetadataKey: "researchProse",
-            now: surfaceRefreshDate
-        ) else {
-            return false
+        if force {
+            guard !isPreparingFacultyResearchPage, !localBrainTelemetry.isWorking else {
+                return false
+            }
+        } else {
+            guard facultyResearchRecovery.shouldBegin(
+                isPreparing: isPreparingFacultyResearchPage,
+                isLocalBrainWorking: localBrainTelemetry.isWorking,
+                preparedSurface: preparedFacultyResearchSurface,
+                slotID: slot,
+                requiredMetadataKey: "researchProse",
+                now: surfaceRefreshDate
+            ) else {
+                return false
+            }
         }
 
         var draftInputs = sourceInputs
@@ -1325,7 +2102,7 @@ struct ContentView: View {
             )
             draft = draft.withFacultyResearchClippings(clippings)
             let prose: String
-            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
             prose = try await MLXFacultyResearchWriter().write(surface: draft)
             #else
             prose = try await FallbackFacultyResearchWriter().write(surface: draft)
@@ -1390,8 +2167,50 @@ struct ContentView: View {
         return encoded
     }
 
+    private func removeKeptPage(_ page: BookPage) {
+        BookFeedback.play(.dismissPage)
+        var day = today
+        guard let index = day.pages.firstIndex(where: { $0.id == page.id }) else {
+            statusMessage = "That page has already left the margin."
+            return
+        }
+
+        let removedPage = day.pages.remove(at: index)
+        undoRemovedPage = removedPage
+        undoRemovedPageDayID = day.id
+        undoSurface = nil
+        undoDayID = nil
+        persist(day: day, message: "The \(removedPage.type.shortTitle.lowercased()) page left Today's Margins.")
+    }
+
+    private func restoreLastRemovedPage() {
+        guard let page = undoRemovedPage,
+              let dayID = undoRemovedPageDayID,
+              var day = days.first(where: { $0.id == dayID }) ?? (dayID == today.id ? today : nil) else {
+            undoRemovedPage = nil
+            undoRemovedPageDayID = nil
+            return
+        }
+
+        BookFeedback.play(.undo)
+        guard !day.pages.contains(where: { $0.id == page.id }) else {
+            undoRemovedPage = nil
+            undoRemovedPageDayID = nil
+            statusMessage = "That page is already back in the margins."
+            return
+        }
+
+        day.pages.append(page)
+        day.pages.sort { $0.createdAt < $1.createdAt }
+        undoRemovedPage = nil
+        undoRemovedPageDayID = nil
+        persist(day: day, message: "The \(page.type.shortTitle.lowercased()) page returned to Today's Margins.")
+    }
+
     private func dismissSurface(_ surface: SurfacePage) {
         BookFeedback.play(.dismissPage)
+        undoRemovedPage = nil
+        undoRemovedPageDayID = nil
         var ledger = decodedDismissalLedger()
         let now = Date()
         ledger.dismiss(surfaceID: surface.id, dayID: today.id, at: now)
@@ -1613,7 +2432,10 @@ struct ContentView: View {
     }
 
     @MainActor
-    private func refreshDynamicSourcesIfNeeded(now: Date = Date()) async {
+    private func refreshDynamicSourcesIfNeeded(
+        now: Date = Date(),
+        allowsGeneratedWork: Bool = true
+    ) async {
         let refreshSlot = SurfaceCadence.slotID(for: now, hours: 4)
 
         if didRequestHealthKitBodySignal,
@@ -1627,7 +2449,7 @@ struct ContentView: View {
         if didRequestWeatherLocation,
            isSourceEnabled(sourceID: "weather-page"),
            lastAutomaticWeatherSourceRefreshSlot != refreshSlot {
-            if await refreshWeatherSignal(isUserInitiated: false, shouldEnchant: false) {
+            if await refreshWeatherSignal(isUserInitiated: false, shouldEnchant: allowsGeneratedWork) {
                 lastAutomaticWeatherSourceRefreshSlot = refreshSlot
             }
         }
@@ -1637,6 +2459,12 @@ struct ContentView: View {
     @MainActor
     private func refreshWeatherSignal(isUserInitiated: Bool, shouldEnchant: Bool) async -> Bool {
         guard !isRequestingWeather else { return false }
+        guard !shouldEnchant || workBlockingState.canRequestWeather else {
+            if isUserInitiated {
+                weatherMessage = "The Book is already writing. Let that ink dry, then ask the sky again."
+            }
+            return false
+        }
         isRequestingWeather = true
         if isUserInitiated {
             weatherMessage = "The Book is leaning toward the window..."
@@ -1690,10 +2518,46 @@ struct ContentView: View {
     }
 
     @MainActor
+    @discardableResult
+    private func prepareWeatherPageIfPossible() async -> Bool {
+        guard let signal = sourceInputs.weather,
+              signal.isAvailable,
+              enchantedWeather == nil,
+              workBlockingState.canRequestWeather else {
+            return false
+        }
+
+        do {
+            AppMemoryLedger.record("weather-before-curator-gemma")
+            let enchanted = try await weatherEnchanter.enchantWeather(weather: signal, day: today)
+            AppMemoryLedger.record("weather-after-curator-gemma")
+            weatherPageSignal = signal
+            enchantedWeather = enchanted
+            surfaceRefreshDate = Date()
+            localBrainTelemetry.clearError()
+            statusMessage = "The Weather Page has dried. The curator can let it rise."
+            return true
+        } catch {
+            localBrainTelemetry.recordError("weather page: \(error.localizedDescription)")
+            statusMessage = "The Weather Page could not finish translating yet."
+            return false
+        }
+    }
+
+    @MainActor
     private func refreshWonderCompassSelection() async {
+        _ = await prepareWonderCompassSelectionIfPossible(force: true)
+    }
+
+    @MainActor
+    @discardableResult
+    private func prepareWonderCompassSelectionIfPossible(force: Bool = false) async -> Bool {
         guard isSourceEnabled(sourceID: "wonder-compass"),
               !isChoosingWonderCompassPassage else {
-            return
+            return false
+        }
+        if !force, selectedWonderCompassSnippet != nil, selectedWonderCompassSelector == "gemma" {
+            return false
         }
 
         isChoosingWonderCompassPassage = true
@@ -1710,14 +2574,24 @@ struct ContentView: View {
             now: surfaceRefreshDate,
             limit: 8
         )
-        guard !candidates.isEmpty else { return }
+        guard !candidates.isEmpty else { return false }
 
-        selectedWonderCompassSnippet = WonderCompassFallbackChooser.choose(
-            day: today,
-            inputs: inputsWithoutSelection,
-            candidates: candidates
-        )
-        selectedWonderCompassSelector = "local-relevance"
+        do {
+            selectedWonderCompassSnippet = try await wonderCompassChooser.chooseWonderCompassSnippet(
+                day: today,
+                inputs: inputsWithoutSelection,
+                candidates: candidates
+            )
+            selectedWonderCompassSelector = "gemma"
+            surfaceRefreshDate = Date()
+            localBrainTelemetry.clearError()
+            return true
+        } catch {
+            localBrainTelemetry.recordError("wonder compass: \(error.localizedDescription)")
+            selectedWonderCompassSnippet = nil
+            selectedWonderCompassSelector = nil
+            return false
+        }
     }
 
     @MainActor
@@ -1791,9 +2665,11 @@ struct ContentView: View {
             let modelID = model.modelID
             appLog.info("Starting streaming Hugging Face download for \(modelID, privacy: .public)")
             let directory = LocalModelManager.modelDirectory(for: modelID)
+            installMessage = "Clearing old local models before downloading \(model.label)..."
+            LocalModelManager.removeKnownLocalModels()
             try await LocalModelStreamingInstaller.download(
                 modelID: modelID,
-                revision: "main",
+                revision: model.revision,
                 to: directory
             ) { progress in
                 let percent = Int(progress.fraction * 100)

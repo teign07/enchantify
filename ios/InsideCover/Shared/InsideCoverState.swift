@@ -54,6 +54,7 @@ struct HealthState: Codable, Equatable {
 
 enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case mood
+    case diary
     case souvenir
     case rest
     case body
@@ -72,6 +73,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case facultyResearch
     case supportGuild
     case bookOfYou
+    case askTheBook
 
     var id: String { rawValue }
 
@@ -79,6 +81,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .mood:
             return "Inner Weather"
+        case .diary:
+            return "Diary Page"
         case .souvenir:
             return "One-Sentence Souvenir"
         case .rest:
@@ -104,7 +108,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .illustration:
             return "An Illustration from the Labyrinth of Stories"
         case .illuminatedPhoto:
-            return "Found in the Margins"
+            return "Illuminated Photos"
         case .narrativeOS:
             return "Story Page"
         case .gossip:
@@ -115,6 +119,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Support Guild Page"
         case .bookOfYou:
             return "Book of You"
+        case .askTheBook:
+            return "Ask the Book"
         }
     }
 
@@ -122,6 +128,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .mood:
             return "Weather"
+        case .diary:
+            return "Diary"
         case .souvenir:
             return "Souvenir"
         case .rest:
@@ -158,6 +166,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Guild"
         case .bookOfYou:
             return "Braid"
+        case .askTheBook:
+            return "Ask"
         }
     }
 
@@ -165,6 +175,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .mood:
             return "cloud.sun"
+        case .diary:
+            return "book.pages"
         case .souvenir:
             return "quote.opening"
         case .rest:
@@ -201,6 +213,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "cross.case"
         case .bookOfYou:
             return "book.closed"
+        case .askTheBook:
+            return "text.bubble"
         }
     }
 }
@@ -264,6 +278,22 @@ struct BookPageSource: Codable, Identifiable, Equatable {
     var note: String
 }
 
+struct PageBeliefProfile: Identifiable, Codable, Equatable {
+    var sourceID: String
+    var type: BookPageType
+    var title: String
+    var belief: Int
+    var narrativeWeight: Int
+    var cadence: String
+    var note: String
+
+    var id: String { sourceID }
+
+    var curationWeight: Int {
+        narrativeWeight + belief
+    }
+}
+
 enum BookPageSourceRegistry {
     static let sources: [BookPageSource] = [
         BookPageSource(
@@ -277,6 +307,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "daily",
             note: "Named by you."
+        ),
+        BookPageSource(
+            id: "diary-page",
+            type: .diary,
+            title: "Diary Page",
+            shortTitle: "Diary",
+            symbolName: "book.pages",
+            origin: .userAuthored,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "manual",
+            note: "What is happening inside this exact moment."
         ),
         BookPageSource(
             id: "one-sentence-souvenir",
@@ -313,6 +355,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "daily",
             note: "Today, braided."
+        ),
+        BookPageSource(
+            id: "ask-the-book",
+            type: .askTheBook,
+            title: "Ask the Book",
+            shortTitle: "Ask",
+            symbolName: "text.bubble",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "manual",
+            note: "Ask one clear question. Get one useful answer."
         ),
         BookPageSource(
             id: "narrative-os",
@@ -485,19 +539,92 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "illuminated-photos",
             type: .illuminatedPhoto,
-            title: "Automatic Illuminated Photo Pages",
-            shortTitle: "Illuminated",
+            title: "Illuminated Photos",
+            shortTitle: "Photos",
             symbolName: "photo.on.rectangle.angled",
             origin: .generated,
             privacy: .privateLocal,
             isActive: true,
             cadence: "proposed",
-            note: "Penny's local field-note press."
+            note: "Choose a photo, or let Penny find one, then illuminate it with Gemma."
         )
     ]
 
     static let activeSources = sources.filter(\.isActive)
     static let plannedSources = sources.filter { !$0.isActive }
+
+    static let automagicSourceIDs: Set<String> = [
+        "inner-weather",
+        "fuel-log"
+    ]
+
+    static func beliefProfiles(ledger: [String: Int] = [:]) -> [PageBeliefProfile] {
+        sources.map { source in
+            beliefProfile(for: source, ledger: ledger)
+        }
+    }
+
+    static func beliefProfile(for type: BookPageType, ledger: [String: Int] = [:]) -> PageBeliefProfile {
+        beliefProfile(for: source(for: type), ledger: ledger)
+    }
+
+    static func beliefProfile(for source: BookPageSource, ledger: [String: Int] = [:]) -> PageBeliefProfile {
+        let defaultBelief = defaultBelief(for: source)
+        let belief = max(0, min(100, defaultBelief + (ledger[source.id] ?? 0)))
+        return PageBeliefProfile(
+            sourceID: source.id,
+            type: source.type,
+            title: source.title,
+            belief: belief,
+            narrativeWeight: narrativeWeight(for: source),
+            cadence: source.cadence,
+            note: source.note
+        )
+    }
+
+    static func defaultBelief(for source: BookPageSource) -> Int {
+        switch source.type {
+        case .mood, .fuel:
+            return 36
+        case .body, .supportGuild, .bookOfYou:
+            return 32
+        case .narrativeOS, .wonderCompass:
+            return 30
+        case .diary, .souvenir, .askTheBook:
+            return 28
+        case .weather, .gossip, .facultyResearch:
+            return 26
+        case .aboutYou, .rest:
+            return 24
+        case .lore, .illustration, .illuminatedPhoto:
+            return 22
+        case .quip, .location, .patreon:
+            return 18
+        }
+    }
+
+    static func narrativeWeight(for source: BookPageSource) -> Int {
+        switch source.type {
+        case .narrativeOS:
+            return 34
+        case .mood, .fuel:
+            return 30
+        case .wonderCompass, .bookOfYou:
+            return 28
+        case .body, .supportGuild:
+            return 26
+        case .diary, .souvenir:
+            return 24
+        case .weather, .gossip, .facultyResearch, .askTheBook:
+            return 22
+        case .aboutYou, .rest:
+            return 20
+        case .lore, .illustration, .illuminatedPhoto:
+            return 18
+        case .quip, .location, .patreon:
+            return 14
+        }
+    }
 
     static func source(for type: BookPageType) -> BookPageSource {
         sources.first { $0.type == type } ?? BookPageSource(
@@ -606,6 +733,197 @@ struct NarrativeStoryThread: Identifiable, Codable, Equatable {
     var narrativeWeight: Int
     var summary: String
     var tags: [String]
+}
+
+enum BeliefCombatParticipantKind: String, Codable, Equatable {
+    case player
+    case entity
+    case npc
+    case talisman
+    case nothing
+    case location
+    case object
+    case thread
+
+    var floor: Int {
+        switch self {
+        case .player, .nothing:
+            return 0
+        case .entity, .npc, .talisman, .location, .object, .thread:
+            return 5
+        }
+    }
+}
+
+enum BeliefCombatDifficulty: String, Codable, Equatable, CaseIterable {
+    case routine
+    case standard
+    case dramatic
+    case desperate
+
+    var modifier: Int {
+        switch self {
+        case .routine:
+            return 15
+        case .standard:
+            return 0
+        case .dramatic:
+            return -15
+        case .desperate:
+            return -25
+        }
+    }
+}
+
+enum BeliefCombatOutcome: String, Codable, Equatable {
+    case criticalSuccess
+    case success
+    case nearMiss
+    case failure
+    case criticalFailure
+
+    var title: String {
+        switch self {
+        case .criticalSuccess:
+            return "critical success"
+        case .success:
+            return "success"
+        case .nearMiss:
+            return "near miss"
+        case .failure:
+            return "failure"
+        case .criticalFailure:
+            return "critical failure"
+        }
+    }
+}
+
+struct BeliefCombatResult: Codable, Equatable {
+    var attackerName: String
+    var attackerKind: BeliefCombatParticipantKind
+    var targetName: String
+    var targetKind: BeliefCombatParticipantKind
+    var attackerBeliefBefore: Int
+    var attackerBeliefAfter: Int
+    var targetBeliefBefore: Int
+    var targetBeliefAfter: Int
+    var requestedSpend: Int
+    var actualSpend: Int
+    var dealt: Int
+    var backlash: Int
+    var roll: Int
+    var threshold: Int
+    var difficulty: BeliefCombatDifficulty
+    var outcome: BeliefCombatOutcome
+
+    var landed: Bool {
+        dealt > 0
+    }
+
+    var summaryLine: String {
+        let rollText = "rolled \(roll) against \(threshold)"
+        if backlash > 0 {
+            return "\(attackerName) \(rollText): \(outcome.title); the attack backfired for \(backlash) Belief."
+        }
+        if dealt > 0 {
+            return "\(attackerName) \(rollText): \(outcome.title); \(targetName) lost \(dealt) Belief."
+        }
+        return "\(attackerName) \(rollText): \(outcome.title); nothing landed."
+    }
+}
+
+enum BeliefCombatResolver {
+    static func difficulty(forTargetBelief belief: Int) -> BeliefCombatDifficulty {
+        switch belief {
+        case ..<25:
+            return .routine
+        case ..<55:
+            return .standard
+        case ..<80:
+            return .dramatic
+        default:
+            return .desperate
+        }
+    }
+
+    static func baseThreshold(for belief: Int) -> Int {
+        min(85, Int(40 + Double(max(0, min(100, belief))) * 0.45))
+    }
+
+    static func finalThreshold(for belief: Int, difficulty: BeliefCombatDifficulty) -> Int {
+        max(20, min(90, baseThreshold(for: belief) + difficulty.modifier))
+    }
+
+    static func resolve(
+        attackerName: String,
+        attackerKind: BeliefCombatParticipantKind,
+        attackerBelief: Int,
+        targetName: String,
+        targetKind: BeliefCombatParticipantKind,
+        targetBelief: Int,
+        spend requestedSpend: Int,
+        difficulty: BeliefCombatDifficulty,
+        roll: Int? = nil
+    ) -> BeliefCombatResult {
+        let attackerBelief = max(0, min(100, attackerBelief))
+        let targetBelief = max(0, min(100, targetBelief))
+        let spend = max(0, requestedSpend)
+        let threshold = finalThreshold(for: attackerBelief, difficulty: difficulty)
+        let roll = roll ?? Int.random(in: 1...100)
+        let margin = roll - threshold
+        let outcome: BeliefCombatOutcome
+        if roll <= 5 {
+            outcome = .criticalSuccess
+        } else if roll >= 96 {
+            outcome = .criticalFailure
+        } else if roll <= threshold {
+            outcome = margin >= -10 ? .nearMiss : .success
+        } else {
+            outcome = margin <= 10 ? .nearMiss : .failure
+        }
+
+        let rawDeal: Int
+        switch outcome {
+        case .criticalSuccess:
+            rawDeal = max(1, Int((Double(spend) * 1.5).rounded()))
+        case .success:
+            rawDeal = spend
+        case .nearMiss:
+            rawDeal = max(1, Int((Double(spend) * 0.5).rounded()))
+        case .failure:
+            rawDeal = 0
+        case .criticalFailure:
+            rawDeal = -spend
+        }
+
+        let attackerFloor = attackerKind.floor
+        let targetFloor = targetKind.floor
+        let actualSpend = min(spend, max(0, attackerBelief - attackerFloor))
+        let backfired = rawDeal < 0
+        let backlash = backfired ? min(abs(rawDeal), max(0, attackerBelief - actualSpend - attackerFloor)) : 0
+        let actualDeal = backfired ? 0 : min(rawDeal, max(0, targetBelief - targetFloor))
+        let attackerAfter = max(attackerFloor, attackerBelief - actualSpend - backlash)
+        let targetAfter = backfired ? targetBelief : max(targetFloor, targetBelief - actualDeal)
+
+        return BeliefCombatResult(
+            attackerName: attackerName,
+            attackerKind: attackerKind,
+            targetName: targetName,
+            targetKind: targetKind,
+            attackerBeliefBefore: attackerBelief,
+            attackerBeliefAfter: attackerAfter,
+            targetBeliefBefore: targetBelief,
+            targetBeliefAfter: targetAfter,
+            requestedSpend: spend,
+            actualSpend: actualSpend,
+            dealt: actualDeal,
+            backlash: backlash,
+            roll: roll,
+            threshold: threshold,
+            difficulty: difficulty,
+            outcome: outcome
+        )
+    }
 }
 
 enum NarrativeRelationshipKind: String, Codable, Equatable, CaseIterable {
@@ -1938,6 +2256,7 @@ struct GossipSimulationTurn: Codable, Equatable {
     var hiddenEffect: String
     var consequenceLines: [String]
     var tags: [String]
+    var beliefCombat: BeliefCombatResult?
 }
 
 enum GossipSimulationBuilder {
@@ -1959,6 +2278,19 @@ enum GossipSimulationBuilder {
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .joined(separator: "\n\n")
         let tags = Array(Set(turns.flatMap(\.tags))).sorted()
+        let simulationPacket = turns.enumerated().map { index, turn in
+            """
+            TURN \(index + 1)
+            Actor: \(turn.actorName) [\(turn.actorID)]
+            Thread: \(turn.threadTitle) [\(turn.threadID)]
+            Simulation action: \(turn.actionKind.rawValue)
+            Overheard line: \(turn.overheardLine)
+            Visible trace: \(turn.visibleTrace)
+            Hidden effect to preserve: \(turn.hiddenEffect)
+            Consequences:
+            \(turn.consequenceLines.map { "- \($0)" }.joined(separator: "\n"))
+            """
+        }.joined(separator: "\n\n")
 
         return SurfacePage(
             id: "\(source.id)-\(primary.id)",
@@ -1987,8 +2319,14 @@ enum GossipSimulationBuilder {
                     "threadTitles": turns.map(\.threadTitle).joined(separator: ", "),
                     "actionKind": primary.actionKind.rawValue,
                     "actionKinds": turns.map { $0.actionKind.rawValue }.joined(separator: ","),
+                    "beliefCombat": turns.compactMap { $0.beliefCombat?.summaryLine }.joined(separator: " | "),
+                    "beliefCombatDeals": turns.compactMap { turn in
+                        guard let combat = turn.beliefCombat else { return nil }
+                        return "\(turn.actorID)->\(turn.threadID):spend=\(combat.actualSpend),deal=\(combat.dealt),backlash=\(combat.backlash),roll=\(combat.roll),threshold=\(combat.threshold)"
+                    }.joined(separator: " | "),
                     "hiddenEffect": turns.map(\.hiddenEffect).joined(separator: " | "),
                     "consequences": turns.flatMap(\.consequenceLines).joined(separator: " | "),
+                    "simulationPacket": simulationPacket,
                     "gossipDraft": body,
                     "tags": tags.joined(separator: ",")
                 ]
@@ -2012,9 +2350,10 @@ enum GossipSimulationBuilder {
         let actor = pick(actors, offset: offset) ?? fallbackActor
         let thread = pick(threads, offset: offset) ?? fallbackThread
         let actionKind = actionKind(for: actor, thread: thread, tags: tags, seed: seed)
+        let combat = beliefCombat(actor: actor, thread: thread, actionKind: actionKind, seed: seed)
         let trace = visibleTrace(actor: actor, thread: thread, actionKind: actionKind, tags: tags, seed: seed)
         let overheard = overheardLine(actor: actor, thread: thread, actionKind: actionKind, seed: seed)
-        let consequences = consequenceLines(actor: actor, thread: thread, actionKind: actionKind)
+        let consequences = consequenceLines(actor: actor, thread: thread, actionKind: actionKind, beliefCombat: combat)
         let turnTags = Array(Set(tags)
             .union(actor.tags)
             .union(thread.tags)
@@ -2039,7 +2378,8 @@ enum GossipSimulationBuilder {
             visibleTrace: trace,
             hiddenEffect: hiddenEffect(actor: actor, thread: thread, actionKind: actionKind),
             consequenceLines: consequences,
-            tags: turnTags
+            tags: turnTags,
+            beliefCombat: combat
         )
     }
 
@@ -2207,10 +2547,54 @@ enum GossipSimulationBuilder {
         }
     }
 
+    private static func participantKind(for actor: NarrativeWorldEntity) -> BeliefCombatParticipantKind {
+        switch actor.kind {
+        case .character:
+            return .npc
+        case .talisman:
+            return .talisman
+        case .location, .classRoom, .realWorldAnchor:
+            return .location
+        case .object:
+            return .object
+        case .motif, .thread:
+            return .entity
+        }
+    }
+
+    private static func beliefCombat(
+        actor: NarrativeWorldEntity,
+        thread: NarrativeStoryThread,
+        actionKind: GossipSimulationActionKind,
+        seed: Int
+    ) -> BeliefCombatResult? {
+        guard actionKind == .attackBelief else { return nil }
+        let spend = actor.tags.contains("nothing") ? 0 : max(1, min(4, actor.belief / 18 + 1))
+        let roll = stableIndex(for: "\(actor.id)-\(thread.id)-\(seed)-belief-combat-roll", count: 100) + 1
+        let difficulty: BeliefCombatDifficulty
+        if actor.tags.contains("nothing") || thread.phase == .climax {
+            difficulty = .dramatic
+        } else {
+            difficulty = BeliefCombatResolver.difficulty(forTargetBelief: thread.belief)
+        }
+        return BeliefCombatResolver.resolve(
+            attackerName: actor.name,
+            attackerKind: participantKind(for: actor),
+            attackerBelief: actor.belief,
+            targetName: thread.title,
+            targetKind: .thread,
+            targetBelief: thread.belief,
+            spend: spend,
+            difficulty: difficulty,
+            roll: roll
+        )
+    }
+
     private static func consequenceLines(
         actor: NarrativeWorldEntity,
         thread: NarrativeStoryThread,
-        actionKind: GossipSimulationActionKind
+        actionKind: GossipSimulationActionKind,
+        beliefCombat: BeliefCombatResult?
     ) -> [String] {
         switch actionKind {
         case .takeAction:
@@ -2224,6 +2608,20 @@ enum GossipSimulationBuilder {
                 "\(thread.title) grew warmer by one line."
             ]
         case .attackBelief:
+            if let beliefCombat {
+                var lines = [
+                    "\(actor.name) spent \(beliefCombat.actualSpend) Belief against \(thread.title).",
+                    beliefCombat.summaryLine
+                ]
+                if beliefCombat.dealt > 0 {
+                    lines.append("\(thread.title) dimmed from Glow \(beliefCombat.targetBeliefBefore) to \(beliefCombat.targetBeliefAfter).")
+                } else if beliefCombat.backlash > 0 {
+                    lines.append("\(actor.name)'s own Glow fell from \(beliefCombat.attackerBeliefBefore) to \(beliefCombat.attackerBeliefAfter).")
+                } else {
+                    lines.append("\(thread.title) held its Glow at \(beliefCombat.targetBeliefBefore).")
+                }
+                return lines
+            }
             return [
                 "\(actor.name) pressed on a weak place in the thread.",
                 "\(thread.title) gained tension, not certainty."
@@ -2502,6 +2900,13 @@ enum NarrativeEventResolver {
         case .mood:
             entityDeltas["body-page", default: 0] += tags.contains("weather") ? 0 : 1
             threadDeltas["body-learns-trust", default: 0] += 1
+        case .diary:
+            entityDeltas["the-book", default: 0] += 1
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+            createdHint = "A present-tense diary note can become quiet continuity."
+        case .askTheBook:
+            entityDeltas["the-book", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 2
         case .location, .lore, .patreon, .bookOfYou:
             break
         }
@@ -2516,6 +2921,17 @@ enum NarrativeEventResolver {
         if tags.contains("body") || tags.contains("rest") || tags.contains("care") {
             entityDeltas["body-page", default: 0] += 1
             threadDeltas["body-learns-trust", default: 0] += 1
+        }
+        if tags.contains("story-mechanic") {
+            threadDeltas["ordinary-magic", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+        }
+        if tags.contains("story-mechanic:compass-run") {
+            threadDeltas["ordinary-magic", default: 0] += 2
+        }
+        if tags.contains("story-mechanic:enchantment") {
+            entityDeltas["the-book", default: 0] += 1
+            createdHint = createdHint ?? "A completed Enchantment can become future evidence."
         }
 
         return NarrativeEventEffect(
@@ -2563,6 +2979,17 @@ enum NarrativeEventResolver {
         if tags.contains("letters") || tags.contains("research") {
             threadDeltas["margin-glass-letters", default: 0] += 1
             relationshipDeltas["gwendolyn-files-letters", default: 0] += 1
+        }
+        if tags.contains("story-mechanic") {
+            threadDeltas["ordinary-magic", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+        }
+        if tags.contains("story-mechanic:compass-run") {
+            threadDeltas["ordinary-magic", default: 0] += 2
+        }
+        if tags.contains("story-mechanic:enchantment") {
+            entityDeltas["the-book", default: 0] += 1
+            createdHint = createdHint ?? "A completed Enchantment can become future evidence."
         }
 
         return NarrativeEventEffect(
@@ -3861,6 +4288,7 @@ struct WorkBlockingState: Codable, Equatable {
     var isPreparingStoryPage = false
     var isPreparingGossipPage = false
     var isPreparingFacultyResearchPage = false
+    var isRequestingWeather = false
 
     var labWorkStatus: String {
         if let localBrainStatus {
@@ -3889,7 +4317,22 @@ struct WorkBlockingState: Codable, Equatable {
     }
 
     func surfaceBusyIndicator(for type: BookPageType) -> Bool {
-        isBraiding && type == .bookOfYou
+        switch type {
+        case .bookOfYou:
+            return isBraiding
+        case .narrativeOS:
+            return isPreparingStoryPage
+        case .gossip:
+            return isPreparingGossipPage
+        case .facultyResearch:
+            return isPreparingFacultyResearchPage
+        case .weather:
+            return isRequestingWeather
+        case .illuminatedPhoto:
+            return isPreparingAutomaticIllumination
+        default:
+            return false
+        }
     }
 
     var canStartBraid: Bool {
@@ -3922,8 +4365,14 @@ struct SurfaceReadinessState: Codable, Equatable {
             return !hasNonEmptyMetadata("renderedPreviewPath")
         case .narrativeOS:
             return !hasNonEmptyMetadata("storyScene")
+        case .gossip:
+            return !hasNonEmptyMetadata("gossipProse")
         case .facultyResearch:
             return !hasNonEmptyMetadata("researchProse")
+        case .weather:
+            return metadata["selector"] == "fallback"
+        case .wonderCompass:
+            return hasNonEmptyMetadata("snippetID") && metadata["selector"] != "gemma"
         default:
             return false
         }
@@ -4204,6 +4653,8 @@ struct SurfacePage: Identifiable, Equatable {
             return .rest
         case .bookOfYou:
             return .braid
+        case .askTheBook:
+            return .reflect
         case .body, .fuel, .facultyResearch, .supportGuild, .weather:
             return .reflect
         case .wonderCompass, .lore, .patreon, .illustration, .quip:
@@ -4216,7 +4667,7 @@ struct SurfacePage: Identifiable, Equatable {
             return .simulate
         case .gossip:
             return .simulate
-        case .mood, .souvenir, .aboutYou:
+        case .mood, .diary, .souvenir, .aboutYou:
             return .capture
         }
     }
@@ -5442,6 +5893,49 @@ struct IlluminatedPhotoQueue {
 struct IlluminatedPhotoPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .illuminatedPhoto)
 
+    func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        if let prepared = inputs.preparedIlluminatedPhotoSurface {
+            return prepared
+        }
+
+        let plate = BookReferenceCatalog.labyrinthIllustration(for: day, now: now)
+        let slot = SurfaceCadence.slotID(for: now, hours: 4)
+        let analysis = FakePhotoIlluminationAnalyzer.analyze(illustration: plate)
+        let draft = IlluminatedPageComposer.compose(
+            analysis: analysis,
+            sourceAssetName: plate.assetName,
+            seed: abs("\(day.id)-\(plate.assetName)-manual-illuminated-\(slot)".hashValue),
+            assetLocalIdentifier: "manual-starter:\(plate.id)"
+        )
+
+        return SurfacePage.illuminatedPhotoSurface(
+            draft: draft,
+            renderedURL: nil,
+            idSuffix: "manual-\(slot)"
+        ) ?? SurfacePage(
+            id: "manual-\(source.type.rawValue)-\(day.id)-\(Int(now.timeIntervalSince1970))",
+            type: source.type,
+            sourceID: source.id,
+            intent: .resurface,
+            renderStyle: .illuminatedPhoto,
+            score: 70,
+            reason: "Opened directly from the Glow menu.",
+            prompt: source.title,
+            detail: source.note,
+            payload: BookPagePayload(
+                headline: source.title,
+                body: source.note,
+                metadata: [
+                    "source": source.id,
+                    "sourceAssetName": plate.assetName,
+                    "assetLocalIdentifier": "manual-starter:\(plate.id)",
+                    "placeholder": "Choose a photo, let Penny choose, or try another illuminated plate.",
+                    "tags": "manual-page,\(source.type.rawValue),illuminated-photo"
+                ]
+            )
+        )
+    }
+
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard !context.distress.isActive else { return [] }
         if let prepared = inputs.preparedIlluminatedPhotoSurface,
@@ -5838,6 +6332,32 @@ struct BookSourceInputs: Equatable {
 protocol BookPageSourceAdapter {
     var source: BookPageSource { get }
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage]
+    func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage
+}
+
+extension BookPageSourceAdapter {
+    func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        candidates(for: day, context: context, inputs: inputs, now: now).first ?? SurfacePage(
+            id: "manual-\(source.type.rawValue)-\(day.id)-\(Int(now.timeIntervalSince1970))",
+            type: source.type,
+            sourceID: source.id,
+            intent: nil,
+            renderStyle: .promptCard,
+            score: 58,
+            reason: "Opened directly from the Glow menu.",
+            prompt: source.title,
+            detail: source.note,
+            payload: BookPagePayload(
+                headline: source.title,
+                body: source.note,
+                metadata: [
+                    "source": source.id,
+                    "placeholder": "Write what this page needs to keep.",
+                    "tags": "manual-page,\(source.type.rawValue)"
+                ]
+            )
+        )
+    }
 }
 
 enum SurfaceCadence {
@@ -6267,13 +6787,13 @@ enum CompassRunStep: String, CaseIterable, Identifiable {
     var capturePlaceholder: String {
         switch self {
         case .notice:
-            return "I wonder what would happen if..."
+            return "Keep the exact Spark that starts the run."
         case .embark:
-            return "Destination: \nDelight: \nDefinition: "
+            return "Write when you have crossed the threshold."
         case .sense:
-            return "Mission: Find three rough textures / Listen for the quietest sound / Photograph one strange angle..."
+            return "Write what the mission made you notice, or keep a photo."
         case .write:
-            return "The single detail I want to keep is..."
+            return "Write your One-Sentence Souvenir here."
         case .rest:
             return "After one quiet minute, the needle feels..."
         }
@@ -6297,7 +6817,7 @@ enum CompassRunStep: String, CaseIterable, Identifiable {
     var missionBody: String {
         switch self {
         case .notice:
-            return "North sets the bearing. Ask a real 'I wonder...' question and let it become the goal of the run."
+            return "North sets the bearing. Start with the Spark and let it become the goal of the run."
         case .embark:
             return "East crosses the threshold with the 3 D's: Destination, Delight, Definition. Specificity lowers the activation energy."
         case .sense:
@@ -6432,6 +6952,51 @@ struct WonderCompassRunSeed: Equatable {
             "West: \(souvenirPrompt)",
             "Center: \(restPrompt)"
         ].joined(separator: "\n")
+    }
+
+    func body(for step: CompassRunStep) -> String {
+        switch step {
+        case .notice:
+            return """
+            Ask this Spark out loud or in your head:
+
+            \(spark)
+
+            Keep the page when you are ready to let this question become the goal of the run.
+            """
+        case .embark:
+            return """
+            Destination: \(destination)
+
+            Delight: \(delight)
+
+            Definition: \(definition)
+
+            Cross one real threshold. The run begins when your body moves into the recipe.
+            """
+        case .sense:
+            return """
+            Playful Mission:
+
+            \(mission)
+
+            Let your senses do the work. Keep a sentence or photo when something specific appears.
+            """
+        case .write:
+            return """
+            One-Sentence Souvenir:
+
+            \(souvenirPrompt)
+
+            One sentence is enough. Make it sensory enough that tomorrow can find it again.
+            """
+        case .rest:
+            return """
+            \(restPrompt)
+
+            Rest is the center of the Compass. Keep this page after the quiet minute, and the completed run adds 6 Belief.
+            """
+        }
     }
 }
 
@@ -6768,19 +7333,14 @@ enum WonderCompassRunGenerator {
 
     static func body(for seed: WonderCompassRunSeed) -> String {
         """
-        \(seed.mode.promptSeed)
+        Answer the questions below. The Book will turn them into one custom Compass Run, then guide you through Notice, Embark, Sense, Write, and Rest one Page at a time.
 
-        Deterministic rails for Gemma:
-        \(seed.fullPrompt)
-
-        Generate a custom Wonder Compass cycle from these constraints. Keep it sensory, specific, and non-generic. Use NORTH (NOTICE), EAST (EMBARK), SOUTH (SENSE), WEST (WRITE), and CENTER (REST). End with one useful hint.
-
-        N -> E -> S -> W, then Center:
-        Notice: \(seed.spark)
-        Embark: Destination: \(seed.destination). Delight: \(seed.delight). Definition: \(seed.definition).
-        Sense: \(seed.mission)
-        Write: \(seed.souvenirPrompt)
-        Rest: \(seed.restPrompt)
+        Location:
+        Time limit:
+        Energy:
+        Who is with me:
+        Budget:
+        Special needs or considerations:
         """
     }
 }
@@ -6815,6 +7375,35 @@ struct MoodPageSourceAdapter: BookPageSourceAdapter {
                         "facultyWindowName": window.name,
                         "chartTitle": FacultyEntryKind.innerWeather.chartTitle,
                         "tags": "inner-weather,faculty-kind:innerWeather,faculty-window:\(window.id),dr-inkrest,therapy-chart"
+                    ]
+                )
+            )
+        ]
+    }
+}
+
+struct DiaryPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .diary)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        [
+            SurfacePage(
+                id: "\(source.id)-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 2))",
+                type: .diary,
+                sourceID: source.id,
+                intent: .capture,
+                renderStyle: .promptCard,
+                score: context.distress.isActive ? 74 : 60,
+                reason: context.distress.isActive ? "A private page can hold the present without fixing it." : "The Book has room for one honest present-tense note.",
+                prompt: "What is happening right now?",
+                detail: "Write what you are experiencing, thinking, or feeling in this moment. No polish required.",
+                payload: BookPagePayload(
+                    headline: "Diary Page",
+                    body: "Write what you are experiencing, thinking, or feeling right now, in this moment.",
+                    metadata: [
+                        "source": source.id,
+                        "placeholder": "Right now I am noticing...\nI am thinking...\nI am feeling...",
+                        "tags": "diary,page,private,present-moment"
                     ]
                 )
             )
@@ -7262,6 +7851,12 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         return pages
     }
 
+    func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        let progress = CompassRunProgress.progress(for: day)
+        let seed = WonderCompassRunGenerator.seed(for: day, inputs: inputs, progress: progress, now: now)
+        return runSurface(seed: seed, progress: progress, context: context, now: now)
+    }
+
     private func playfulMissionSurface(
         _ mission: PlayfulMission,
         seed: WonderCompassRunSeed,
@@ -7366,7 +7961,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
             detail: step.standaloneDetail,
             payload: BookPagePayload(
                 headline: "\(step.compassPoint) = \(step.title)",
-                body: step.missionBody,
+                body: seed.body(for: step),
                 metadata: metadata
             )
         )
@@ -7695,12 +8290,43 @@ struct LocationPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+struct AskTheBookPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .askTheBook)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        [
+            SurfacePage(
+                id: "\(source.id)-\(day.id)",
+                type: .askTheBook,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .promptCard,
+                score: 61,
+                reason: "Ask plainly. The page will answer plainly.",
+                prompt: "Ask the Book",
+                detail: "Write one question. The Book will answer with a useful next step.",
+                payload: BookPagePayload(
+                    headline: "Ask the Book",
+                    body: "Ask one real question. The answer should help you move.",
+                    metadata: [
+                        "source": source.id,
+                        "privacy": "private local",
+                        "tags": "ask-the-book,local-model,gemma,labyrinth"
+                    ]
+                )
+            )
+        ]
+    }
+}
+
 enum BookPageSourceAdapters {
     static let active: [BookPageSourceAdapter] = [
         RestPageSourceAdapter(),
         MoodPageSourceAdapter(),
+        DiaryPageSourceAdapter(),
         SouvenirPageSourceAdapter(),
         BookOfYouPageSourceAdapter(),
+        AskTheBookPageSourceAdapter(),
         BodyPageSourceAdapter(),
         FuelLogPageSourceAdapter(),
         FacultyResearchPageSourceAdapter(),
@@ -7717,6 +8343,43 @@ enum BookPageSourceAdapters {
         GossipPageSourceAdapter(),
         LocationPageSourceAdapter()
     ]
+
+    static func adapter(for type: BookPageType) -> BookPageSourceAdapter? {
+        active.first { $0.source.type == type }
+    }
+
+    static func manualSurface(
+        for type: BookPageType,
+        day: BookDay,
+        context: CuratorContext,
+        inputs: BookSourceInputs,
+        now: Date
+    ) -> SurfacePage {
+        if let adapter = adapter(for: type) {
+            return adapter.manualSurface(for: day, context: context, inputs: inputs, now: now)
+        }
+        let source = BookPageSourceRegistry.source(for: type)
+        return SurfacePage(
+            id: "manual-\(type.rawValue)-\(day.id)-\(Int(now.timeIntervalSince1970))",
+            type: type,
+            sourceID: source.id,
+            intent: nil,
+            renderStyle: .promptCard,
+            score: 58,
+            reason: "Opened directly from the Glow menu.",
+            prompt: source.title,
+            detail: source.note,
+            payload: BookPagePayload(
+                headline: source.title,
+                body: source.note,
+                metadata: [
+                    "source": source.id,
+                    "placeholder": "Write what this page needs to keep.",
+                    "tags": "manual-page,\(type.rawValue)"
+                ]
+            )
+        )
+    }
 }
 
 struct RankedSurfacePage: Equatable {
@@ -7727,19 +8390,40 @@ struct RankedSurfacePage: Equatable {
 struct CuratorSurfacePreferences: Equatable {
     var dismissedSurfaceIDs: Set<String>
     var disabledSourceIDs: Set<String>
+    var pageBeliefProfiles: [String: PageBeliefProfile]
 
     static let none = CuratorSurfacePreferences()
 
     init(
         dismissedSurfaceIDs: Set<String> = [],
-        disabledSourceIDs: Set<String> = []
+        disabledSourceIDs: Set<String> = [],
+        pageBeliefProfiles: [String: PageBeliefProfile] = [:]
     ) {
         self.dismissedSurfaceIDs = dismissedSurfaceIDs
         self.disabledSourceIDs = disabledSourceIDs
+        self.pageBeliefProfiles = pageBeliefProfiles
     }
 
     func allows(_ page: SurfacePage) -> Bool {
         !dismissedSurfaceIDs.contains(page.id) && !disabledSourceIDs.contains(page.sourceID)
+    }
+
+    func adjustedScore(for page: SurfacePage) -> Int {
+        let profile = pageBeliefProfiles[page.sourceID]
+            ?? BookPageSourceRegistry.beliefProfile(for: page.source)
+        let baseline = BookPageSourceRegistry.defaultBelief(for: page.source)
+        let beliefDelta = profile.belief - baseline
+        let narrativeBias = (profile.narrativeWeight - 20) / 4
+        let beliefBias = beliefDelta / 2
+        let automagicFloor = BookPageSourceRegistry.automagicSourceIDs.contains(page.sourceID) ? 68 : 0
+        let lowBeliefChance = lowBeliefChanceBoost(for: page, profile: profile)
+        return max(automagicFloor, page.score + narrativeBias + beliefBias + lowBeliefChance)
+    }
+
+    private func lowBeliefChanceBoost(for page: SurfacePage, profile: PageBeliefProfile) -> Int {
+        guard profile.belief <= 10 else { return 0 }
+        let slot = abs("\(page.sourceID)-\(page.id)".hashValue) % 11
+        return slot == 0 ? 18 : 0
     }
 }
 
@@ -7826,10 +8510,12 @@ enum BookCurator {
             .filter { preferences.allows($0) }
             .enumerated()
             .sorted { left, right in
-                if left.element.score == right.element.score {
+                let leftScore = preferences.adjustedScore(for: left.element)
+                let rightScore = preferences.adjustedScore(for: right.element)
+                if leftScore == rightScore {
                     return left.offset < right.offset
                 }
-                return left.element.score > right.element.score
+                return leftScore > rightScore
             }
             .map(\.element)
         return unique(sortedPages)

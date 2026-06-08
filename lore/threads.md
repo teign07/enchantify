@@ -119,9 +119,9 @@ Two endings:
 **entities:** Zara Finch
 **Nothing pressure:** medium — the Nothing would love to make her doubt the portfolio is good enough. Self-erasure before the deadline.
 
-**Next beat:** Through the propped-open Hall door drifts the dry-paper smell of old ledgers and a faint scratching as if a quill works alone; by midday the feather has drifted three steps into the Hall and the spiral of ink on Zara's desk has darkened where it loops, as though re-traced by an unseen hand. The blank card beside the lilac petal now bears a single faint watermark in its corner — the Inkwright seal — pressed but not signed.
+**Next beat:** Overnight the draft wins: the two fallen pages vanish fully beneath the shelf, leaving only a pale rectangle in the dust where they'd lain — while the proud-lifted page in the squared stack slides askew, its watermark groove catching the morning lamp so the Inkwright crest reads backward, as if something tried to file it and changed its mind. The fainter second line beside the underscored sketch has been gone over once more, darker now, almost a decision.
 
-**Last advanced:** 2026-06-06
+**Last advanced:** 2026-06-07
 **born:** 2026-04-12
 **closed:** —
 
@@ -138,9 +138,9 @@ Two endings:
 **entities:** Wicker Eddies
 **Nothing pressure:** high — Wicker is adjacent to the Nothing. His schemes drain Belief from others as a feature, not a side effect. The Nothing doesn't control him; they simply have similar tastes.
 
-**Next beat:** By mid-afternoon, the manila sleeve on Thorne's desk has been opened, the three slips fanned across the blotter under a brass weight; Thorne sends a junior clerk to quietly pull the original ledger from the vault, and word ripples through the under-stewards that something with a looped-S is being matched. A second sleeve, thicker, joins the first by evening — and someone has begun a small list of names in pencil.
+**Next beat:** By midday the betting stub has filled both sides with penciled guesses and the red-threaded pencil has snapped from overuse, so a bystander lashes a fresh one in its place and the tally on Wicker's chalk scoreboard climbs to six lines without him touching it again. The next visible trace: the steward, worn down, has quietly started his own small ledger beneath the window — not to settle the vault numbers, but to record who keeps adding to them.
 
-**Last advanced:** 2026-06-06
+**Last advanced:** 2026-06-08
 **born:** 2026-04-01
 **closed:** —
 
@@ -159,9 +159,9 @@ Two endings:
 **entities:** Headmistress Thorne, Dusk Thorn Talisman, Victor Ebonheart
 **Nothing pressure:** high — something in Duskthorn is already adjacent to absence. The sealed corridor smells of it.
 
-**Next beat:** By midmorning the annex clerk, returning to flatten Raven Hearts' open case-log, finds the lost-and-found drawer's unmarked envelope already gone — only a single horsehair thread snagged on the wax seal and a faint wax-smear shaped like a plumb-bob's tip remain, while the ledger sheet now lies open to the freshly inked 1864 lintel date with a brass-thin scrape along its margin where something heavy was set and lifted. Whoever the next reader is will see the smear, the thread, and the date together before they see w…
+**Next beat:** By afternoon the Registry's threshold sits visibly gap-toothed where Thorne pried the cornerstone chip loose, a clerk having looped twine across the missing corner with a fresh card — MIND THE STEP / STONE OUT FOR REVIEW — so anyone approaching the counter now crosses a doorway that announces its own wound; behind the glass the brass tag has been read often enough that a second, anonymous chit has appeared beside it asking, in different handwriting, *whose threshold did she think it was to pry?* The empty felt slot…
 
-**Last advanced:** 2026-06-06
+**Last advanced:** 2026-06-08
 **born:** 2026-04-01
 **closed:** —
 
@@ -259,9 +259,9 @@ When a new subplot, mystery, or character goal emerges with enough Belief to sus
 **entities:** Serenity Brown
 **Nothing pressure:** medium - the Nothing can flatten this into mere trivia instead of lived story
 
-**Next beat:** By late afternoon a faint salt-bloom dusts the felt sheet's lower edge, as if the Tide Glass's outward barnacle has been quietly reading the green terminal text back to itself; a third barnacle has budded on the Glass — ribbed in copper this time — and the Daedric X in the margin shows a hairline crack of verdigris running through it, pointing toward the Library's threshold tile.
+**Next beat:** By full dark the seven salt-specks have set hard enough to catch lamplight, and a thin rime of dried brine traces the unfinished line between Zara's marble-rim and the verdigris crack on the Daedric X — half a gull-stroke laid down by the room itself, waiting for a hand to close it. Inkwell's pun-ledger has fallen open to a blank page that now faintly reeks of low tide, as if the nook were holding the pen out.
 
-**Last advanced:** 2026-06-06
+**Last advanced:** 2026-06-07
 **born:** 2026-05-26
 **closed:** —
 

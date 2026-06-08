@@ -135,16 +135,9 @@ struct LocalBrainWorkSnapshot {
 enum AppMemoryLedger {
     static func record(_ checkpoint: String) {
         let resident = residentBytes()
-        #if NATIVE_LOCAL_BRAIN && canImport(MLX)
-        let mlx = Memory.snapshot()
-        let message = "Memory checkpoint \(checkpoint); resident: \(resident); MLX active: \(mlx.activeMemory); MLX cache: \(mlx.cacheMemory); MLX peak: \(mlx.peakMemory)"
-        appLog.info("\(message, privacy: .public)")
-        print(message)
-        #else
         let message = "Memory checkpoint \(checkpoint); resident: \(resident)"
         appLog.info("\(message, privacy: .public)")
         print(message)
-        #endif
     }
 
     private static func residentBytes() -> UInt64 {

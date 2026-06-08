@@ -978,37 +978,123 @@ struct SourceToggleRow: View {
 
 struct FragmentRow: View {
     let page: BookPage
+    let onRemove: () -> Void
+
+    @State private var dragOffset: CGFloat = 0
+
+    private let dismissThreshold: CGFloat = 82
+    private let horizontalDragRatio: CGFloat = 1.6
 
     private var visualStyle: PageVisualStyle {
         PageVisualStyle.style(for: page.type)
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: page.type.symbolName)
-                .foregroundStyle(visualStyle.symbolColor)
-                .frame(width: 28, height: 28)
-                .background(visualStyle.accent.opacity(0.12), in: Circle())
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(page.type.title)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(BookPalette.ink)
-                Text(page.userInput)
-                    .font(.callout)
-                    .foregroundStyle(BookPalette.ink.opacity(0.72))
-                    .lineLimit(3)
+        ZStack(alignment: .trailing) {
+            HStack {
+                Spacer()
+                Label("Remove", systemImage: "xmark.circle")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.92))
+                    .padding(.trailing, 18)
             }
+            .frame(maxWidth: .infinity, minHeight: 92)
+            .background(.red.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
-            Spacer(minLength: 0)
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: page.type.symbolName)
+                    .foregroundStyle(visualStyle.symbolColor)
+                    .frame(width: 28, height: 28)
+                    .background(visualStyle.accent.opacity(0.12), in: Circle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(page.type.title)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(fragmentText)
+                        .font(.callout)
+                        .foregroundStyle(BookPalette.ink.opacity(0.72))
+                        .lineLimit(3)
+                }
+                .padding(.trailing, 30)
+
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .parchmentSurface(style: visualStyle, isActive: false)
+            .offset(x: dragOffset)
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    onRemove()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(BookPalette.ink.opacity(0.42))
+                        .padding(10)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove \(page.type.title) from Today's Margins")
+            }
+            .overlay(alignment: .trailing) {
+                SwipeDismissHandle()
+                    .padding(.trailing, 2)
+                    .gesture(
+                        DragGesture(minimumDistance: 26)
+                            .onChanged(handleDragChanged)
+                            .onEnded(handleDragEnded)
+                    )
+            }
+            .overlay(alignment: .bottomTrailing) {
+                MarginaliaImage(name: visualStyle.cornerMarginalia, width: 46, opacity: 0.20)
+                    .offset(x: 8, y: 8)
+                    .allowsHitTesting(false)
+            }
         }
-        .padding(14)
-        .parchmentSurface(style: visualStyle, isActive: false)
-        .overlay(alignment: .bottomTrailing) {
-            MarginaliaImage(name: visualStyle.cornerMarginalia, width: 46, opacity: 0.20)
-                .offset(x: 8, y: 8)
-                .allowsHitTesting(false)
+        .accessibilityHint("Use the close button or small right-edge tab to remove this kept page.")
+    }
+
+    private var fragmentText: String {
+        let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? page.promptText : text
+    }
+
+    private func handleDragChanged(_ value: DragGesture.Value) {
+        guard isDeliberateHorizontalDismiss(value) else {
+            dragOffset = 0
+            return
         }
+        dragOffset = min(0, value.translation.width)
+    }
+
+    private func handleDragEnded(_ value: DragGesture.Value) {
+        guard isDeliberateHorizontalDismiss(value) else {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                dragOffset = 0
+            }
+            return
+        }
+
+        let shouldDismiss = value.translation.width < -dismissThreshold || value.predictedEndTranslation.width < -dismissThreshold * 1.4
+        if shouldDismiss {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                dragOffset = -500
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                onRemove()
+                dragOffset = 0
+            }
+        } else {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                dragOffset = 0
+            }
+        }
+    }
+
+    private func isDeliberateHorizontalDismiss(_ value: DragGesture.Value) -> Bool {
+        let horizontal = abs(value.translation.width)
+        let vertical = abs(value.translation.height)
+        return value.translation.width < 0 && horizontal > vertical * horizontalDragRatio
     }
 }
 
@@ -1321,7 +1407,7 @@ struct OpeningMovieView: View {
     let onFinished: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var startedAt = Date()
+    @State private var startedAt: Date?
     @State private var didFinish = false
 
     private var duration: TimeInterval {
@@ -1329,8 +1415,8 @@ struct OpeningMovieView: View {
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: reduceMotion ? 1 / 12 : 1 / 30)) { timeline in
-            let elapsed = timeline.date.timeIntervalSince(startedAt)
+        TimelineView(.animation(minimumInterval: reduceMotion ? 1 / 12 : 1 / 24)) { timeline in
+            let elapsed = startedAt.map { timeline.date.timeIntervalSince($0) } ?? 0
             let progress = min(max(elapsed / duration, 0), 1)
 
             GeometryReader { proxy in
@@ -1362,7 +1448,7 @@ struct OpeningMovieView: View {
                         )
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
-                        .frame(maxWidth: size.width - 54, alignment: .center)
+                        .frame(maxWidth: max(1, size.width - 54), alignment: .center)
                         .shadow(color: BookPalette.lampGold.opacity(0.22), radius: 18, x: 0, y: 6)
 
                         WrittenGoldText(
@@ -1409,7 +1495,9 @@ struct OpeningMovieView: View {
         }
         .ignoresSafeArea()
         .onAppear {
-            startedAt = Date()
+            DispatchQueue.main.async {
+                startedAt = Date()
+            }
             BookFeedback.play(.openPage)
         }
         .accessibilityElement(children: .ignore)
@@ -1481,7 +1569,7 @@ struct WrittenGoldText: View {
             .mask(alignment: .leading) {
                 GeometryReader { proxy in
                     Rectangle()
-                        .frame(width: proxy.size.width * progress)
+                        .frame(width: max(1, proxy.size.width * progress))
                 }
             }
             .overlay(alignment: .trailing) {
@@ -1587,8 +1675,8 @@ struct PageTurnWipe: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let width = proxy.size.width
-            let height = proxy.size.height
+            let width = max(1, proxy.size.width)
+            let height = max(1, proxy.size.height)
             let x = width * (1.12 - progress * 1.42)
 
             ZStack(alignment: .leading) {
@@ -1631,27 +1719,35 @@ struct BookBackground: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: reduceMotion ? 60 : 1 / 12)) { timeline in
+        let date = Date()
+
+        LinearGradient(
+            colors: [
+                Color(red: 0.025, green: 0.027, blue: 0.060),
+                Color(red: 0.060, green: 0.055, blue: 0.105),
+                Color(red: 0.115, green: 0.074, blue: 0.088)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay {
             LinearGradient(
-                colors: [
-                    Color(red: 0.025, green: 0.027, blue: 0.060),
-                    Color(red: 0.060, green: 0.055, blue: 0.105),
-                    Color(red: 0.115, green: 0.074, blue: 0.088)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                colors: [.clear, BookPalette.nightPanel.opacity(0.14)],
+                startPoint: .top,
+                endPoint: .bottom
             )
+        }
         .overlay {
             LabyrinthBackdrop()
                 .stroke(BookPalette.lampGold.opacity(0.10), lineWidth: 1)
                 .frame(width: 380, height: 380)
-                    .offset(x: 120 + ambientDrift(timeline.date, scale: 8), y: -260 + ambientDrift(timeline.date, scale: 5, phase: 1.8))
+                .offset(x: 120 + ambientDrift(date, scale: 8), y: -260 + ambientDrift(date, scale: 5, phase: 1.8))
                 .blendMode(.plusLighter)
         }
         .overlay {
             StarSpeckle()
-                    .fill(BookPalette.lampGold.opacity(0.14 + ambientOpacity(timeline.date) * 0.05))
-                    .offset(x: ambientDrift(timeline.date, scale: 5, phase: 0.8), y: ambientDrift(timeline.date, scale: 7, phase: 2.2))
+                .fill(BookPalette.lampGold.opacity(0.14 + ambientOpacity(date) * 0.05))
+                .offset(x: ambientDrift(date, scale: 5, phase: 0.8), y: ambientDrift(date, scale: 7, phase: 2.2))
                 .blendMode(.plusLighter)
         }
         .overlay(alignment: .bottomLeading) {
@@ -1672,7 +1768,6 @@ struct BookBackground: View {
                 .blendMode(.multiply)
         }
         .ignoresSafeArea()
-        }
     }
 
     private func ambientDrift(_ date: Date, scale: Double, phase: Double = 0) -> CGFloat {
@@ -1748,6 +1843,20 @@ struct PageVisualStyle {
                 smallMarginalia: "IlluminationScrapS03_10",
                 watermarkMarginalia: "MarginaliaCompass",
                 watermarkOpacity: 0.13
+            )
+        case .diary:
+            return PageVisualStyle(
+                accent: Color(red: 0.42, green: 0.31, blue: 0.54),
+                symbolColor: Color(red: 0.42, green: 0.31, blue: 0.54),
+                paperTop: Color(red: 0.96, green: 0.91, blue: 0.78),
+                paperMiddle: Color(red: 0.88, green: 0.80, blue: 0.66),
+                paperBottom: Color(red: 0.70, green: 0.60, blue: 0.49),
+                scrapColor: Color(red: 0.95, green: 0.86, blue: 0.70),
+                sideMarginalia: "IlluminationScrapS02_08",
+                cornerMarginalia: "IlluminationScrapS03_12",
+                smallMarginalia: "IlluminationScrapS01_08",
+                watermarkMarginalia: "IlluminationScrapS02_13",
+                watermarkOpacity: 0.11
             )
         case .souvenir:
             return PageVisualStyle(
@@ -2021,6 +2130,24 @@ struct PageVisualStyle {
                 cornerMarginaliaWidth: 84,
                 sideMarginaliaOpacity: 0.42,
                 watermarkOpacity: 0.13
+            )
+        case .askTheBook:
+            return PageVisualStyle(
+                accent: Color(red: 0.18, green: 0.50, blue: 0.55),
+                symbolColor: Color(red: 0.18, green: 0.50, blue: 0.55),
+                paperTop: Color(red: 0.95, green: 0.88, blue: 0.72),
+                paperMiddle: Color(red: 0.78, green: 0.75, blue: 0.62),
+                paperBottom: Color(red: 0.55, green: 0.55, blue: 0.50),
+                scrapColor: Color(red: 0.82, green: 0.79, blue: 0.66),
+                sideMarginalia: "IlluminationScrapS03_10",
+                cornerMarginalia: "IlluminationScrapS01_20",
+                smallMarginalia: "MarginaliaCompass",
+                watermarkMarginalia: "MarginaliaStamp",
+                sideMarginaliaWidth: 66,
+                cornerMarginaliaWidth: 82,
+                sideMarginaliaOpacity: 0.40,
+                watermarkOpacity: 0.12,
+                scrapWidth: 90
             )
         }
     }
