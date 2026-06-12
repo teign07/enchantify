@@ -15,18 +15,37 @@
 		010000000000000000000019 /* BookStatusCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000111 /* BookStatusCards.swift */; };
 		01000000000000000000001A /* CapturePageSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000112 /* CapturePageSheet.swift */; };
 		01000000000000000000001B /* BookSurfaceViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000113 /* BookSurfaceViews.swift */; };
+		01000000000000000000001C /* CustomCastMemberSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000114 /* CustomCastMemberSheet.swift */; };
+		01000000000000000000001D /* ContentViewFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000115 /* ContentViewFeatures.swift */; };
+		01000000000000000000001E /* BookSounds in Resources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000116 /* BookSounds */; };
+		01000000000000000000001F /* CapturePageSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000117 /* CapturePageSections.swift */; };
+		030000000000000000000201 /* SearchTheStacksSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000101 /* SearchTheStacksSheet.swift */; };
+		030000000000000000000202 /* BookShopSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000102 /* BookShopSheet.swift */; };
 		010000000000000000000003 /* InsideCoverState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000103 /* InsideCoverState.swift */; };
+		030000000000000000000200 /* StacksSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000100 /* StacksSearch.swift */; };
+		030000000000000000000300 /* StacksSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000100 /* StacksSearch.swift */; };
+		020000000000000000000200 /* PageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000100 /* PageModel.swift */; };
+		020000000000000000000300 /* PageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000100 /* PageModel.swift */; };
+		020000000000000000000201 /* SurfaceAndCurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000101 /* SurfaceAndCurator.swift */; };
+		020000000000000000000301 /* SurfaceAndCurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000101 /* SurfaceAndCurator.swift */; };
+		020000000000000000000202 /* NarrativeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000102 /* NarrativeCore.swift */; };
+		020000000000000000000302 /* NarrativeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000102 /* NarrativeCore.swift */; };
+		020000000000000000000203 /* StoryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000103 /* StoryEngine.swift */; };
+		020000000000000000000303 /* StoryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000103 /* StoryEngine.swift */; };
+		020000000000000000000204 /* ReferenceLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000104 /* ReferenceLibrary.swift */; };
+		020000000000000000000304 /* ReferenceLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000104 /* ReferenceLibrary.swift */; };
+		020000000000000000000205 /* Illumination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000105 /* Illumination.swift */; };
+		020000000000000000000305 /* Illumination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000105 /* Illumination.swift */; };
+		020000000000000000000206 /* WorldSystems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000106 /* WorldSystems.swift */; };
+		020000000000000000000306 /* WorldSystems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000106 /* WorldSystems.swift */; };
+		020000000000000000000207 /* PagePacks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000107 /* PagePacks.swift */; };
+		020000000000000000000307 /* PagePacks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000107 /* PagePacks.swift */; };
+		020000000000000000000208 /* SourceAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000108 /* SourceAdapters.swift */; };
+		020000000000000000000308 /* SourceAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000108 /* SourceAdapters.swift */; };
 		010000000000000000000004 /* InsideCoverStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000104 /* InsideCoverStore.swift */; };
 		010000000000000000000015 /* BookArchiveDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010E /* BookArchiveDatabase.swift */; };
 		010000000000000000000005 /* widget-state.json in Resources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000105 /* widget-state.json */; };
-		010000000000000000000006 /* InsideCoverWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000106 /* InsideCoverWidgetBundle.swift */; };
-		010000000000000000000007 /* InsideCoverWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000107 /* InsideCoverWidget.swift */; };
-		010000000000000000000008 /* InsideCoverState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000103 /* InsideCoverState.swift */; };
-		010000000000000000000009 /* InsideCoverStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000104 /* InsideCoverStore.swift */; };
-		01000000000000000000000A /* widget-state.json in Resources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000105 /* widget-state.json */; };
-		01000000000000000000000B /* InsideCoverWidgetExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 010000000000000000000202 /* InsideCoverWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		010000000000000000000012 /* BookReferenceLibrary.json in Resources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010C /* BookReferenceLibrary.json */; };
-		010000000000000000000013 /* BookReferenceLibrary.json in Resources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010C /* BookReferenceLibrary.json */; };
 		010000000000000000000014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010D /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -40,30 +59,35 @@
 		010000000000000000000111 /* BookStatusCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookStatusCards.swift; sourceTree = "<group>"; };
 		010000000000000000000112 /* CapturePageSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePageSheet.swift; sourceTree = "<group>"; };
 		010000000000000000000113 /* BookSurfaceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookSurfaceViews.swift; sourceTree = "<group>"; };
+		010000000000000000000114 /* CustomCastMemberSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomCastMemberSheet.swift; sourceTree = "<group>"; };
+		010000000000000000000115 /* ContentViewFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewFeatures.swift; sourceTree = "<group>"; };
+		010000000000000000000116 /* BookSounds */ = {isa = PBXFileReference; lastKnownFileType = folder; path = BookSounds; sourceTree = "<group>"; };
+		010000000000000000000117 /* CapturePageSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePageSections.swift; sourceTree = "<group>"; };
+		030000000000000000000101 /* SearchTheStacksSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchTheStacksSheet.swift; sourceTree = "<group>"; };
+		030000000000000000000102 /* BookShopSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookShopSheet.swift; sourceTree = "<group>"; };
 		010000000000000000000103 /* InsideCoverState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverState.swift; sourceTree = "<group>"; };
+		030000000000000000000100 /* StacksSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StacksSearch.swift; sourceTree = "<group>"; };
+		020000000000000000000100 /* PageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageModel.swift; sourceTree = "<group>"; };
+		020000000000000000000101 /* SurfaceAndCurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfaceAndCurator.swift; sourceTree = "<group>"; };
+		020000000000000000000102 /* NarrativeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NarrativeCore.swift; sourceTree = "<group>"; };
+		020000000000000000000103 /* StoryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryEngine.swift; sourceTree = "<group>"; };
+		020000000000000000000104 /* ReferenceLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceLibrary.swift; sourceTree = "<group>"; };
+		020000000000000000000105 /* Illumination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Illumination.swift; sourceTree = "<group>"; };
+		020000000000000000000106 /* WorldSystems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldSystems.swift; sourceTree = "<group>"; };
+		020000000000000000000107 /* PagePacks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagePacks.swift; sourceTree = "<group>"; };
+		020000000000000000000108 /* SourceAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceAdapters.swift; sourceTree = "<group>"; };
 		010000000000000000000104 /* InsideCoverStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverStore.swift; sourceTree = "<group>"; };
 		010000000000000000000105 /* widget-state.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "widget-state.json"; sourceTree = "<group>"; };
 		01000000000000000000010C /* BookReferenceLibrary.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = BookReferenceLibrary.json; sourceTree = "<group>"; };
 		01000000000000000000010E /* BookArchiveDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookArchiveDatabase.swift; sourceTree = "<group>"; };
-		010000000000000000000106 /* InsideCoverWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverWidgetBundle.swift; sourceTree = "<group>"; };
-		010000000000000000000107 /* InsideCoverWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverWidget.swift; sourceTree = "<group>"; };
 		010000000000000000000108 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		010000000000000000000109 /* InsideCoverApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = InsideCoverApp.entitlements; sourceTree = "<group>"; };
-		01000000000000000000010A /* InsideCoverWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = InsideCoverWidget.entitlements; sourceTree = "<group>"; };
 		01000000000000000000010D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		010000000000000000000201 /* InsideCoverApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InsideCoverApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		010000000000000000000202 /* InsideCoverWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = InsideCoverWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		010000000000000000000701 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		010000000000000000000702 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -77,7 +101,6 @@
 			isa = PBXGroup;
 			children = (
 				010000000000000000000802 /* InsideCoverApp */,
-				010000000000000000000803 /* InsideCoverWidget */,
 				010000000000000000000804 /* Shared */,
 				010000000000000000000805 /* Sample */,
 				010000000000000000000806 /* Products */,
@@ -94,6 +117,12 @@
 				010000000000000000000111 /* BookStatusCards.swift */,
 				010000000000000000000112 /* CapturePageSheet.swift */,
 				010000000000000000000113 /* BookSurfaceViews.swift */,
+				010000000000000000000114 /* CustomCastMemberSheet.swift */,
+				010000000000000000000115 /* ContentViewFeatures.swift */,
+				010000000000000000000116 /* BookSounds */,
+				010000000000000000000117 /* CapturePageSections.swift */,
+				030000000000000000000101 /* SearchTheStacksSheet.swift */,
+				030000000000000000000102 /* BookShopSheet.swift */,
 				01000000000000000000010B /* BookDatabase.swift */,
 				010000000000000000000109 /* InsideCoverApp.entitlements */,
 				01000000000000000000010D /* Assets.xcassets */,
@@ -101,21 +130,20 @@
 			path = InsideCoverApp;
 			sourceTree = "<group>";
 		};
-		010000000000000000000803 /* InsideCoverWidget */ = {
-			isa = PBXGroup;
-			children = (
-				010000000000000000000106 /* InsideCoverWidgetBundle.swift */,
-				010000000000000000000107 /* InsideCoverWidget.swift */,
-				010000000000000000000108 /* Info.plist */,
-				01000000000000000000010A /* InsideCoverWidget.entitlements */,
-			);
-			path = InsideCoverWidget;
-			sourceTree = "<group>";
-		};
 		010000000000000000000804 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
 				010000000000000000000103 /* InsideCoverState.swift */,
+				030000000000000000000100 /* StacksSearch.swift */,
+				020000000000000000000100 /* PageModel.swift */,
+				020000000000000000000101 /* SurfaceAndCurator.swift */,
+				020000000000000000000102 /* NarrativeCore.swift */,
+				020000000000000000000103 /* StoryEngine.swift */,
+				020000000000000000000104 /* ReferenceLibrary.swift */,
+				020000000000000000000105 /* Illumination.swift */,
+				020000000000000000000106 /* WorldSystems.swift */,
+				020000000000000000000107 /* PagePacks.swift */,
+				020000000000000000000108 /* SourceAdapters.swift */,
 				010000000000000000000104 /* InsideCoverStore.swift */,
 				01000000000000000000010C /* BookReferenceLibrary.json */,
 				01000000000000000000010E /* BookArchiveDatabase.swift */,
@@ -135,7 +163,6 @@
 			isa = PBXGroup;
 			children = (
 				010000000000000000000201 /* InsideCoverApp.app */,
-				010000000000000000000202 /* InsideCoverWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -168,23 +195,6 @@
 			productReference = 010000000000000000000201 /* InsideCoverApp.app */;
 			productType = "com.apple.product-type.application";
 		};
-		010000000000000000000502 /* InsideCoverWidgetExtension */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 010000000000000000000902 /* Build configuration list for PBXNativeTarget "InsideCoverWidgetExtension" */;
-			buildPhases = (
-				010000000000000000000A02 /* Sources */,
-				010000000000000000000702 /* Frameworks */,
-				010000000000000000000B02 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = InsideCoverWidgetExtension;
-			productName = InsideCoverWidgetExtension;
-			productReference = 010000000000000000000202 /* InsideCoverWidgetExtension.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -196,9 +206,6 @@
 				LastUpgradeCheck = 1540;
 				TargetAttributes = {
 					010000000000000000000501 = {
-						CreatedOnToolsVersion = 15.4;
-					};
-					010000000000000000000502 = {
 						CreatedOnToolsVersion = 15.4;
 					};
 				};
@@ -224,7 +231,6 @@
 			projectRoot = "";
 			targets = (
 				010000000000000000000501 /* InsideCoverApp */,
-				010000000000000000000502 /* InsideCoverWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -237,15 +243,7 @@
 				010000000000000000000005 /* widget-state.json in Resources */,
 				010000000000000000000012 /* BookReferenceLibrary.json in Resources */,
 				010000000000000000000014 /* Assets.xcassets in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		010000000000000000000B02 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				01000000000000000000000A /* widget-state.json in Resources */,
-				010000000000000000000013 /* BookReferenceLibrary.json in Resources */,
+				01000000000000000000001E /* BookSounds in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -264,20 +262,24 @@
 				010000000000000000000019 /* BookStatusCards.swift in Sources */,
 				01000000000000000000001A /* CapturePageSheet.swift in Sources */,
 				01000000000000000000001B /* BookSurfaceViews.swift in Sources */,
+				01000000000000000000001C /* CustomCastMemberSheet.swift in Sources */,
+				01000000000000000000001D /* ContentViewFeatures.swift in Sources */,
+				01000000000000000000001F /* CapturePageSections.swift in Sources */,
+				030000000000000000000201 /* SearchTheStacksSheet.swift in Sources */,
+				030000000000000000000202 /* BookShopSheet.swift in Sources */,
 				010000000000000000000003 /* InsideCoverState.swift in Sources */,
+				030000000000000000000200 /* StacksSearch.swift in Sources */,
+				020000000000000000000200 /* PageModel.swift in Sources */,
+				020000000000000000000201 /* SurfaceAndCurator.swift in Sources */,
+				020000000000000000000202 /* NarrativeCore.swift in Sources */,
+				020000000000000000000203 /* StoryEngine.swift in Sources */,
+				020000000000000000000204 /* ReferenceLibrary.swift in Sources */,
+				020000000000000000000205 /* Illumination.swift in Sources */,
+				020000000000000000000206 /* WorldSystems.swift in Sources */,
+				020000000000000000000207 /* PagePacks.swift in Sources */,
+				020000000000000000000208 /* SourceAdapters.swift in Sources */,
 				010000000000000000000004 /* InsideCoverStore.swift in Sources */,
 				010000000000000000000015 /* BookArchiveDatabase.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		010000000000000000000A02 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				010000000000000000000006 /* InsideCoverWidgetBundle.swift in Sources */,
-				010000000000000000000007 /* InsideCoverWidget.swift in Sources */,
-				010000000000000000000008 /* InsideCoverState.swift in Sources */,
-				010000000000000000000009 /* InsideCoverStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -410,10 +412,12 @@
 				DEVELOPMENT_TEAM = 3YH7862K4Q;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = InsideCoverApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ReEnchanted;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
+				INFOPLIST_KEY_NSCameraUsageDescription = "ReEnchanted can take a photo for a Page, an Enchantment, or a Cast Member. Photos stay private on your phone.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ReEnchanted reads a few HealthKit signals to gently translate your body state into private, local Body Pages.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ReEnchanted uses your current location only when you ask for local weather, so the Weather Page can translate the forecast without showing raw coordinates.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ReEnchanted uses your current location only when you ask for local weather or nearby Anchors, so pages can translate the place without showing raw coordinates.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "ReEnchanted saves only the finished illuminated artifact to Photos when you ask it to.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "ReEnchanted can look through recent photos on this device for pages worth keeping. Nothing leaves your phone, and you decide what becomes part of the Book.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -445,10 +449,12 @@
 				DEVELOPMENT_TEAM = 3YH7862K4Q;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = InsideCoverApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ReEnchanted;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
+				INFOPLIST_KEY_NSCameraUsageDescription = "ReEnchanted can take a photo for a Page, an Enchantment, or a Cast Member. Photos stay private on your phone.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ReEnchanted reads a few HealthKit signals to gently translate your body state into private, local Body Pages.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ReEnchanted uses your current location only when you ask for local weather, so the Weather Page can translate the forecast without showing raw coordinates.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ReEnchanted uses your current location only when you ask for local weather or nearby Anchors, so pages can translate the place without showing raw coordinates.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "ReEnchanted saves only the finished illuminated artifact to Photos when you ask it to.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "ReEnchanted can look through recent photos on this device for pages worth keeping. Nothing leaves your phone, and you decide what becomes part of the Book.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -464,58 +470,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.openclaw.enchantify.insidecover;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		010000000000000000000E01 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = InsideCoverWidget/InsideCoverWidget.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 3YH7862K4Q;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = InsideCoverWidget/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.openclaw.enchantify.insidecover.widget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		010000000000000000000E02 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = InsideCoverWidget/InsideCoverWidget.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 3YH7862K4Q;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = InsideCoverWidget/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.openclaw.enchantify.insidecover.widget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -540,15 +494,6 @@
 			buildConfigurations = (
 				010000000000000000000D01 /* Debug */,
 				010000000000000000000D02 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		010000000000000000000902 /* Build configuration list for PBXNativeTarget "InsideCoverWidgetExtension" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				010000000000000000000E01 /* Debug */,
-				010000000000000000000E02 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

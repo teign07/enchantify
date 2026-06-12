@@ -61,9 +61,12 @@ enum BookFeedback {
         case braidComplete
         case sourceRefresh
         case error
+        case knock
+        case knockReply
 
         #if canImport(AudioToolbox)
-        var soundID: SystemSoundID {
+        /// Generic iOS fallback if a bundled sound is ever missing.
+        var systemSoundID: SystemSoundID {
             switch self {
             case .tap:
                 return 1104
@@ -85,10 +88,67 @@ enum BookFeedback {
                 return 1108
             case .error:
                 return 1053
+            case .knock:
+                return 1104
+            case .knockReply:
+                return 1105
             }
         }
         #endif
+
+        /// Bundled bookish sound, synthesized by scripts/generate_book_sounds.py.
+        var soundName: String {
+            switch self {
+            case .tap:
+                return "tap"
+            case .select:
+                return "select"
+            case .openPage:
+                return "open-page"
+            case .keepPage:
+                return "keep-page"
+            case .dismissPage:
+                return "dismiss-page"
+            case .undo:
+                return "undo"
+            case .braidStart:
+                return "braid-start"
+            case .braidComplete:
+                return "braid-complete"
+            case .sourceRefresh:
+                return "source-refresh"
+            case .error:
+                return "error"
+            case .knock:
+                return "knock"
+            case .knockReply:
+                return "knock-reply"
+            }
+        }
     }
+
+    #if canImport(AudioToolbox)
+    private static var bookSoundIDs: [String: SystemSoundID] = [:]
+
+    private static func bookSoundID(for cue: Cue) -> SystemSoundID? {
+        if let cached = bookSoundIDs[cue.soundName] {
+            return cached
+        }
+        guard let url = Bundle.main.url(
+            forResource: cue.soundName,
+            withExtension: "caf",
+            subdirectory: "BookSounds"
+        ) else {
+            return nil
+        }
+        var soundID: SystemSoundID = 0
+        guard AudioServicesCreateSystemSoundID(url as CFURL, &soundID) == kAudioServicesNoError else {
+            return nil
+        }
+        bookSoundIDs[cue.soundName] = soundID
+        return soundID
+    }
+    #endif
 
     static func play(_ cue: Cue) {
         #if canImport(UIKit)
@@ -105,11 +165,19 @@ enum BookFeedback {
             UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 0.42)
         case .error:
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        case .knock:
+            UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 0.85)
+        case .knockReply:
+            let generator = UIImpactFeedbackGenerator(style: .soft)
+            generator.impactOccurred(intensity: 0.7)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                generator.impactOccurred(intensity: 0.62)
+            }
         }
         #endif
 
         #if canImport(AudioToolbox)
-        AudioServicesPlaySystemSound(cue.soundID)
+        AudioServicesPlaySystemSound(bookSoundID(for: cue) ?? cue.systemSoundID)
         #endif
     }
 }
@@ -478,7 +546,7 @@ enum WeatherLocationReader {
             case .unavailable:
                 return "Location is not available in this build."
             case .denied:
-                return "Location permission is needed to read local weather."
+                return "Location permission is needed to read local weather and nearby Anchors."
             case .noLocation:
                 return "The device did not return a location yet."
             case .badResponse:
@@ -501,7 +569,9 @@ enum WeatherLocationReader {
             throw ReaderError.unavailable
         }
 
-        let location = try await OneShotLocationReader.requestLocation()
+        let location = try await OneShotLocationReader.requestLocation(
+            desiredAccuracy: kCLLocationAccuracyThreeKilometers
+        )
         let weather = try await OpenMeteoClient.forecast(for: location.coordinate)
         let temperature = weather.currentTemperature
         let condition = WeatherCode.describe(weather.current.weatherCode)
@@ -520,6 +590,47 @@ enum WeatherLocationReader {
             forecast: forecast,
             conditionSymbolName: WeatherCode.symbolName(weather.current.weatherCode)
         )
+        #else
+        throw ReaderError.unavailable
+        #endif
+    }
+}
+
+enum AnchorLocationReader {
+    enum ReaderError: LocalizedError {
+        case unavailable
+        case denied
+        case noLocation
+
+        var errorDescription: String? {
+            switch self {
+            case .unavailable:
+                return "Location is not available in this build."
+            case .denied:
+                return "Location permission is needed to check nearby Anchors."
+            case .noLocation:
+                return "The device did not return a location yet."
+            }
+        }
+    }
+
+    static var isAvailable: Bool {
+        #if canImport(CoreLocation)
+        CLLocationManager.locationServicesEnabled()
+        #else
+        false
+        #endif
+    }
+
+    static func requestLocation() async throws -> (latitude: Double, longitude: Double) {
+        #if canImport(CoreLocation)
+        guard CLLocationManager.locationServicesEnabled() else {
+            throw ReaderError.unavailable
+        }
+        let location = try await OneShotLocationReader.requestLocation(
+            desiredAccuracy: kCLLocationAccuracyHundredMeters
+        )
+        return (location.coordinate.latitude, location.coordinate.longitude)
         #else
         throw ReaderError.unavailable
         #endif
@@ -672,8 +783,9 @@ private final class OneShotLocationReader: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
     private var continuation: CheckedContinuation<CLLocation, Error>?
 
-    static func requestLocation() async throws -> CLLocation {
+    static func requestLocation(desiredAccuracy: CLLocationAccuracy) async throws -> CLLocation {
         let reader = OneShotLocationReader()
+        reader.manager.desiredAccuracy = desiredAccuracy
         return try await reader.location()
     }
 
@@ -742,3 +854,739 @@ private final class OneShotLocationReader: NSObject, CLLocationManagerDelegate {
     }
 }
 #endif
+
+extension Notification.Name {
+    /// System memory pressure, abstracted so ContentView can observe it
+    /// without platform conditionals in the view body.
+    static var bookMemoryPressure: Notification.Name {
+        #if canImport(UIKit)
+        UIApplication.didReceiveMemoryWarningNotification
+        #else
+        Notification.Name("bookMemoryPressure")
+        #endif
+    }
+}
+
+#if canImport(UIKit)
+/// Shared full-screen camera capture used by any page that can take a photo
+/// instead of choosing one from the library.
+struct BookCameraCaptureView: UIViewControllerRepresentable {
+    let onImageData: (Data) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    static var isCameraAvailable: Bool {
+        UIImagePickerController.isSourceTypeAvailable(.camera)
+    }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.cameraCaptureMode = .photo
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onImageData: onImageData) {
+            dismiss()
+        }
+    }
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let onImageData: (Data) -> Void
+        let dismiss: () -> Void
+
+        init(onImageData: @escaping (Data) -> Void, dismiss: @escaping () -> Void) {
+            self.onImageData = onImageData
+            self.dismiss = dismiss
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            if let image = info[.originalImage] as? UIImage,
+               let data = image.jpegData(compressionQuality: 0.86) {
+                onImageData(data)
+            }
+            dismiss()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            dismiss()
+        }
+    }
+}
+#endif
+
+#if canImport(UserNotifications)
+import UserNotifications
+#endif
+
+/// The Book's voice outside the app: a few quiet, in-world local
+/// notifications. Class bells, the evening braid whisper, and aging favors.
+/// Everything is prefixed so a refresh can sweep ours without touching
+/// anything else, and the whole channel has one switch in the Colophon.
+enum BookWhispers {
+    static let identifierPrefix = "book-whisper-"
+
+    static func refreshSchedule(enabled: Bool, electives: [UnwrittenElective], now: Date = Date()) {
+        #if canImport(UserNotifications)
+        let center = UNUserNotificationCenter.current()
+        center.getPendingNotificationRequests { pending in
+            let ours = pending.map(\.identifier).filter { $0.hasPrefix(identifierPrefix) }
+            center.removePendingNotificationRequests(withIdentifiers: ours)
+            guard enabled else { return }
+            center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                guard granted else { return }
+                schedule(center: center, electives: electives, now: now)
+            }
+        }
+        #endif
+    }
+
+    #if canImport(UserNotifications)
+    private static func schedule(center: UNUserNotificationCenter, electives: [UnwrittenElective], now: Date) {
+        var requests: [UNNotificationRequest] = []
+        let calendar = Calendar.current
+
+        // Class and club bells for the next three days, only future ones.
+        for dayOffset in 0..<3 {
+            guard let day = calendar.date(byAdding: .day, value: dayOffset, to: now) else { continue }
+            let weekday = calendar.component(.weekday, from: day)
+            guard let plan = AcademyScheduleRegistry.week[weekday] else { continue }
+            if let id = plan.morning,
+               let session = AcademyScheduleRegistry.classes[id],
+               let request = bellRequest(for: session, on: day, hour: 9, isClub: false, calendar: calendar, now: now) {
+                requests.append(request)
+            }
+            if let id = plan.club,
+               let session = AcademyScheduleRegistry.clubs[id],
+               let request = bellRequest(for: session, on: day, hour: 19, isClub: true, calendar: calendar, now: now) {
+                requests.append(request)
+            }
+        }
+
+        // The evening braid whisper, repeating daily.
+        let braidContent = UNMutableNotificationContent()
+        braidContent.title = "The Book is ready to braid"
+        braidContent.body = "Today's kept pages can become tonight's Book of You entry."
+        braidContent.sound = .default
+        var braidTime = DateComponents()
+        braidTime.hour = 20
+        braidTime.minute = 45
+        requests.append(UNNotificationRequest(
+            identifier: "\(identifierPrefix)braid",
+            content: braidContent,
+            trigger: UNCalendarNotificationTrigger(dateMatching: braidTime, repeats: true)
+        ))
+
+        // Favors that have waited three days.
+        for elective in electives.filter(\.isActive) {
+            let remindAt = elective.createdAt.addingTimeInterval(3 * 24 * 3600)
+            guard remindAt > now else { continue }
+            let content = UNMutableNotificationContent()
+            content.title = "A favor is waiting in the flyleaf"
+            content.body = "\(elective.characterName) is still hoping for \"\(elective.title)\". One sentence of proof completes it."
+            content.sound = .default
+            let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: remindAt)
+            requests.append(UNNotificationRequest(
+                identifier: "\(identifierPrefix)elective-\(elective.id)",
+                content: content,
+                trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            ))
+        }
+
+        for request in requests {
+            center.add(request)
+        }
+    }
+
+    private static func bellRequest(
+        for session: AcademySession,
+        on day: Date,
+        hour: Int,
+        isClub: Bool,
+        calendar: Calendar,
+        now: Date
+    ) -> UNNotificationRequest? {
+        var components = calendar.dateComponents([.year, .month, .day], from: day)
+        components.hour = hour
+        components.minute = 0
+        guard let fireDate = calendar.date(from: components), fireDate > now else { return nil }
+        let content = UNMutableNotificationContent()
+        content.title = isClub ? "\(session.name) is gathering" : "The \(session.name) bell"
+        content.body = isClub
+            ? "\(session.room), seven bells. \(session.companions.first.map { "\($0) will be there." } ?? "The regulars are arriving.")"
+            : "\(session.leader) is starting in \(session.room)."
+        content.sound = .default
+        let dayID = calendar.dateComponents([.year, .month, .day], from: day)
+        return UNNotificationRequest(
+            identifier: "\(identifierPrefix)bell-\(session.id)-\(dayID.year ?? 0)-\(dayID.month ?? 0)-\(dayID.day ?? 0)",
+            content: content,
+            trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        )
+    }
+    #endif
+}
+
+#if canImport(BackgroundTasks)
+import BackgroundTasks
+#endif
+
+/// The overnight scribe: while the phone charges, the Book pre-writes the
+/// next Story Page so mornings open onto fresh ink instead of a spinner.
+enum OvernightScribe {
+    static let taskIdentifier = "com.openclaw.enchantify.insidecover.overnight-scribe"
+    static let freshnessWindow: TimeInterval = 18 * 3600
+
+    private struct Draft: Codable {
+        var generatedAt: Date
+        var surface: SurfacePage
+    }
+
+    static var draftURL: URL {
+        let base = InsideCoverStore.containerURL
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return base.appendingPathComponent("OvernightStoryPage.json")
+    }
+
+    static func register() {
+        #if canImport(BackgroundTasks)
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { task in
+            guard let task = task as? BGProcessingTask else { return }
+            handle(task)
+        }
+        #endif
+    }
+
+    static func scheduleNext(now: Date = Date()) {
+        #if canImport(BackgroundTasks)
+        let request = BGProcessingTaskRequest(identifier: taskIdentifier)
+        request.requiresExternalPower = true
+        request.requiresNetworkConnectivity = false
+        request.earliestBeginDate = Calendar.current.nextDate(
+            after: now,
+            matching: DateComponents(hour: 2),
+            matchingPolicy: .nextTime
+        )
+        do {
+            try BGTaskScheduler.shared.submit(request)
+        } catch {
+            appLog.info("Overnight scribe could not be scheduled: \(error.localizedDescription, privacy: .public)")
+        }
+        #endif
+    }
+
+    #if canImport(BackgroundTasks)
+    private static func handle(_ task: BGProcessingTask) {
+        scheduleNext()
+        let work = Task {
+            let wrote = await writeDraft()
+            AppMemoryLedger.record(wrote ? "overnight-scribe-wrote" : "overnight-scribe-skipped")
+            task.setTaskCompleted(success: wrote)
+        }
+        task.expirationHandler = {
+            work.cancel()
+            AppMemoryLedger.record("overnight-scribe-expired")
+            task.setTaskCompleted(success: false)
+        }
+    }
+    #endif
+
+    static func writeDraft(now: Date = Date()) async -> Bool {
+        #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
+        guard LocalModelManager.report().state == .ready else { return false }
+
+        let draft: SurfacePage = await MainActor.run {
+            let days = BookDatabase.loadDays(migratingFrom: BookStore.loadDays())
+            let day = BookStore.today(from: days)
+            var inputs = BookSourceInputs.from(insideCover: InsideCoverStore.load())
+            inputs.selfFacts = (try? BookDatabase.selfFacts()) ?? []
+            let events = (try? BookDatabase.narrativeEvents(limit: 160)) ?? []
+            let memories = (try? BookDatabase.entityMemories(limit: 240)) ?? []
+            inputs.narrative = NarrativeSourceSnapshotBuilder.snapshot(
+                from: events,
+                memories: memories,
+                beliefWeight: nil
+            )
+            return NarrativeOSPageSourceAdapter.draftCandidate(for: day, inputs: inputs, now: now)
+        }
+
+        await LocalBrainInferenceGate.shared.setBackgroundAllowance(true)
+        defer {
+            Task { await LocalBrainInferenceGate.shared.setBackgroundAllowance(false) }
+        }
+        do {
+            let prose = try await MLXStoryPageWriter().write(surface: draft)
+            let prepared = draft.preparedStoryPageCopy(
+                prose: prose,
+                slotID: SurfaceCadence.slotID(for: now, hours: 4)
+            )
+            let data = try JSONEncoder().encode(Draft(generatedAt: now, surface: prepared))
+            try data.write(to: draftURL, options: [.atomic])
+            return true
+        } catch {
+            appLog.error("Overnight scribe failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+        #else
+        return false
+        #endif
+    }
+
+    /// Returns the overnight draft if it is still fresh. The file is
+    /// consumed either way so a stale draft never lingers.
+    static func adoptDraft(now: Date = Date()) -> SurfacePage? {
+        guard let data = try? Data(contentsOf: draftURL) else { return nil }
+        try? FileManager.default.removeItem(at: draftURL)
+        let decoder = JSONDecoder()
+        guard let draft = try? decoder.decode(Draft.self, from: data),
+              now.timeIntervalSince(draft.generatedAt) < freshnessWindow else {
+            return nil
+        }
+        return draft.surface
+    }
+}
+
+/// All transient "the Book is writing" state, extracted from ContentView:
+/// prepared surfaces, in-flight flags, and retry/recovery bookkeeping for
+/// every generated page family. Observable, so only views that read a given
+/// property re-evaluate when it changes.
+@Observable
+final class GenerationCoordinator {
+    var isBraiding = false
+    var braidingStartedAt: Date?
+    var lastBraidDuration: TimeInterval?
+    var braidRecovery = BraidRecoveryState()
+    var didAutoBraidTodayID: String?
+    var automaticIlluminatedSurface: SurfacePage?
+    var isPreparingAutomaticIllumination = false
+    var preparedStoryPageSurface: SurfacePage?
+    var isPreparingStoryPage = false
+    var storyPageRecovery = PreparedPageRecoveryState()
+    var preparedGossipPageSurface: SurfacePage?
+    var isPreparingGossipPage = false
+    var gossipPageRecovery = PreparedPageRecoveryState()
+    var preparedFacultyResearchSurface: SurfacePage?
+    var isPreparingFacultyResearchPage = false
+    var facultyResearchRecovery = PreparedPageRecoveryState()
+    var preparedLetterSurface: SurfacePage?
+    var isPreparingLetterPage = false
+    var letterPageRecovery = PreparedPageRecoveryState()
+}
+
+/// Owns PlayerVaultData on disk. Replaces five separate JSON-in-AppStorage
+/// ledgers; migrates them once on first launch and then becomes the only
+/// writer. Observable, so views tracking vault-backed values stay live.
+@Observable
+final class PlayerVault {
+    static let shared = PlayerVault()
+
+    var data: PlayerVaultData
+
+    private static var fileURL: URL {
+        let base = InsideCoverStore.containerURL
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return base.appendingPathComponent("PlayerVault.json")
+    }
+
+    private init() {
+        if let bytes = try? Data(contentsOf: Self.fileURL),
+           let decoded = try? JSONDecoder().decode(PlayerVaultData.self, from: bytes) {
+            data = decoded
+            return
+        }
+        data = Self.migrateFromLegacyLedgers()
+        persist()
+    }
+
+    func save() {
+        persist()
+    }
+
+    private func persist() {
+        guard let bytes = try? JSONEncoder().encode(data) else { return }
+        try? bytes.write(to: Self.fileURL, options: [.atomic])
+    }
+
+    /// One-time migration from the old per-ledger AppStorage keys. The old
+    /// keys are left in place (never written again) as a safety copy.
+    private static func migrateFromLegacyLedgers() -> PlayerVaultData {
+        let defaults = UserDefaults.standard
+        var migrated = PlayerVaultData()
+        let decoder = JSONDecoder()
+        if let raw = defaults.string(forKey: "anchorLedgerV1")?.data(using: .utf8),
+           let anchors = try? decoder.decode([AnchorRecord].self, from: raw) {
+            migrated.anchors = anchors.filter { !AnchorRegistry.retiredAnchorIDs.contains($0.id) }
+        }
+        if let raw = defaults.string(forKey: "unwrittenElectivesV1")?.data(using: .utf8),
+           let electives = try? decoder.decode([UnwrittenElective].self, from: raw) {
+            migrated.electives = electives
+        }
+        if let raw = defaults.string(forKey: "entityBeliefLedger")?.data(using: .utf8),
+           let ledger = try? decoder.decode([String: Int].self, from: raw) {
+            migrated.entityBelief = ledger
+        }
+        if let raw = defaults.string(forKey: "pageBeliefLedger")?.data(using: .utf8),
+           let ledger = try? decoder.decode([String: Int].self, from: raw) {
+            migrated.pageBelief = ledger
+        }
+        if let raw = defaults.string(forKey: "marginTutorSeenV1")?.data(using: .utf8),
+           let seen = try? decoder.decode([String].self, from: raw) {
+            migrated.tutorSeen = seen
+        }
+        return migrated
+    }
+}
+
+
+#if canImport(EventKit)
+import EventKit
+#endif
+
+/// The Calendar Doorway: reads today's and tomorrow's real events so the
+/// curator can feel the day's hinges. Nothing leaves the device.
+enum CalendarDoorway {
+    static var isAvailable: Bool {
+        #if canImport(EventKit)
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    static func upcomingEvents(now: Date = Date()) async -> [CalendarEventSignal] {
+        #if canImport(EventKit)
+        let store = EKEventStore()
+        let granted: Bool
+        if #available(iOS 17.0, *) {
+            granted = (try? await store.requestFullAccessToEvents()) ?? false
+        } else {
+            granted = (try? await store.requestAccess(to: .event)) ?? false
+        }
+        guard granted else { return [] }
+        let calendar = Calendar.current
+        let start = now.addingTimeInterval(-3600)
+        let end = calendar.date(byAdding: .day, value: 2, to: now) ?? now.addingTimeInterval(2 * 86_400)
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
+        return store.events(matching: predicate)
+            .filter { !$0.isAllDay || calendar.isDate($0.startDate, inSameDayAs: now) }
+            .prefix(24)
+            .map { event in
+                CalendarEventSignal(
+                    id: event.eventIdentifier ?? UUID().uuidString,
+                    title: event.title ?? "an unnamed appointment",
+                    startsAt: event.startDate,
+                    isAllDay: event.isAllDay
+                )
+            }
+        #else
+        return []
+        #endif
+    }
+}
+
+#if canImport(MapKit)
+import MapKit
+#endif
+
+/// Scouts real named places near the player via Apple Maps POI search, so
+/// characters can send them to places that actually exist. Results are
+/// cached for days and the category pool rotates weekly so favors vary.
+enum LocalPlacesScout {
+    struct Cache: Codable {
+        var fetchedAt: Date
+        var latitude: Double
+        var longitude: Double
+        var places: [LocalPlaceSignal]
+    }
+
+    static let cacheKey = "localPlacesCacheV1"
+    static let staleAfter: TimeInterval = 5 * 86_400
+    static let moveThresholdMeters = 12_000.0
+
+    static let categoryPool = [
+        "diner", "bakery", "coffee shop", "hardware store", "bookstore",
+        "thrift store", "antiques", "farm stand", "library", "park",
+        "ice cream", "pizza", "fish market", "garden center", "barber shop"
+    ]
+
+    static func cachedPlaces() -> [LocalPlaceSignal] {
+        guard let raw = UserDefaults.standard.string(forKey: cacheKey)?.data(using: .utf8),
+              let cache = try? JSONDecoder().decode(Cache.self, from: raw) else {
+            return []
+        }
+        return cache.places
+    }
+
+    static func refreshIfNeeded(now: Date = Date()) async -> [LocalPlaceSignal] {
+        #if canImport(MapKit)
+        var existing: Cache?
+        if let raw = UserDefaults.standard.string(forKey: cacheKey)?.data(using: .utf8) {
+            existing = try? JSONDecoder().decode(Cache.self, from: raw)
+        }
+        guard let coordinate = try? await AnchorLocationReader.requestLocation() else {
+            return existing?.places ?? []
+        }
+        if let existing,
+           now.timeIntervalSince(existing.fetchedAt) < staleAfter,
+           AnchorMath.distanceMeters(
+               fromLatitude: existing.latitude, longitude: existing.longitude,
+               toLatitude: coordinate.latitude, longitude: coordinate.longitude
+           ) < moveThresholdMeters {
+            return existing.places
+        }
+
+        // Rotate five categories per refresh so the pool changes weekly.
+        let week = Calendar.current.component(.weekOfYear, from: now)
+        let rotated = (0..<5).map { categoryPool[(week * 3 + $0 * 2) % categoryPool.count] }
+        var found: [LocalPlaceSignal] = []
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: coordinate.latitude, longitude: coordinate.longitude),
+            latitudinalMeters: 24_000,
+            longitudinalMeters: 24_000
+        )
+        for category in rotated {
+            let request = MKLocalSearch.Request()
+            request.naturalLanguageQuery = category
+            request.region = region
+            request.resultTypes = .pointOfInterest
+            guard let response = try? await MKLocalSearch(request: request).start() else { continue }
+            for item in response.mapItems.prefix(3) {
+                guard let name = item.name, !name.isEmpty else { continue }
+                let location = item.placemark.coordinate
+                let meters = AnchorMath.distanceMeters(
+                    fromLatitude: coordinate.latitude, longitude: coordinate.longitude,
+                    toLatitude: location.latitude, longitude: location.longitude
+                )
+                guard meters < 25_000 else { continue }
+                let distance = meters < 1_500
+                    ? "\(Int(meters)) m"
+                    : String(format: "%.1f km", meters / 1000)
+                found.append(LocalPlaceSignal(
+                    id: "place-\(name.stableHash)",
+                    name: name,
+                    category: category,
+                    distanceLabel: distance,
+                    locality: item.placemark.locality ?? ""
+                ))
+            }
+        }
+        var seen = Set<String>()
+        let places = found.filter { seen.insert($0.name).inserted }
+        guard !places.isEmpty else { return existing?.places ?? [] }
+        let cache = Cache(fetchedAt: now, latitude: coordinate.latitude, longitude: coordinate.longitude, places: places)
+        if let data = try? JSONEncoder().encode(cache), let encoded = String(data: data, encoding: .utf8) {
+            UserDefaults.standard.set(encoded, forKey: cacheKey)
+        }
+        AppMemoryLedger.record("places-scouted-\(places.count)")
+        return places
+        #else
+        return []
+        #endif
+    }
+}
+
+#if canImport(StoreKit)
+import StoreKit
+#endif
+
+/// What the BookShop needs from a payment system. The Goblins do not care
+/// which till the coins land in.
+struct BookShopOffer: Identifiable, Equatable {
+    var id: String          // productID
+    var listing: BookShopListing
+    var displayPrice: String
+    var isPurchasable: Bool
+}
+
+enum BookShopPurchaseOutcome: Equatable {
+    case bound          // owned, persist it
+    case pending        // ask-to-buy etc.
+    case cancelled
+    case failed(String)
+}
+
+protocol BookShopMerchant {
+    var tillName: String { get }
+    func offers() async -> [BookShopOffer]
+    func purchase(productID: String) async -> BookShopPurchaseOutcome
+    func restorePurchases() async -> Set<String>   // owned pack IDs
+}
+
+/// The real till: StoreKit 2. Compiles today; comes alive the moment the
+/// products exist in App Store Connect under a paid developer membership.
+struct StoreKitMerchant: BookShopMerchant {
+    let tillName = "App Store"
+
+    func offers() async -> [BookShopOffer] {
+        #if canImport(StoreKit)
+        let listings = BookShopCatalog.listings.filter { !$0.comingSoon }
+        guard let products = try? await Product.products(for: listings.map(\.productID)) else {
+            return []
+        }
+        return products.compactMap { product in
+            guard let listing = BookShopCatalog.listings.first(where: { $0.productID == product.id }) else {
+                return nil
+            }
+            return BookShopOffer(
+                id: product.id,
+                listing: listing,
+                displayPrice: product.displayPrice,
+                isPurchasable: true
+            )
+        }
+        #else
+        return []
+        #endif
+    }
+
+    func purchase(productID: String) async -> BookShopPurchaseOutcome {
+        #if canImport(StoreKit)
+        guard let product = try? await Product.products(for: [productID]).first else {
+            return .failed("The Goblins cannot find that item in the till.")
+        }
+        do {
+            let result = try await product.purchase()
+            switch result {
+            case .success(let verification):
+                guard case .verified(let transaction) = verification else {
+                    return .failed("The receipt would not verify.")
+                }
+                await transaction.finish()
+                return .bound
+            case .pending:
+                return .pending
+            case .userCancelled:
+                return .cancelled
+            @unknown default:
+                return .failed("The till made an unfamiliar noise.")
+            }
+        } catch {
+            return .failed(error.localizedDescription)
+        }
+        #else
+        return .failed("No till in this build.")
+        #endif
+    }
+
+    func restorePurchases() async -> Set<String> {
+        #if canImport(StoreKit)
+        var owned: Set<String> = []
+        for await entitlement in Transaction.currentEntitlements {
+            if case .verified(let transaction) = entitlement,
+               let listing = BookShopCatalog.listings.first(where: { $0.productID == transaction.productID }) {
+                owned.insert(listing.packID)
+            }
+        }
+        return owned
+        #else
+        return []
+        #endif
+    }
+}
+
+/// The dev counter: lets the whole shop flow be exercised before the paid
+/// developer membership exists. Clearly labeled in the UI; binds instantly.
+struct ScrivenersCounterMerchant: BookShopMerchant {
+    let tillName = "Scrivener's Counter (dev)"
+
+    func offers() async -> [BookShopOffer] {
+        BookShopCatalog.listings.filter { !$0.comingSoon }.map { listing in
+            BookShopOffer(
+                id: listing.productID,
+                listing: listing,
+                displayPrice: "0 coins (dev)",
+                isPurchasable: true
+            )
+        }
+    }
+
+    func purchase(productID: String) async -> BookShopPurchaseOutcome {
+        .bound
+    }
+
+    func restorePurchases() async -> Set<String> {
+        []
+    }
+}
+
+enum BookShopTill {
+    /// StoreKit when it has real offers; the dev counter otherwise. When
+    /// the membership lands and products exist, the shop flips itself live.
+    static func resolveMerchant() async -> BookShopMerchant {
+        let storeKit = StoreKitMerchant()
+        let live = await storeKit.offers()
+        if !live.isEmpty {
+            return storeKit
+        }
+        return ScrivenersCounterMerchant()
+    }
+}
+
+/// Vellum's assistant: turns parsed fuel items into rough nutrition via the
+/// USDA FoodData Central API. Always background, never blocks a keep; a
+/// missing key or dead network simply means no numbers this time.
+enum VellumNutritionist {
+    static let keyStorageKey = "usdaFoodDataKey"
+
+    private static var apiKey: String {
+        let stored = UserDefaults.standard.string(forKey: keyStorageKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return stored.isEmpty ? "DEMO_KEY" : stored
+    }
+
+    static func estimate(for entry: String) async -> NutritionEstimate? {
+        let items = FuelParser.items(from: entry)
+        guard !items.isEmpty else { return nil }
+        var total = NutritionEstimate.zero
+        var matched = 0
+        for item in items.prefix(6) {
+            guard let per100g = await lookupPer100g(item.name) else { continue }
+            total = total + FuelParser.scale(per100g: per100g, item: item)
+            matched += 1
+        }
+        guard matched > 0, total.kilocalories > 0 else { return nil }
+        return total
+    }
+
+    private static func lookupPer100g(_ food: String) async -> NutritionEstimate? {
+        var components = URLComponents(string: "https://api.nal.usda.gov/fdc/v1/foods/search")
+        components?.queryItems = [
+            URLQueryItem(name: "api_key", value: apiKey),
+            URLQueryItem(name: "query", value: food),
+            URLQueryItem(name: "dataType", value: "Foundation,SR Legacy"),
+            URLQueryItem(name: "pageSize", value: "1")
+        ]
+        guard let url = components?.url else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 8
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let foods = parsed["foods"] as? [[String: Any]],
+              let first = foods.first,
+              let nutrients = first["foodNutrients"] as? [[String: Any]] else {
+            return nil
+        }
+        func value(_ names: [String]) -> Double {
+            for nutrient in nutrients {
+                guard let name = nutrient["nutrientName"] as? String,
+                      names.contains(where: { name.hasPrefix($0) }),
+                      let amount = nutrient["value"] as? Double else { continue }
+                return amount
+            }
+            return 0
+        }
+        let estimate = NutritionEstimate(
+            kilocalories: value(["Energy"]),
+            protein: value(["Protein"]),
+            carbohydrates: value(["Carbohydrate, by difference"]),
+            fat: value(["Total lipid (fat)"])
+        )
+        return estimate.kilocalories > 0 ? estimate : nil
+    }
+}

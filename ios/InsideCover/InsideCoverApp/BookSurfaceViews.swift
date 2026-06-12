@@ -204,8 +204,8 @@ struct IlluminatedArtifactPreview: View {
                     .fill(BookPalette.ink.opacity(0.08))
                     .frame(width: max(1.5, CGFloat(3 + index % 3) * scale), height: max(1.5, CGFloat(3 + index % 3) * scale))
                     .position(
-                        x: CGFloat((index * 67 + abs(slot.slotId.hashValue % 43)) % max(1, Int(slot.size.width))) * scale,
-                        y: CGFloat((index * 41 + abs(slot.slotId.hashValue % 71)) % max(1, Int(slot.size.height))) * scale
+                        x: CGFloat((index * 67 + abs(slot.slotId.stableHash % 43)) % max(1, Int(slot.size.width))) * scale,
+                        y: CGFloat((index * 41 + abs(slot.slotId.stableHash % 71)) % max(1, Int(slot.size.height))) * scale
                     )
             }
         }
@@ -451,7 +451,7 @@ struct SurfaceCard: View {
         }
         let fallback = FakePhotoIlluminationAnalyzer.analyze(assetName: sourceAssetName)
         let analysis = PhotoAnalysis.fromSurfaceMetadata(surface.payload.metadata, fallback: fallback)
-        let seed = abs(surface.id.hashValue)
+        let seed = abs(surface.id.stableHash)
         return IlluminatedPageComposer.compose(
             analysis: analysis,
             sourceAssetName: sourceAssetName,
@@ -475,8 +475,11 @@ struct SurfaceCard: View {
             || surface.type == .illuminatedPhoto
             || surface.type == .quip
             || surface.type == .narrativeOS
+            || surface.type == .marginsAtlas
+            || surface.type == .bookRemembered
             || surface.type == .facultyResearch
             || surface.type == .supportGuild
+            || surface.type == .castMember
             || surface.renderStyle == .quoteCard
     }
 
@@ -484,7 +487,7 @@ struct SurfaceCard: View {
         guard isReadingCard else { return nil }
         let body = surface.payload.body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return nil }
-        if surface.type == .wonderCompass || surface.type == .narrativeOS || surface.type == .gossip || surface.type == .facultyResearch || surface.type == .supportGuild {
+        if surface.type == .wonderCompass || surface.type == .narrativeOS || surface.type == .marginsAtlas || surface.type == .bookRemembered || surface.type == .gossip || surface.type == .facultyResearch || surface.type == .supportGuild || surface.type == .castMember {
             return body.bookPreviewSentenceLimit(2)
         }
         return body
@@ -494,13 +497,13 @@ struct SurfaceCard: View {
         switch surface.type {
         case .wonderCompass:
             return 3
-        case .narrativeOS:
+        case .narrativeOS, .marginsAtlas, .bookRemembered:
             return 4
         case .gossip:
             return 4
         case .facultyResearch:
             return 4
-        case .supportGuild:
+        case .supportGuild, .castMember:
             return 4
         case .illustration, .illuminatedPhoto:
             return 4
@@ -606,29 +609,29 @@ struct SurfaceCard: View {
         }
         .overlay(alignment: .leading) {
             MarginaliaImage(name: sideMarginaliaName, width: visualStyle.sideMarginaliaWidth, opacity: visualStyle.sideMarginaliaOpacity)
-                .rotationEffect(.degrees(surface.id.hashValue.isMultiple(of: 2) ? -9 : 8))
+                .rotationEffect(.degrees(surface.id.stableHash.isMultiple(of: 2) ? -9 : 8))
                 .offset(x: -10, y: isReadingCard ? 74 : 34)
                 .allowsHitTesting(false)
         }
         .overlay(alignment: .bottomTrailing) {
             MarginaliaImage(name: marginaliaName, width: isReadingCard ? visualStyle.cornerMarginaliaWidth + 12 : visualStyle.cornerMarginaliaWidth, opacity: visualStyle.cornerMarginaliaOpacity)
-                .rotationEffect(.degrees(surface.id.hashValue.isMultiple(of: 2) ? 7 : -8))
+                .rotationEffect(.degrees(surface.id.stableHash.isMultiple(of: 2) ? 7 : -8))
                 .offset(x: 12, y: 10)
                 .allowsHitTesting(false)
         }
         .overlay(alignment: .bottomLeading) {
             MarginaliaImage(name: visualStyle.smallMarginalia, width: 38, opacity: 0.30)
-                .rotationEffect(.degrees(surface.id.hashValue.isMultiple(of: 3) ? 12 : -10))
+                .rotationEffect(.degrees(surface.id.stableHash.isMultiple(of: 3) ? 12 : -10))
                 .offset(x: 14, y: -8)
                 .allowsHitTesting(false)
         }
         .overlay(alignment: .center) {
             MarginaliaImage(name: visualStyle.watermarkMarginalia, width: isReadingCard ? 150 : 118, opacity: visualStyle.watermarkOpacity)
-                .rotationEffect(.degrees(surface.id.hashValue.isMultiple(of: 2) ? -13 : 11))
+                .rotationEffect(.degrees(surface.id.stableHash.isMultiple(of: 2) ? -13 : 11))
                 .offset(x: isReadingCard ? 108 : 92, y: isReadingCard ? -34 : -16)
                 .allowsHitTesting(false)
         }
-        .rotationEffect(.degrees(surface.id.hashValue.isMultiple(of: 2) ? -0.6 : 0.5))
+        .rotationEffect(.degrees(surface.id.stableHash.isMultiple(of: 2) ? -0.6 : 0.5))
         .opacity(hasSurfaced ? 1 : 0)
         .offset(y: hasSurfaced ? 0 : (reduceMotion ? 0 : -18))
         .onAppear {
@@ -978,6 +981,7 @@ struct SourceToggleRow: View {
 
 struct FragmentRow: View {
     let page: BookPage
+    let onOpen: () -> Void
     let onRemove: () -> Void
 
     @State private var dragOffset: CGFloat = 0
@@ -995,17 +999,28 @@ struct FragmentRow: View {
                 Spacer()
                 Label("Remove", systemImage: "xmark.circle")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.92))
+                    .foregroundStyle(BookPalette.ink.opacity(0.54))
                     .padding(.trailing, 18)
             }
             .frame(maxWidth: .infinity, minHeight: 92)
-            .background(.red.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(
+                BookPalette.paper.opacity(0.42),
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(visualStyle.accent.opacity(0.18), lineWidth: 1)
+            }
 
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: page.type.symbolName)
-                    .foregroundStyle(visualStyle.symbolColor)
-                    .frame(width: 28, height: 28)
-                    .background(visualStyle.accent.opacity(0.12), in: Circle())
+                if let mediaAsset = page.mediaAssets.first {
+                    BookOfYouMediaThumbnail(asset: mediaAsset, width: 56, height: 48)
+                } else {
+                    Image(systemName: page.type.symbolName)
+                        .foregroundStyle(visualStyle.symbolColor)
+                        .frame(width: 28, height: 28)
+                        .background(visualStyle.accent.opacity(0.12), in: Circle())
+                }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(page.type.title)
@@ -1023,6 +1038,10 @@ struct FragmentRow: View {
             .padding(14)
             .parchmentSurface(style: visualStyle, isActive: false)
             .offset(x: dragOffset)
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .onTapGesture {
+                onOpen()
+            }
             .overlay(alignment: .topTrailing) {
                 Button {
                     onRemove()
@@ -1051,7 +1070,8 @@ struct FragmentRow: View {
                     .allowsHitTesting(false)
             }
         }
-        .accessibilityHint("Use the close button or small right-edge tab to remove this kept page.")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Opens this kept page. Use the close button or small right-edge tab to remove it.")
     }
 
     private var fragmentText: String {
@@ -1100,6 +1120,7 @@ struct FragmentRow: View {
 
 struct ResurfacedPageRow: View {
     let page: BookPage
+    let onOpen: () -> Void
 
     private var visualStyle: PageVisualStyle {
         PageVisualStyle.style(for: page.type)
@@ -1132,12 +1153,18 @@ struct ResurfacedPageRow: View {
         }
         .padding(14)
         .parchmentSurface(style: visualStyle, isActive: false)
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .onTapGesture {
+            onOpen()
+        }
         .overlay(alignment: .topTrailing) {
             MarginaliaImage(name: visualStyle.sideMarginalia, width: 62, opacity: 0.24)
                 .rotationEffect(.degrees(4))
                 .offset(x: 12, y: -10)
                 .allowsHitTesting(false)
         }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Opens this returned page.")
     }
 }
 
@@ -1146,7 +1173,7 @@ private struct CardScrapMark: View {
     var style: PageVisualStyle = .default
 
     private var angle: Angle {
-        .degrees(seed.hashValue.isMultiple(of: 2) ? -4 : 5)
+        .degrees(seed.stableHash.isMultiple(of: 2) ? -4 : 5)
     }
 
     var body: some View {
@@ -1171,7 +1198,7 @@ private struct CardScrapMark: View {
             Rectangle()
                 .fill(style.accent.opacity(0.23))
                 .frame(width: 36, height: 9)
-                .rotationEffect(.degrees(seed.hashValue.isMultiple(of: 3) ? 12 : -10))
+                .rotationEffect(.degrees(seed.stableHash.isMultiple(of: 3) ? 12 : -10))
                 .offset(x: 34, y: -4)
                 .blendMode(.multiply)
 
@@ -1191,6 +1218,7 @@ private struct CardScrapMark: View {
 
 struct BookOfYouCard: View {
     let page: BookPage
+    let onOpen: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var inkVisible = false
 
@@ -1217,6 +1245,10 @@ struct BookOfYouCard: View {
         }
         .padding(18)
         .parchmentSurface(style: visualStyle, isActive: true)
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .onTapGesture {
+            onOpen()
+        }
         .overlay(alignment: .topTrailing) {
             Text("kept")
                 .font(.caption2.weight(.bold))
@@ -1241,6 +1273,8 @@ struct BookOfYouCard: View {
                 inkVisible = true
             }
         }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Opens today's Book of You page.")
     }
 }
 
@@ -1261,6 +1295,8 @@ private struct BookOfYouMediaStrip: View {
 
 private struct BookOfYouMediaThumbnail: View {
     let asset: BookPageMediaAsset
+    var width: CGFloat = 104
+    var height: CGFloat = 82
 
     var body: some View {
         Group {
@@ -1277,7 +1313,7 @@ private struct BookOfYouMediaThumbnail: View {
                 }
             }
         }
-        .frame(width: 104, height: 82)
+        .frame(width: width, height: height)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -1311,6 +1347,7 @@ private struct BookOfYouMediaThumbnail: View {
 
 struct ArchiveCard: View {
     let page: BookPage
+    let onOpen: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1325,11 +1362,17 @@ struct ArchiveCard: View {
         .padding(14)
         .frame(width: 240, height: 170, alignment: .topLeading)
         .parchmentSurface(accent: BookPalette.gold, isActive: false)
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .onTapGesture {
+            onOpen()
+        }
         .overlay(alignment: .bottomTrailing) {
             MarginaliaImage(name: "MarginaliaShell", width: 42, opacity: 0.16)
                 .offset(x: 6, y: 8)
                 .allowsHitTesting(false)
         }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Opens this Book of You page.")
     }
 }
 
@@ -1403,11 +1446,28 @@ private func smoothstep(_ value: Double) -> Double {
     value * value * (3 - 2 * value)
 }
 
+/// Accumulates animation time from clamped per-frame deltas instead of wall
+/// clock, so a main-thread stall (launch work, first-frame layout) pauses the
+/// opening movie instead of making it skip ahead.
+private final class StallTolerantClock {
+    private var lastTick: Date?
+    private(set) var elapsed: TimeInterval = 0
+
+    func tick(_ now: Date, maxDelta: TimeInterval) -> TimeInterval {
+        defer { lastTick = now }
+        guard let lastTick else { return elapsed }
+        let delta = now.timeIntervalSince(lastTick)
+        guard delta > 0 else { return elapsed }
+        elapsed += min(delta, maxDelta)
+        return elapsed
+    }
+}
+
 struct OpeningMovieView: View {
     let onFinished: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var startedAt: Date?
+    @State private var clock = StallTolerantClock()
     @State private var didFinish = false
 
     private var duration: TimeInterval {
@@ -1416,7 +1476,7 @@ struct OpeningMovieView: View {
 
     var body: some View {
         TimelineView(.animation(minimumInterval: reduceMotion ? 1 / 12 : 1 / 24)) { timeline in
-            let elapsed = startedAt.map { timeline.date.timeIntervalSince($0) } ?? 0
+            let elapsed = clock.tick(timeline.date, maxDelta: 1 / 8)
             let progress = min(max(elapsed / duration, 0), 1)
 
             GeometryReader { proxy in
@@ -1495,9 +1555,6 @@ struct OpeningMovieView: View {
         }
         .ignoresSafeArea()
         .onAppear {
-            DispatchQueue.main.async {
-                startedAt = Date()
-            }
             BookFeedback.play(.openPage)
         }
         .accessibilityElement(children: .ignore)
@@ -1830,6 +1887,106 @@ struct PageVisualStyle {
 
     static func style(for type: BookPageType) -> PageVisualStyle {
         switch type {
+        case .calendar:
+            return PageVisualStyle(
+                accent: Color(red: 0.30, green: 0.34, blue: 0.58),
+                symbolColor: Color(red: 0.30, green: 0.34, blue: 0.58),
+                paperTop: Color(red: 0.94, green: 0.92, blue: 0.82),
+                paperMiddle: Color(red: 0.84, green: 0.82, blue: 0.72),
+                paperBottom: Color(red: 0.66, green: 0.65, blue: 0.58),
+                scrapColor: Color(red: 0.86, green: 0.85, blue: 0.76),
+                sideMarginalia: "IlluminationScrapS02_08",
+                cornerMarginalia: "IlluminationScrapS03_24",
+                smallMarginalia: "MarginaliaStamp",
+                watermarkMarginalia: "MarginaliaCompass",
+                watermarkOpacity: 0.10
+            )
+        case .packPage:
+            return PageVisualStyle(
+                accent: Color(red: 0.33, green: 0.36, blue: 0.52),
+                symbolColor: Color(red: 0.33, green: 0.36, blue: 0.52),
+                paperTop: Color(red: 0.94, green: 0.91, blue: 0.81),
+                paperMiddle: Color(red: 0.84, green: 0.80, blue: 0.71),
+                paperBottom: Color(red: 0.66, green: 0.62, blue: 0.56),
+                scrapColor: Color(red: 0.87, green: 0.84, blue: 0.76),
+                sideMarginalia: "IlluminationScrapS03_11",
+                cornerMarginalia: "IlluminationScrapS02_19",
+                smallMarginalia: "MarginaliaStar",
+                watermarkMarginalia: "MarginaliaStar",
+                watermarkOpacity: 0.10
+            )
+        case .helpTips:
+            return PageVisualStyle(
+                accent: Color(red: 0.20, green: 0.43, blue: 0.50),
+                symbolColor: Color(red: 0.20, green: 0.43, blue: 0.50),
+                paperTop: Color(red: 0.95, green: 0.91, blue: 0.78),
+                paperMiddle: Color(red: 0.84, green: 0.80, blue: 0.66),
+                paperBottom: Color(red: 0.66, green: 0.62, blue: 0.52),
+                scrapColor: Color(red: 0.86, green: 0.83, blue: 0.70),
+                sideMarginalia: "IlluminationScrapS01_08",
+                cornerMarginalia: "IlluminationScrapS03_10",
+                smallMarginalia: "MarginaliaCompass",
+                watermarkMarginalia: "MarginaliaStamp",
+                sideMarginaliaWidth: 62,
+                cornerMarginaliaWidth: 78,
+                sideMarginaliaOpacity: 0.38,
+                cornerMarginaliaOpacity: 0.34,
+                watermarkOpacity: 0.10,
+                scrapWidth: 88,
+                scrapHeight: 32
+            )
+        case .welcome:
+            return PageVisualStyle(
+                accent: Color(red: 0.40, green: 0.32, blue: 0.58),
+                symbolColor: Color(red: 0.40, green: 0.32, blue: 0.58),
+                paperTop: Color(red: 0.96, green: 0.91, blue: 0.76),
+                paperMiddle: Color(red: 0.86, green: 0.78, blue: 0.64),
+                paperBottom: Color(red: 0.66, green: 0.56, blue: 0.50),
+                scrapColor: Color(red: 0.90, green: 0.82, blue: 0.68),
+                sideMarginalia: "MarginaliaCompass",
+                cornerMarginalia: "MarginaliaSeal",
+                smallMarginalia: "MarginaliaStar",
+                watermarkMarginalia: "MarginaliaCompass",
+                sideMarginaliaWidth: 70,
+                cornerMarginaliaWidth: 84,
+                sideMarginaliaOpacity: 0.40,
+                cornerMarginaliaOpacity: 0.36,
+                watermarkOpacity: 0.13,
+                scrapWidth: 94,
+                scrapHeight: 34
+            )
+        case .elective:
+            // Folded-note warmth: wine accent, feather marginalia, the feel
+            // of a favor tucked into the binding.
+            return PageVisualStyle(
+                accent: Color(red: 0.52, green: 0.26, blue: 0.30),
+                symbolColor: Color(red: 0.52, green: 0.26, blue: 0.30),
+                paperTop: Color(red: 0.97, green: 0.91, blue: 0.78),
+                paperMiddle: Color(red: 0.89, green: 0.79, blue: 0.64),
+                paperBottom: Color(red: 0.72, green: 0.58, blue: 0.46),
+                scrapColor: Color(red: 0.94, green: 0.84, blue: 0.68),
+                sideMarginalia: "MarginaliaFeather",
+                cornerMarginalia: "IlluminationScrapS03_12",
+                smallMarginalia: "MarginaliaStamp",
+                watermarkMarginalia: "MarginaliaSeal",
+                watermarkOpacity: 0.12
+            )
+        case .academyClass:
+            // Chalk-and-lamplight: slate-toned paper, gold accents, compass
+            // watermark — the feel of a lesson under way.
+            return PageVisualStyle(
+                accent: Color(red: 0.27, green: 0.40, blue: 0.46),
+                symbolColor: Color(red: 0.27, green: 0.40, blue: 0.46),
+                paperTop: Color(red: 0.93, green: 0.90, blue: 0.79),
+                paperMiddle: Color(red: 0.82, green: 0.80, blue: 0.70),
+                paperBottom: Color(red: 0.62, green: 0.63, blue: 0.57),
+                scrapColor: Color(red: 0.83, green: 0.84, blue: 0.74),
+                sideMarginalia: "IlluminationScrapS02_08",
+                cornerMarginalia: "IlluminationScrapS01_14",
+                smallMarginalia: "IlluminationScrapS03_10",
+                watermarkMarginalia: "MarginaliaCompass",
+                watermarkOpacity: 0.11
+            )
         case .mood:
             return PageVisualStyle(
                 accent: Color(red: 0.36, green: 0.39, blue: 0.70),
@@ -1956,6 +2113,24 @@ struct PageVisualStyle {
                 watermarkOpacity: 0.12,
                 scrapWidth: 92
             )
+        case .letter:
+            return PageVisualStyle(
+                accent: Color(red: 0.48, green: 0.30, blue: 0.36),
+                symbolColor: Color(red: 0.48, green: 0.30, blue: 0.36),
+                paperTop: Color(red: 0.96, green: 0.89, blue: 0.76),
+                paperMiddle: Color(red: 0.86, green: 0.76, blue: 0.64),
+                paperBottom: Color(red: 0.68, green: 0.55, blue: 0.48),
+                scrapColor: Color(red: 0.92, green: 0.80, blue: 0.66),
+                sideMarginalia: "MarginaliaFeather",
+                cornerMarginalia: "MarginaliaSeal",
+                smallMarginalia: "IlluminationScrapS02_13",
+                watermarkMarginalia: "MarginaliaSeal",
+                sideMarginaliaWidth: 58,
+                cornerMarginaliaWidth: 82,
+                sideMarginaliaOpacity: 0.42,
+                watermarkOpacity: 0.11,
+                scrapWidth: 88
+            )
         case .weather, .location:
             return PageVisualStyle(
                 accent: Color(red: 0.12, green: 0.45, blue: 0.54),
@@ -2023,7 +2198,7 @@ struct PageVisualStyle {
                 watermarkOpacity: 0.15,
                 scrapWidth: 86
             )
-        case .lore, .narrativeOS:
+        case .lore, .narrativeOS, .marginsAtlas, .bookRemembered:
             return PageVisualStyle(
                 accent: BookPalette.violet,
                 symbolColor: BookPalette.violet,
@@ -2061,6 +2236,25 @@ struct PageVisualStyle {
                 cornerMarginaliaOpacity: 0.42,
                 watermarkOpacity: 0.16,
                 scrapWidth: 92,
+                scrapHeight: 34
+            )
+        case .castMember:
+            return PageVisualStyle(
+                accent: Color(red: 0.34, green: 0.45, blue: 0.30),
+                symbolColor: Color(red: 0.34, green: 0.45, blue: 0.30),
+                paperTop: Color(red: 0.94, green: 0.88, blue: 0.70),
+                paperMiddle: Color(red: 0.78, green: 0.74, blue: 0.58),
+                paperBottom: Color(red: 0.56, green: 0.55, blue: 0.42),
+                scrapColor: Color(red: 0.82, green: 0.78, blue: 0.60),
+                sideMarginalia: "IlluminationScrapS02_08",
+                cornerMarginalia: "IlluminationScrapS01_15",
+                smallMarginalia: "MarginaliaStamp",
+                watermarkMarginalia: "MarginaliaStamp",
+                sideMarginaliaWidth: 68,
+                cornerMarginaliaWidth: 82,
+                sideMarginaliaOpacity: 0.42,
+                watermarkOpacity: 0.12,
+                scrapWidth: 88,
                 scrapHeight: 34
             )
         case .patreon:
@@ -2112,6 +2306,46 @@ struct PageVisualStyle {
                 cornerMarginaliaOpacity: 0.44,
                 watermarkOpacity: 0.15,
                 scrapWidth: 96,
+                scrapHeight: 34
+            )
+        case .enchantment:
+            return PageVisualStyle(
+                accent: BookPalette.teal,
+                symbolColor: BookPalette.lampGold,
+                paperTop: Color(red: 0.96, green: 0.84, blue: 0.66),
+                paperMiddle: Color(red: 0.82, green: 0.66, blue: 0.48),
+                paperBottom: Color(red: 0.56, green: 0.42, blue: 0.31),
+                scrapColor: Color(red: 0.91, green: 0.74, blue: 0.55),
+                sideMarginalia: "IlluminationScrapS01_14",
+                cornerMarginalia: "IlluminationScrapS02_27",
+                smallMarginalia: "MarginaliaStar",
+                watermarkMarginalia: "MarginaliaSeal",
+                sideMarginaliaWidth: 76,
+                cornerMarginaliaWidth: 90,
+                sideMarginaliaOpacity: 0.46,
+                cornerMarginaliaOpacity: 0.44,
+                watermarkOpacity: 0.15,
+                scrapWidth: 96,
+                scrapHeight: 34
+            )
+        case .anchor:
+            return PageVisualStyle(
+                accent: Color(red: 0.18, green: 0.45, blue: 0.42),
+                symbolColor: Color(red: 0.18, green: 0.45, blue: 0.42),
+                paperTop: Color(red: 0.93, green: 0.86, blue: 0.67),
+                paperMiddle: Color(red: 0.76, green: 0.70, blue: 0.53),
+                paperBottom: Color(red: 0.48, green: 0.48, blue: 0.40),
+                scrapColor: Color(red: 0.80, green: 0.75, blue: 0.57),
+                sideMarginalia: "MarginaliaCompass",
+                cornerMarginalia: "IlluminationScrapS02_13",
+                smallMarginalia: "MarginaliaSeal",
+                watermarkMarginalia: "MarginaliaCompass",
+                sideMarginaliaWidth: 72,
+                cornerMarginaliaWidth: 86,
+                sideMarginaliaOpacity: 0.40,
+                cornerMarginaliaOpacity: 0.36,
+                watermarkOpacity: 0.14,
+                scrapWidth: 92,
                 scrapHeight: 34
             )
         case .bookOfYou:
@@ -2234,40 +2468,129 @@ extension View {
     }
 }
 
-extension String {
-    var nonEmpty: String? {
-        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
+/// A blobby, hand-pressed wax seal edge: a circle with small cosine wobbles so
+/// no two seals (and no two presses) read as the same machine-cut disc.
+struct WaxSealShape: Shape {
+    var seed: Int = 0
 
-    func bookPreviewSentenceLimit(_ limit: Int) -> String {
-        let normalized = components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-        guard limit > 0, !normalized.isEmpty else {
-            return ""
-        }
-
-        var sentences: [String] = []
-        var current = ""
-        for character in normalized {
-            current.append(character)
-            if ".!?".contains(character) {
-                let sentence = current.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !sentence.isEmpty {
-                    sentences.append(sentence)
-                }
-                current = ""
-                if sentences.count == limit {
-                    break
-                }
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let baseRadius = min(rect.width, rect.height) / 2
+        var path = Path()
+        let lobes = 9 + (abs(seed) % 3)
+        let phase = Double(abs(seed) % 17) / 17 * 2 * .pi
+        let secondPhase = Double(abs(seed) % 7) / 7 * 2 * .pi
+        let steps = 96
+        for step in 0...steps {
+            let angle = Double(step) / Double(steps) * 2 * .pi
+            let wobble = 1
+                + 0.045 * cos(Double(lobes) * angle + phase)
+                + 0.022 * cos(Double(lobes * 2 + 1) * angle + secondPhase)
+            let radius = baseRadius * wobble
+            let point = CGPoint(
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle)
+            )
+            if step == 0 {
+                path.move(to: point)
+            } else {
+                path.addLine(to: point)
             }
         }
+        path.closeSubpath()
+        return path
+    }
+}
 
-        if sentences.isEmpty {
-            return normalized
+/// One of the three marginalia seals pressed into the page top: Body, Weather,
+/// Location. Wax-toned, embossed, with a per-seal tilt and a breathing shimmer
+/// while its doorway is working.
+struct MarginaliaSealButton: View {
+    let title: String
+    let systemImage: String
+    let wax: Color
+    let seed: Int
+    let isBusy: Bool
+    let action: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isPressed = false
+
+    private var tilt: Double {
+        Double((abs(seed) % 7)) - 3
+    }
+
+    var body: some View {
+        Button {
+            guard !isBusy else { return }
+            action()
+        } label: {
+            VStack(spacing: 7) {
+                ZStack {
+                    WaxSealShape(seed: seed)
+                        .fill(
+                            RadialGradient(
+                                colors: [
+                                    wax.opacity(0.98),
+                                    wax.opacity(0.86),
+                                    wax.opacity(0.62)
+                                ],
+                                center: .init(x: 0.38, y: 0.34),
+                                startRadius: 2,
+                                endRadius: 46
+                            )
+                        )
+                        .overlay {
+                            WaxSealShape(seed: seed)
+                                .stroke(.black.opacity(0.22), lineWidth: 1)
+                        }
+                        .overlay {
+                            WaxSealShape(seed: seed &+ 31)
+                                .stroke(.white.opacity(0.30), lineWidth: 1.1)
+                                .padding(7)
+                        }
+                        .shadow(color: .black.opacity(0.34), radius: 6, x: 0, y: 4)
+
+                    Image(systemName: systemImage)
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(.black.opacity(0.32))
+                        .offset(x: 0.8, y: 1.2)
+                    Image(systemName: systemImage)
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.88))
+                        .shadow(color: wax.opacity(0.8), radius: 5)
+
+                    if isBusy {
+                        WaxSealShape(seed: seed)
+                            .fill(.white.opacity(0.14))
+                        ProgressView()
+                            .tint(.white)
+                            .scaleEffect(0.8)
+                            .offset(y: 22)
+                    }
+                }
+                .frame(width: 64, height: 64)
+                .rotationEffect(.degrees(reduceMotion ? 0 : tilt))
+                .scaleEffect(isPressed && !reduceMotion ? 0.92 : 1)
+
+                Text(title)
+                    .font(.system(.caption2, design: .serif, weight: .bold))
+                    .textCase(.uppercase)
+                    .kerning(1.1)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.82))
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
-        return sentences.prefix(limit).joined(separator: " ")
+        .buttonStyle(.plain)
+        .disabled(isBusy)
+        .onLongPressGesture(minimumDuration: .infinity, pressing: { pressing in
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.6)) {
+                isPressed = pressing
+            }
+        }, perform: {})
+        .accessibilityLabel("\(title) seal")
+        .accessibilityHint(isBusy ? "Working" : "Press to open")
     }
 }
 
@@ -2329,5 +2652,333 @@ private struct LabyrinthBackdrop: Shape {
             )
         }
         return path
+    }
+}
+
+/// First-run story onboarding, adapted from Enchantify's Academy tutorial:
+/// the fall into the book, the guide, the snack question, the name, and the
+/// core belief with its first planted investment.
+struct OnboardingFlowView: View {
+    struct Result {
+        var snack: String
+        var name: String
+        var belief: String
+        var investedBelief: Bool
+    }
+
+    let onFinished: (Result) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var step = 0
+    @State private var snack = ""
+    @State private var name = ""
+    @State private var belief = ""
+    @State private var investedBelief = false
+
+    private let stepCount = 5
+
+    var body: some View {
+        ZStack {
+            BookBackground()
+                .overlay {
+                    Rectangle()
+                        .fill(BookPalette.nightPanel.opacity(0.4))
+                }
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 24)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        stepContent
+                    }
+                    .padding(22)
+                }
+                .frame(maxHeight: 540)
+                .background {
+                    ZStack {
+                        Image("ParchmentTexture")
+                            .resizable()
+                            .scaledToFill()
+                            .opacity(0.9)
+                        BookPalette.page.opacity(0.6)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(BookPalette.lampGold.opacity(0.4), lineWidth: 1)
+                }
+                .padding(.horizontal, 22)
+                .shadow(color: .black.opacity(0.4), radius: 22, x: 0, y: 12)
+
+                stepDots
+                    .padding(.top, 16)
+
+                Spacer(minLength: 30)
+            }
+        }
+        .transition(.opacity)
+    }
+
+    private var stepDots: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<stepCount, id: \.self) { index in
+                Circle()
+                    .fill(index == step ? BookPalette.lampGold : BookPalette.nightText.opacity(0.3))
+                    .frame(width: index == step ? 9 : 6, height: index == step ? 9 : 6)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var stepContent: some View {
+        switch step {
+        case 0:
+            onboardingTitle("The Cover Opens")
+            onboardingProse("""
+            You open the book, and the ink does not stay still.
+
+            Letters lift off the page like startled birds. You taste ink. You hear the low roar of old stories turning over in their sleep. The paper of history rushes past your ears — and then, gently, stone under your feet.
+
+            You are standing in a colossal library-school. The light through the high windows matches the light outside your real window, exactly.
+
+            In the shadow of a shelf, something grey and silent tries to erase the edge of a bookcase. It retreats the moment you look at it.
+            """)
+            continueButton("Stand up")
+        case 1:
+            guidePortrait
+            onboardingTitle("The Guide")
+            onboardingProse("""
+            A student helps you up and brushes ink off your shoulder. Quick eyes, a compass on a cord around her neck.
+
+            "Zara Finch. You fell well — most people land in the cookery section." She studies you, then asks the most important question first:
+
+            "What's your favorite snack to eat while reading? I'm sharp green apples. They keep me awake when the footnotes get long."
+            """)
+            onboardingField("Your answer...", text: $snack)
+            continueButton("Tell her", disabled: snack.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        case 2:
+            onboardingTitle("The Name on the Flyleaf")
+            onboardingProse("""
+            Zara nods, satisfied, as if your answer told her more than it should have.
+
+            "The Book will want to know what to call you. Not your full legal anything — just the name that feels like yours when someone says it kindly."
+            """)
+            onboardingField("What should the Book call you?", text: $name)
+            continueButton("Write it in", disabled: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        case 3:
+            onboardingTitle("The Core Question")
+            onboardingProse("""
+            Zara goes quiet for a moment. When she speaks again, her voice is lower.
+
+            "One more. The real one. I believe every book is a door — that's mine, I'll trade it to you for yours."
+
+            "What do you believe in?"
+            """)
+            onboardingField("I believe...", text: $belief)
+            if !belief.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                onboardingProse("""
+                "Saying it out loud matters. But the Labyrinth needs more than words to remember something. It needs weight. Belief."
+
+                "You can plant three points of your own Glow into what you just named. The Book will hold it, weave it into what finds you here — and it won't give it back."
+                """)
+                HStack(spacing: 10) {
+                    Button {
+                        BookFeedback.play(.braidStart)
+                        investedBelief = true
+                        advance()
+                    } label: {
+                        Label("Plant 3 Belief", systemImage: "leaf")
+                            .font(.subheadline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(BookPalette.teal)
+
+                    Button {
+                        BookFeedback.play(.select)
+                        investedBelief = false
+                        advance()
+                    } label: {
+                        Text("Keep it for now")
+                            .font(.subheadline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(BookPalette.lampGold)
+                }
+            }
+        default:
+            onboardingTitle("The Academy Opens")
+            onboardingProse(closingProse)
+            continueButton("Step into your story")
+        }
+    }
+
+    private var closingProse: String {
+        let planted = investedBelief
+            ? "Somewhere deep in the Register, ink moves. Your belief now has a Glow of its own. It will start shaping what finds you.\n\n"
+            : "Zara nods. \"Wise. Some things you keep.\"\n\n"
+        return """
+        \(planted)"Here's how this place works," Zara says, walking you toward a desk where a book lies open to a blank page — your page.
+
+        "Pages rise to meet your real day — keep the ones worth keeping. The three wax seals listen for your body, your sky, and your ground. Give Glow to whatever you want more of; the Book pays attention to attention."
+
+        "And read your Book of You at the end of the day. That's where the magic compounds."
+
+        She taps the cover once. "Real life, re-enchanted. Off you go."
+        """
+    }
+
+    private var guidePortrait: some View {
+        HStack {
+            Spacer()
+            Image("LabyrinthCharacterZaraFinch")
+                .resizable()
+                .scaledToFill()
+                .frame(width: 96, height: 96)
+                .clipShape(Circle())
+                .overlay {
+                    Circle()
+                        .stroke(BookPalette.lampGold.opacity(0.7), lineWidth: 1.6)
+                }
+                .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 5)
+                .accessibilityLabel("Zara Finch, your guide")
+            Spacer()
+        }
+    }
+
+    private func onboardingTitle(_ text: String) -> some View {
+        WrittenGoldText(
+            text,
+            font: .system(size: 30, weight: .semibold, design: .serif),
+            progress: 1
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func onboardingProse(_ text: String) -> some View {
+        Text(text)
+            .font(.system(.callout, design: .serif))
+            .foregroundStyle(BookPalette.ink.opacity(0.86))
+            .lineSpacing(3)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func onboardingField(_ placeholder: String, text: Binding<String>) -> some View {
+        TextField(placeholder, text: text, axis: .vertical)
+            .font(.system(.body, design: .serif))
+            .foregroundStyle(BookPalette.ink)
+            .textFieldStyle(.plain)
+            .lineLimit(1...3)
+            .padding(12)
+            .background(BookPalette.paper.opacity(0.8), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
+            }
+    }
+
+    private func continueButton(_ title: String, disabled: Bool = false) -> some View {
+        Button {
+            BookFeedback.play(.openPage)
+            advance()
+        } label: {
+            Label(title, systemImage: "arrow.right")
+                .font(.headline.weight(.bold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 13)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(BookPalette.teal)
+        .disabled(disabled)
+    }
+
+    private func advance() {
+        if step >= stepCount - 1 {
+            onFinished(Result(
+                snack: snack.trimmingCharacters(in: .whitespacesAndNewlines),
+                name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                belief: belief.trimmingCharacters(in: .whitespacesAndNewlines),
+                investedBelief: investedBelief
+            ))
+            return
+        }
+        withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.34)) {
+            step += 1
+        }
+    }
+}
+
+/// A small parchment note from Zara that slides in the first time the player
+/// touches something new. Tap to dismiss; it also fades on its own.
+struct MarginTutorNoteCard: View {
+    let note: MarginTutorNote
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image("LabyrinthCharacterZaraFinch")
+                .resizable()
+                .scaledToFill()
+                .frame(width: 38, height: 38)
+                .clipShape(Circle())
+                .overlay {
+                    Circle()
+                        .stroke(BookPalette.lampGold.opacity(0.7), lineWidth: 1.2)
+                }
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text("ZARA'S MARGIN NOTE")
+                        .font(.system(size: 9, weight: .black))
+                        .kerning(1.1)
+                        .foregroundStyle(BookPalette.teal)
+                    Spacer()
+                    Image(systemName: "xmark")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.4))
+                }
+                Text(note.title)
+                    .font(.system(.subheadline, design: .serif, weight: .bold))
+                    .foregroundStyle(BookPalette.ink)
+                Text(note.text)
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.ink.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .background {
+            ZStack {
+                Image("ParchmentFiber")
+                    .resizable()
+                    .scaledToFill()
+                    .opacity(0.3)
+                BookPalette.page.opacity(0.97)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.45), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.35), radius: 14, x: 0, y: 8)
+        .rotationEffect(.degrees(-0.6))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            BookFeedback.play(.dismissPage)
+            onDismiss()
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Margin note from Zara. \(note.title). \(note.text)")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Tap to dismiss")
     }
 }

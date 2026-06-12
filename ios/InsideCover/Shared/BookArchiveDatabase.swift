@@ -240,6 +240,76 @@ final class StoredNarrativeEntityMemory {
 }
 
 @Model
+final class StoredCustomCastMember {
+    @Attribute(.unique) var id: String
+    var name: String
+    var kindRawValue: String
+    var meaning: String
+    var descriptionText: String
+    var traitsData: Data
+    var beliefsData: Data
+    var goalsData: Data
+    var tagsData: Data
+    var baseBelief: Int
+    var narrativeWeight: Int
+    var createdAt: Date
+    var updatedAt: Date
+    var imageAssetData: Data?
+
+    init(member: CustomCastMember) {
+        id = member.id
+        name = member.name
+        kindRawValue = member.kind.rawValue
+        meaning = member.meaning
+        descriptionText = member.description
+        traitsData = (try? JSONEncoder().encode(member.traits)) ?? Data()
+        beliefsData = (try? JSONEncoder().encode(member.beliefs)) ?? Data()
+        goalsData = (try? JSONEncoder().encode(member.goals)) ?? Data()
+        tagsData = (try? JSONEncoder().encode(member.tags)) ?? Data()
+        baseBelief = member.baseBelief
+        narrativeWeight = member.narrativeWeight
+        createdAt = member.createdAt
+        updatedAt = member.updatedAt
+        imageAssetData = member.imageAsset.flatMap { try? JSONEncoder().encode($0) }
+    }
+
+    var customCastMember: CustomCastMember {
+        CustomCastMember(
+            id: id,
+            name: name,
+            kind: NarrativeEntityKind(rawValue: kindRawValue) ?? .object,
+            meaning: meaning,
+            description: descriptionText,
+            traits: (try? JSONDecoder().decode([String].self, from: traitsData)) ?? [],
+            beliefs: (try? JSONDecoder().decode([String].self, from: beliefsData)) ?? [],
+            goals: (try? JSONDecoder().decode([String].self, from: goalsData)) ?? [],
+            tags: (try? JSONDecoder().decode([String].self, from: tagsData)) ?? [],
+            baseBelief: baseBelief,
+            narrativeWeight: narrativeWeight,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            imageAsset: imageAssetData.flatMap { try? JSONDecoder().decode(BookPageMediaAsset.self, from: $0) }
+        )
+    }
+
+    func update(with member: CustomCastMember) {
+        name = member.name
+        kindRawValue = member.kind.rawValue
+        meaning = member.meaning
+        descriptionText = member.description
+        traitsData = (try? JSONEncoder().encode(member.traits)) ?? Data()
+        beliefsData = (try? JSONEncoder().encode(member.beliefs)) ?? Data()
+        goalsData = (try? JSONEncoder().encode(member.goals)) ?? Data()
+        tagsData = (try? JSONEncoder().encode(member.tags)) ?? Data()
+        baseBelief = member.baseBelief
+        narrativeWeight = member.narrativeWeight
+        createdAt = member.createdAt
+        updatedAt = member.updatedAt
+        imageAssetData = member.imageAsset.flatMap { try? JSONEncoder().encode($0) }
+    }
+}
+
+@Model
 final class StoredFacultyEntry {
     @Attribute(.unique) var id: String
     var kindRawValue: String
@@ -295,7 +365,7 @@ final class StoredFacultyEntry {
 
 @MainActor
 final class BookArchiveDatabase {
-    static let schemaVersion = 4
+    static let schemaVersion = 5
     static let backupDirectoryName = "BookArchiveBackups"
 
     enum LoadSource: String, Equatable {
@@ -513,6 +583,34 @@ final class BookArchiveDatabase {
         try context.save()
     }
 
+    func customCastMembers(limit: Int = 200) throws -> [CustomCastMember] {
+        let context = try makeContext()
+        var descriptor = FetchDescriptor<StoredCustomCastMember>(
+            sortBy: [
+                SortDescriptor(\.narrativeWeight, order: .reverse),
+                SortDescriptor(\.updatedAt, order: .reverse)
+            ]
+        )
+        descriptor.fetchLimit = max(limit, 0)
+        return try context.fetch(descriptor).map(\.customCastMember)
+    }
+
+    func upsertCustomCastMember(_ member: CustomCastMember) throws {
+        let context = try makeContext()
+        var descriptor = FetchDescriptor<StoredCustomCastMember>(
+            predicate: #Predicate { storedMember in
+                storedMember.id == member.id
+            }
+        )
+        descriptor.fetchLimit = 1
+        if let existing = try context.fetch(descriptor).first {
+            existing.update(with: member)
+        } else {
+            context.insert(StoredCustomCastMember(member: member))
+        }
+        try context.save()
+    }
+
     func facultyEntries(kind: FacultyEntryKind? = nil, dayIDs: [String]? = nil, since: Date? = nil, limit: Int = 120) throws -> [FacultyEntry] {
         let context = try makeContext()
         let wantedDayIDs = dayIDs.map(Set.init)
@@ -610,6 +708,7 @@ final class BookArchiveDatabase {
             StoredSelfFact.self,
             StoredNarrativeEvent.self,
             StoredNarrativeEntityMemory.self,
+            StoredCustomCastMember.self,
             StoredFacultyEntry.self
         ])
         let configuration = ModelConfiguration(

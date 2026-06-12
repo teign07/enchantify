@@ -259,6 +259,84 @@ struct WeatherSourceCard: View {
     }
 }
 
+struct AnchorSourceCard: View {
+    let proximity: AnchorProximity?
+    let message: String
+    let isChecking: Bool
+    let hasRequested: Bool
+    let isAvailable: Bool
+    let onRequest: () -> Void
+
+    private var title: String {
+        proximity == nil ? "Outer Stacks Doorway" : "Anchor awake"
+    }
+
+    private var statusText: String {
+        if let proximity {
+            return "\(Int(proximity.distanceMeters.rounded()))m · \(proximity.anchor.kind.title)"
+        }
+        if !isAvailable {
+            return "no ley reading"
+        }
+        if isChecking {
+            return "listening"
+        }
+        return hasRequested ? "tap to check again" : "door unopened"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "mappin.and.ellipse")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(BookPalette.teal)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(statusText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.56))
+                }
+
+                Spacer()
+
+                if isChecking {
+                    ProgressView()
+                        .tint(BookPalette.teal)
+                } else {
+                    Button {
+                        onRequest()
+                    } label: {
+                        Image(systemName: proximity == nil ? "location.magnifyingglass" : "arrow.clockwise.circle")
+                            .font(.title3.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(BookPalette.teal)
+                    .disabled(!isAvailable)
+                    .accessibilityLabel(proximity == nil ? "Check nearby Anchors" : "Check nearby Anchors again")
+                }
+            }
+
+            if let proximity {
+                Text(proximity.anchor.name)
+                    .font(.system(.body, design: .serif).weight(.semibold))
+                    .foregroundStyle(BookPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.62))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .parchmentSurface(accent: BookPalette.teal, isActive: proximity != nil)
+    }
+}
+
 struct StoryFieldStatusCard: View {
     let surface: SurfacePage?
     let events: [NarrativeEvent]
@@ -600,6 +678,7 @@ enum GlowMenuAction {
     case openEnchantment(GlowEnchantmentMenuItem)
     case openPage(BookPageType)
     case openBookSection(String)
+    case openBookShop
 }
 
 private enum GlowMenuSection: String, CaseIterable, Identifiable {
@@ -613,7 +692,7 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .belief:
-            return "Belief"
+            return "The Cast"
         case .spells:
             return "Spells"
         case .pages:
@@ -626,7 +705,7 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .belief:
-            return "Give or take Belief among the Cast."
+            return "Give or take Belief among characters."
         case .spells:
             return "Open a Compass Run or Enchantment."
         case .pages:
@@ -685,6 +764,7 @@ struct GlowCommandMenu: View {
     let pageTypes: [GlowPageMenuItem]
     let bookSections: [GlowBookSectionMenuItem]
     let enchantments: [GlowEnchantmentMenuItem]
+    let onCreateCastMember: () -> Void
     let onClose: () -> Void
     let onSelectAction: (GlowMenuAction) -> Void
 
@@ -878,7 +958,7 @@ struct GlowCommandMenu: View {
                     Text(section.subtitle)
                         .font(.system(.caption, design: .serif))
                         .foregroundStyle(BookPalette.ink.opacity(0.74))
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer(minLength: 8)
@@ -889,7 +969,7 @@ struct GlowCommandMenu: View {
                     .rotationEffect(.degrees(isSelected ? 90 : 0))
             }
             .padding(9)
-            .frame(maxWidth: .infinity, minHeight: 78, maxHeight: 78, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
@@ -1008,6 +1088,14 @@ struct GlowCommandMenu: View {
             }
         case .pages:
             pageBeliefSubmenu(compact: compact)
+            menuButton(
+                title: "The BookShop",
+                detail: "The Goblin Index Empire sells new kinds of Pages: folios, looms, and marginalia.",
+                systemImage: "books.vertical.fill",
+                compact: compact
+            ) {
+                onSelectAction(.openBookShop)
+            }
         case .book:
             ForEach(bookSections) { section in
                 menuButton(
@@ -1048,7 +1136,7 @@ struct GlowCommandMenu: View {
                             Text(page.detail)
                                 .font(compact ? .caption2 : .caption)
                                 .foregroundStyle(BookPalette.ink.opacity(0.66))
-                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
 
                         Spacer()
@@ -1059,9 +1147,6 @@ struct GlowCommandMenu: View {
                                 .foregroundStyle(BookPalette.teal)
                                 .multilineTextAlignment(.trailing)
                                 .lineLimit(2)
-                            Text("weight \(page.curationWeight)")
-                                .font(.caption2.monospacedDigit().weight(.bold))
-                                .foregroundStyle(BookPalette.ink.opacity(0.48))
                         }
                     }
                     .padding(.horizontal, compact ? 10 : 12)
@@ -1107,6 +1192,38 @@ struct GlowCommandMenu: View {
             }
             .pickerStyle(.segmented)
 
+            Button {
+                onCreateCastMember()
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(BookPalette.violet)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Give Belief to a new Cast Member")
+                            .font((compact ? Font.caption : Font.subheadline).weight(.bold))
+                            .foregroundStyle(BookPalette.ink)
+                        Text("State what it is, or give the Book a photo.")
+                            .font(compact ? .caption2 : .caption)
+                            .foregroundStyle(BookPalette.ink.opacity(0.66))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.38))
+                }
+                .padding(.horizontal, compact ? 10 : 12)
+                .padding(.vertical, compact ? 8 : 10)
+                .background(BookPalette.violet.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.violet.opacity(0.22), lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Give Belief to a new Cast Member")
+
             ForEach(entities) { entity in
                 Button {
                     BookFeedback.play(.select)
@@ -1120,7 +1237,7 @@ struct GlowCommandMenu: View {
                             Text(entity.line)
                                 .font(compact ? .caption2 : .caption)
                                 .foregroundStyle(BookPalette.ink.opacity(0.66))
-                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer()
                         Text(entity.glowName)

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.openclaw.enchantify.insidecover.overnight-scribe</string>
+	</array>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.</string>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>processing</string>
+	</array>
+</dict>
+</plist>

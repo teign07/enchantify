@@ -56,12 +56,68 @@ enum LocalBrainGateError: LocalizedError {
     }
 }
 
+/// Holds the loaded model containers between generations. Reloading the
+/// container for every page was the largest avoidable cost per generation
+/// and the prime suspect for mid-write freezes under memory pressure.
+actor LocalBrainModelCache {
+    static let shared = LocalBrainModelCache()
+
+    private var llmContainer: ModelContainer?
+    private var llmPath: String?
+    private var vlmContainer: ModelContainer?
+    private var vlmPath: String?
+
+    func llm(for directory: URL) async throws -> ModelContainer {
+        if let llmContainer, llmPath == directory.path {
+            return llmContainer
+        }
+        AppMemoryLedger.record("llm-container-load")
+        let loaded = try await LLMModelFactory.shared.loadContainer(
+            from: directory,
+            using: TokenizersLoader()
+        )
+        llmContainer = loaded
+        llmPath = directory.path
+        return loaded
+    }
+
+    func vlm(for directory: URL) async throws -> ModelContainer {
+        if let vlmContainer, vlmPath == directory.path {
+            return vlmContainer
+        }
+        AppMemoryLedger.record("vlm-container-load")
+        let loaded = try await VLMModelFactory.shared.loadContainer(
+            from: directory,
+            using: TokenizersLoader()
+        )
+        vlmContainer = loaded
+        vlmPath = directory.path
+        return loaded
+    }
+
+    func unload() {
+        guard llmContainer != nil || vlmContainer != nil else { return }
+        llmContainer = nil
+        llmPath = nil
+        vlmContainer = nil
+        vlmPath = nil
+        AppMemoryLedger.record("model-containers-unloaded")
+    }
+}
+
 actor LocalBrainInferenceGate {
     static let shared = LocalBrainInferenceGate()
 
     private let cacheLimit = 8 * 1024 * 1024
     private let memoryLimit = 1_850 * 1024 * 1024
     private var isRunning = false
+    private var allowsBackgroundWork = false
+
+    /// The overnight scribe runs while the app is backgrounded; everything
+    /// else still requires the app to be on screen.
+    func setBackgroundAllowance(_ allowed: Bool) {
+        allowsBackgroundWork = allowed
+    }
 
     func run<T>(
         label: String,
@@ -94,6 +150,9 @@ actor LocalBrainInferenceGate {
     }
 
     private func requireForeground() async throws {
+        if allowsBackgroundWork {
+            return
+        }
         #if canImport(UIKit)
         let isActive = await MainActor.run {
             UIApplication.shared.applicationState == .active
@@ -148,7 +207,7 @@ enum MLXBookBraiderMode {
 }
 
 struct MLXBookBraider: Braider {
-    var maxTokens = 340
+    var maxTokens = 560
     var mode: MLXBookBraiderMode = .bookOfYou
     var instructions = Self.bookOfYouInstructions
 
@@ -160,17 +219,15 @@ struct MLXBookBraider: Braider {
         let prompt: String
         switch mode {
         case .bookOfYou:
-            prompt = LocalModelManager.bookOfYouBraidPrompt(for: day)
+            let recentBraids = await MainActor.run { Self.recentBraidTexts(excludingDayID: day.id) }
+            prompt = LocalModelManager.bookOfYouBraidPrompt(for: day, recentBraids: recentBraids)
         case .task:
             prompt = LocalModelManager.taskPrompt(for: day)
         }
 
         let response = try await LocalBrainInferenceGate.shared.run(label: "braid", promptCharacters: prompt.count) {
             try await Device.withDefaultDevice(.gpu) {
-                let container = try await LLMModelFactory.shared.loadContainer(
-                    from: modelDirectory,
-                    using: TokenizersLoader()
-                )
+                let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
                 let session = ChatSession(
                     container,
                     instructions: instructions,
@@ -186,24 +243,48 @@ struct MLXBookBraider: Braider {
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }
+        let polishedResponse = BraidTextPolisher.polishedBookOfYou(response)
 
-        guard !response.isEmpty else {
+        guard !polishedResponse.isEmpty else {
             throw LocalModelError.missingModel(LocalModelManager.report())
         }
 
         return BookPage(
             type: .bookOfYou,
             promptText: "The local Book brain braided today.",
-            userInput: response,
+            userInput: polishedResponse,
             tags: ["braid", "local-model", "mlx", "gemma"],
             usedInBookOfYou: true
         )
+    }
+
+    /// Earlier braids feed the prompt so motifs can return, changed —
+    /// the Book of You reads as one continuing book instead of episodes.
+    @MainActor
+    static func recentBraidTexts(excludingDayID dayID: String, limit: Int = 2) -> [String] {
+        let days = BookDatabase.loadDays(migratingFrom: BookStore.loadDays())
+        let braids = days
+            .filter { $0.id != dayID }
+            .sorted { $0.date < $1.date }
+            .flatMap { day in day.pages.filter { $0.type == .bookOfYou } }
+        guard !braids.isEmpty else { return [] }
+        var selected: [BookPage] = []
+        if let newest = braids.last {
+            selected.append(newest)
+        }
+        if braids.count >= 5 {
+            selected.append(braids[braids.count - 5])
+        }
+        return selected.prefix(limit).map { String($0.userInput.prefix(700)) }
     }
 
     static let bookOfYouInstructions = """
     You are The Book inside ReEnchanted. You braid kept private real-life pages into a grounded, literary Book of You entry.
     Use only the supplied kept pages. Do not diagnose, moralize, invent completed actions, or speak as a generic assistant.
     Write a small narrative with a beginning, a turn, and a landing. Do not list. Do not copy long phrases back verbatim.
+    Keep the braid to 4 to 7 short paragraphs, about 280 to 450 words. It should feel like a full page of the Book without becoming a scroll chore.
+    Mention each motif, image, sentence idea, or emotional beat only once.
+    Do not restate the same idea in consecutive paragraphs with swapped words.
     Keep it warm, vivid, playful, and true.
     Prose standard: simple concrete sentences, specific nouns and verbs, one exact physical detail per paragraph. No vague wonder, generic inspiration, journey, profound, tapestry, echoes, or abstract emotional summary.
     """
@@ -241,10 +322,7 @@ enum MLXBraidTaskRunner {
             presentation: .live
         ) {
             try await Device.withDefaultDevice(.gpu) {
-                let container = try await LLMModelFactory.shared.loadContainer(
-                    from: modelDirectory,
-                    using: TokenizersLoader()
-                )
+                let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
                 let session = ChatSession(
                     container,
                     instructions: instructions,
@@ -323,10 +401,7 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
             presentation: .live
         ) {
             try await Device.withDefaultDevice(.gpu) {
-                let container = try await LLMModelFactory.shared.loadContainer(
-                    from: modelDirectory,
-                    using: TokenizersLoader()
-                )
+                let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
                 let session = ChatSession(
                     container,
                     instructions: """
@@ -351,6 +426,183 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
         return response
     }
 }
+
+struct MLXEnchantmentWriter: EnchantmentWriting {
+    var maxTokens = 520 // fallback; cast() prefers the spell's own budget
+
+    func cast(spell: EnchantmentSpell, analysis: PhotoAnalysis, day: BookDay) async throws -> EnchantmentCastResult {
+        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
+            throw LocalModelError.missingModel(LocalModelManager.report())
+        }
+
+        let taskPrompt = LocalModelManager.enchantmentCastPrompt(spell: spell, analysis: analysis, day: day)
+        let response = try await LocalBrainInferenceGate.shared.run(
+            label: "enchantment-\(spell.id)",
+            promptCharacters: taskPrompt.count,
+            presentation: .live
+        ) {
+            try await Device.withDefaultDevice(.gpu) {
+                let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
+                let session = ChatSession(
+                    container,
+                    instructions: """
+                    You are the ReEnchanted Enchantment engine. Return compact strict JSON for the requested spell.
+                    """,
+                    generateParameters: GenerateParameters(
+                        maxTokens: spell.preferredMaxTokens,
+                        maxKVSize: 2_048,
+                        temperature: 0.78,
+                        topP: 0.92,
+                        prefillStepSize: 256
+                    )
+                )
+                return try await session.respond(to: taskPrompt)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        return Self.parseCastResult(response, spell: spell, analysis: analysis)
+    }
+
+    func answerObject(prompt: String, result: EnchantmentCastResult, previousTurns: [AskTheBookTurn], day: BookDay) async throws -> String {
+        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
+            throw LocalModelError.missingModel(LocalModelManager.report())
+        }
+
+        let taskPrompt = LocalModelManager.everythingSpeaksReplyPrompt(
+            prompt: prompt,
+            result: result,
+            previousTurns: previousTurns,
+            day: day
+        )
+        let response = try await LocalBrainInferenceGate.shared.run(
+            label: "everything-speaks-reply",
+            promptCharacters: taskPrompt.count,
+            presentation: .live
+        ) {
+            try await Device.withDefaultDevice(.gpu) {
+                let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
+                let session = ChatSession(
+                    container,
+                    instructions: """
+                    You are the object awakened by Everything Speaks. Answer in character, briefly and concretely.
+                    """,
+                    generateParameters: GenerateParameters(
+                        maxTokens: 420,
+                        maxKVSize: 2_048,
+                        temperature: 0.76,
+                        topP: 0.92,
+                        prefillStepSize: 256
+                    )
+                )
+                return try await session.respond(to: taskPrompt)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        guard !response.isEmpty else {
+            throw LocalModelError.missingModel(LocalModelManager.report())
+        }
+        return response
+    }
+
+    private static func parseCastResult(_ response: String, spell: EnchantmentSpell, analysis: PhotoAnalysis) -> EnchantmentCastResult {
+        let fallbackSubject = analysis.motifs.first ?? analysis.marginalia.stampLabel
+        if let raw = jsonDictionary(from: response) {
+            let subject = stringValue(raw["subjectName"]) ?? fallbackSubject
+            return EnchantmentCastResult(
+                spellID: spell.id,
+                spellName: spell.title,
+                subjectName: subject,
+                openingLine: stringValue(raw["openingLine"]) ?? "\(spell.title) touched \(subject).",
+                resultText: stringValue(raw["resultText"])
+                    ?? stringValue(raw["result"])
+                    ?? stringValue(raw["text"])
+                    ?? plainProse(from: response, fallback: analysis.marginalia.closingLine),
+                objectVoice: stringValue(raw["objectVoice"])
+            )
+        }
+
+        // The model's JSON would not parse — salvage fields directly from the
+        // text so the reader never sees raw braces and quoted keys.
+        let subject = capturedString(forKey: "subjectName", in: response) ?? fallbackSubject
+        return EnchantmentCastResult(
+            spellID: spell.id,
+            spellName: spell.title,
+            subjectName: subject,
+            openingLine: capturedString(forKey: "openingLine", in: response) ?? "\(spell.title) touched \(subject).",
+            resultText: capturedString(forKey: "resultText", in: response)
+                ?? plainProse(from: response, fallback: analysis.marginalia.closingLine),
+            objectVoice: capturedString(forKey: "objectVoice", in: response)
+                ?? (spell.id == "everything-speaks" ? "observant, concrete, gently alive" : nil)
+        )
+    }
+
+    private static func jsonDictionary(from text: String) -> [String: Any]? {
+        guard let extracted = extractJSONObject(from: text) else { return nil }
+        for candidate in [extracted, cleanedJSON(extracted)] {
+            if let data = candidate.data(using: .utf8),
+               let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                return raw
+            }
+        }
+        return nil
+    }
+
+    private static func cleanedJSON(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\u{201C}", with: "\"")
+            .replacingOccurrences(of: "\u{201D}", with: "\"")
+            .replacingOccurrences(of: "\u{2018}", with: "'")
+            .replacingOccurrences(of: "\u{2019}", with: "'")
+            .replacingOccurrences(of: ",\\s*([}\\]])", with: "$1", options: .regularExpression)
+    }
+
+    private static func capturedString(forKey key: String, in text: String) -> String? {
+        let pattern = "\"\(key)\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)"
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let range = Range(match.range(at: 1), in: text) else {
+            return nil
+        }
+        let value = String(text[range])
+            .replacingOccurrences(of: "\\n", with: "\n")
+            .replacingOccurrences(of: "\\\"", with: "\"")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
+
+    private static func plainProse(from response: String, fallback: String) -> String {
+        let stripped = response
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if stripped.isEmpty || stripped.hasPrefix("{") || stripped.hasPrefix("[") || stripped.contains("\"resultText\"") {
+            return fallback
+        }
+        return stripped
+    }
+
+    private static func extractJSONObject(from text: String) -> String? {
+        guard let start = text.firstIndex(of: "{"),
+              let end = text.lastIndex(of: "}"),
+              start <= end else {
+            return nil
+        }
+        return String(text[start...end])
+    }
+
+    private static func stringValue(_ value: Any?) -> String? {
+        guard let string = value as? String else { return nil }
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+
+
+
+
 
 struct MLXWonderCompassChooser: WonderCompassPassageChoosing {
     func chooseWonderCompassSnippet(
@@ -578,6 +830,113 @@ struct FakeFacultyResearchWriter: FacultyResearchWriting {
     }
 }
 
+protocol CharacterLetterWriting {
+    func write(surface: SurfacePage) async throws -> String
+}
+
+struct CharacterLetterPromptBuilder {
+    static let instructions = """
+    You are writing an in-world NPC letter for ReEnchanted.
+    Write as the named sender, not as an assistant. Use the sender's writing voice, memories, and narrative context.
+    Use live web research clippings when supplied, especially details connected to the player's actual home context.
+    If no live clippings are supplied, fall back to your own general knowledge, but do not pretend you browsed or cite fake sources.
+    Do not invent completed real-world actions by the player. Do not diagnose, prescribe, or moralize.
+    Format as a real letter: greeting, 3-6 short paragraphs, signoff from the sender, optional P.S. if it fits the voice.
+    """
+
+    static func prompt(for surface: SurfacePage) -> String {
+        let sender = surface.payload.metadata["senderName"] ?? "A character"
+        let playerName = surface.payload.metadata["playerName"]?.nonEmpty ?? "friend"
+        let interest = surface.payload.metadata["unwrittenInterest"] ?? "ordinary wonder"
+        let homeContext = surface.payload.metadata["homeContext"] ?? "the player's home"
+        let clippings = surface.payload.metadata["letterResearchClippings"]?.nonEmpty
+            ?? surface.payload.metadata["realInterestClippings"]?.nonEmpty
+            ?? "No live web clippings were available. Use model knowledge carefully and say things generally."
+        let sources = surface.payload.metadata["letterResearchSources"]?.nonEmpty ?? "No source URLs."
+        let talismanMoves = surface.payload.metadata["chapterTalismanMoves"]?.nonEmpty
+            ?? "No chapter talisman move is being made in this letter."
+        return """
+        Sender: \(sender)
+        Address the player as: \(playerName)
+        Unwritten Interest: \(interest)
+        Player home context: \(homeContext)
+
+        Chapter talisman move:
+        \(talismanMoves)
+
+        Draft packet:
+        \(surface.payload.body)
+
+        Live web research clippings:
+        \(clippings)
+
+        Research source URLs:
+        \(sources)
+
+        Write the finished letter. It should feel researched, personal, and specific to the sender. Blend real-world facts with the sender's voice and relationship to the player. Start with a greeting that uses "\(playerName)" exactly. Never write "[Player Name]". If a chapter talisman move is supplied, make it a real small action or confession in the letter; the app will apply its talisman Belief delta when the letter is kept. If no move is supplied, do not invent one.
+        """
+    }
+
+    static func clean(_ response: String, fallback: String, sender: String, playerName: String) -> String {
+        let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            return trimmed
+        }
+        return """
+        Dear \(playerName),
+
+        I tried to send this through the Margin-Glass with proper research attached, but the glass fogged before the sources settled. What remains is still true enough to keep: I was thinking about \(fallback.bookPreviewSentenceLimit(1).lowercased()).
+
+        I will write again when the shelves stop moving.
+
+        \(sender)
+        """
+    }
+}
+
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+struct MLXCharacterLetterWriter: CharacterLetterWriting {
+    func write(surface: SurfacePage) async throws -> String {
+        let prompt = CharacterLetterPromptBuilder.prompt(for: surface)
+        let response = try await MLXBraidTaskRunner.run(
+            prompt: prompt,
+            instructions: CharacterLetterPromptBuilder.instructions,
+            maxTokens: 620,
+            sourceID: "letter-page",
+            tags: ["letter", "character-letter"]
+        )
+        let sender = surface.payload.metadata["senderName"] ?? "A character"
+        let playerName = surface.payload.metadata["playerName"]?.nonEmpty ?? "friend"
+        return CharacterLetterPromptBuilder.clean(response, fallback: surface.payload.body, sender: sender, playerName: playerName)
+    }
+}
+#endif
+
+struct FakeCharacterLetterWriter: CharacterLetterWriting {
+    func write(surface: SurfacePage) async throws -> String {
+        try await Task.sleep(nanoseconds: 250_000_000)
+        let sender = surface.payload.metadata["senderName"] ?? "A character"
+        let playerName = surface.payload.metadata["playerName"]?.nonEmpty ?? "friend"
+        let interest = surface.payload.metadata["unwrittenInterest"] ?? "ordinary wonder"
+        let home = surface.payload.metadata["homeContext"] ?? "your home"
+        let clippings = surface.payload.metadata["letterResearchClippings"]?.nonEmpty
+        let researchLine = clippings.map { "I found this in the public stacks:\n\($0)" }
+            ?? "The public stacks did not answer in time, so I am leaning on what I already know."
+        return """
+        Dear \(playerName),
+
+        I went looking for \(interest), especially where it brushes against \(home). \(researchLine)
+
+        What interested me was not the grand theory, but the way a subject changes when it has to pass through a real doorway. A fact becomes different when it has weather on it, errands near it, and one person deciding whether to notice.
+
+        Keep this near the day, not above it. If \(interest) is a door, then your ordinary place is one of its hinges.
+
+        Yours from the margins,
+        \(sender)
+        """
+    }
+}
+
 protocol PhotoIlluminationAnalyzing {
     func analyze(photo: UIImage) async throws -> PhotoAnalysis
 }
@@ -694,10 +1053,7 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
         let prompt = LocalModelManager.photoIlluminationPrompt
         let response = try await LocalBrainInferenceGate.shared.run(label: "photo-illumination", promptCharacters: prompt.count) {
             try await Device.withDefaultDevice(.gpu) {
-                let container = try await VLMModelFactory.shared.loadContainer(
-                    from: modelDirectory,
-                    using: TokenizersLoader()
-                )
+                let container = try await LocalBrainModelCache.shared.vlm(for: modelDirectory)
                 let session = ChatSession(
                     container,
                     instructions: """
@@ -1797,6 +2153,32 @@ extension SurfacePage {
         )
     }
 
+    func withLetterResearchClippings(_ clippings: [RealInterestGossipClipping]) -> SurfacePage {
+        guard !clippings.isEmpty else { return self }
+        let clippingLines = clippings.map { "- \($0.promptLine)" }.joined(separator: "\n")
+        let sourceLines = clippings.map { "\($0.interest): \($0.sourceURL)" }.joined(separator: "\n")
+        var metadata = payload.metadata
+        metadata["letterResearchClippings"] = clippingLines
+        metadata["letterResearchSources"] = sourceLines
+        metadata["letterResearchCount"] = "\(clippings.count)"
+        return SurfacePage(
+            id: id,
+            type: type,
+            sourceID: sourceID,
+            intent: intent,
+            renderStyle: renderStyle,
+            score: min(score + clippings.count * 5, 98),
+            reason: reason,
+            prompt: prompt,
+            detail: detail,
+            payload: BookPagePayload(
+                headline: payload.headline,
+                body: "\(payload.body)\n\nLive web research clippings:\n\(clippingLines)",
+                metadata: metadata
+            )
+        )
+    }
+
     func preparedStoryPageCopy(prose: StoryPageProse, slotID: String) -> SurfacePage {
         var metadata = payload.metadata
         metadata["slotID"] = slotID
@@ -1943,5 +2325,314 @@ extension SurfacePage {
                 metadata: metadata
             )
         )
+    }
+
+    func preparedLetterCopy(prose: String, slotID: String) -> SurfacePage {
+        var metadata = payload.metadata
+        metadata["slotID"] = slotID
+        metadata["letterProse"] = prose
+        metadata["proseStatus"] = "generated"
+        return SurfacePage(
+            id: id,
+            type: type,
+            sourceID: sourceID,
+            intent: intent,
+            renderStyle: renderStyle,
+            score: score,
+            reason: reason,
+            prompt: prompt,
+            detail: detail,
+            payload: BookPagePayload(
+                headline: payload.headline,
+                body: prose,
+                metadata: metadata
+            )
+        )
+    }
+}
+
+// MARK: - The single seam between pages and the local brain.
+//
+// Every prose-shaped generation goes through LocalBrainProse; this is the
+// only place outside the MLX block that knows whether a native brain exists
+// in this build. Callers get prose or nil — never an #if.
+enum LocalBrainProse {
+    static func write(
+        prompt: String,
+        instructions: String,
+        maxTokens: Int,
+        sourceID: String,
+        tags: [String]
+    ) async -> String? {
+        #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+        guard LocalModelManager.report().state == .ready else { return nil }
+        let response = try? await MLXBraidTaskRunner.run(
+            prompt: prompt,
+            instructions: instructions,
+            maxTokens: maxTokens,
+            sourceID: sourceID,
+            tags: tags
+        )
+        return response?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        #else
+        return nil
+        #endif
+    }
+}
+
+struct CharacterLetterWriter {
+    func write(surface: SurfacePage) async -> String {
+        let prompt = prompt(for: surface)
+        if let response = await LocalBrainProse.write(
+            prompt: prompt,
+            instructions: """
+            You are writing an in-world NPC letter for ReEnchanted.
+            Write as the named sender, not as an assistant. Use the sender's writing voice, memories, and narrative context.
+            Use live web research clippings when supplied, especially details connected to the player's actual home context.
+            If no live clippings are supplied, fall back to your own general knowledge, but do not pretend you browsed or cite fake sources.
+            Do not invent completed real-world actions by the player. Do not diagnose, prescribe, or moralize.
+            Format as a real letter: greeting, 3-6 short paragraphs, signoff from the sender, optional P.S. if it fits the voice.
+            """,
+            maxTokens: 620,
+            sourceID: "letter-page",
+            tags: ["letter", "character-letter"]
+        ) {
+            return response
+        }
+        return fallback(surface: surface)
+    }
+
+    private func prompt(for surface: SurfacePage) -> String {
+        let sender = surface.payload.metadata["senderName"] ?? "A character"
+        let playerName = surface.payload.metadata["playerName"]?.nonEmpty ?? "friend"
+        let interest = surface.payload.metadata["unwrittenInterest"] ?? "ordinary wonder"
+        let homeContext = surface.payload.metadata["homeContext"] ?? "the player's home"
+        let clippings = surface.payload.metadata["letterResearchClippings"]?.nonEmpty
+            ?? surface.payload.metadata["realInterestClippings"]?.nonEmpty
+            ?? "No live web clippings were available. Use model knowledge carefully and say things generally."
+        let sources = surface.payload.metadata["letterResearchSources"]?.nonEmpty ?? "No source URLs."
+        return """
+        Sender: \(sender)
+        Address the player as: \(playerName)
+        Unwritten Interest: \(interest)
+        Player home context: \(homeContext)
+
+        Draft packet:
+        \(surface.payload.body)
+
+        Live web research clippings:
+        \(clippings)
+
+        Research source URLs:
+        \(sources)
+
+        Write the finished letter. It should feel researched, personal, and specific to the sender. Blend real-world facts with the sender's voice and relationship to the player. Start with a greeting that uses "\(playerName)" exactly. Never write "[Player Name]".
+        """
+    }
+
+    private func fallback(surface: SurfacePage) -> String {
+        let sender = surface.payload.metadata["senderName"] ?? "A character"
+        let playerName = surface.payload.metadata["playerName"]?.nonEmpty ?? "friend"
+        let interest = surface.payload.metadata["unwrittenInterest"] ?? "ordinary wonder"
+        let home = surface.payload.metadata["homeContext"] ?? "your home"
+        let clippings = surface.payload.metadata["letterResearchClippings"]?.nonEmpty
+        let researchLine = clippings.map { "I found this in the public stacks:\n\($0)" }
+            ?? "The public stacks did not answer in time, so I am leaning on what I already know."
+        return """
+        Dear \(playerName),
+
+        I went looking for \(interest), especially where it brushes against \(home). \(researchLine)
+
+        What interested me was not the grand theory, but the way a subject changes when it has to pass through a real doorway. A fact becomes different when it has weather on it, errands near it, and one person deciding whether to notice.
+
+        Keep this near the day, not above it. If \(interest) is a door, then your ordinary place is one of its hinges.
+
+        Yours from the margins,
+        \(sender)
+        """
+    }
+}
+
+struct PlayfulMissionWriter {
+    func mission(from surface: SurfacePage) async -> PlayfulMission {
+        let fallback = fallbackMission(from: surface)
+        guard let response = await LocalBrainProse.write(
+            prompt: prompt(for: surface),
+            instructions: """
+            You are The Wonder Compass inside ReEnchanted. Generate one tiny Playful Mission for South = Sense. Return compact strict JSON only.
+            """,
+            maxTokens: 240,
+            sourceID: "wonder-compass-playful-mission",
+            tags: ["wonder-compass", "playful-mission", "custom"]
+        ), let raw = JSONSalvage.dictionary(from: response) else {
+            return fallback
+        }
+
+        let title = compactLine(JSONSalvage.string("title", in: raw), limit: 44)?.trimmingCharacters(in: CharacterSet(charactersIn: ".!? ")) ?? fallback.title
+        let prompt = compactLine(JSONSalvage.string("prompt", in: raw), limit: 180) ?? fallback.prompt
+        let proofPrompt = compactLine(JSONSalvage.string("proofPrompt", in: raw), limit: 120) ?? fallback.proofPrompt
+        let tags = JSONSalvage.string("tags", in: raw)?
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+            ?? fallback.tags
+        let allowsPhoto = JSONSalvage.string("allowsPhoto", in: raw).map { value in
+            !["false", "no", "sentence"].contains(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+        } ?? fallback.allowsPhoto
+
+        return PlayfulMission(
+            id: "custom-\(abs("\(title)-\(prompt)".stableHash))",
+            title: title,
+            prompt: prompt,
+            proofPrompt: proofPrompt,
+            tags: Array(Set(tags + ["custom"])).sorted(),
+            allowsPhoto: allowsPhoto
+        )
+    }
+
+    private func prompt(for surface: SurfacePage) -> String {
+        let currentMission = surface.payload.metadata["mission"] ?? surface.detail
+        let currentTags = surface.payload.metadata["tags"] ?? "none"
+        return """
+        Generate one custom Playful Mission for the Wonder Compass South = Sense step.
+
+        Current page:
+        Title: \(surface.payload.metadata["playfulMissionTitle"] ?? surface.prompt)
+        Mission: \(currentMission)
+        Tags: \(currentTags)
+
+        Authoring grammar:
+        - Aim at the world or the body, never at self-analysis. Use find, track, press, count, follow, taste, listen, touch, compare, or report.
+        - The answer must be concrete: a noun, a number, a sound, a temperature, a location, or a verdict.
+        - Completable in under three minutes.
+        - Include a pinch of premise: objects wait, rooms have moods, buildings have days, light performs, bodies report.
+        - End with a small surprise, reversal, verdict, or smile.
+        - Do not ask for planning, journaling, therapy, productivity, or belief.
+        - Do not claim the player completed anything.
+
+        Return JSON exactly:
+        {"title":"2-5 word title","prompt":"one mission sentence or two short sentences","proofPrompt":"one concrete capture prompt","tags":"comma,separated,tags","allowsPhoto":"true or false"}
+        """
+    }
+
+    private func compactLine(_ text: String?, limit: Int) -> String? {
+        let cleaned = text?
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
+        guard let cleaned, !cleaned.isEmpty else { return nil }
+        guard cleaned.count > limit else { return cleaned }
+        let end = cleaned.index(cleaned.startIndex, offsetBy: limit)
+        return String(cleaned[..<end]).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private func fallbackMission(from surface: SurfacePage) -> PlayfulMission {
+        let seed = abs("\(surface.id)-custom-playful-mission".stableHash)
+        let templates: [PlayfulMission] = [
+            PlayfulMission(
+                id: "custom-fallback-room-voice-\(seed)",
+                title: "Room Voice",
+                prompt: "Find the smallest sound in the room and decide what job it has been doing without thanks.",
+                proofPrompt: "Write the sound and its job.",
+                tags: ["custom", "sound", "inside", "low-energy"],
+                allowsPhoto: false
+            ),
+            PlayfulMission(
+                id: "custom-fallback-light-verdict-\(seed)",
+                title: "Light Verdict",
+                prompt: "Find one patch of light and decide whether it is arriving, leaving, hiding, or showing off.",
+                proofPrompt: "Write the light's verdict.",
+                tags: ["custom", "light", "visual", "inside"],
+                allowsPhoto: true
+            ),
+            PlayfulMission(
+                id: "custom-fallback-object-job-\(seed)",
+                title: "Exact Job",
+                prompt: "Pick one object within reach and name the exact job it is doing for the world right now.",
+                proofPrompt: "Write the object and its exact job.",
+                tags: ["custom", "object", "touch", "inside"],
+                allowsPhoto: true
+            )
+        ]
+        return templates[seed % templates.count]
+    }
+}
+
+struct ElectiveOfferWriter {
+    func offer(surface: SurfacePage) async -> ElectiveOfferDraft {
+        let fallback = ElectiveOfferFallback.offer(surface: surface)
+        guard let response = await LocalBrainProse.write(
+            prompt: LocalModelManager.electiveOfferPrompt(surface: surface),
+            instructions: """
+            You are a character in ReEnchanted asking the player a small real-world favor. Return compact strict JSON only.
+            """,
+            maxTokens: 460,
+            sourceID: "unwritten-elective",
+            tags: ["elective", "offer"]
+        ), let raw = JSONSalvage.dictionary(from: response) else {
+            return fallback
+        }
+        return ElectiveOfferDraft(
+            title: JSONSalvage.string("title", in: raw) ?? fallback.title,
+            ask: JSONSalvage.string("ask", in: raw) ?? fallback.ask,
+            whyItMatters: JSONSalvage.string("whyItMatters", in: raw) ?? fallback.whyItMatters,
+            practiceShape: JSONSalvage.string("practiceShape", in: raw) ?? fallback.practiceShape
+        )
+    }
+}
+
+/// Room generation through the engine, falling back to the offline writer —
+/// anchoring works in every build, model or no model.
+struct OuterStacksRoomEngine: OuterStacksRoomWriting {
+    func room(
+        anchorName: String,
+        playerWords: String,
+        kind: AnchorKind,
+        weather: String,
+        moon: String,
+        season: String,
+        belief: Int
+    ) async throws -> OuterStacksRoomSpec {
+        let fallback = try await FakeOuterStacksRoomWriter().room(
+            anchorName: anchorName, playerWords: playerWords, kind: kind,
+            weather: weather, moon: moon, season: season, belief: belief
+        )
+        guard let response = await LocalBrainProse.write(
+            prompt: LocalModelManager.outerStacksRoomPrompt(
+                anchorName: anchorName, playerWords: playerWords, kind: kind,
+                weather: weather, moon: moon, season: season, belief: belief
+            ),
+            instructions: """
+            You are the Labyrinth of Stories building Outer Stacks rooms. Return compact strict JSON only.
+            """,
+            maxTokens: 520,
+            sourceID: "outer-stacks-anchor",
+            tags: ["outer-stacks", "anchor", "room-generation"]
+        ), let raw = JSONSalvage.dictionary(from: response) else {
+            return fallback
+        }
+        return OuterStacksRoomSpec(
+            roomDescription: JSONSalvage.string("roomDescription", in: raw) ?? fallback.roomDescription,
+            academyEcho: JSONSalvage.string("academyEcho", in: raw) ?? fallback.academyEcho,
+            fae: JSONSalvage.string("fae", in: raw) ?? fallback.fae,
+            miniStory: JSONSalvage.string("miniStory", in: raw) ?? fallback.miniStory,
+            localRule: JSONSalvage.string("localRule", in: raw) ?? fallback.localRule
+        )
+    }
+
+    func visitScene(anchor: AnchorRecord, visitCount: Int, day: BookDay) async throws -> String {
+        if let prose = await LocalBrainProse.write(
+            prompt: LocalModelManager.outerStacksVisitPrompt(anchor: anchor, visitCount: visitCount, day: day),
+            instructions: """
+            You are the Labyrinth of Stories narrating an Outer Stacks visit. Write prose only, no JSON, no headings.
+            """,
+            maxTokens: 460,
+            sourceID: "outer-stacks-anchor",
+            tags: ["outer-stacks", "anchor", "visit"]
+        ), !prose.hasPrefix("{") {
+            return prose
+        }
+        return try await FakeOuterStacksRoomWriter().visitScene(anchor: anchor, visitCount: visitCount, day: day)
     }
 }

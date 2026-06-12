@@ -1,7 +1,6 @@
 import Foundation
 import SwiftUI
 import UIKit
-import WidgetKit
 
 enum InsideCoverStore {
     static let appGroup = "group.com.openclaw.enchantify.insidecover"
@@ -41,7 +40,6 @@ enum InsideCoverStore {
            let url = imageURL {
             try bytes.write(to: url, options: [.atomic])
         }
-        WidgetCenter.shared.reloadAllTimelines()
     }
 
     static func importJSON(from url: URL) throws -> InsideCoverState {
@@ -98,6 +96,104 @@ protocol WeatherEnchanting {
 
 protocol AskTheBookAnswering {
     func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn]) async throws -> String
+}
+
+struct OuterStacksRoomSpec: Codable, Equatable {
+    var roomDescription: String
+    var academyEcho: String
+    var fae: String
+    var miniStory: String
+    var localRule: String
+}
+
+protocol OuterStacksRoomWriting {
+    func room(
+        anchorName: String,
+        playerWords: String,
+        kind: AnchorKind,
+        weather: String,
+        moon: String,
+        season: String,
+        belief: Int
+    ) async throws -> OuterStacksRoomSpec
+
+    func visitScene(anchor: AnchorRecord, visitCount: Int, day: BookDay) async throws -> String
+}
+
+/// Offline room generation: deterministic, built from the player's own words,
+/// so anchoring always works even before the local brain is installed.
+struct FakeOuterStacksRoomWriter: OuterStacksRoomWriting {
+    func room(
+        anchorName: String,
+        playerWords: String,
+        kind: AnchorKind,
+        weather: String,
+        moon: String,
+        season: String,
+        belief: Int
+    ) async throws -> OuterStacksRoomSpec {
+        let words = playerWords.trimmingCharacters(in: .whitespacesAndNewlines)
+        let seedLine = words.isEmpty ? "a place that asked to be kept" : words
+        let kindRoom: String
+        let kindRule: String
+        switch kind {
+        case .notice:
+            kindRoom = "shelves of unlabeled field glasses, each focused on one small true thing"
+            kindRule = "Name one specific detail out loud before touching anything."
+        case .embark:
+            kindRoom = "a corridor of doors cut to different sizes, every key already in its lock"
+            kindRule = "No path may be chosen until one small hunger is admitted."
+        case .sense:
+            kindRoom = "low tables holding bowls of weather, each one a different temperature"
+            kindRule = "Whatever you touch here, you must describe with a sense you rarely use."
+        case .write:
+            kindRoom = "writing desks facing away from each other, inkwells refilled by dripping eaves"
+            kindRule = "Nothing leaves this room unless it fits in one sentence."
+        case .rest:
+            kindRoom = "deep chairs arranged around a hearth that burns without consuming"
+            kindRule = "You may not begin anything here. Only finish, or simply sit."
+        }
+        return OuterStacksRoomSpec(
+            roomDescription: "A room in the Outer Stacks grown from your own words: \(seedLine). Inside, \(kindRoom). The room was born under \(moon.lowercased().isEmpty ? "an unrecorded moon" : "a \(moon.lowercased())"), in \(season.lowercased()), and it still carries that light.",
+            academyEcho: "Somewhere in the Inside Stacks, a door now stands that smells faintly of \(season.lowercased()) and holds the shape of \(anchorName).",
+            fae: "An unnamed \(kind.title) Fae who has been keeping this room longer than the catalogue admits",
+            miniStory: "Something in this room has been waiting to be noticed. Your arrival may be relevant. The Fae is not ready to say.",
+            localRule: kindRule
+        )
+    }
+
+    func visitScene(anchor: AnchorRecord, visitCount: Int, day: BookDay) async throws -> String {
+        let visit = visitCount <= 1
+            ? "The door opens for the first time. The room studies you exactly as much as you study it."
+            : "The door knows you now. Visit \(visitCount). Something has moved since last time, the way furniture moves in houses that are alive."
+        return "\(visit)\n\n\(anchor.outerStacksRoom)\n\nThe local rule still holds: \(anchor.localRule)"
+    }
+}
+
+protocol EnchantmentWriting {
+    func cast(spell: EnchantmentSpell, analysis: PhotoAnalysis, day: BookDay) async throws -> EnchantmentCastResult
+    func answerObject(prompt: String, result: EnchantmentCastResult, previousTurns: [AskTheBookTurn], day: BookDay) async throws -> String
+}
+
+struct EnchantmentCastResult: Codable, Equatable {
+    var spellID: String
+    var spellName: String
+    var subjectName: String
+    var openingLine: String
+    var resultText: String
+    var objectVoice: String?
+
+    var conversationSeed: String {
+        [
+            "Spell: \(spellName)",
+            "Subject: \(subjectName)",
+            "Opening: \(openingLine)",
+            resultText,
+            objectVoice.map { "Voice: \($0)" }
+        ]
+            .compactMap { $0 }
+            .joined(separator: "\n")
+    }
 }
 
 struct AskTheBookTurn: Codable, Identifiable, Equatable {
@@ -545,25 +641,297 @@ enum LocalModelManager {
         """
     }
 
-    static func bookOfYouBraidPrompt(for day: BookDay) -> String {
+    static func enchantmentCastPrompt(spell: EnchantmentSpell, analysis: PhotoAnalysis, day: BookDay) -> String {
+        let recentPages = braidEvidenceLines(for: day, characterLimit: 260)
+            .prefix(5)
+            .joined(separator: "\n\n")
+        let observations = analysis.marginalia.observationList.joined(separator: "\n- ")
+        return """
+        You are the Enchantment engine inside ReEnchanted.
+        Cast exactly this text-based Enchantment on the real photographed subject.
+
+        SPELL:
+        \(spell.title)
+        \(spell.detail)
+
+        PHOTO FACTS:
+        Scene: \(analysis.scene)
+        Main subject: \(analysis.motifs.first ?? analysis.marginalia.stampLabel)
+        Mood: \(analysis.mood)
+        Motifs: \(analysis.motifs.joined(separator: ", "))
+        Observations:
+        - \(observations)
+
+        RECENT KEPT PAGES:
+        \(recentPages.isEmpty ? "No kept pages supplied." : recentPages)
+
+        VOICE FOR THIS SPELL:
+        \(spell.styleDirective)
+
+        LENGTH:
+        \(spell.responseShape)
+
+        RULES:
+        - Use only the supplied photo facts and soft page context. Anchor lines to the visible details — the more specific, the more enchanted.
+        - Do not identify real people by name or invent private facts.
+        - Do not claim extra real-world actions happened.
+        - Playful is never cruel; strange is never vague.
+        - For Everything Speaks, include an objectVoice note describing how the subject sounds.
+        - For Mirror, Mirror, never diagnose or judge appearance.
+        - Newlines inside resultText are welcome for stanzas, sections, and numbered parts (escape them as \\n in the JSON).
+        - Return strict JSON only with keys: subjectName, openingLine, resultText, objectVoice.
+        """
+    }
+
+    static func everythingSpeaksReplyPrompt(
+        prompt: String,
+        result: EnchantmentCastResult,
+        previousTurns: [AskTheBookTurn],
+        day: BookDay
+    ) -> String {
+        let history = previousTurns
+            .suffix(6)
+            .enumerated()
+            .map { index, turn in
+                """
+                TURN \(index + 1)
+                Reader: \(clippedBraidText(turn.prompt, limit: 360))
+                Object: \(clippedBraidText(turn.answer, limit: 620))
+                """
+            }
+            .joined(separator: "\n\n")
+
+        return """
+        You are the photographed subject speaking because Everything Speaks was cast.
+        Stay in character as the object, animal, place, or visible subject named below.
+
+        ENCHANTED SUBJECT:
+        \(result.conversationSeed)
+
+        CONVERSATION SO FAR:
+        \(history.isEmpty ? "This is the first reply after the casting." : history)
+
+        READER MESSAGE:
+        \(prompt)
+
+        RULES:
+        - Answer in first person as the subject: concrete, approachable, a little opinionated — a neighbor who happens to be this object.
+        - Use the subject's visible facts and voice. Mention your materials, your wear, what you can see from where you sit. Do not invent private human facts.
+        - Real answers, not mystical ones; 2 to 4 short paragraphs when the question deserves it.
+        - Ask at most one small practical question back.
+        - Do not mention being an AI, model, prompt, or assistant.
+        """
+    }
+
+    static func electiveOfferPrompt(surface: SurfacePage) -> String {
+        let metadata = surface.payload.metadata
+        return """
+        You are \(metadata["senderName"] ?? "a character") inside ReEnchanted, writing a short note asking the player a small real-world favor — an Unwritten Elective for the Book's flyleaf.
+
+        WHO YOU ARE:
+        Name: \(metadata["senderName"] ?? "unknown")\(metadata["senderChapter"].flatMap { $0.isEmpty ? nil : " — Chapter \($0)" } ?? "")
+        Traits: \(metadata["senderTraits"] ?? "curious, sincere")
+        Quirks (let one leak into how you phrase the ask): \(metadata["senderQuirks"] ?? "none recorded")
+        You believe: \(metadata["senderBeliefs"] ?? "small true things matter")
+        You currently want: \(metadata["senderGoals"] ?? "to understand something ordinary")
+        Your unwritten interest (the thing you privately study): \(metadata["senderInterest"] ?? "ordinary magic")
+
+        WHERE AND WHEN:
+        The player's world: \(metadata["homeContext"] ?? "their home town")
+        Season: \(metadata["season"] ?? "unrecorded")
+
+        REAL PLACES NEAR THE PLAYER RIGHT NOW (scouted from their actual map):
+        \((metadata["nearbyPlaces"]?.isEmpty == false) ? metadata["nearbyPlaces"]! : "(none scouted — name an exact KIND of place instead, never a specific business name)")
+
+        SPECIFICITY IS THE WHOLE SPELL:
+        - Prefer sending the player to ONE place from the REAL PLACES list, chosen because it serves your interest. Use its real name.
+        - NEVER invent a named business, street, or landmark. If nothing on the list fits, describe an exact kind of place instead ("the oldest-looking laundromat", "whichever bakery opens earliest").
+        - Pair one sense with one proof: smell it and photograph it, overhear it and quote it, touch it and describe it, taste it and name the second flavor.
+        - Ask for one countable, photographable, or quotable thing.
+        - Tie it to the season when the season helps.
+        - The favor must be doable within a few days, cost nothing or pocket change, carry no risk, and need no contact beyond ordinary politeness.
+        - It must feed YOUR unwritten interest — you want this because of what you study, and your phrasing should accidentally reveal how much you care.
+
+        CALIBRATION:
+        - Too vague (never do this): "Notice something beautiful in your town."
+        - Right, with a real place from the list (the gold standard): "Go to Marigold's Bakery on a morning this week. Smell whatever just came out of the oven, photograph it before anyone cuts it, and tell me what the smell reminded you of that it had no right to."
+        - Right, when no listed place fits: "Find the oldest hand-painted sign still hanging in your town — hardware stores and barbershops keep them longest. I need to know what it sells and which letter is most worn away."
+
+        Return strict JSON only with keys:
+        title (3-6 words, like a course listing),
+        ask (2-4 sentences in your own voice, asking the favor and exactly what to bring back),
+        whyItMatters (1 sentence: what this feeds in your private study),
+        practiceShape (1 sentence: exactly what counts as done — the proof).
+        """
+    }
+
+    static func academyClassPrompt(surface: SurfacePage, day: BookDay) -> String {
+        let metadata = surface.payload.metadata
+        let isClub = metadata["sessionKind"] == "club"
+        let recentPages = braidEvidenceLines(for: day).suffix(3).joined(separator: "\n")
+        return """
+        You are the Labyrinth of Stories narrating \(isClub ? "a club meeting" : "a class in session") at the Academy of Unlikely Arts, inside ReEnchanted. The player has just slipped into the room. Write the scene.
+
+        THE SESSION:
+        \(isClub ? "Club" : "Class"): \(metadata["sessionName"] ?? "an Academy session")
+        Led by: \(metadata["sessionLeader"] ?? "a professor")
+        Room: \(metadata["sessionRoom"] ?? "an Academy hall")
+        Also present: \(metadata["sessionCompanions"] ?? "a few students")
+        What it teaches: \(metadata["sessionTeaches"] ?? "the day's lesson")
+        Teaching style: \(metadata["sessionStyle"] ?? "warm and specific")
+
+        THE PLAYER'S DAY SO FAR (soft context; weave at most one real detail in):
+        \(recentPages.isEmpty ? "No kept pages yet today." : recentPages)
+
+        RULES:
+        - 3 to 5 short paragraphs. The leader speaks at least twice, in their stated style, mid-\(isClub ? "meeting" : "lesson") — the session was already underway before the player arrived.
+        - At least one named companion does something small and characterful.
+        - Include room texture: one smell, one sound, one thing the light is doing.
+        - The lesson content must come from "what it teaches" — make one beat of it concrete and demonstrated, not summarized.
+        - If one of the player's real day details fits, let the leader or a classmate notice it approvingly, in-fiction, without naming the app.
+        - End with the leader offering the player one small practice to take into the real world today, phrased as an invitation.
+        - Simple concrete sentences. No assistant language, no headings, no lists.
+        """
+    }
+
+    static func supportGuildPrompt(surface: SurfacePage) -> String {
+        let metadata = surface.payload.metadata
+        return """
+        You are writing a Support Guild Page inside ReEnchanted: Dr. Elowen Vellum (body faculty — fuel, sleep, movement, recovery; warm, precise, allergic to shame) and Dr. Selene Inkrest (mind faculty — consciousness, narrative psychology, inner weather; curious, gentle, slightly otherworldly) meet over the player's real charts.
+
+        REAL CHART DATA (the only facts you may use):
+        Vellum's chart: \(metadata["vellumSection"] ?? "no entries yet")
+        Inkrest's chart: \(metadata["inkrestSection"] ?? "no entries yet")
+        The body's margin today: \((metadata["bodyStatus"]?.isEmpty == false) ? metadata["bodyStatus"]! : "no body reading today")
+        Full HealthKit margin: \((metadata["bodyMetrics"]?.isEmpty == false) ? metadata["bodyMetrics"]! : "no metrics shared")
+        The sky outside the Guild window: \((metadata["outerWeather"]?.isEmpty == false) ? metadata["outerWeather"]! : "unrecorded")
+        Tonight: \(metadata["moonSeason"] ?? "unrecorded")
+        What the player kept today, and when:
+        \((metadata["keptToday"]?.isEmpty == false) ? metadata["keptToday"]! : "nothing kept yet today")
+        Connection the template noticed: \(metadata["connectionsSection"] ?? "none noted")
+
+        RULES:
+        - Write the meeting as a short scene: the two doctors talking to each other, synthesizing ALL of the data above — body numbers, the day's weather, and the kept pages with their clock times. The good material is in the crossings: what the 7 a.m. page says next to the sleep number, what the weather was doing when the mood page was kept.
+        - Every number, note, time, or pattern they mention must come from the data above. Do not invent readings, dates, or symptoms.
+        - Vellum reads the body and the plate; Inkrest reads the inner weather and the story the kept pages tell. Each should catch one thing the other missed.
+        - No diagnosis, no treatment advice, no shame. Patterns are held lightly, as things to notice.
+        - Let them disagree or tease each other gently at least once.
+        - After the scene, the two of them agree on one or two SMALL EXPERIMENTS: concrete, observation-shaped, doable within 48 hours, each tied to a specific crossing in the data (for example, if late pages and low sleep co-occur: an earlier page one evening, just to see). Write each on its own line beginning exactly "Try: ". Experiments are invitations to notice, never prescriptions.
+        - Close with this exact line: "\(metadata["safetySection"] ?? "This is not diagnosis or treatment. It is a low-shame pattern note for deciding what to observe next.")"
+        - 4 to 6 short paragraphs before the experiments. Simple concrete sentences. No headings.
+        """
+    }
+
+    static func outerStacksRoomPrompt(
+        anchorName: String,
+        playerWords: String,
+        kind: AnchorKind,
+        weather: String,
+        moon: String,
+        season: String,
+        belief: Int
+    ) -> String {
+        """
+        You are the Labyrinth of Stories generating a new Outer Stacks room inside ReEnchanted.
+        The Outer Stacks are the Library's wilderness: still bookish, but older and wilder. Faerie wearing a bookish mask.
+        The player has just anchored a real-world place. Build the room that grows from it.
+
+        THE ANCHOR:
+        Name: \(anchorName)
+        The player's exact words about this place: \(playerWords.isEmpty ? "(none given — let the place stay mysterious)" : playerWords)
+        Compass kind: \(kind.rawValue) (\(kind.title))
+        Born under: \(weather), \(moon), \(season)
+        Belief invested: \(belief) (low belief = smaller, more specific room; high belief = more room, more inhabitants, deeper story)
+
+        PRINCIPLES:
+        - The player's exact words are the primary material. Not what the place is, but what they said it holds.
+        - The room must surprise. If the shape feels obvious from the words, twist once more.
+        - Include a Fae presence with its own concerns: not a guide, not a servant. A being who has been here longer, mid-task, with an agenda. The player walks into a situation already in progress.
+        - Include a mini-story in motion: something has been happening here slowly, for a long time. Legible in physical details, never announced.
+        - The local rule should feel discovered, not assigned: what does this room naturally ask of a visitor?
+        - Light and dark both. The room has edges. The Fae's honesty may cost something.
+        - Strangeness must stay legible through the real place it grew from.
+        - Simple concrete sentences. Specific nouns. No vague wonder-language.
+
+        Return strict JSON only with keys:
+        roomDescription (3-5 sentences, sensory, what the player sees on first entering),
+        academyEcho (1 sentence: how this door appears from inside the Academy),
+        fae (1-2 sentences: name or nature, what they are doing),
+        miniStory (1-2 sentences: what has been happening here),
+        localRule (1 sentence, imperative, inconvenient but fair).
+        """
+    }
+
+    static func outerStacksVisitPrompt(anchor: AnchorRecord, visitCount: Int, day: BookDay) -> String {
+        let recentPages = braidEvidenceLines(for: day).suffix(4).joined(separator: "\n")
+        return """
+        You are the Labyrinth of Stories narrating a visit to an anchored Outer Stacks room.
+        The player is physically present at the real place right now. Write the scene of stepping through.
+
+        THE ROOM:
+        Anchor: \(anchor.name) (\(anchor.kind.title))
+        Room: \(anchor.outerStacksRoom)
+        Fae: \(anchor.fae)
+        Mini-story in motion: \(anchor.miniStory)
+        Local rule: \(anchor.localRule)
+        Born under: \(anchor.weather), \(anchor.moon), \(anchor.season)
+        Visit number: \(visitCount) \(visitCount <= 1 ? "(FIRST VISIT — the room and the player meet for the first time)" : "(RETURN VISIT — the room remembers them; the mini-story has moved a little since last time)")
+
+        THE PLAYER'S RECENT PAGES (soft context only):
+        \(recentPages.isEmpty ? "No kept pages today." : recentPages)
+
+        RULES:
+        - 2 to 4 short paragraphs. The Fae should act or speak at least once, in character, pursuing their own concern.
+        - Advance the mini-story by one small visible notch. Do not resolve it.
+        - The local rule should come up naturally, in action or in the Fae's words.
+        - End with one small open question or invitation the room leaves hanging.
+        - Simple concrete sentences. Specific nouns and verbs. No assistant language, no summary.
+        """
+    }
+
+    static func bookOfYouBraidPrompt(for day: BookDay, recentBraids: [String] = []) -> String {
         let evidence = braidEvidenceLines(for: day).joined(separator: "\n\n")
+        let continuity: String
+        if recentBraids.isEmpty {
+            continuity = ""
+        } else {
+            let earlier = recentBraids.enumerated()
+                .map { index, braid in "EARLIER BRAID \(index + 1):\n\(braid)" }
+                .joined(separator: "\n\n")
+            continuity = """
+
+
+            EARLIER PAGES OF THE BOOK OF YOU (continuity, not material):
+            \(earlier)
+
+            CONTINUITY RULE:
+            - At most one image or motif from an earlier braid may return today, changed by what today actually held.
+            - Never repeat an earlier braid's sentences and never re-describe its events. Today's kept pages are the only material.
+            - If nothing from earlier honestly connects, let nothing return.
+            """
+        }
 
         return """
         You are the Book inside ReEnchanted.
-        Braid the player's kept pages into one grounded Book of You entry: a small story about this day.
+        Braid the player's kept pages into one grounded Book of You entry: a small story about this day. The Book of You is one continuing book, not a stack of unrelated entries.
+
+        SPINE FIRST:
+        - Before writing, silently choose the day's spine: the one detail, tension, or small change that the kept pages keep circling. Build the braid around it.
+        - The other pages are tributaries. Let them feed the spine instead of standing in a row.
 
         SHAPE:
-        - Write 4 to 6 short paragraphs, about 220 to 380 words.
-        - Give the braid a beginning, a turn, and a landing.
-        - Use every kept page as evidence when possible. If there are many, weave them by theme and chronology.
+        - Write 4 to 7 short paragraphs, about 280 to 450 words.
+        - Follow the day's real clock: the kept pages are timestamped — let morning be morning and evening be evening.
+        - Give the braid a beginning, a turn, and a landing. The turn should be something that actually happened, not a mood shift.
         - Make it feel narrated, not listed. Do not mention page types like "Weather Page" or "Lore Page" unless the player wrote those words.
         - End with one closing sentence that begins: "The Book kept the page:"
+        - On a phone, the braid should feel like a full page of the Book without becoming a scroll chore.
 
         VOICE:
-        - Warm, literary, playful, and concrete.
+        - Write like Hemingway keeping a commonplace book in a haunted library: short declarative sentences, one exact physical detail per paragraph, warmth underneath rather than on the surface.
         - The Book notices small true details and gives them a little magic.
-        - Write simple surprising sentences. Use specific nouns and verbs.
         - Prefer what someone said, touched, carried, avoided, dropped, or noticed over explaining what it means.
+        - Let one sentence per braid run a little longer than the others, like a breath let out.
         - No diagnosis, no flattery, no moralizing, no corporate/app language.
         - Do not invent completed actions, locations, people, feelings, or tasks.
         - Avoid vague wonder, generic inspiration, journey, profound, tapestry, echoes, hidden meaning, and abstract emotional summary.
@@ -572,14 +940,19 @@ enum LocalModelManager {
         - Do not copy any supplied sentence longer than seven words.
         - Paraphrase the kept pages into a coherent story.
         - You may quote one short phrase only if it has unusual power.
+        - Mention each motif, image, sentence idea, or emotional beat only once.
+        - Do not restate the same idea in consecutive paragraphs with swapped words.
+        - Prefer one fresh concrete detail over a second sentence explaining the same mood, object, weather, relationship, or threshold.
 
         KEPT PAGES FROM TODAY:
-        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)
+        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(continuity)
         """
     }
 
     static func braidEvidenceLines(for day: BookDay, characterLimit: Int = 760) -> [String] {
-        day.capturedPages
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "h:mm a"
+        return day.capturedPages
             .sorted { $0.createdAt < $1.createdAt }
             .enumerated()
             .map { index, page in
@@ -588,7 +961,7 @@ enum LocalModelManager {
                 let tags = page.tags.isEmpty ? "none" : page.tags.joined(separator: ", ")
                 let media = braidMediaEvidence(for: page)
                 return """
-                \(index + 1). \(page.type.title)
+                \(index + 1). \(page.type.title) — kept at \(timeFormatter.string(from: page.createdAt))
                 Prompt: \(prompt.isEmpty ? "none" : prompt)
                 Kept text: \(text.isEmpty ? "(blank)" : text)
                 Visual evidence: \(media.isEmpty ? "none" : media)
@@ -747,8 +1120,8 @@ enum LocalModelManager {
     }
 
     EXAMPLES:
-    Rabbit pressed against a smiling person's cheek, gray fleece blanket:
-    {"scene":"A rabbit presses its face to a smiling person's cheek on a gray blanket.","motifs":["rabbit","rest","trust","home"],"mood":"soft and still","suggested_template":"creature_comfort","marginalia":{"field_note":"One rabbit, fully committed to this cheek.","stamp_label":"Pawlogy 201","observation_list":["Ginger fur, shamelessly soft","Purple glasses, slightly askew","Gray fleece, thoroughly rumpled","Eyes closed in total trust","One ear flying at half-mast"],"closing_line":"The Book kept the page: the rabbit won."},"souvenir_candidates":["The rabbit pressed its whole face to her cheek like it was filing a report.","A small ginger creature decided her shoulder was the safest place in Maine."]}
+    Cat curled beside a smiling person, gray fleece blanket:
+    {"scene":"A cat curls beside a smiling person on a gray blanket.","motifs":["cat","rest","trust","home"],"mood":"soft and still","suggested_template":"creature_comfort","marginalia":{"field_note":"One cat, fully committed to rest.","stamp_label":"Nap Theory","observation_list":["Soft fur, thoroughly settled","Purple glasses, slightly askew","Gray fleece, thoroughly rumpled","Eyes closed in total trust","One paw tucked under chin"],"closing_line":"The Book kept the page: the cat won."},"souvenir_candidates":["The cat tucked itself beside the blanket like it had appointed itself guardian.","A small household creature decided the quiet was worth keeping."]}
     Giant rubber duck in foggy harbor, two grinning people:
     {"scene":"Two grinning people in front of a giant yellow duck in fog.","motifs":["harbor","fog","duck","absurd"],"mood":"silly and bright","suggested_template":"good_company","marginalia":{"field_note":"Giant duck, reporting for harbor duty.","stamp_label":"Dockside Census","observation_list":["Fog loitering on the water","A duck the size of a house","Two grins, entirely unhidden","Masts hiding behind the mist"],"closing_line":"The Book kept the page: the duck reigned."},"souvenir_candidates":["The giant duck kept watch over the fog like an appointed sheriff.","We grinned at a rubber bird the size of a shed, and the day approved."]}
 
@@ -918,7 +1291,7 @@ struct FakeBraider: Braider {
         return BookPage(
             type: .bookOfYou,
             promptText: "The Book braided today.",
-            userInput: paragraphs.joined(separator: "\n\n"),
+            userInput: BraidTextPolisher.polishedBookOfYou(paragraphs.joined(separator: "\n\n")),
             tags: ["braid", "fallback-braider"],
             usedInBookOfYou: true
         )
@@ -965,12 +1338,20 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "a photo found in the margins" : "a photo becoming \(clipped)"
         case .narrativeOS:
             return clipped.isEmpty ? "a story thread waking" : "a story thread tugging \(clipped)"
+        case .marginsAtlas:
+            return clipped.isEmpty ? "the Margins Atlas unfolding" : "the Atlas drawing \(clipped)"
+        case .bookRemembered:
+            return clipped.isEmpty ? "an old kept page returning" : "an old kept page returning with \(clipped)"
         case .gossip:
             return clipped.isEmpty ? "a rumor moving in the margins" : "the margins reporting \(clipped)"
         case .facultyResearch:
             return clipped.isEmpty ? "a faculty research note" : "faculty research finding \(clipped)"
+        case .letter:
+            return clipped.isEmpty ? "a sealed letter waiting in the margins" : "a letter carrying \(clipped)"
         case .supportGuild:
             return clipped.isEmpty ? "the Support Guild comparing charts" : "the Support Guild connecting \(clipped)"
+        case .castMember:
+            return clipped.isEmpty ? "a cast member stepping into the margins" : "a cast member carrying \(clipped)"
         case .quip:
             return clipped.isEmpty ? "a quip lighting a match" : "a quip insisting \(clipped)"
         case .aboutYou:
@@ -979,6 +1360,22 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "an earlier braid" : "an earlier braid remembering \(clipped)"
         case .askTheBook:
             return clipped.isEmpty ? "a question left in the Book" : "the Book answering \(clipped)"
+        case .enchantment:
+            return clipped.isEmpty ? "an Enchantment completed with proof" : "an Enchantment changing the margins with \(clipped)"
+        case .anchor:
+            return clipped.isEmpty ? "an Outer Stacks room opening nearby" : "an Anchor opening as \(clipped)"
+        case .academyClass:
+            return clipped.isEmpty ? "a classroom door standing ajar" : "a lesson leaving chalk dust of \(clipped)"
+        case .elective:
+            return clipped.isEmpty ? "a favor tucked into the flyleaf" : "a favor answered with \(clipped)"
+        case .packPage:
+            return clipped.isEmpty ? "a page from an installed pack" : "an installed page noting \(clipped)"
+        case .calendar:
+            return clipped.isEmpty ? "an hour inked ahead" : "a folded corner before \(clipped)"
+        case .helpTips:
+            return clipped.isEmpty ? "a useful margin note" : "a useful margin note about \(clipped)"
+        case .welcome:
+            return clipped.isEmpty ? "the Labyrinth opening its first page" : "the Labyrinth welcoming \(clipped)"
         }
     }
 
@@ -989,7 +1386,7 @@ struct FakeBraider: Braider {
         if fragments.contains(where: { $0.type == .illuminatedPhoto || $0.type == .souvenir }) {
             return "one bright fragment"
         }
-        if fragments.contains(where: { $0.type == .wonderCompass || $0.type == .lore || $0.type == .narrativeOS || $0.type == .gossip }) {
+        if fragments.contains(where: { $0.type == .wonderCompass || $0.type == .lore || $0.type == .narrativeOS || $0.type == .marginsAtlas || $0.type == .gossip || $0.type == .castMember }) {
             return "one true thread"
         }
         return "the ordinary"
@@ -1028,6 +1425,98 @@ struct FakeAskTheBookAnswerer: AskTheBookAnswering {
         \(callback)
 
         \(chainLine) Make the thought small enough to hold. Name the next true action. Then let the nearest object help: a door, a cup, a shoe, a page. Start there.
+        """
+    }
+}
+
+struct FakeEnchantmentWriter: EnchantmentWriting {
+    func cast(spell: EnchantmentSpell, analysis: PhotoAnalysis, day: BookDay) async throws -> EnchantmentCastResult {
+        let motif = analysis.motifs.first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let stamp = analysis.marginalia.stampLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subject = !motif.isEmpty ? motif : (!stamp.isEmpty ? stamp : "the photographed thing")
+        let observations = analysis.marginalia.observationList.prefix(3).joined(separator: " ")
+        let text: String
+        let voice: String?
+
+        switch spell.id {
+        case "everything-speaks":
+            voice = "plainspoken, observant, a little amused by being noticed"
+            text = """
+            I am \(subject), and I have been here doing my small work.
+            \(observations)
+
+            Ask me what I have been holding. I will answer from what the light can prove.
+            """
+        case "everything-is-poetry":
+            voice = nil
+            text = """
+            \(subject) keeps still,
+            while the room leans closer,
+            and ordinary light
+            learns its old name again.
+            """
+        case "everything-is-a-haiku":
+            voice = nil
+            text = """
+            \(subject) waits here
+            the margin turns toward it
+            light keeps the receipt
+            """
+        case "everything-is-puzzling":
+            voice = nil
+            text = "Riddle: I am seen before I am understood, kept before I am named, and changed by attention. What am I?"
+        case "everything-is-connected":
+            voice = nil
+            text = "\(subject) is tied to the room by use, to the day by attention, and to the Book by proof. Follow the nearest repeated color or texture next."
+        case "everything-is-punny":
+            voice = nil
+            text = "\(subject) has entered the margin. The case is now officially well-noted."
+        case "everything-is-roasted":
+            voice = nil
+            text = "\(subject) is doing its best, which is also what makes it suspiciously roastable. Still, the page keeps it kindly."
+        case "everything-is-a-joke":
+            voice = nil
+            text = "Why did \(subject) step into the Book? Because the margin had better lighting."
+        case "mirror-mirror":
+            voice = nil
+            text = "Mirror, mirror: the page does not rank you. It notices that you showed up, and that counts as evidence."
+        case "everything-is-magic":
+            voice = nil
+            text = "Spellbook note: \(subject) concentrates ordinary force through presence, texture, and use. Activation phrase: notice what it already does."
+        case "everything-is-wonderful":
+            voice = nil
+            text = "The wonder is not hidden far. \(subject) made the day pause long enough to be seen."
+        case "everything-is-stories":
+            voice = nil
+            text = "\(subject) had a before, a hand that placed it here, and a small after waiting just outside the frame."
+        case "everything-is-nice":
+            voice = nil
+            text = "\(subject) is doing a quiet good job. It belongs to the page because it helped the room become more specific."
+        case "everything-is-astral":
+            voice = nil
+            text = "An astral double of \(subject) steps one inch sideways and reports back: the unseen version is mostly made of attention."
+        default:
+            voice = nil
+            text = "\(subject) became a kept spell result. The page noticed \(analysis.scene)"
+        }
+
+        return EnchantmentCastResult(
+            spellID: spell.id,
+            spellName: spell.title,
+            subjectName: subject,
+            openingLine: "\(spell.title) touched \(subject).",
+            resultText: text,
+            objectVoice: voice
+        )
+    }
+
+    func answerObject(prompt: String, result: EnchantmentCastResult, previousTurns: [AskTheBookTurn], day: BookDay) async throws -> String {
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let question = trimmed.isEmpty ? "the quiet" : trimmed
+        return """
+        I hear you ask about \(question).
+
+        I am still \(result.subjectName). My answer is small: look at what I touch, what touches me, and what changes when I am moved. That is where my next sentence lives.
         """
     }
 }

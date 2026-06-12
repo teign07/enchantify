@@ -99,8 +99,8 @@ final class BookArchiveDatabaseTests: XCTestCase {
         let harness = try DatabaseHarness()
         let database = BookArchiveDatabase(storeURL: harness.storeURL)
         let first = selfFact(
-            answer: "BJ",
-            translation: "The Book may call you BJ."
+            answer: "Avery",
+            translation: "The Book may call you Avery."
         )
         try database.upsertSelfFact(first)
 

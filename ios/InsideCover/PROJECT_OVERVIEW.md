@@ -1,464 +1,539 @@
 # InsideCover ("ReEnchanted") — Project Overview
 
-A SwiftUI iOS/iPadOS companion app for the broader **Enchantify** project. It
-presents the player's daily life — pulled from Enchantify's simulation/
-world-state pipeline and the player's own input — as pages in a living,
-illustrated storybook ("the Book"). It also runs an on-device LLM ("the Local
-Brain") to generate and enrich those pages.
+InsideCover is a SwiftUI iOS/iPadOS companion app for the broader
+**Enchantify** project. It turns a reader's real day, their saved pages, and
+the Labyrinth of Stories' simulated world into a living illustrated book. In
+the UI, "the Book," "the Labyrinth of Stories," and "the app" are intentionally
+the same doorway: pages surface, the reader keeps what matters, and the kept
+pages become memory for later story, letters, search, and the end-of-day
+**Book of You**.
 
 - Bundle ID: `com.openclaw.enchantify.insidecover`
-- Platforms: iOS 17+ / macOS 14+ (shared core also builds for macOS via SwiftPM)
+- Platforms: iOS 17+ / macOS 14+ shared core via SwiftPM
 - Xcode project: `EnchantifyInsideCover.xcodeproj`
+- SwiftPM package: `InsideCoverCore`
+- Current verified suite: 173 shared-core tests
 
-## High-level structure
+## High-Level Structure
 
-```
+```text
 InsideCover/
-├── EnchantifyInsideCover.xcodeproj   Xcode project (app target)
-├── Package.swift                     SwiftPM wrapper exposing InsideCoverCore
-├── InsideCoverApp/                   Main app target (SwiftUI views, services)
-├── Shared/                           Code shared between the app and tests
-├── Tests/InsideCoverCoreTests/       Unit tests for the shared core
-└── Sample/                           Sample state payload for local testing
+├── EnchantifyInsideCover.xcodeproj   Xcode project for the iOS app
+├── Package.swift                     SwiftPM wrapper for shared core tests
+├── InsideCoverApp/                   SwiftUI app, sheets, services, local brain
+├── Shared/                           Codable models, curation, story systems
+├── Tests/InsideCoverCoreTests/       Unit tests for shared policy and systems
+├── PersonalSeed/                     Local seed/readme material
+└── Sample/                           Sample state payloads if present locally
 ```
 
-`Package.swift` builds an `InsideCoverCore` library from `InsideCoverState.swift`
-and `BookArchiveDatabase.swift` (platform-agnostic model + persistence layer),
-which is exercised directly by the `InsideCoverCoreTests` test target.
+The domain code used to be described as living mostly in
+`Shared/InsideCoverState.swift`; it has since been split into smaller shared
+files. The important ones are:
 
-## How it fits into Enchantify
+- `Shared/PageModel.swift` — page types, page/source metadata, page Belief.
+- `Shared/SourceAdapters.swift` — the source adapter layer that turns context
+  into candidate pages.
+- `Shared/SurfaceAndCurator.swift` — candidate ranking, variety, readiness, and
+  curation policy.
+- `Shared/StoryEngine.swift` — story packets, gossip, playful missions,
+  character letters, talisman Belief moves.
+- `Shared/PagePacks.swift` — installed page/archetype pack support.
+- `Shared/InsideCoverState.swift` — remaining core state models and registries.
+- `Shared/BookArchiveDatabase.swift` — SwiftData archive, memories, self facts,
+  narrative events, and custom cast members.
+- `Shared/InsideCoverStore.swift` — store/load, local model management, fake and
+  resilient generation seams.
 
-`InsideCoverState` (in `Shared/InsideCoverState.swift`) is the Codable struct
-that mirrors a compact JSON snapshot of the player's life — player name,
-current day/block/activity ("now"/"next"), classroom + health snapshots, mood
-note, and an embedded scene image — sourced from Enchantify's simulation/
-world-state pipeline on the Mac side and surfaced as pages of "the Book"
-inside the app.
+## The Daily Loop
 
-## Core concepts (modeled in `Shared/InsideCoverState.swift`, ~8.4k lines)
+The app's central loop is now explicit in code and copy:
 
-This file is the heart of the app's domain model — dozens of `Codable` structs
-and enums describing the Book's content and mechanics:
+1. The tutorial/onboarding asks what the reader wants to be called.
+2. On first run after that name exists, the **Welcome Page** surfaces before
+   Chapter Binding. It greets the reader by name and explains the Book in
+   accessible, in-character language.
+3. Pages surface through the curator: prompts, story scenes, letters, missions,
+   tips, calendar hinges, photos, enchantments, gossip, research, and more.
+4. The reader keeps the pages that matter and dismisses what does not fit.
+5. Kept pages become durable archive entries, search material, entity memory,
+   story-field events, and local context for future generation.
+6. At night, the Book braids kept material into a **Book of You** page, polished
+   to avoid repetitive prose.
 
-- **Book pages** — `BookPage`, `BookDay`, `BookPageType` (22 page kinds:
-  `mood`, `diary`, `souvenir`, `body`, `weather`, `location`, `quip`,
-  `aboutYou`, `wonderCompass`, `lore`, `illustration`, `illuminatedPhoto`,
-  `narrativeOS`, `gossip`, `facultyResearch`, `supportGuild`, `bookOfYou`,
-  `askTheBook`, etc.), plus origin/privacy/intent/render-style metadata and
-  `BookPageSourceRegistry` (curated source catalogs per page type).
-- **Narrative simulation layer** — `NarrativePack`, `NarrativeStoryThread`,
-  `NarrativeWorldEntity`, `NarrativeRelationshipEdge`, `NarrativeEvent` +
-  `NarrativeEventResolver`, `StoryScenePacket`/`StorySceneChoice` +
-  `StoryScenePacketBuilder`, and `GossipSimulationBuilder` — these generate
-  in-fiction "what happened in the world" content that feeds story pages.
-- **Belief Combat** — `BeliefCombatResult`, `BeliefCombatDifficulty`,
-  `BeliefCombatResolver`: a mini resolution system for narrative conflicts
-  scored against the player's "Belief".
-- **Self-knowledge / "About You"** — `SelfFact`, `AboutYouQuestion`,
-  `SelfKnowledgePack` + registry: facts the player has shared, with
-  sensitivity/use-permission flags, woven back into pages.
-- **Illuminated photos** — `IlluminationTemplate`, `IlluminationAsset`,
-  `PhotoCandidate`, `PhotoAnalysis`, `PhotoMarginalia`,
-  `PhotoSuggestionSettings`: turns the player's own photos into illustrated
-  manuscript pages with templated decoration/text slots, captions, and
-  treatments (orientation, font style, canvas preference, etc.).
-- **Reference & lore catalogs** — `BookReferenceCatalog`,
-  `BookReferenceLibraryPayload` (backed by `Shared/BookReferenceLibrary.json`,
-  generated by `scripts/build_inside_cover_reference_library.py`),
-  `LorePackRegistry`, `QuipPackRegistry`, `SupportFacultyPackRegistry`.
-- **App health/recovery state machines** — `BraidRecoveryState`,
-  `PreparedPageRecoveryState`, `LocalBrainTelemetryState`,
-  `WorkBlockingState`, `SurfaceReadinessState`, `SurfaceActionRouter`
-  (+ `SurfaceActionDecision`): small, independently-testable policy structs
-  that decide what the UI should show/do when generation stalls, the local
-  model is busy/missing, or recovery is needed. These are the most
-  recently-extracted/refactored pieces (see commit history below).
-- **Archive** — `BookArchiveExport`, `BookPageQuery`, `BookArchiveIndex`,
-  `SurfacePage`: export/query/indexing types for the persisted page archive.
+Chapter Binding is still present, but it is deliberately de-emphasized on first
+run. It now behaves like an optional Academy ceremony rather than the first
+thing the Book asks from a new reader.
 
-## Belief, narrative weight, and characters — the simulation's core mechanics
+## Page Types
 
-These three concepts are the load-bearing machinery of the narrative
-simulation layer. They're modeled almost entirely in `InsideCoverState.swift`
-and are worth understanding together, because they form a single feedback
-loop: what the player does shifts Belief and narrative weight → which shifts
-the "story field" → which determines who shows up next and how prominently →
-which the player then responds to, closing the loop.
+`BookPageType` is still a closed Swift enum, but it has grown substantially.
+Current cases:
 
-### Belief — the score that everything orbits
+```text
+mood, diary, souvenir, rest, body, fuel, weather, location, quip,
+aboutYou, wonderCompass, lore, patreon, illustration, illuminatedPhoto,
+narrativeOS, gossip, facultyResearch, letter, supportGuild, castMember,
+bookOfYou, askTheBook, enchantment, anchor, academyClass, elective,
+packPage, calendar, helpTips, welcome, marginsAtlas, bookRemembered
+```
 
-Belief is a 0–100 integer that exists at multiple levels simultaneously: the
-player has one (`playerBelief`/`bookGlow`), and so does every
-`NarrativeWorldEntity`, `NarrativeStoryThread`, faculty chart, etc.
-`BeliefLexicon.glowName(for:)` translates a raw score into ten poetic tiers —
-"Glow Barely There" → "Meager Glow" → "Faint Glow" → "Small Glow" →
-"Warming Glow" → "Steady Glow" → "Clear Glow" → "Bright Glow" →
-"Radiant Glow" → "Glow Too Full" — and `BeliefScoreBadge` renders it as a
-slowly "breathing" sparkle capsule whose glow radius/opacity scale with the
-score (with a `reduceMotion`-aware fallback). Belief isn't just a stat
-display, though — it's spendable and contestable:
+Each page type has a title, short title, SF Symbol, visual treatment, default
+intent, default Belief, and narrative weight. The active source catalog lives in
+`BookPageSourceRegistry`; source adapters then decide when and how each source
+produces a `SurfacePage`.
 
-- **`BeliefCombatResolver`** is a full small-scale conflict-resolution
-  system, closer to a tabletop combat engine than a progress bar. An
-  `attacker` (any `BeliefCombatParticipantKind`: `player`, `entity`, `npc`,
-  `talisman`, `location`, `object`, `thread`, or `nothing`) spends Belief
-  against a `target`, at a chosen `BeliefCombatDifficulty`
-  (`routine`/`standard`/`dramatic`/`desperate`, each with a threshold
-  modifier from +15 to −25). The resolver computes a threshold from the
-  attacker's belief, rolls 1–100, and produces an outcome —
-  `criticalSuccess`/`success`/`nearMiss`/`failure`/`criticalFailure` — each
-  with its own payout multiplier (a critical success deals 1.5× the spend; a
-  critical failure deals the spend back to the *attacker* as `backlash`).
-  Every participant kind has a `floor` (players can be driven to 0; NPCs,
-  locations, and objects bottom out at 5, so the world is never fully
-  "defeated"). The result (`BeliefCombatResult`) carries a full ledger —
-  before/after belief for both sides, actual spend vs. requested, dealt
-  damage, backlash, roll, threshold, outcome — plus a generated
-  `summaryLine` ("Penny Blackletter rolled 71 against 64: success; the
-  Headmistress lost 12 Belief.").
-- **`GlowCommandMenu`** exposes Belief directly to the player as something
-  they can act on: `GlowBeliefMode` (`.give`/`.take`) and
-  `GlowMenuAction.giveBelief`/`.takeBelief` let the player redistribute
-  Belief among "the Cast" (`GlowEntityMenuItem`s) — a deliberate, in-fiction
-  way of saying "I want to invest my attention in this person/thread right
-  now," which then has mechanical consequences for what the Book surfaces.
-- Belief also gates `BeliefCombatResolver.difficulty(forTargetBelief:)` —
-  the more belief a target has accrued, the harder it is to challenge,
-  which creates a natural arc where characters/threads the player has
-  invested in become narratively "sturdier."
+Recent page families worth knowing:
 
-### Narrative weight — the second, quieter currency
+- **Welcome Page** — first-run, in-character explanation of the Book/Labyrinth
+  loop, using the reader's onboarding name.
+- **The Book Remembered** — old kept pages return when today rhymes with them,
+  with a reason and one tiny grounded action.
+- **The Margins Atlas** — Loom and Constellation graph pages for relationships,
+  Belief, and attention flow.
+- **Help and Tips** — a rotating, practical guidance catalog with tips, tricks,
+  and ideas for using the app well.
+- **Calendar / The Inked Hour** — real calendar events folded into the margins
+  before they happen.
+- **Classes & Clubs** — Academy class/club pages from the schedule registry.
+- **Unwritten Electives** — characters ask small real-world favors tied to
+  their private interests and nearby real places.
+- **Pack Page** — installed page packs and archetype-driven pages.
+- **Outer Stacks / Anchor** — real-world anchor/location pages.
+- **Enchantments** — camera/photo-based spells powered by Gemma when available.
+- **Letters** — character correspondence addressed to the reader by their
+  stored preferred/tutorial name.
 
-Sitting alongside (and distinct from) Belief is `narrativeWeight`: a plain
-integer carried by `NarrativeWorldEntity`, `NarrativeStoryThread`,
-`NarrativeRelationshipEdge`, and `NarrativeEntityMemory`. Where Belief is the
-*emotional/mechanical* charge a character or thread carries (and can be
-spent, attacked, given away), narrative weight is closer to *story gravity*
-— how much the simulation should care about this thing when deciding what to
-write next, independent of how much Belief it currently holds. The two are
-combined, not redundant: `NarrativeStoryFieldProjection` builds its initial
-entity/thread/relationship weights as `narrativeWeight + belief` (entities,
-threads) or `narrativeWeight + warmth + trust − tension` (relationships),
-and the scene-selection rankers in `StoryScenePacketBuilder`
-(`rankedEntities`/`rankedThreads`/`rankedRelationships`) score candidates as
-a blend of `narrativeWeight`, a fraction of `belief`, tag overlap with the
-day's real signals, and an `eventBoost` for anything the recent event stream
-has been actively pushing. In other words: narrative weight is the
-*baseline* importance an element was authored with; Belief and recent events
-are what let that baseline rise, fall, or get temporarily eclipsed by
-something more urgent.
+## Source Adapters And Curation
 
-### The story field — how attention becomes momentum
+The page feed is assembled by `BookPageSourceAdapters.active`, a list of
+`BookPageSourceAdapter` implementations. Adapters inspect a `BookDay`,
+`CuratorContext`, `BookSourceInputs`, and the current time, then return
+candidate `SurfacePage`s. The curator ranks those candidates using:
 
-`NarrativeEvent` is the unit that connects player action to narrative
-consequence. Every kept page, answered prompt, selected story choice, gossip
-turn, completed enchantment, etc. resolves (via `NarrativeEventResolver`)
-into one or more `NarrativeEvent`s, each carrying a `NarrativeEventEffect` —
-a `beliefDelta` plus dictionaries of `entityWeightDeltas`,
-`threadWeightDeltas`, and `relationshipWeightDeltas` keyed by ID (so a single
-kept gossip page might read as "+1 belief, the-book +1, ordinary-magic +1,
-*and* +2 to whichever specific characters and threads the gossip turn
-actually involved"). `NarrativeStoryFieldProjector.projection(events:)`
-folds the *entire accumulated event history* into a live
-`NarrativeStoryFieldProjection` — current weights for every entity, thread,
-and relationship, plus a running player-belief total — and exposes
-`topEntityIDs`/`topThreadIDs`/`topRelationshipIDs` (the current top 8 of
-each, ranked, ties broken deterministically by ID). That projection is what
-`StoryScenePacketBuilder` consults (via `eventBoost`) when assembling the
-next scene, and what `StoryFieldStatusCard` surfaces directly to the player
-as a diagnostic — "packet ready," "glow [tier]," the currently-selected
-threads/entities/relationships, recent choice events, and "real signals"
-(the real-world facts currently shaping the story). It's effectively a
-live readout of *what the simulation currently thinks matters to you, and
-why* — which is a strikingly transparent design choice for a system that
-could easily have stayed a black box.
+- base score from the adapter,
+- page source Belief and narrative weight,
+- source fatigue and recent surface history,
+- type diversity,
+- time-of-day affinity,
+- calendar pressure,
+- distress/gentleness bias,
+- active/inactive source settings,
+- hard floors for automagic sources such as Inner Weather and Fuel.
 
-`NarrativeEntityMemory` closes the loop at the individual-character level:
-`NarrativeEntityMemoryResolver` looks at which entities gained weight from a
-given event and mints a memory for each ("Penny Blackletter remembers: you
-mentioned the harbor again"), carrying its own `narrativeWeight` and
-`createdAt`. These accumulate per-entity and get pulled back into future
-scenes (`rankedEntityMemories`), which is the mechanism that lets a
-character plausibly say "you mentioned this before" — continuity that's
-*earned* by the event history rather than hard-coded into a script.
+This makes "what appears next" a blend of authored intent, reader preference,
+recent history, and real-world context.
 
-### Characters — "the Cast" and how they're built
+## Belief, Pages, And The Story Field
 
-A character in this system is really two complementary records that share an
-ID/slug:
+Belief is a 0-100 score used at several levels:
 
-- **`NarrativeWorldEntity`** (`kind: .character`, one of eight
-  `NarrativeEntityKind`s alongside `.location`, `.object`, `.thread`,
-  `.classRoom`, `.talisman`, `.realWorldAnchor`, and `.motif` — note that
-  *threads, places, and objects are first-class "cast members" too, not just
-  people) is the behavioral/personality definition: `belief`,
-  `narrativeWeight`, `chapter`, an `unwrittenInterest` (what this character
-  is quietly curious about — used to color incidental dialogue/gossip),
-  and five small arrays — `traits`, `quirks`, `faults`, `beliefs`, `goals` —
-  plus `tags` for matching against page content and real-world signals.
-  The bundled "Core Story Field Pack" ships **41 entities, 13 story
-  threads, and 15 relationship edges**. A few examples from the bundle:
-  "the Book" itself (belief 30, traits `attentive`/`private`/`patient`,
-  goal "turn real days into pages worth keeping"), Penny Blackletter
-  (a marginalia/letters character who "files ridiculous evidence" and
-  "distrusts sentences that arrive too polished"), Dr. Selene Inkrest
-  (support faculty — "keeps office hours for difficult pages," "sets chairs
-  out before feelings arrive"), Dr. Elowen Vellum (body/fuel support
-  faculty — "turns breakfast into field notes"), and Headmistress Seraphina
-  Thorne ("speaks as if buildings are listening").
-- **`CharacterIllustrationProfile`** is the matching visual/identity record
-  (described in the Extensibility section above) — `palette`, `silhouette`,
-  `signature`, `continuity`/`avoid` notes, and AI image-generation
-  `prompt`/`negativePrompt`. Together, the two records mean a character has
-  one coherent home for *how they think and act* and *how they look and are
-  drawn* — which is exactly what keeps a character feeling like the same
-  person across a diary page, a letter, a gossip turn, and an illustration.
+- the reader/book has Belief,
+- narrative entities have Belief,
+- Chapter Talismans have Belief,
+- page sources have Belief,
+- custom cast members enter the world with starting Belief.
 
-Characters connect to each other and to threads/places/objects via
-**`NarrativeRelationshipEdge`** — a typed edge (`authorship`, `attention`,
-`stewardship`, `care`, `correspondence`, `realityBleed`, `companionship`,
-`tension`) carrying its own `warmth`, `tension`, `trust`, and
-`narrativeWeight`. Sample edges from the bundle: "the Book authors the
-reader" (an `authorship` edge to the *Ordinary Magic* thread, warmth 18,
-trust 18 — the Book's stance toward the player's life is itself modeled as a
-relationship, not a hard-coded narrator voice), and "Penny files the Book"
-(a `stewardship` edge, warmth 16, tension 4 — she's trying to preserve
-something that keeps almost vanishing). Note `realityBleed` as a
-relationship *kind* in its own right — the simulation has a named concept
-for "this connects the fiction back to something real," which is a precise
-bit of design vocabulary for a system whose entire purpose is blurring that
-line on purpose, carefully.
+`PageBeliefProfile` gives every page source a default Belief and narrative
+weight. The Glow menu lets the reader give/take Belief from page sources and
+cast members. Those changes are persisted as ledgers and also recorded as
+events, so curation preference becomes part of the Book's memory instead of a
+silent setting.
 
-Put together: Belief is what a character/thread *has* and can spend or lose;
-narrative weight is what they *mean* to the story regardless of their
-current Belief; relationships are the typed, scored connective tissue
-between them; events are the record of what just happened; the story-field
-projection is the live, ranked synthesis of all of it; and
-`StoryScenePacketBuilder` is what actually turns that synthesis into the
-next page. It's a genuinely elegant little engine for making "the world
-remembers what you pay attention to" mechanically true rather than just
-narratively asserted.
+`NarrativeEventResolver` turns kept pages, choices, gossip, letters, and other
+actions into `NarrativeEvent`s. `NarrativeStoryFieldProjector` folds those
+events into current entity/thread/relationship weights. Story pages, gossip,
+letters, and status cards all read from that live field.
 
-## Persistence
+## Chapters And Talismans
 
-- `Shared/BookArchiveDatabase.swift` — a `final class BookArchiveDatabase`
-  built on Core Data–style stored entities (`StoredArchiveDay`,
-  `StoredArchivePage`, `StoredArchiveResurfacingEvent`, `StoredSelfFact`,
-  `StoredNarrativeEvent`, `StoredNarrativeEntityMemory`,
-  `StoredFacultyEntry`): the durable archive of everything the Book has shown.
-- `InsideCoverApp/BookDatabase.swift` — app-side `BookDatabase` enum wrapping
-  archive access for the UI layer.
-- `Shared/InsideCoverStore.swift` (~1.2k lines) — `InsideCoverStore` (state
-  load/save), `BookStore` (the day/page archive — JSON-backed,
-  schema-versioned, with `LoadSource`/migration handling), and
-  `LocalModelManager` (download/activate/report on the on-device model:
-  `LocalModelState`, `LocalModelReport`, `ActiveLocalModel`, `ModelChoice`).
-  Also defines the `Braider`, `WonderCompassPassageChoosing`,
-  `WeatherEnchanting`, `AskTheBookAnswering` protocols and their `LocalModel*`
-  / `Fake*` / `Resilient*` (fallback-wrapping) implementations — a
-  protocol-oriented seam that lets the app run with or without a working
-  local model.
+Chapters are now represented by talisman entities in the narrative pack. Their
+starting Belief has been tuned so **Dusk Thorn starts at 11**, while **Ember
+Seal, Wind Cipher, Tide Glass, and Moss Clasp start at 10**. This keeps Dusk
+Thorn slightly ascendant at baseline without making the other Chapters feel
+irrelevant.
 
-## App target (`InsideCoverApp/`)
+Characters and world entities can now sometimes act on Chapter Talismans during
+generated content:
 
-- **`InsideCoverApp.swift`** — `@main` entry point; just wraps `ContentView`.
-- **`ContentView.swift`** (~2.7k lines) — the main screen/orchestrator: page
-  feed, status banners, command menu wiring, HealthKit/CoreLocation/Photos/
-  Vision/MLX integration (heavily `#if canImport(...)` gated so it degrades
-  gracefully across platforms and build configurations, including a
-  `NATIVE_LOCAL_BRAIN` flag gating the in-process MLX model).
-- **`BookSurfaceViews.swift`** (~2.2k lines) — the visual "page" surfaces:
-  `SurfaceCard`/`SwipeDismissSurfaceCard` (swipeable page UI),
-  `IlluminatedArtifactPreview`/`IlluminatedPageRenderer`, `BookOfYouCard`,
-  `PageSourceCard`/`SourceSettingsSheet`, `OpeningMovieView`,
-  `WrittenGoldText`, `FairyScribe`, `SparkleTrail`, `PageTurnWipe`,
-  `BookBackground`, `BookPalette`/`PageVisualStyle` — the illuminated-
-  manuscript aesthetic (parchment, ink, gold leaf, candlelight, page-turn
-  animations) is implemented here.
-- **`BookStatusCards.swift`** (~1.4k lines) — diagnostic/status UI:
-  `LabStatusCard`, `BodySourceCard`, `WeatherSourceCard`,
-  `StoryFieldStatusCard`, `BeliefScoreBadge`, `BraidingStatusCard`,
-  `LocalBrainWorkingStatusCard`, `ModelStatusCard`, and the `GlowCommandMenu`
-  (a contextual command palette with `GlowMenuAction`/`GlowBeliefMode` and
-  entity/page/section/enchantment menu items).
-- **`CapturePageSheet.swift`** (~2.9k lines) — the page-authoring flow:
-  `CapturePageSheet` (capture UI), `StoryPageSessionTurn`/
-  `StoryPageContinuationContext`/`StoryPageProse`/`StoryPageResultContext`
-  (multi-turn story authoring state), `StoryPagePromptBuilder`/
-  `StoryPageProseParser`/`StoryPageResultPromptBuilder` (LLM prompt
-  construction & response parsing), `GossipPagePromptBuilder`, and
-  `Fake*Writer` test doubles.
-- **`LocalBrainServices.swift`** (~1.9k lines) — the on-device AI layer:
-  `LocalBrainInferenceGate` (an `actor` serializing model access),
-  `MLXBookBraider`/`MLXAskTheBookAnswerer`/`MLXWonderCompassChooser`/
-  `MLXWeatherEnchanter`/`MLXStoryPageWriter`/`MLXGossipPageWriter`/
-  `MLXFacultyResearchWriter`/`MLXStoryPageResultWriter` (MLX-backed
-  generators behind the `Braider`/`*Writing`/`*Choosing`/`*Enchanting`
-  protocols), `VLMPhotoIlluminationAnalyzer`/`VisionPhotoCaptioner`/
-  `GemmaPhotoIlluminationAnalyzer` (vision-language analysis of photos for
-  illumination), `PhotoLibraryService`/`PhotoCandidateScorer` (Photos
-  integration), `RealInterestGossipSearcher`, `ScholarlyFacultyResearcher`.
-- **`AppSupport.swift`** — small cross-cutting helpers: `BookFeedback`
-  (haptic + sound feedback cues for tap/select/page actions), notification
-  names, `AppMemoryLedger`, `BraidingQuips`/`LocalBrainQuips`,
-  `HealthKitBodyReader`, `WeatherLocationReader`.
-- **`BookDatabase.swift`** — thin app-facing wrapper over the shared archive.
+- Story Pages can include talisman give/take moves.
+- Gossip simulation turns can include talisman give/take moves.
+- Character Letters can include talisman give/take moves.
 
-## "Local Brain" (on-device model)
+These are not just atmospheric lines. Generated pages may carry
+`chapterTalismanMoves` / `chapterTalismanDeltas` metadata. When such a page is
+kept, `ContentView.applyGeneratedChapterTalismanDeltas` applies the resulting
+ledger changes so Chapter Belief actually moves.
 
-The app can run inference fully on-device via MLX (Apple's on-device ML
-framework), gated by a `NATIVE_LOCAL_BRAIN` compile flag and `canImport`
-checks so the app still builds/runs without it. `LocalModelManager` handles
-model discovery/download/activation and reports state
-(`missing`/`ready`/`unavailable`) through `LocalModelReport`. Generation
-work is funneled through an `actor LocalBrainInferenceGate` to serialize
-access to the model, with `Resilient*`/`Fake*` wrapper types providing
-graceful fallback when the model is busy or unavailable. Recent commits
-(`Stream E2B model downloads to disk`, `Restore native local brain linkage`,
-`Avoid clinical HealthKit reads on startup`, `Gate native local brain
-startup`) show this subsystem is under active development/hardening.
+The moves are intentionally occasional. Entities may give Belief to their own
+Chapter's talisman or attempt to take Belief from another Chapter's talisman,
+with success/failure and ledger effects resolved in shared code.
 
-## Extensibility: is ReEnchanted a platform? Packs, templates, and "Pages as mini-apps"
+## Characters, Cast, And Memory
 
-This is the most interesting architectural question to ask of the codebase,
-and the honest answer is: **the content layer is already built like a
-platform; the page-type layer is not (yet)**. Concretely:
+Narrative entities include characters, locations, objects, threads, classrooms,
+talismans, real-world anchors, and motifs. A `NarrativeWorldEntity` can carry:
 
-### The "Pack" pattern already exists, and it's consistent
+- Belief and narrative weight,
+- Chapter affiliation,
+- traits, quirks, faults, beliefs, goals, and tags,
+- an `unwrittenInterest`,
+- an optional writing voice profile,
+- relationships to other entities,
+- accumulated `NarrativeEntityMemory`.
 
-Six different kinds of content are modeled as packs with an *identical*
-shape — `LorePack`, `NarrativePack`, `SupportFacultyPack`, `QuipPack`,
-`SelfKnowledgePack`, and `IlluminationAssetPack` all carry `id`,
-`displayName`, `version`, `author`, and `availability`, wrapping their
-specific payload (lore snippets, narrative entities/threads/relationships,
-faculty charts, quips, About-You questions, illumination assets). Each has a
-matching `*Registry` enum (`LorePackRegistry`, `NarrativePackRegistry`,
-`SupportFacultyPackRegistry`, `QuipPackRegistry`, `SelfKnowledgePackRegistry`,
-`IlluminationPackRegistry`) that holds an array of `bundledPacks`/
-`installedPacks`, derives `enabledPacks` by filtering out anything `.locked`,
-and flattens the survivors into the flat catalogs the rest of the app
-consumes (`entities`, `quips`, `snippets`, `questions`, `charts`, `assets`...).
-That registry → enabled-pack → flattened-catalog pipeline is uniform across
-all six pack types — whoever built this was clearly designing toward "many
-packs can exist; only some are active; the rest of the app shouldn't care."
+Characters can:
 
-### The availability model already anticipates a marketplace
+- appear in Story Pages,
+- participate in Gossip simulation,
+- send Letters,
+- ask for Unwritten Electives,
+- receive and lose Belief through Glow,
+- sometimes move Chapter Talisman Belief,
+- gain memories from kept pages and events,
+- be illustrated through stable character illustration profiles.
 
-`ContentPackAvailability`, `QuipPackAvailability`, and `PackAvailability`
-(three near-identical enums, one per pack family) all define the same five
-states: `bundledFree`, `patron`, `paid`, `userImported`, and `locked`. Only
-`bundledFree` packs exist today (one core pack per family, `availability:
-.bundledFree`, `author: "The Book"`), and `enabledPacks` already excludes
-`.locked` ones — but the *vocabulary* for patron-gated content, paid content,
-and content the user has imported themselves is sitting right there in the
-type system, unused but ready. That's a strong signal of intent: this was
-designed to eventually support installable content tiers, not just a fixed
-bundle.
+Custom Cast Members are first-class. The reader can create one through
+`CustomCastMemberSheet`, including kind, meaning, description, traits, beliefs,
+goals, tags, and optional image. The saved member is persisted in SwiftData and
+converted into a `NarrativeWorldEntity`, which lets it join story selection,
+memory, Belief, and Cast Member pages alongside bundled characters.
 
-### Characters are modeled as portable specs, not just prose
+### Character Records And Voice
 
-`CharacterIllustrationProfile` is the clearest example of "a character as an
-installable unit." One struct carries everything needed to keep a character
-consistent across both narrative *and* illustration: `characterName`,
-`status`, `chapter`, `core` description, `signature` object, `palette`,
-`silhouette`, `continuity` notes, an `avoid` field (negative guidance),
-`assetName`/`intendedAssetName`, an image-generation `prompt` and
-`negativePrompt`, `marginalia` tags, and general `tags`. A new character —
-"everything that will entail," as you put it — already has a single,
-coherent home: write one of these, and the Book can talk about them, draw
-them consistently, and weave them into lore/threads/gossip. `BookReferenceCatalog`
-turns qualifying profiles into `LabyrinthIllustrationPlate`s automatically,
-gated by a `bundledCharacterIllustrationAssetNames` allow-list (so a
-character spec can exist narratively before its artwork is ready).
+A character is not just prose in this app. The current model spreads character
+identity across several cooperating records:
 
-### Marginalia/illustration is the most genuinely "data-driven mini-app" piece
+- `NarrativeWorldEntity` holds the mechanical/story identity: kind, Belief,
+  narrative weight, Chapter, traits, quirks, faults, beliefs, goals, tags,
+  unwritten interest, and optional `WritingVoiceProfile`.
+- `WritingVoiceProfile` gives letters and generated prose a reusable voice
+  block: register, rhythm, diction, habits, and avoid-list.
+- `CharacterIllustrationProfile` holds the visual identity used by illustration
+  plates: palette, silhouette, signature object, continuity notes, prompt,
+  negative prompt, marginalia tags, and asset references.
+- `NarrativeRelationshipEdge` gives relationships typed connective tissue:
+  authorship, attention, stewardship, care, correspondence, reality bleed,
+  companionship, tension, warmth, trust, and narrative weight.
 
-`IlluminationTemplate` doesn't hard-code a layout in SwiftUI — it *describes*
-one: `requiredSlots`/`optionalSlots` arrays of `TemplateTextSlotSpec` /
-`TemplateDecorationSlotSpec`, each with a position, size, rotation range,
-paper tags, font style, and a `MarginaliaContentKey` saying what kind of
-content fills it. `IlluminationAssetPack` then supplies the raw materials
-(`backgrounds`, `paperScraps`, `stamps`, `doodles`, `tape`, `overlays`) plus
-which `supportedTemplates` it can dress and `fallbackPhrases` per template.
-`IlluminationPackRegistry.packsSupporting(_:)` / `.preferredPack(for:motifs:)`
-already implement "given a template, pick the best installed pack for it" —
-real selection logic for a multi-pack world, even though only one pack
-(`CoreMarginsPack`) is installed today. This is the part of the system
-closest to your "Pages can do almost anything as long as they stay in
-character" framing: the *template* defines the contract (these slots, this
-content, this mood), and any number of asset packs can fulfill it differently.
+Those records let the same person behave consistently across story scenes,
+letters, gossip, illustrations, Belief moves, search, and memory.
 
-### How new content actually gets "installed" today: a real but build-time pipeline
+## Locations, Anchors, And Nearby Places
 
-The closest thing to a pack installer that exists right now is
-`scripts/build_inside_cover_reference_library.py`, which reads markdown lore
-files (`lore/characters.md`, `lore/world.md`, `lore/wonder-compass-book/`,
-etc.) and `lore/character-visuals.json`, compiles them into a single
-versioned `BookReferenceLibrary.json`, and bundles that into the app.
-`BookReferenceCatalog` loads it as a `BookReferenceLibraryPayload` and falls
-back to small hardcoded Swift arrays if a category is empty. So: **you
-already author new lore and characters in the same `lore/` markdown files
-that drive the rest of Enchantify**, run one script, and the app picks them
-up — but it's a "rebuild and ship" pipeline, not a "drop a file on the
-device and it appears" one. The `userImported` availability case suggests
-that gap has been noticed; it just isn't bridged yet.
+Locations are first-class narrative material. They appear as ordinary Location
+Pages, as real-world anchors, as nearby places for electives, and as story-field
+entities.
 
-### The honest limit: `BookPageType` is a closed, compile-time enum
+The location stack includes:
 
-Where the platform metaphor breaks down is at the level of the *page type*
-itself — the thing that determines what kind of mini-app a given page
-actually is. `BookPageType` is a fixed Swift `enum` with 22 known cases
-(`mood`, `diary`, `gossip`, `bookOfYou`, `askTheBook`, `illuminatedPhoto`...),
-and every layer that cares about page type — `PageVisualStyle.style(for:)`,
-the rendering dispatch in `BookSurfaceViews`/`CapturePageSheet`, and
-`BookPageSourceRegistry` — is a hand-written `switch` over those exact cases.
-Introducing a genuinely *new kind* of page (not new content within an
-existing kind, but a new archetype with its own behavior, like a new
-`BookPageType.weeklyRitual` that works completely differently from a diary
-entry) means adding an enum case and editing several switch statements in
-Swift, then recompiling and shipping a new build. That's a normal, healthy
-extension point for *you* as the developer — but it isn't yet a surface
-where a "Pack" can define a wholly new page archetype on its own, the way
-the content packs above can supply wholly new lore, characters, quips, or
-illustration material into *existing* page archetypes without touching
-Swift.
+- `LocalPlaceSignal` — a nearby real place scouted from the device's location,
+  with name, category, distance label, and locality.
+- `LocalPlacesScout` — caches and refreshes nearby place signals, then feeds
+  them into `BookSourceInputs`.
+- `LocationPageSourceAdapter` — creates ordinary place/location pages.
+- `OuterStacksAnchorPageSourceAdapter` — creates Anchor/Outer Stacks pages when
+  a known anchor is nearby.
+- `AnchorRecord`, `AnchorKind`, `AnchorRegistry`, and `AnchorMath` — durable
+  anchor data, proximity checks, check-in reward logic, season helpers, and
+  distance math.
+- `AnchorOfferFormView` — lets the reader anchor a real place when the Book is
+  standing somewhere unanchored.
+- `OuterStacksRoomEngine` / `OuterStacksRoomWriting` — turns anchored real
+  places into Outer Stacks room specs and visit scenes.
 
-### The shape of the gap, if it's ever worth closing
+Important behavior:
 
-Put plainly: content is pluggable, page *kinds* are not. If "Pages as
-mini-apps that can do almost anything in character" is the long-term goal,
-the natural next step the existing architecture points toward is generalizing
-the same trick `IlluminationTemplate` already uses for marginalia — replace
-the closed `BookPageType` switch-dispatch with a small, declarative
-description of a page archetype (what sources feed it, what prompts/writers
-generate its content, which renderer/template family draws it, what its
-`SurfaceActionRouter` rules are) that a pack could supply as data, with the
-Swift side providing a fixed vocabulary of building blocks (writers,
-choosers, renderers, slot types) for packs to compose. That's a substantial
-step up in complexity from what exists — but the groundwork (uniform pack
-shape, availability tiers, template/slot abstraction, protocol-oriented
-writer/chooser seams with `Resilient`/`Fake` fallbacks) is already there to
-build on, which is presumably why it all looks so consistent: it was clearly
-laid with *something* like this in mind.
+- Built-in default anchors ship empty. Anchors belong to a reader's save, not
+  to the app globally.
+- Known anchors light when the reader is within roughly 200 meters.
+- Checking in at an Anchor can reward Belief and updates the anchor ledger.
+- If no anchor is nearby, the app can offer to make the current real place into
+  a new anchored room.
+- Nearby real places are also used by Unwritten Electives so character favors
+  can name a real place when the scout has one.
 
-## Testing
+## Reference Catalogs, Lore, And Illustration
 
-`Tests/InsideCoverCoreTests/` covers the shared core's policy/state-machine
-types in isolation — `BookArchiveDatabaseTests`, `BookArchiveExportTests`,
-`BookArchiveIndexTests`, `BookCuratorTests`, `BraidRecoveryStateTests`,
-`LocalBrainTelemetryStateTests`, `PreparedPageRecoveryStateTests`,
-`SurfaceActionRouterTests`, `SurfaceReadinessStateTests`,
-`WorkBlockingStateTests`. Recent commit history (`Extract surface action
-routing`, `Extract surface readiness policy`, `Extract work blocking
-policy`, `Extract local brain telemetry state`, `Make prepared page recovery
-testable`, `Make braid recovery policy testable`) shows an ongoing pattern
-of pulling UI-adjacent decision logic out of the views and into small,
-independently-testable structs in `InsideCoverState.swift`.
+Reference content is still partly generated from Enchantify-side lore and
+partly bundled in Swift/JSON. The main runtime entry is
+`BookReferenceCatalog`, backed by `Shared/BookReferenceLibrary.json` and
+fallback registries.
 
-## Setup / data flow
+It supplies:
 
-The Mac side of Enchantify generates a state snapshot for the player, which
-is transferred to the device (AirDrop/iCloud Drive/Files) and imported into
-InsideCoverApp, where it drives the Book's pages. This is intentionally
-local/private for now — no network sync. `Sample/` provides a sample payload
-for local development/testing.
+- Wonder Compass snippets and relevant passage selection.
+- Labyrinth/world lore snippets.
+- Character illustration plates.
+- Character visual profiles and bundled asset allow-lists.
+- Reference text used by Lore, Illustration, Wonder Compass, and related pages.
+
+The illustration system is data-driven around templates and packs:
+
+- `IlluminationTemplate` describes text slots and decoration slots.
+- `IlluminationAssetPack` supplies backgrounds, scraps, stamps, doodles, tape,
+  overlays, and fallback phrases.
+- `IlluminatedPageComposer` chooses placements and renders structured
+  manuscript-like page plans.
+- `PageVisualStyle` gives each page family its own parchment, accent, marginalia
+  set, watermark, and decorative proportions.
+
+That means character art, photo illuminations, letter pages, help pages, welcome
+pages, and source cards all share a visual grammar while keeping distinct page
+identities.
+
+## Story Pages, Gossip, And Letters
+
+**Story Pages** use `StoryScenePacketBuilder` to select entities, threads,
+relationships, memories, and real-world signals. Generated scenes use a
+three-choice grammar and can record choice events when kept or continued.
+
+**Gossip Pages** simulate offscreen world activity. They are windows into what
+characters and entities are doing when the reader is not looking. They can move
+story-field weights and, sometimes, Chapter Talisman Belief.
+
+**Letter Pages** are character-authored correspondence. The generator selects a
+sender based on Belief, narrative weight, recent memories, story-field presence,
+and stable jitter. Letters now address the reader using the stored onboarding
+name/preferred name rather than placeholder text. They can incorporate the
+sender's voice profile, unwritten interest, home context, memories, research
+clippings, and occasional talisman moves.
+
+## Memory And Continuity
+
+There are several kinds of memory, and they do different jobs:
+
+- **Self facts** (`SelfFact`) are things the reader has explicitly told the
+  Book: name, home/place context, preferences, identity notes, and About You
+  answers. Each carries sensitivity and use-permission.
+- **Narrative events** (`NarrativeEvent`) are mechanical consequences from kept
+  pages, Glow actions, story choices, gossip, letters, talisman moves, and other
+  interactions.
+- **Entity memories** (`NarrativeEntityMemory`) are character/entity-specific
+  recollections minted from events by `NarrativeEntityMemoryResolver`.
+- **Consolidated memories** are cleaned by
+  `NarrativeEntityMemoryConsolidator`, which merges near-duplicates and caps
+  runaway weight.
+- **Surface history** tracks what has been shown recently, so curation can avoid
+  repeating the same page/source too aggressively.
+- **Prepared/recovery state** remembers in-progress generated pages and failed
+  attempts so the UI can recover gracefully.
+
+These memories feed back into story selection, letters, gossip, search, curation
+fatigue, and the Book of You. This is the main reason the app can gradually
+stop sounding generic: kept pages and choices become durable structure.
+
+`BraidTextPolisher` is part of continuity too. Before a generated Book of You
+page is saved, it removes exact repeats, repeated ideas, motif echoes, and
+overlong braid output so the daily page reads like a composed piece rather than
+model drift.
+
+## Wonder Compass, Playful Missions, And Gemma
+
+The Wonder Compass source now includes a large set of **Playful Mission /
+South = Sense** missions imported from the attention mission pack. These sit
+beside the original core missions in `PlayfulMissionRegistry`.
+
+Wonder Compass pages can offer a mission selected from the registry, and every
+Playful Mission / South = Sense page has an option to ask Gemma for a fresh
+custom mission. The generation path is:
+
+- `CapturePageSheet` exposes "Generate new mission" on standalone playful
+  mission pages.
+- `ContentView.generatePlayfulMissionFromSheet` starts the local-brain task.
+- `PlayfulMissionWriter` asks Gemma for one sensory errand with title, prompt,
+  proof prompt, tags, and photo allowance.
+- A fallback mission is produced locally if Gemma cannot finish.
+
+Custom Compass Runs can also be generated from user constraints, again with a
+Gemma path and local fallback.
+
+## Help And Tips
+
+`HelpTipsCatalog` is a rotating library of practical guidance pages. It covers:
+
+- what kinds of pages exist,
+- how keeping and dismissing affect the Book,
+- how Glow changes page/entity attention,
+- how the Book of You works,
+- how to use Playful Missions,
+- how Gemma-generated pages behave,
+- privacy and local context expectations,
+- ways to get better results from prompts, photos, and kept pages.
+
+The Help and Tips page type has its own source, visual style, menu entry, and
+curator behavior. It is public-reference content, not private generated prose.
+
+## Enchantments And Photos
+
+Enchantments are camera/photo spells. `StoryEnchantmentCatalog` defines named
+spells such as Everything Speaks, Everything's Poetry, Everything's Magic,
+Everything's a Haiku, Mirror Mirror, Everything's Connected, Everything's
+Roasted, and more.
+
+The photo pipeline includes:
+
+- Photos/Vision integration for candidate discovery and captions,
+- `GemmaPhotoIlluminationAnalyzer` for local visual analysis,
+- `IlluminatedPageComposer` for manuscript-style rendered pages,
+- `MLXEnchantmentWriter` for spell prose,
+- fallbacks when Gemma or vision analysis is unavailable.
+
+Generated enchantments can seed Ask the Book conversations so the reader can
+continue talking with the enchanted subject.
+
+## Local Brain
+
+The "Local Brain" is the app's on-device generation layer, currently centered
+on Gemma/MLX when built with `NATIVE_LOCAL_BRAIN`. Access is serialized through
+`LocalBrainInferenceGate` so model work does not stampede the device.
+
+MLX-backed services include:
+
+- Book of You braiding,
+- Ask the Book answers,
+- Wonder Compass choice/generation,
+- Weather enchantment,
+- Story Page prose and results,
+- Gossip prose,
+- Faculty Research,
+- Character Letters,
+- Enchantments,
+- Photo illumination analysis,
+- Playful Mission generation.
+
+Most generated systems have `Fake*` or fallback implementations so the app
+keeps working when the model is missing, busy, or unavailable.
+
+## Search, Archive, And Persistence
+
+`BookArchiveDatabase` persists:
+
+- archive days and kept pages,
+- resurfacing events,
+- self facts,
+- narrative events,
+- entity memories,
+- faculty entries,
+- custom cast members.
+
+`BookArchiveIndex` and `StacksSearchEngine` support Search the Stacks. Search
+can find kept pages, memories, cast members, page families, glow tiers, and
+correlations such as "what did I keep when I was tired?"
+
+Search is intentionally local and structured first. It indexes:
+
+- kept page text, prompts, tags, metadata, dates, and page types,
+- self facts where appropriate,
+- entity memories,
+- custom cast members,
+- page family/type words,
+- Glow tier language,
+- co-kept page correlations.
+
+`SearchTheStacksSheet` is the app UI for this. It can answer direct queries
+through the local index immediately, and the Book/Gemma can optionally interpret
+stranger questions when that path is available.
+
+Kept pages now reopen as full pages through the same surface sheet used by live
+pages, rather than as inert row previews.
+
+## Refactored Policy And Recovery Layer
+
+Recent refactoring pulled a lot of UI-adjacent decision logic out of views and
+into small shared structs with unit tests. This is one of the healthiest parts
+of the codebase now:
+
+- `SurfaceReadinessState` decides whether a surface is ready to open or still
+  needs local-brain work.
+- `SurfaceActionRouter` turns readiness plus work state into an open/block/start
+  decision.
+- `WorkBlockingState` centralizes which kinds of work block which page actions.
+- `LocalBrainTelemetryState` tracks active work, reading-room state, last
+  summary, and user-facing model status.
+- `PreparedPageRecoveryState` handles generated-page cooldowns, current
+  prepared surfaces, retries, and failed attempts.
+- `BraidRecoveryState` handles Book of You retry/error behavior and the marking
+  of captured pages as used once a braid succeeds.
+- `CuratorVarietyGovernor` and `CuratorSurfacePreferences` handle fatigue,
+  low-Belief surprise boosts, disabled/muted sources, and page Belief influence.
+
+The tests around these pieces are the reason the big SwiftUI views can keep
+moving while the underlying behavior stays legible.
+
+## App Target
+
+Key app files:
+
+- `InsideCoverApp/InsideCoverApp.swift` — `@main` entry point.
+- `InsideCoverApp/ContentView.swift` — main orchestrator: feed, sheets,
+  curation refresh, local-brain tasks, Glow actions, persistence calls,
+  generated talisman delta application.
+- `InsideCoverApp/ContentViewFeatures.swift` — extracted feature helpers.
+- `InsideCoverApp/BookSurfaceViews.swift` — page cards, illuminated surfaces,
+  visual styles, page background/marginalia, animation.
+- `InsideCoverApp/BookStatusCards.swift` — status cards, Glow menu, Belief UI.
+- `InsideCoverApp/CapturePageSheet.swift` — page opening/capture/generation UI,
+  story/gossip/Ask/Compass/mission/photo flows.
+- `InsideCoverApp/LocalBrainServices.swift` — MLX/Gemma-backed generation
+  services and fallbacks.
+- `InsideCoverApp/CustomCastMemberSheet.swift` — custom cast creation.
+- `InsideCoverApp/SearchTheStacksSheet.swift` — local archive search UI.
+- `InsideCoverApp/AppSupport.swift` — haptics, quips, HealthKit, weather, and
+  other cross-cutting helpers.
+- `InsideCoverApp/BookDatabase.swift` — app-facing wrapper over shared archive.
+
+## Extensibility
+
+The content layer is increasingly pack-shaped:
+
+- lore packs,
+- narrative packs,
+- quip packs,
+- self-knowledge packs,
+- support faculty packs,
+- illumination asset packs,
+- page archetype packs,
+- installed Page Packs.
+
+Availability enums already contain concepts such as bundled, patron, paid,
+user-imported, and locked content. The current implementation still ships most
+new page kinds through Swift enum cases and switch statements, so true
+third-party page archetypes are not data-only yet. But content within existing
+archetypes is moving toward a pack/registry/adapter pattern.
+
+The current useful rule of thumb:
+
+- New content inside an existing page family can often be added through a
+  registry, catalog, or pack.
+- A brand-new page family still needs a `BookPageType` case, source registry
+  entry, adapter, visual style, routing/default intent handling, and tests.
+
+## Testing And Build Notes
+
+The shared test suite lives in `Tests/InsideCoverCoreTests/`. It covers archive
+persistence/export/indexing, curator behavior, recovery state machines,
+readiness/work blocking, page/source systems, story-field systems, Playful
+Missions, Chapter Talismans, letters, Help/Welcome behavior, and more.
+
+Common commands:
+
+```sh
+CLANG_MODULE_CACHE_PATH=/private/tmp/insidecover-module-cache \
+SWIFTPM_MODULECACHE_OVERRIDE=/private/tmp/insidecover-spm-module-cache \
+swift test
+```
+
+```sh
+xcodebuild \
+  -project ios/InsideCover/EnchantifyInsideCover.xcodeproj \
+  -scheme InsideCoverApp \
+  -configuration Debug \
+  -destination 'generic/platform=iOS Simulator' \
+  -derivedDataPath /private/tmp/InsideCoverDerivedData \
+  build
+```
+
+The simulator build does not require a connected phone. Physical-device builds
+require the developer to select their own Apple team and, if needed, unique
+bundle identifiers.

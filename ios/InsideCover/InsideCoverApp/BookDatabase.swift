@@ -99,6 +99,16 @@ enum BookDatabase {
         try database.upsertEntityMemory(memory)
     }
 
+    static func customCastMembers(limit: Int = 200) throws -> [CustomCastMember] {
+        refreshDatabaseIfNeeded()
+        return try database.customCastMembers(limit: limit)
+    }
+
+    static func upsertCustomCastMember(_ member: CustomCastMember) throws {
+        refreshDatabaseIfNeeded()
+        try database.upsertCustomCastMember(member)
+    }
+
     static func facultyEntries(
         kind: FacultyEntryKind? = nil,
         dayIDs: [String]? = nil,

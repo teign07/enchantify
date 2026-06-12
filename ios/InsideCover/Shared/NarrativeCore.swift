@@ -1,0 +1,1755 @@
+import Foundation
+
+
+enum NarrativeEntityKind: String, Codable, Equatable, CaseIterable {
+    case character
+    case location
+    case object
+    case thread
+    case classRoom
+    case talisman
+    case realWorldAnchor
+    case motif
+}
+
+struct NarrativeWorldEntity: Identifiable, Codable, Equatable {
+    var id: String
+    var packID: String
+    var name: String
+    var kind: NarrativeEntityKind
+    var belief: Int
+    var narrativeWeight: Int
+    var chapter: String?
+    var unwrittenInterest: String?
+    var traits: [String]
+    var quirks: [String]
+    var faults: [String]
+    var beliefs: [String]
+    var goals: [String]
+    var tags: [String]
+    var writingVoice: WritingVoiceProfile?
+
+    init(
+        id: String,
+        packID: String,
+        name: String,
+        kind: NarrativeEntityKind,
+        belief: Int,
+        narrativeWeight: Int,
+        chapter: String? = nil,
+        unwrittenInterest: String? = nil,
+        traits: [String] = [],
+        quirks: [String] = [],
+        faults: [String] = [],
+        beliefs: [String] = [],
+        goals: [String] = [],
+        tags: [String] = [],
+        writingVoice: WritingVoiceProfile? = nil
+    ) {
+        self.id = id
+        self.packID = packID
+        self.name = name
+        self.kind = kind
+        self.belief = belief
+        self.narrativeWeight = narrativeWeight
+        self.chapter = chapter
+        self.unwrittenInterest = unwrittenInterest
+        self.traits = traits
+        self.quirks = quirks
+        self.faults = faults
+        self.beliefs = beliefs
+        self.goals = goals
+        self.tags = tags
+        self.writingVoice = writingVoice
+    }
+}
+
+struct CustomCastMember: Identifiable, Codable, Equatable {
+    var id: String
+    var name: String
+    var kind: NarrativeEntityKind
+    var meaning: String
+    var description: String
+    var traits: [String]
+    var beliefs: [String]
+    var goals: [String]
+    var tags: [String]
+    var baseBelief: Int
+    var narrativeWeight: Int
+    var createdAt: Date
+    var updatedAt: Date
+    var imageAsset: BookPageMediaAsset?
+
+    var entity: NarrativeWorldEntity {
+        NarrativeWorldEntity(
+            id: id,
+            packID: "user-cast",
+            name: name,
+            kind: kind,
+            belief: baseBelief,
+            narrativeWeight: narrativeWeight,
+            chapter: nil,
+            unwrittenInterest: meaning,
+            traits: traits.isEmpty ? ["user-made"] : traits,
+            quirks: description.isEmpty ? [] : [description],
+            faults: [],
+            beliefs: beliefs.isEmpty ? [meaning].filter { !$0.isEmpty } : beliefs,
+            goals: goals,
+            tags: Array(Set(tags + ["custom-cast", "user-made", kind.rawValue])).sorted()
+        )
+    }
+}
+
+struct NarrativeStoryThread: Identifiable, Codable, Equatable {
+    var id: String
+    var packID: String
+    var title: String
+    var phase: StoryThreadPhase
+    var belief: Int
+    var narrativeWeight: Int
+    var summary: String
+    var tags: [String]
+}
+
+struct NarrativeRelationshipEdge: Identifiable, Codable, Equatable {
+    var id: String
+    var packID: String
+    var sourceEntityID: String
+    var targetEntityID: String
+    var kind: NarrativeRelationshipKind
+    var warmth: Int
+    var tension: Int
+    var trust: Int
+    var narrativeWeight: Int
+    var note: String
+    var tags: [String]
+}
+
+struct NarrativeEntityMemory: Identifiable, Codable, Equatable {
+    var id: String
+    var entityID: String
+    var sourceEventID: String
+    var sourcePageID: String?
+    var summary: String
+    var tags: [String]
+    var narrativeWeight: Int
+    var createdAt: Date
+}
+
+struct NarrativePack: Identifiable, Codable, Equatable {
+    var id: String
+    var displayName: String
+    var version: String
+    var author: String
+    var availability: ContentPackAvailability
+    var entities: [NarrativeWorldEntity]
+    var threads: [NarrativeStoryThread]
+    var relationships: [NarrativeRelationshipEdge]
+}
+
+enum NarrativeEventKind: String, Codable, Equatable, CaseIterable {
+    case pageKept
+    case pageAnswered
+    case choiceSelected
+    case beliefInvested
+    case beliefAttacked
+    case threadAdvanced
+    case entityNoticed
+    case letterReceived
+    case compassRunCompleted
+    case enchantmentCompleted
+    case simulationTurn
+}
+
+struct NarrativeEventEffect: Codable, Equatable {
+    var beliefDelta: Int
+    var entityWeightDeltas: [String: Int]
+    var threadWeightDeltas: [String: Int]
+    var relationshipWeightDeltas: [String: Int]
+    var createdEntityHint: String?
+
+    init(
+        beliefDelta: Int = 0,
+        entityWeightDeltas: [String: Int] = [:],
+        threadWeightDeltas: [String: Int] = [:],
+        relationshipWeightDeltas: [String: Int] = [:],
+        createdEntityHint: String? = nil
+    ) {
+        self.beliefDelta = beliefDelta
+        self.entityWeightDeltas = entityWeightDeltas
+        self.threadWeightDeltas = threadWeightDeltas
+        self.relationshipWeightDeltas = relationshipWeightDeltas
+        self.createdEntityHint = createdEntityHint
+    }
+}
+
+struct NarrativeEvent: Identifiable, Codable, Equatable {
+    var id: String
+    var kind: NarrativeEventKind
+    var sourcePageType: BookPageType?
+    var sourcePageID: String?
+    var createdAt: Date
+    var summary: String
+    var tags: [String]
+    var effect: NarrativeEventEffect
+}
+
+struct NarrativeStoryFieldProjection: Equatable {
+    var entityWeights: [String: Int]
+    var threadWeights: [String: Int]
+    var relationshipWeights: [String: Int]
+    var belief: Int
+
+    var topEntityIDs: [String] {
+        ranked(entityWeights)
+    }
+
+    var topThreadIDs: [String] {
+        ranked(threadWeights)
+    }
+
+    var topRelationshipIDs: [String] {
+        ranked(relationshipWeights)
+    }
+
+    private func ranked(_ weights: [String: Int], limit: Int = 8) -> [String] {
+        weights
+            .sorted { left, right in
+                if left.value == right.value {
+                    return left.key < right.key
+                }
+                return left.value > right.value
+            }
+            .prefix(limit)
+            .map(\.key)
+    }
+}
+
+enum NarrativeStoryFieldProjector {
+    static func projection(events: [NarrativeEvent], baseBelief: Int = 30) -> NarrativeStoryFieldProjection {
+        var entityWeights = Dictionary(uniqueKeysWithValues: NarrativePackRegistry.entities
+            .filter { $0.kind != .talisman }
+            .map { ($0.id, $0.narrativeWeight + $0.belief) })
+        var threadWeights = Dictionary(uniqueKeysWithValues: NarrativePackRegistry.threads.map {
+            ($0.id, $0.narrativeWeight + $0.belief)
+        })
+        var relationshipWeights = Dictionary(uniqueKeysWithValues: NarrativePackRegistry.relationships.map {
+            ($0.id, $0.narrativeWeight + $0.warmth + $0.trust - $0.tension)
+        })
+        var belief = baseBelief
+
+        for event in events {
+            belief += event.effect.beliefDelta
+            for (id, delta) in event.effect.entityWeightDeltas {
+                entityWeights[id, default: 0] += delta
+            }
+            for (id, delta) in event.effect.threadWeightDeltas {
+                threadWeights[id, default: 0] += delta
+            }
+            for (id, delta) in event.effect.relationshipWeightDeltas {
+                relationshipWeights[id, default: 0] += delta
+            }
+        }
+
+        return NarrativeStoryFieldProjection(
+            entityWeights: entityWeights,
+            threadWeights: threadWeights,
+            relationshipWeights: relationshipWeights,
+            belief: min(100, max(0, belief))
+        )
+    }
+}
+
+enum NarrativeEntityMemoryResolver {
+    static func memories(for event: NarrativeEvent) -> [NarrativeEntityMemory] {
+        let entityIDs = event.effect.entityWeightDeltas
+            .filter { $0.value > 0 }
+            .sorted { left, right in
+                if left.value == right.value {
+                    return left.key < right.key
+                }
+                return left.value > right.value
+            }
+            .prefix(5)
+            .map(\.key)
+
+        return entityIDs.map { entityID in
+            NarrativeEntityMemory(
+                id: "entity-memory-\(event.id)-\(entityID)",
+                entityID: entityID,
+                sourceEventID: event.id,
+                sourcePageID: event.sourcePageID,
+                summary: memorySummary(for: entityID, event: event),
+                tags: event.tags,
+                narrativeWeight: max(1, event.effect.entityWeightDeltas[entityID] ?? 1),
+                createdAt: event.createdAt
+            )
+        }
+    }
+
+    private static func memorySummary(for entityID: String, event: NarrativeEvent) -> String {
+        let entityName = NarrativePackRegistry.entities.first(where: { $0.id == entityID })?.name ?? entityID
+        let pageName = event.sourcePageType?.shortTitle ?? "page"
+        let trimmedSummary = event.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedSummary.isEmpty {
+            return "\(entityName) remembers that a \(pageName.lowercased()) page changed the margins."
+        }
+        return "\(entityName) remembers: \(trimmedSummary)"
+    }
+}
+
+enum NarrativePackRegistry {
+    static let corePackID = "core-narrative-os"
+
+    static let bundledPacks: [NarrativePack] = [
+        NarrativePack(
+            id: corePackID,
+            displayName: "Core Story Field Pack",
+            version: "0.1",
+            author: "The Book",
+            availability: .bundledFree,
+            entities: coreEntities + coreTalismans,
+            threads: coreThreads,
+            relationships: coreRelationships
+        )
+    ]
+
+    static var enabledPacks: [NarrativePack] {
+        bundledPacks.filter { $0.availability != .locked }
+    }
+
+    static var entities: [NarrativeWorldEntity] {
+        enabledPacks.flatMap(\.entities)
+    }
+
+    static var threads: [NarrativeStoryThread] {
+        enabledPacks.flatMap(\.threads)
+    }
+
+    static var relationships: [NarrativeRelationshipEdge] {
+        enabledPacks.flatMap(\.relationships)
+    }
+
+    private static let coreEntities: [NarrativeWorldEntity] = [
+        entity(
+            "the-book",
+            "The Book",
+            .object,
+            belief: 30,
+            weight: 30,
+            traits: ["attentive", "private", "patient"],
+            quirks: ["speaks through margins", "keeps small proof"],
+            faults: ["can become too subtle if not given a clear ritual"],
+            beliefs: ["attention is a kind of care"],
+            goals: ["turn real days into pages worth keeping"],
+            tags: ["book", "private", "memory", "belief"]
+        ),
+        entity(
+            "penny-blackletter",
+            "Penny Blackletter",
+            .character,
+            belief: 24,
+            weight: 18,
+            chapter: "Riddlewind",
+            unwrittenInterest: "Indie publishing, ethical marketing, Patreon, open-source storytelling, and the creator economy.",
+            traits: ["dry", "warm", "observant"],
+            quirks: ["files ridiculous evidence", "distrusts sentences that arrive too polished"],
+            faults: ["can over-label a perfectly good mystery"],
+            beliefs: ["one honest detail can save a day"],
+            goals: ["recover what the margins nearly lost"],
+            tags: ["character", "marginalia", "photos", "letters"]
+        ),
+        entity(
+            "dr-inkrest",
+            "Dr. Selene Inkrest",
+            .character,
+            belief: 34,
+            weight: 18,
+            chapter: "Riddlewind",
+            unwrittenInterest: "Consciousness and brain studies as they relate to the reader.",
+            traits: ["gentle", "precise", "therapeutic", "narrative-minded"],
+            quirks: ["keeps office hours for difficult pages", "sets chairs out before feelings arrive"],
+            faults: ["sometimes softens the knife too much", "can wait so patiently the room forgets to answer"],
+            beliefs: ["a hard page deserves a chair and a lamp"],
+            goals: ["help the reader reauthor without being rushed"],
+            tags: ["character", "support-faculty", "care", "difficult-pages", "therapy-chart", "rest", "grounding", "reauthoring"]
+        ),
+        entity(
+            "dr-vellum",
+            "Dr. Elowen Vellum",
+            .character,
+            belief: 27,
+            weight: 17,
+            chapter: "Mossbloom",
+            unwrittenInterest: "Longevity research, fuel, recovery, supplements, movement, and humane body experiments.",
+            traits: ["precise", "warmly clinical", "experiment-minded", "low-shame"],
+            quirks: ["turns breakfast into field notes", "can make a supplement interaction sound like etiquette"],
+            faults: ["can become too fascinated by a tidy protocol"],
+            beliefs: ["the body is not a problem to win against"],
+            goals: ["translate fuel, movement, recovery, and health signals into one humane experiment"],
+            tags: ["character", "support-faculty", "body", "fuel", "health", "vellum-chart", "longevity", "care"]
+        ),
+        entity(
+            "headmistress-thorne",
+            "Headmistress Seraphina Thorne",
+            .character,
+            belief: 26,
+            weight: 20,
+            chapter: "Duskthorn",
+            unwrittenInterest: "Thresholds, hidden authority, institutional coherence, and the cost of keeping a living school safe.",
+            traits: ["elegant", "watchful", "unseelie"],
+            quirks: ["speaks as if buildings are listening", "keeps doors from admitting they are tests"],
+            faults: ["can mistake secrecy for mercy"],
+            beliefs: ["beauty is a form of governance"],
+            goals: ["keep the Academy coherent while letting wonder stay dangerous enough to matter"],
+            tags: ["character", "academy", "authority", "duskthorn", "threshold"]
+        ),
+        entity(
+            "orion-blackthorn",
+            "Orion Blackthorn",
+            .character,
+            belief: 18,
+            weight: 14,
+            chapter: "Emberheart",
+            unwrittenInterest: "Architecture, innovation, ambitious systems, and the human cost of making impossible structures work.",
+            traits: ["brilliant", "restless", "architectural"],
+            quirks: ["turns problems into towers", "measures magic by what it can build"],
+            faults: ["can optimize tenderness out of a room"],
+            beliefs: ["new structures can rescue old failures"],
+            goals: ["drag impossible ideas into usable form"],
+            tags: ["character", "innovation", "architecture", "ambition", "academy"]
+        ),
+        entity(
+            "zara-finch",
+            "Zara Finch",
+            .character,
+            belief: 20,
+            weight: 17,
+            chapter: "Riddlewind",
+            unwrittenInterest: "Trust, friendship, practical magic, hidden alcoves, and helping the reader find paths that hold.",
+            traits: ["loyal", "quick", "ferociously observant"],
+            quirks: ["notices exits before introductions", "keeps practical magic in her pockets"],
+            faults: ["can confuse vigilance with care"],
+            beliefs: ["trust is proven in small returns"],
+            goals: ["help the reader find the path that does not collapse under them"],
+            tags: ["character", "trust", "friendship", "threshold", "life"]
+        ),
+        entity(
+            "wicker-eddies",
+            "Wicker Eddies",
+            .character,
+            belief: 16,
+            weight: 17,
+            chapter: "Duskthorn",
+            unwrittenInterest: "Testing belief, puncturing false magic, rumor pressure, and the places doubt can become useful or cruel.",
+            traits: ["sharp", "funny", "dangerously persuasive"],
+            quirks: ["attacks weak premises for sport", "can smell theatrical belief from across a room"],
+            faults: ["sometimes wounds the thing he meant to test"],
+            beliefs: ["false magic deserves to be punctured"],
+            goals: ["make belief prove it can survive contact with doubt"],
+            tags: ["character", "belief", "challenge", "tension", "nothing"]
+        ),
+        entity(
+            "gwendolyn-mythwright",
+            "Gwendolyn Mythwright",
+            .character,
+            belief: 19,
+            weight: 15,
+            chapter: "Mossbloom",
+            unwrittenInterest: "Cryptids, impossible zoology, maritime mysteries, archives, and evidence that makes wonder less lonely.",
+            traits: ["scholarly", "odd", "steadfast"],
+            quirks: ["files impossible animals as if they are overdue forms", "writes letters to fog"],
+            faults: ["may prefer evidence to comfort"],
+            beliefs: ["the improbable becomes kinder when documented"],
+            goals: ["catalog the impossible without frightening it away"],
+            tags: ["character", "letters", "research", "impossible", "archive"]
+        ),
+        entity(
+            "lydia-boggle",
+            "Lydia Boggle",
+            .character,
+            belief: 17,
+            weight: 13,
+            chapter: "Riddlewind",
+            unwrittenInterest: "Homes as vessels, domestic objects, tea, rooms, and the ordinary magic that survives chores.",
+            traits: ["domestic", "wry", "practical"],
+            quirks: ["can make tea sound like a tactical intervention", "labels chaos by room"],
+            faults: ["can over-tidy a mystery"],
+            beliefs: ["home is a spell with chores in it"],
+            goals: ["teach ordinary rooms to hold extraordinary days"],
+            tags: ["character", "home", "tea", "care", "objects"]
+        ),
+        entity(
+            "soren-ng",
+            "Soren Ng",
+            .character,
+            belief: 18,
+            weight: 14,
+            chapter: "Riddlewind",
+            unwrittenInterest: "Maps, patterns, riddles, diagrams, hidden systems, and clues that become invitations.",
+            traits: ["quiet", "precise", "pattern-minded"],
+            quirks: ["leaves clues where only patient people look", "trusts diagrams more than declarations"],
+            faults: ["can hide behind elegant systems"],
+            beliefs: ["a map is an invitation, not an answer"],
+            goals: ["help the reader notice the pattern without stealing the discovery"],
+            tags: ["character", "map", "pattern", "thread", "attention"]
+        ),
+        entity(
+            "weather-page",
+            "The Weather Page",
+            .motif,
+            belief: 12,
+            weight: 14,
+            traits: ["legible", "atmospheric"],
+            quirks: ["turns forecasts into room-light"],
+            faults: ["must never name the sensor when naming the response"],
+            beliefs: ["the sky can annotate without spying"],
+            goals: ["make outer weather useful to inner story"],
+            tags: ["weather", "atmosphere", "bleed"]
+        ),
+        entity(
+            "body-page",
+            "The Body Page",
+            .motif,
+            belief: 12,
+            weight: 13,
+            traits: ["careful", "low-pressure"],
+            quirks: ["lowers lamps instead of making demands"],
+            faults: ["can sound generic if it forgets the day"],
+            beliefs: ["care should be responsive, not creepy"],
+            goals: ["translate body signals into humane pacing"],
+            tags: ["body", "care", "rest"]
+        )
+    ]
+
+    private static let coreThreads: [NarrativeStoryThread] = [
+        thread(
+            "music-as-shelter",
+            "Music as Shelter",
+            .seed,
+            belief: 8,
+            weight: 12,
+            summary: "Sounds, headphones, rhythm, and songs keep returning as small architecture for the day.",
+            tags: ["music", "shelter", "souvenir", "mood"]
+        ),
+        thread(
+            "ordinary-magic",
+            "Ordinary Magic",
+            .returning,
+            belief: 14,
+            weight: 16,
+            summary: "The Book keeps finding evidence that ordinary objects become livelier under attention.",
+            tags: ["wonder", "objects", "daily", "belief"]
+        ),
+        thread(
+            "body-learns-trust",
+            "The Body Learns Trust",
+            .seed,
+            belief: 11,
+            weight: 13,
+            summary: "Rest, fuel, movement, and low thresholds are becoming part of the story instead of interruptions to it.",
+            tags: ["body", "rest", "care", "vellum-chart"]
+        ),
+        thread(
+            "inkrest-difficult-pages",
+            "Inkrest's Difficult Pages",
+            .seed,
+            belief: 10,
+            weight: 12,
+            summary: "Hard feelings are held as pages that can be named, seated near a lamp, and revised one hour at a time.",
+            tags: ["care", "difficult-pages", "therapy-chart", "grounding", "reauthoring"]
+        ),
+        thread(
+            "elowen-refectory-experiments",
+            "Vellum's Refectory Experiments",
+            .seed,
+            belief: 9,
+            weight: 12,
+            summary: "Food, movement, recovery, and body evidence become small experiments instead of verdicts.",
+            tags: ["body", "fuel", "health", "vellum-chart", "experiment", "care"]
+        ),
+        thread(
+            "weather-in-the-stacks",
+            "Weather in the Stacks",
+            .returning,
+            belief: 10,
+            weight: 13,
+            summary: "Weather keeps tinting the Book without turning the reader into a data report.",
+            tags: ["weather", "bleed", "atmosphere"]
+        ),
+        thread(
+            "duskthorn-investigation",
+            "The Duskthorn Question",
+            .seed,
+            belief: 9,
+            weight: 12,
+            summary: "The Academy's oldest elegance may be hiding a thorned bargain under the floorboards.",
+            tags: ["duskthorn", "academy", "secret", "threshold"]
+        ),
+        thread(
+            "margin-glass-letters",
+            "Letters Through the Margin-Glass",
+            .returning,
+            belief: 11,
+            weight: 15,
+            summary: "Research notes, NPC letters, and impossible little reports keep arriving with the ink still warm.",
+            tags: ["letters", "research", "archive", "marginalia"]
+        ),
+        thread(
+            "nothing-thins-the-page",
+            "The Nothing Thins the Page",
+            .seed,
+            belief: 7,
+            weight: 10,
+            summary: "Flatness, forgetting, and false impossibility press at the edges of the Book.",
+            tags: ["nothing", "belief", "tension", "care"]
+        ),
+        thread(
+            "home-vessel",
+            "Home as Vessel",
+            .seed,
+            belief: 9,
+            weight: 12,
+            summary: "Rooms, mugs, desks, laundry, lamps, and domestic weather become containers for the day's magic.",
+            tags: ["home", "objects", "care", "daily"]
+        )
+    ]
+
+    private static let coreRelationships: [NarrativeRelationshipEdge] = [
+        relationship(
+            "book-authors-reader",
+            source: "the-book",
+            target: "ordinary-magic",
+            kind: .authorship,
+            warmth: 18,
+            tension: 2,
+            trust: 18,
+            weight: 22,
+            note: "The Book treats ordinary evidence as the reader's authorship, not as content to harvest.",
+            tags: ["book", "belief", "ordinary", "daily"]
+        ),
+        relationship(
+            "penny-files-book",
+            source: "penny-blackletter",
+            target: "the-book",
+            kind: .stewardship,
+            warmth: 16,
+            tension: 4,
+            trust: 14,
+            weight: 16,
+            note: "Penny keeps finding proof and trying to make it charming before it vanishes.",
+            tags: ["marginalia", "photos", "letters", "book"]
+        ),
+        relationship(
+            "inkrest-tends-body",
+            source: "dr-inkrest",
+            target: "body-page",
+            kind: .care,
+            warmth: 17,
+            tension: 3,
+            trust: 15,
+            weight: 15,
+            note: "Inkrest keeps hard pages seated near a lamp before asking them to speak.",
+            tags: ["care", "body", "rest", "difficult-pages"]
+        ),
+        relationship(
+            "inkrest-holds-difficult-pages",
+            source: "dr-inkrest",
+            target: "inkrest-difficult-pages",
+            kind: .stewardship,
+            warmth: 18,
+            tension: 3,
+            trust: 17,
+            weight: 17,
+            note: "Inkrest treats a hard feeling as a page, not a verdict.",
+            tags: ["care", "difficult-pages", "therapy-chart", "grounding"]
+        ),
+        relationship(
+            "vellum-tends-body-page",
+            source: "dr-vellum",
+            target: "body-page",
+            kind: .care,
+            warmth: 16,
+            tension: 4,
+            trust: 16,
+            weight: 17,
+            note: "Vellum turns body evidence into one small experiment with no shame attached.",
+            tags: ["body", "health", "fuel", "vellum-chart", "care"]
+        ),
+        relationship(
+            "vellum-runs-refectory-experiments",
+            source: "dr-vellum",
+            target: "elowen-refectory-experiments",
+            kind: .stewardship,
+            warmth: 15,
+            tension: 5,
+            trust: 15,
+            weight: 15,
+            note: "Vellum keeps experiments small enough that the reader can actually live with them.",
+            tags: ["body", "fuel", "experiment", "vellum-chart"]
+        ),
+        relationship(
+            "inkrest-vellum-compare-charts",
+            source: "dr-inkrest",
+            target: "dr-vellum",
+            kind: .correspondence,
+            warmth: 15,
+            tension: 4,
+            trust: 17,
+            weight: 14,
+            note: "Inkrest and Vellum compare charts only to make care more precise, never more intrusive.",
+            tags: ["support-faculty", "care", "therapy-chart", "vellum-chart", "body"]
+        ),
+        relationship(
+            "weather-bleeds-book",
+            source: "weather-page",
+            target: "the-book",
+            kind: .realityBleed,
+            warmth: 12,
+            tension: 1,
+            trust: 12,
+            weight: 17,
+            note: "Outer weather may tint the Book, but the source stays unnamed.",
+            tags: ["weather", "bleed", "atmosphere", "book"]
+        ),
+        relationship(
+            "body-negotiates-weather",
+            source: "body-page",
+            target: "weather-page",
+            kind: .attention,
+            warmth: 11,
+            tension: 5,
+            trust: 11,
+            weight: 12,
+            note: "Body and weather sometimes agree on gentleness before the reader does.",
+            tags: ["body", "weather", "care", "bleed"]
+        ),
+        relationship(
+            "thorne-tests-thresholds",
+            source: "headmistress-thorne",
+            target: "duskthorn-investigation",
+            kind: .tension,
+            warmth: 8,
+            tension: 16,
+            trust: 9,
+            weight: 16,
+            note: "Thorne lets thresholds test the reader, but never without leaving one lamp burning.",
+            tags: ["duskthorn", "academy", "threshold", "secret"]
+        ),
+        relationship(
+            "zara-guards-reader",
+            source: "zara-finch",
+            target: "ordinary-magic",
+            kind: .companionship,
+            warmth: 18,
+            tension: 5,
+            trust: 17,
+            weight: 15,
+            note: "Zara trusts ordinary proof more than dramatic declarations.",
+            tags: ["trust", "friendship", "life", "ordinary"]
+        ),
+        relationship(
+            "wicker-tests-belief",
+            source: "wicker-eddies",
+            target: "the-book",
+            kind: .tension,
+            warmth: 6,
+            tension: 18,
+            trust: 7,
+            weight: 16,
+            note: "Wicker attacks brittle belief so the real kind has to stand up.",
+            tags: ["belief", "challenge", "tension", "nothing"]
+        ),
+        relationship(
+            "gwendolyn-files-letters",
+            source: "gwendolyn-mythwright",
+            target: "margin-glass-letters",
+            kind: .authorship,
+            warmth: 14,
+            tension: 3,
+            trust: 15,
+            weight: 14,
+            note: "Gwendolyn sends impossible research as if wonder were a library debt.",
+            tags: ["letters", "research", "archive", "impossible"]
+        ),
+        relationship(
+            "lydia-keeps-home-vessel",
+            source: "lydia-boggle",
+            target: "home-vessel",
+            kind: .stewardship,
+            warmth: 17,
+            tension: 4,
+            trust: 15,
+            weight: 13,
+            note: "Lydia believes the room has already started helping before anyone notices.",
+            tags: ["home", "tea", "objects", "care"]
+        ),
+        relationship(
+            "soren-maps-thread",
+            source: "soren-ng",
+            target: "margin-glass-letters",
+            kind: .attention,
+            warmth: 10,
+            tension: 5,
+            trust: 14,
+            weight: 13,
+            note: "Soren leaves the map unfinished so the reader can become part of it.",
+            tags: ["map", "pattern", "thread", "attention"]
+        )
+    ]
+
+    /// The five Chapter talismans from the world register. Belief values
+    /// carry over from Enchantify; the dominant one tones the whole Labyrinth.
+    private static let coreTalismans: [NarrativeWorldEntity] = [
+        entity(
+            "dusk-thorn",
+            "The Dusk Thorn",
+            .talisman,
+            belief: 11,
+            weight: 22,
+            chapter: "Duskthorn",
+            traits: ["sharp", "patient", "honest about the dark"],
+            quirks: ["draws blood only from stories that have gone numb"],
+            faults: ["mistakes comfort for apathy"],
+            beliefs: ["no conflict, no story"],
+            goals: ["introduce the obstacle that makes the day worth telling"],
+            tags: ["talisman", "chapter", "duskthorn", "conflict"]
+        ),
+        entity(
+            "ember-seal",
+            "The Ember Seal",
+            .talisman,
+            belief: 10,
+            weight: 20,
+            chapter: "Emberheart",
+            traits: ["warm", "insistent", "bright at the edges"],
+            quirks: ["leaves faint scorch marks on hesitations"],
+            faults: ["impatient with waiting"],
+            beliefs: ["you are the author, the protagonist, and the pen"],
+            goals: ["open doors the player could choose to walk through"],
+            tags: ["talisman", "chapter", "emberheart", "self-authorship"]
+        ),
+        entity(
+            "wind-cipher",
+            "The Wind Cipher",
+            .talisman,
+            belief: 10,
+            weight: 20,
+            chapter: "Riddlewind",
+            traits: ["curious", "communal", "never finished"],
+            quirks: ["rearranges itself when two people look at it together"],
+            faults: ["restless when left alone"],
+            beliefs: ["life is a story we write together"],
+            goals: ["braid two voices into every important scene"],
+            tags: ["talisman", "chapter", "riddlewind", "collaboration"]
+        ),
+        entity(
+            "tide-glass",
+            "The Tide Glass",
+            .talisman,
+            belief: 10,
+            weight: 20,
+            chapter: "Tidecrest",
+            traits: ["unpredictable", "present", "salt-bright"],
+            quirks: ["shows a different hour every time it is consulted"],
+            faults: ["forgets plans on purpose"],
+            beliefs: ["the moment is complete in itself"],
+            goals: ["inject one genuinely unplanned thing into the day"],
+            tags: ["talisman", "chapter", "tidecrest", "spontaneity"]
+        ),
+        entity(
+            "moss-clasp",
+            "The Moss Clasp",
+            .talisman,
+            belief: 10,
+            weight: 20,
+            chapter: "Mossbloom",
+            traits: ["quiet", "rooted", "older than its setting"],
+            quirks: ["grows a new leaf when someone truly listens"],
+            faults: ["slow to act even when action is kind"],
+            beliefs: ["the larger story is already being written"],
+            goals: ["make room for stillness and receptive attention"],
+            tags: ["talisman", "chapter", "mossbloom", "receptivity"]
+        )
+    ]
+
+    private static func entity(
+        _ id: String,
+        _ name: String,
+        _ kind: NarrativeEntityKind,
+        belief: Int,
+        weight: Int,
+        chapter: String? = nil,
+        unwrittenInterest: String? = nil,
+        traits: [String],
+        quirks: [String],
+        faults: [String],
+        beliefs: [String],
+        goals: [String],
+        tags: [String]
+    ) -> NarrativeWorldEntity {
+        NarrativeWorldEntity(
+            id: id,
+            packID: corePackID,
+            name: name,
+            kind: kind,
+            belief: belief,
+            narrativeWeight: weight,
+            chapter: chapter,
+            unwrittenInterest: unwrittenInterest,
+            traits: traits,
+            quirks: quirks,
+            faults: faults,
+            beliefs: beliefs,
+            goals: goals,
+            tags: tags
+        )
+    }
+
+    private static func thread(
+        _ id: String,
+        _ title: String,
+        _ phase: StoryThreadPhase,
+        belief: Int,
+        weight: Int,
+        summary: String,
+        tags: [String]
+    ) -> NarrativeStoryThread {
+        NarrativeStoryThread(
+            id: id,
+            packID: corePackID,
+            title: title,
+            phase: phase,
+            belief: belief,
+            narrativeWeight: weight,
+            summary: summary,
+            tags: tags
+        )
+    }
+
+    private static func relationship(
+        _ id: String,
+        source: String,
+        target: String,
+        kind: NarrativeRelationshipKind,
+        warmth: Int,
+        tension: Int,
+        trust: Int,
+        weight: Int,
+        note: String,
+        tags: [String]
+    ) -> NarrativeRelationshipEdge {
+        NarrativeRelationshipEdge(
+            id: id,
+            packID: corePackID,
+            sourceEntityID: source,
+            targetEntityID: target,
+            kind: kind,
+            warmth: warmth,
+            tension: tension,
+            trust: trust,
+            narrativeWeight: weight,
+            note: note,
+            tags: tags
+        )
+    }
+}
+
+enum NarrativeEventResolver {
+    static func events(forKept page: BookPage) -> [NarrativeEvent] {
+        var events = [event(forKept: page)]
+        guard page.type == .narrativeOS else {
+            return events
+        }
+
+        let choices = storyChoiceSelections(in: page)
+        events.append(contentsOf: choices.enumerated().map { offset, choice in
+            event(forStoryChoice: choice, page: page, offset: offset)
+        })
+        return events
+    }
+
+    static func event(forKept page: BookPage) -> NarrativeEvent {
+        if page.type == .gossip {
+            return event(forGossipPage: page)
+        }
+        let tags = normalizedTags(for: page)
+        let effect = effect(for: page.type, tags: tags)
+        let summary = summary(for: page, effect: effect)
+        return NarrativeEvent(
+            id: "narrative-event-\(page.id)",
+            kind: page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .pageKept : .pageAnswered,
+            sourcePageType: page.type,
+            sourcePageID: page.id,
+            createdAt: page.createdAt,
+            summary: summary,
+            tags: Array(tags).sorted(),
+            effect: effect
+        )
+    }
+
+    private static func event(forGossipPage page: BookPage) -> NarrativeEvent {
+        let tags = normalizedTags(for: page).union(["gossip", "simulation"])
+        let actorIDs = page.tags
+            .filter { $0.hasPrefix("actor:") }
+            .map { $0.replacingOccurrences(of: "actor:", with: "") }
+        let threadIDs = page.tags
+            .filter { $0.hasPrefix("thread:") }
+            .map { $0.replacingOccurrences(of: "thread:", with: "") }
+        let actionKinds = page.tags
+            .filter { $0.hasPrefix("action:") }
+            .map { $0.replacingOccurrences(of: "action:", with: "") }
+        let includesAttack = actionKinds.contains("attackBelief")
+
+        var entityDeltas: [String: Int] = ["the-book": 1]
+        var threadDeltas: [String: Int] = ["ordinary-magic": 1]
+        let relationshipDeltas: [String: Int] = ["book-authors-reader": 1]
+
+        for actorID in Set(actorIDs) {
+            entityDeltas[actorID, default: 0] += includesAttack ? 1 : 2
+        }
+        for threadID in Set(threadIDs) {
+            threadDeltas[threadID, default: 0] += includesAttack ? 1 : 2
+        }
+
+        let createdHint = includesAttack
+            ? "A thread may return with tension where certainty used to sit."
+            : "A small offscreen action can become a future callback."
+
+        return NarrativeEvent(
+            id: "narrative-gossip-\(page.id)",
+            kind: .simulationTurn,
+            sourcePageType: .gossip,
+            sourcePageID: page.id,
+            createdAt: page.createdAt,
+            summary: page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "A Gossip Page was kept."
+                : clippedSummary(page.userInput, maxLength: 180),
+            tags: Array(tags).sorted(),
+            effect: NarrativeEventEffect(
+                beliefDelta: 1,
+                entityWeightDeltas: entityDeltas,
+                threadWeightDeltas: threadDeltas,
+                relationshipWeightDeltas: relationshipDeltas,
+                createdEntityHint: createdHint
+            )
+        )
+    }
+
+    private static func clippedSummary(_ text: String, maxLength: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > maxLength else { return normalized }
+        let end = normalized.index(normalized.startIndex, offsetBy: maxLength)
+        return normalized[..<end].trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    static func event(for choice: StorySceneChoice, packet: StoryScenePacket, at date: Date = Date()) -> NarrativeEvent {
+        NarrativeEvent(
+            id: "narrative-choice-\(packet.id)-\(choice.id)",
+            kind: .choiceSelected,
+            sourcePageType: .narrativeOS,
+            sourcePageID: packet.id,
+            createdAt: date,
+            summary: "\(choice.role.title): \(choice.hiddenEffect)",
+            tags: [choice.role.rawValue, packet.packID],
+            effect: NarrativeEventEffect(
+                beliefDelta: choice.beliefDelta,
+                entityWeightDeltas: Dictionary(uniqueKeysWithValues: choice.targetEntityIDs.map { ($0, 1) }),
+                threadWeightDeltas: Dictionary(uniqueKeysWithValues: choice.targetThreadIDs.map { ($0, 1) }),
+                relationshipWeightDeltas: relationshipDeltas(for: choice, packet: packet),
+                createdEntityHint: choice.role == .surprise ? "A related motif may step out of the margins." : nil
+            )
+        )
+    }
+
+    private static func event(forStoryChoice choice: StoryChoiceSelection, page: BookPage, offset: Int) -> NarrativeEvent {
+        let effect = effect(forStoryChoice: choice, page: page)
+        return NarrativeEvent(
+            id: "narrative-choice-\(page.id)-\(offset + 1)-\(choice.id)",
+            kind: .choiceSelected,
+            sourcePageType: .narrativeOS,
+            sourcePageID: page.id,
+            createdAt: page.createdAt.addingTimeInterval(Double(offset + 1)),
+            summary: "\(choice.title): \(choice.summary)",
+            tags: Array(normalizedTags(for: page).union(["choice:\(choice.id)", choice.id])).sorted(),
+            effect: effect
+        )
+    }
+
+    private static func normalizedTags(for page: BookPage) -> Set<String> {
+        var tags = Set(page.tags.map { $0.lowercased() })
+        let searchable = "\(page.promptText) \(page.userInput)".lowercased()
+        if searchable.contains("weather") || searchable.contains("sky") || searchable.contains("rain") || searchable.contains("sun") {
+            tags.formUnion(["weather", "bleed", "atmosphere"])
+        }
+        if searchable.contains("body") || searchable.contains("tired") || searchable.contains("rest") || searchable.contains("fuel") {
+            tags.formUnion(["body", "care", "rest"])
+        }
+        if searchable.contains("music") || searchable.contains("spotify") || searchable.contains("headphone") {
+            tags.formUnion(["music", "shelter"])
+        }
+        if searchable.contains("photo") || page.type == .illuminatedPhoto {
+            tags.formUnion(["photos", "marginalia"])
+        }
+        return tags
+    }
+
+    private struct StoryChoiceSelection {
+        var id: String
+        var title: String
+        var summary: String
+    }
+
+    private static func storyChoiceSelections(in page: BookPage) -> [StoryChoiceSelection] {
+        let searchable = page.userInput.lowercased()
+        let selections: [(String, String, String)] = [
+            ("sliceoflife", "Slice of Life", "The ordinary detail gained narrative weight."),
+            ("progressarc", "Progress Arc", "The active thread moved one step forward."),
+            ("surprise", "Something Surprising", "A related side door opened in the margins.")
+        ]
+
+        var found: [StoryChoiceSelection] = []
+        for (id, title, summary) in selections {
+            let tagCount = page.tags.filter { $0.lowercased() == "choice:\(id)" }.count
+            let textCount = searchable.components(separatedBy: "chosen path: \(title.lowercased())").count - 1
+            let count = max(tagCount, textCount)
+            for _ in 0..<count {
+                found.append(StoryChoiceSelection(id: id, title: title, summary: summary))
+            }
+        }
+
+        return found
+    }
+
+    private static func effect(for type: BookPageType, tags: Set<String>) -> NarrativeEventEffect {
+        var entityDeltas: [String: Int] = ["the-book": 1]
+        var threadDeltas: [String: Int] = ["ordinary-magic": 1]
+        var relationshipDeltas: [String: Int] = ["book-authors-reader": 1]
+        var createdHint: String?
+
+        switch type {
+        case .weather:
+            entityDeltas["weather-page", default: 0] += 2
+            threadDeltas["weather-in-the-stacks", default: 0] += 2
+            relationshipDeltas["weather-bleeds-book", default: 0] += 2
+        case .body, .rest:
+            entityDeltas["body-page", default: 0] += 2
+            entityDeltas["dr-inkrest", default: 0] += 1
+            threadDeltas["body-learns-trust", default: 0] += 2
+            relationshipDeltas["inkrest-tends-body", default: 0] += 2
+        case .fuel:
+            entityDeltas["body-page", default: 0] += 2
+            entityDeltas["dr-vellum", default: 0] += 2
+            threadDeltas["body-learns-trust", default: 0] += 2
+            relationshipDeltas["vellum-tends-body-page", default: 0] += 2
+        case .supportGuild:
+            entityDeltas["dr-vellum", default: 0] += 2
+            entityDeltas["dr-inkrest", default: 0] += 2
+            threadDeltas["elowen-refectory-experiments", default: 0] += 2
+            threadDeltas["inkrest-difficult-pages", default: 0] += 2
+            relationshipDeltas["inkrest-vellum-compare-charts", default: 0] += 3
+        case .facultyResearch:
+            if tags.contains("faculty:dr-vellum") {
+                entityDeltas["dr-vellum", default: 0] += 2
+                threadDeltas["elowen-refectory-experiments", default: 0] += 2
+                relationshipDeltas["vellum-runs-refectory-experiments", default: 0] += 2
+            }
+            if tags.contains("faculty:dr-inkrest") {
+                entityDeltas["dr-inkrest", default: 0] += 2
+                threadDeltas["inkrest-difficult-pages", default: 0] += 2
+                relationshipDeltas["inkrest-holds-difficult-pages", default: 0] += 2
+            }
+        case .letter:
+            threadDeltas["margin-glass-letters", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+            createdHint = "A character letter can leave behind a researched callback."
+        case .souvenir, .quip, .wonderCompass, .illustration:
+            threadDeltas["ordinary-magic", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+        case .illuminatedPhoto:
+            entityDeltas["penny-blackletter", default: 0] += 2
+            relationshipDeltas["penny-files-book", default: 0] += 2
+            createdHint = "A visible detail in the image can become a recurring talisman."
+        case .enchantment:
+            entityDeltas["penny-blackletter", default: 0] += 2
+            threadDeltas["ordinary-magic", default: 0] += 3
+            relationshipDeltas["book-authors-reader", default: 0] += 2
+            createdHint = "The enchanted subject can speak, rhyme, puzzle, or return as future evidence."
+        case .anchor:
+            entityDeltas["the-book", default: 0] += 2
+            threadDeltas["outer-stacks", default: 0] += 3
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+            createdHint = "A checked-in Anchor can call back as a room, rule, or local threshold."
+        case .aboutYou:
+            entityDeltas["the-book", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 2
+        case .narrativeOS:
+            threadDeltas["ordinary-magic", default: 0] += 1
+            // The scene's actual cast remembers what happened to them.
+            for tag in tags where tag.hasPrefix("entity:") {
+                let entityID = tag.replacingOccurrences(of: "entity:", with: "")
+                if !entityID.isEmpty {
+                    entityDeltas[entityID, default: 0] += 2
+                }
+            }
+            for tag in tags where tag.hasPrefix("thread:") {
+                let threadID = tag.replacingOccurrences(of: "thread:", with: "")
+                if !threadID.isEmpty {
+                    threadDeltas[threadID, default: 0] += 2
+                }
+            }
+            if tags.contains("choice:sliceoflife") {
+                entityDeltas["the-book", default: 0] += 2
+                relationshipDeltas["book-authors-reader", default: 0] += 1
+            }
+            if tags.contains("choice:progressarc") {
+                threadDeltas["ordinary-magic", default: 0] += 2
+                relationshipDeltas["book-authors-reader", default: 0] += 1
+            }
+            if tags.contains("choice:surprise") {
+                entityDeltas["penny-blackletter", default: 0] += 1
+                threadDeltas["ordinary-magic", default: 0] += 1
+                createdHint = "A surprising but related detail can become a future motif."
+            }
+        case .marginsAtlas:
+            entityDeltas["the-book", default: 0] += 1
+            threadDeltas["ordinary-magic", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+        case .bookRemembered:
+            entityDeltas["the-book", default: 0] += 2
+            threadDeltas["ordinary-magic", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+            createdHint = "A remembered page can return again when the day rhymes."
+        case .gossip:
+            entityDeltas["the-book", default: 0] += 1
+            threadDeltas["ordinary-magic", default: 0] += 1
+            createdHint = "An offscreen action can become a future callback."
+        case .academyClass:
+            entityDeltas["the-book", default: 0] += 1
+            threadDeltas["ordinary-magic", default: 0] += 2
+            createdHint = "A lesson can return later as a practice, a pun, or a pop quiz."
+        case .elective:
+            for tag in tags where tag.hasPrefix("entity:") {
+                let entityID = tag.replacingOccurrences(of: "entity:", with: "")
+                if !entityID.isEmpty {
+                    entityDeltas[entityID, default: 0] += 2
+                }
+            }
+            threadDeltas["ordinary-magic", default: 0] += 1
+            createdHint = "A completed favor deepens what its asker will trust the player with next."
+        case .castMember:
+            if let entityID = tags.first(where: { $0.hasPrefix("entity:") })?.replacingOccurrences(of: "entity:", with: "") {
+                entityDeltas[entityID, default: 0] += 3
+            }
+            threadDeltas["ordinary-magic", default: 0] += 1
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+        case .mood:
+            entityDeltas["body-page", default: 0] += tags.contains("weather") ? 0 : 1
+            threadDeltas["body-learns-trust", default: 0] += 1
+        case .diary:
+            entityDeltas["the-book", default: 0] += 1
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+            createdHint = "A present-tense diary note can become quiet continuity."
+        case .askTheBook:
+            entityDeltas["the-book", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 2
+        case .location, .lore, .patreon, .bookOfYou, .packPage, .calendar, .helpTips, .welcome:
+            break
+        }
+
+        if tags.contains("music") {
+            threadDeltas["music-as-shelter", default: 0] += 2
+        }
+        if tags.contains("weather") {
+            entityDeltas["weather-page", default: 0] += 1
+            threadDeltas["weather-in-the-stacks", default: 0] += 1
+        }
+        if tags.contains("body") || tags.contains("rest") || tags.contains("care") {
+            entityDeltas["body-page", default: 0] += 1
+            threadDeltas["body-learns-trust", default: 0] += 1
+        }
+        if tags.contains("story-mechanic") {
+            threadDeltas["ordinary-magic", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+        }
+        if tags.contains("story-mechanic:compass-run") {
+            threadDeltas["ordinary-magic", default: 0] += 2
+        }
+        if tags.contains("story-mechanic:enchantment") {
+            entityDeltas["the-book", default: 0] += 1
+            createdHint = createdHint ?? "A completed Enchantment can become future evidence."
+        }
+
+        return NarrativeEventEffect(
+            beliefDelta: 1,
+            entityWeightDeltas: entityDeltas,
+            threadWeightDeltas: threadDeltas,
+            relationshipWeightDeltas: relationshipDeltas,
+            createdEntityHint: createdHint
+        )
+    }
+
+    private static func effect(forStoryChoice choice: StoryChoiceSelection, page: BookPage) -> NarrativeEventEffect {
+        var entityDeltas: [String: Int] = ["the-book": 1]
+        var threadDeltas: [String: Int] = ["ordinary-magic": 1]
+        var relationshipDeltas: [String: Int] = ["book-authors-reader": 1]
+        var createdHint: String?
+
+        switch choice.id {
+        case "sliceoflife":
+            entityDeltas["the-book", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+        case "progressarc":
+            threadDeltas["ordinary-magic", default: 0] += 3
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+        case "surprise":
+            entityDeltas["penny-blackletter", default: 0] += 1
+            threadDeltas["margin-glass-letters", default: 0] += 1
+            createdHint = "A surprising but related detail can become a future motif."
+        default:
+            break
+        }
+
+        let tags = normalizedTags(for: page)
+        if tags.contains("music") {
+            threadDeltas["music-as-shelter", default: 0] += 1
+        }
+        if tags.contains("weather") {
+            entityDeltas["weather-page", default: 0] += 1
+            threadDeltas["weather-in-the-stacks", default: 0] += 1
+        }
+        if tags.contains("body") || tags.contains("rest") || tags.contains("care") {
+            entityDeltas["body-page", default: 0] += 1
+            threadDeltas["body-learns-trust", default: 0] += 1
+        }
+        if tags.contains("letters") || tags.contains("research") {
+            threadDeltas["margin-glass-letters", default: 0] += 1
+            relationshipDeltas["gwendolyn-files-letters", default: 0] += 1
+        }
+        if tags.contains("story-mechanic") {
+            threadDeltas["ordinary-magic", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+        }
+        if tags.contains("story-mechanic:compass-run") {
+            threadDeltas["ordinary-magic", default: 0] += 2
+        }
+        if tags.contains("story-mechanic:enchantment") {
+            entityDeltas["the-book", default: 0] += 1
+            createdHint = createdHint ?? "A completed Enchantment can become future evidence."
+        }
+
+        return NarrativeEventEffect(
+            beliefDelta: 1,
+            entityWeightDeltas: entityDeltas,
+            threadWeightDeltas: threadDeltas,
+            relationshipWeightDeltas: relationshipDeltas,
+            createdEntityHint: createdHint
+        )
+    }
+
+    private static func relationshipDeltas(for choice: StorySceneChoice, packet: StoryScenePacket) -> [String: Int] {
+        var deltas: [String: Int] = [:]
+        let targets = Set(choice.targetEntityIDs + choice.targetThreadIDs)
+        for relationship in packet.selectedRelationships where targets.contains(relationship.sourceEntityID) || targets.contains(relationship.targetEntityID) {
+            deltas[relationship.id, default: 0] += 1
+        }
+        if deltas.isEmpty, let first = packet.selectedRelationships.first {
+            deltas[first.id] = 1
+        }
+        return deltas
+    }
+
+    private static func summary(for page: BookPage, effect: NarrativeEventEffect) -> String {
+        // Story pages carry what actually happened — keep that in the event
+        // summary so entity memories can recall the scene itself, not just
+        // "a page was kept."
+        if page.type == .narrativeOS {
+            let sceneText = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !sceneText.isEmpty {
+                return clippedSummary(sceneText, maxLength: 220)
+            }
+        }
+        let pageName = page.type.title
+        let threadNames = effect.threadWeightDeltas.keys.sorted().joined(separator: ", ")
+        guard !threadNames.isEmpty else {
+            return "\(pageName) became a kept artifact in the Book."
+        }
+        return "\(pageName) became a kept artifact and tugged \(threadNames)."
+    }
+}
+
+struct NarrativeSourceSnapshot: Equatable {
+    var activeThreadCount: Int
+    var relationshipCount: Int
+    var beliefWeight: Int?
+    var recentEventCount: Int = 0
+    var recentTags: [String] = []
+    var weightedEntityIDs: [String] = []
+    var weightedThreadIDs: [String] = []
+    var weightedRelationshipIDs: [String] = []
+    var entityMemories: [NarrativeEntityMemory] = []
+
+    var isAvailable: Bool {
+        activeThreadCount > 0
+            || relationshipCount > 0
+            || beliefWeight != nil
+            || recentEventCount > 0
+            || !recentTags.isEmpty
+            || !weightedEntityIDs.isEmpty
+            || !weightedThreadIDs.isEmpty
+            || !weightedRelationshipIDs.isEmpty
+            || !entityMemories.isEmpty
+    }
+}
+
+enum NarrativeSourceSnapshotBuilder {
+    static func snapshot(
+        from events: [NarrativeEvent],
+        memories: [NarrativeEntityMemory] = [],
+        beliefWeight: Int?
+    ) -> NarrativeSourceSnapshot {
+        let recentEvents = Array(events.prefix(24))
+        let projection = NarrativeStoryFieldProjector.projection(events: recentEvents, baseBelief: beliefWeight ?? 30)
+        let entityIDs = projection.topEntityIDs
+        let threadIDs = projection.topThreadIDs
+        let relationshipIDs = projection.topRelationshipIDs
+        let tags = Array(Set(recentEvents.flatMap(\.tags))).sorted()
+        let selectedMemories = memories
+            .filter { entityIDs.contains($0.entityID) }
+            .sorted { left, right in
+                if left.narrativeWeight == right.narrativeWeight {
+                    return left.createdAt > right.createdAt
+                }
+                return left.narrativeWeight > right.narrativeWeight
+            }
+            .prefix(12)
+            .map(\.self)
+
+        return NarrativeSourceSnapshot(
+            activeThreadCount: threadIDs.count,
+            relationshipCount: relationshipIDs.count,
+            beliefWeight: projection.belief,
+            recentEventCount: recentEvents.count,
+            recentTags: tags,
+            weightedEntityIDs: entityIDs,
+            weightedThreadIDs: threadIDs,
+            weightedRelationshipIDs: relationshipIDs,
+            entityMemories: selectedMemories
+        )
+    }
+}
+
+/// Merges near-duplicate memories per entity so two weeks of "you mentioned
+/// the harbor" becomes one strong memory instead of six weak ones crowding
+/// the recall cap. Pure; applied to the in-memory list at load, never to
+/// the stored archive.
+enum NarrativeEntityMemoryConsolidator {
+    static func consolidate(_ memories: [NarrativeEntityMemory], weightCap: Int = 12) -> [NarrativeEntityMemory] {
+        var byKey: [String: NarrativeEntityMemory] = [:]
+        var order: [String] = []
+        for memory in memories.sorted(by: { $0.createdAt < $1.createdAt }) {
+            let key = "\(memory.entityID)|\(signature(of: memory.summary))"
+            if var existing = byKey[key] {
+                existing.narrativeWeight = min(weightCap, existing.narrativeWeight + max(1, memory.narrativeWeight / 2))
+                existing.summary = memory.summary
+                existing.createdAt = memory.createdAt
+                byKey[key] = existing
+            } else {
+                byKey[key] = memory
+                order.append(key)
+            }
+        }
+        return order.compactMap { byKey[$0] }.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private static func signature(of summary: String) -> String {
+        let stopWords: Set<String> = [
+            "the", "and", "that", "this", "with", "from", "through", "remembers",
+            "remember", "reader", "gave", "took", "page", "kept", "their", "your",
+            "about", "into", "again", "menu", "glow", "belief"
+        ]
+        let words = summary
+            .lowercased()
+            .split { !$0.isLetter }
+            .map(String.init)
+            .filter { $0.count > 3 && !stopWords.contains($0) }
+        return Array(Set(words)).sorted().prefix(6).joined(separator: "-")
+    }
+}
+
+// MARK: - The Nothing
+//
+// The Labyrinth's antagonist: not a monster but a tide — apathy, the Rut,
+// the grey that takes unnoticed days. Doctrine, in order of importance:
+// 1. Under distress it does not exist. The Book is kind before it is interesting.
+// 2. It never guilts and never punishes. It makes STORY, not shame.
+// 3. It is never defeated, only understood — and held back by keeping pages.
+enum NothingTide {
+    /// 0 = quiet (pages are being kept; the grey stays in the deep stacks),
+    /// 1 = at the edges, 2 = in the margins, 3 = at the desk.
+    static func greyLevel(
+        quietDays: Int,
+        narrativeHeat: Int,
+        distressActive: Bool
+    ) -> Int {
+        if distressActive {
+            return 0
+        }
+        var level: Int
+        switch quietDays {
+        case ..<1: level = 0
+        case 1: level = 1
+        case 2...3: level = 2
+        default: level = 3
+        }
+        // A hot story field pushes the grey back a step.
+        if narrativeHeat >= 6, level > 0 {
+            level -= 1
+        }
+        return level
+    }
+
+    /// Consecutive days before today with no kept pages.
+    static func quietDays(in days: [BookDay], today todayID: String, calendar: Calendar = .current, now: Date = Date()) -> Int {
+        var quiet = 0
+        for offset in 1...7 {
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: now) else { break }
+            let dayID = BookDay.id(for: calendar.startOfDay(for: date), calendar: calendar)
+            if let day = days.first(where: { $0.id == dayID }), !day.capturedPages.isEmpty {
+                break
+            }
+            quiet += 1
+        }
+        return quiet
+    }
+
+    /// The story-page directive when the grey is up.
+    static func storySignal(forGreyLevel level: Int) -> String? {
+        switch level {
+        case 2:
+            return "The Nothing has been at the edges of these margins: somewhere in the scene, one ordinary detail has gone faintly grey and silent. Let a character notice it and quietly resist — by naming it precisely, out loud. The Nothing is never fought and never defeated; it is noticed back."
+        case 3:
+            return "The Nothing has reached the desk: in this scene, something small has already been erased — a name, a label, a familiar object's color — and the cast can feel the gap. Let them work around the missing thing with care, and let one character say what the cure is without preaching: attention. Keep it gentle; the grey is weather, not war."
+        default:
+            return nil
+        }
+    }
+
+    /// The line the Book says when a page is kept while the grey is up.
+    static func returnLine(forGreyLevel level: Int) -> String? {
+        switch level {
+        case 1:
+            return "Something grey at the edge of the desk loses interest and withdraws. The page holds."
+        case 2, 3:
+            return "The grey had settled into the margins; this page pushes it back a full shelf. The Book breathes easier."
+        default:
+            return nil
+        }
+    }
+}
+
+// MARK: - The Margins Atlas
+//
+// Graph pages: The Loom (relationships between the cast) and The
+// Constellation (where Belief lives and where the reader's attention has
+// flowed). Layout is deterministic — the same world draws the same map.
+
+struct GraphNode: Identifiable, Equatable {
+    var id: String
+    var label: String
+    var weight: Double        // node size driver: belief / narrative weight
+    var chapterID: String?    // colors the node
+    var kindLabel: String
+}
+
+struct GraphEdge: Identifiable, Equatable {
+    var id: String
+    var sourceID: String
+    var targetID: String
+    var strength: Double      // 0...1, thickness
+    var warmth: Double        // -1 (tension) ... +1 (warm) — colors the thread
+    var label: String
+}
+
+struct NarrativeGraphData: Equatable {
+    var nodes: [GraphNode]
+    var edges: [GraphEdge]
+
+    static let empty = NarrativeGraphData(nodes: [], edges: [])
+
+    /// The Loom: cast and the threads between them.
+    static func loom(
+        entities: [NarrativeWorldEntity],
+        relationships: [NarrativeRelationshipEdge],
+        beliefOffsets: [String: Int]
+    ) -> NarrativeGraphData {
+        let connectedIDs = Set(relationships.flatMap { [$0.sourceEntityID, $0.targetEntityID] })
+        let nodes = entities
+            .filter { connectedIDs.contains($0.id) }
+            .map { entity in
+                GraphNode(
+                    id: entity.id,
+                    label: entity.name,
+                    weight: Double(max(6, entity.belief + (beliefOffsets[entity.id] ?? 0))),
+                    chapterID: AcademyChapterRegistry.chapter(named: entity.chapter)?.id,
+                    kindLabel: entity.kind.rawValue
+                )
+            }
+        let nodeIDs = Set(nodes.map(\.id))
+        let edges = relationships
+            .filter { nodeIDs.contains($0.sourceEntityID) && nodeIDs.contains($0.targetEntityID) }
+            .map { edge in
+                let tone = Double(edge.warmth + edge.trust - edge.tension)
+                return GraphEdge(
+                    id: edge.id,
+                    sourceID: edge.sourceEntityID,
+                    targetID: edge.targetEntityID,
+                    strength: min(1, max(0.15, Double(edge.narrativeWeight) / 30)),
+                    warmth: min(1, max(-1, tone / 30)),
+                    label: edge.kind.rawValue
+                )
+            }
+        return NarrativeGraphData(nodes: nodes, edges: edges)
+    }
+
+    /// The Constellation: Belief as stars, the reader at the center, edges
+    /// tracing where their attention has actually flowed (from the event
+    /// ledger — investments brighten the thread, attacks darken it).
+    static func constellation(
+        entities: [NarrativeWorldEntity],
+        beliefOffsets: [String: Int],
+        events: [NarrativeEvent],
+        playerBelief: Int
+    ) -> NarrativeGraphData {
+        var flows: [String: (moved: Int, tone: Int)] = [:]
+        for event in events {
+            guard event.kind == .beliefInvested || event.kind == .beliefAttacked else { continue }
+            for (entityID, delta) in event.effect.entityWeightDeltas where delta != 0 {
+                var flow = flows[entityID] ?? (0, 0)
+                flow.moved += abs(delta)
+                flow.tone += event.kind == .beliefInvested ? delta : -abs(delta)
+                flows[entityID] = flow
+            }
+        }
+
+        let reader = GraphNode(
+            id: "the-reader",
+            label: "You",
+            weight: Double(max(10, playerBelief)),
+            chapterID: nil,
+            kindLabel: "reader"
+        )
+        // Stars: anything with meaningful belief, plus anything you've touched.
+        let starEntities = entities.filter { entity in
+            let adjusted = entity.belief + (beliefOffsets[entity.id] ?? 0)
+            return adjusted >= 18 || flows[entity.id] != nil
+        }
+        let nodes = [reader] + starEntities.map { entity in
+            GraphNode(
+                id: entity.id,
+                label: entity.name,
+                weight: Double(max(6, entity.belief + (beliefOffsets[entity.id] ?? 0))),
+                chapterID: AcademyChapterRegistry.chapter(named: entity.chapter)?.id,
+                kindLabel: entity.kind.rawValue
+            )
+        }
+        let nodeIDs = Set(nodes.map(\.id))
+        let edges = flows.compactMap { entityID, flow -> GraphEdge? in
+            guard nodeIDs.contains(entityID) else { return nil }
+            return GraphEdge(
+                id: "flow-\(entityID)",
+                sourceID: "the-reader",
+                targetID: entityID,
+                strength: min(1, max(0.2, Double(flow.moved) / 12)),
+                warmth: min(1, max(-1, Double(flow.tone) / Double(max(1, flow.moved)))),
+                label: flow.tone >= 0 ? "belief given" : "belief taken"
+            )
+        }
+        return NarrativeGraphData(nodes: nodes, edges: edges)
+    }
+}
+
+/// Deterministic Fruchterman-Reingold: seeded initial ring, fixed iteration
+/// count, no randomness at draw time. Same data, same map, every open.
+enum GraphLayoutEngine {
+    static func layout(
+        data: NarrativeGraphData,
+        width: Double,
+        height: Double,
+        iterations: Int = 120,
+        seed: String = "margins-atlas"
+    ) -> [String: CodablePoint] {
+        let nodes = data.nodes
+        guard !nodes.isEmpty else { return [:] }
+        let area = width * height
+        let k = (area / Double(nodes.count)).squareRoot() * 0.7
+
+        // Seeded ring start: stable hash decides each node's angle jitter.
+        var x: [String: Double] = [:]
+        var y: [String: Double] = [:]
+        for (index, node) in nodes.enumerated() {
+            let jitter = Double(abs("\(seed)-\(node.id)".stableHash % 1000)) / 1000.0
+            let angle = (Double(index) + jitter) / Double(nodes.count) * 2 * Double.pi
+            let radius = min(width, height) * 0.34 * (0.7 + 0.3 * jitter)
+            x[node.id] = width / 2 + radius * cos(angle)
+            y[node.id] = height / 2 + radius * sin(angle)
+        }
+
+        let adjacency: [(String, String, Double)] = data.edges.map { ($0.sourceID, $0.targetID, $0.strength) }
+        var temperature = min(width, height) / 8
+
+        for _ in 0..<iterations {
+            var dx: [String: Double] = [:]
+            var dy: [String: Double] = [:]
+            // Repulsion between every pair.
+            for i in 0..<nodes.count {
+                for j in (i + 1)..<nodes.count {
+                    let a = nodes[i].id
+                    let b = nodes[j].id
+                    var deltaX = (x[a] ?? 0) - (x[b] ?? 0)
+                    var deltaY = (y[a] ?? 0) - (y[b] ?? 0)
+                    var distance = (deltaX * deltaX + deltaY * deltaY).squareRoot()
+                    if distance < 0.01 {
+                        deltaX = 0.01 * (abs("\(a)-\(b)".stableHash % 2) == 0 ? 1 : -1)
+                        deltaY = 0.01
+                        distance = 0.014
+                    }
+                    let force = k * k / distance
+                    dx[a, default: 0] += deltaX / distance * force
+                    dy[a, default: 0] += deltaY / distance * force
+                    dx[b, default: 0] -= deltaX / distance * force
+                    dy[b, default: 0] -= deltaY / distance * force
+                }
+            }
+            // Attraction along edges, weighted by strength.
+            for (source, target, strength) in adjacency {
+                let deltaX = (x[source] ?? 0) - (x[target] ?? 0)
+                let deltaY = (y[source] ?? 0) - (y[target] ?? 0)
+                let distance = max(0.01, (deltaX * deltaX + deltaY * deltaY).squareRoot())
+                let force = distance * distance / k * (0.5 + strength)
+                dx[source, default: 0] -= deltaX / distance * force
+                dy[source, default: 0] -= deltaY / distance * force
+                dx[target, default: 0] += deltaX / distance * force
+                dy[target, default: 0] += deltaY / distance * force
+            }
+            // Apply, clamped by cooling temperature and the frame.
+            for node in nodes {
+                let moveX = dx[node.id] ?? 0
+                let moveY = dy[node.id] ?? 0
+                let magnitude = max(0.01, (moveX * moveX + moveY * moveY).squareRoot())
+                let limited = min(magnitude, temperature)
+                x[node.id] = min(width - 40, max(40, (x[node.id] ?? 0) + moveX / magnitude * limited))
+                y[node.id] = min(height - 40, max(40, (y[node.id] ?? 0) + moveY / magnitude * limited))
+            }
+            temperature *= 0.95
+        }
+
+        var result: [String: CodablePoint] = [:]
+        for node in nodes {
+            result[node.id] = CodablePoint(x: x[node.id] ?? width / 2, y: y[node.id] ?? height / 2)
+        }
+        return result
+    }
+}

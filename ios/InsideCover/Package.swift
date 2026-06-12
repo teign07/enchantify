@@ -21,7 +21,17 @@ let package = Package(
             ],
             sources: [
                 "InsideCoverState.swift",
-                "BookArchiveDatabase.swift"
+                "BookArchiveDatabase.swift",
+                "PageModel.swift",
+                "SurfaceAndCurator.swift",
+                "NarrativeCore.swift",
+                "StoryEngine.swift",
+                "ReferenceLibrary.swift",
+                "Illumination.swift",
+                "WorldSystems.swift",
+                "PagePacks.swift",
+                "SourceAdapters.swift",
+                "StacksSearch.swift"
             ]
         ),
         .testTarget(

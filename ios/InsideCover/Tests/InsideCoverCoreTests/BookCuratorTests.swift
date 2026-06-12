@@ -104,6 +104,118 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(page.privacy, .localSensitive)
     }
 
+    func testDailyCheckInAffinityStaggersCoreCapturePages() {
+        assertCheckInPrimary(.mood, atHour: 7, minute: 15)
+        assertCheckInPrimary(.fuel, atHour: 8, minute: 30)
+        assertCheckInPrimary(.souvenir, atHour: 9, minute: 45)
+
+        assertCheckInPrimary(.fuel, atHour: 12, minute: 15)
+        assertCheckInPrimary(.souvenir, atHour: 13, minute: 30)
+        assertCheckInPrimary(.mood, atHour: 14, minute: 45)
+
+        assertCheckInPrimary(.souvenir, atHour: 18, minute: 0)
+        assertCheckInPrimary(.mood, atHour: 18, minute: 35)
+        assertCheckInPrimary(.fuel, atHour: 19, minute: 10)
+    }
+
+    func testSouvenirCanReturnInSeparateCheckInWindows() {
+        let adapter = SouvenirPageSourceAdapter()
+        let day = BookDay(
+            id: "2026-06-01",
+            date: localDate(hour: 0),
+            pages: [
+                BookPage(
+                    id: "morning-souvenir",
+                    type: .souvenir,
+                    createdAt: localDate(hour: 7, minute: 20),
+                    promptText: "Catch one bright particular.",
+                    userInput: "The kettle clicked like a tiny door latch.",
+                    tags: ["souvenir", "check-in-window:morning"]
+                )
+            ]
+        )
+
+        let morning = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: richInputs(), now: localDate(hour: 8))
+        let midday = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: richInputs(), now: localDate(hour: 13))
+
+        XCTAssertTrue(morning.isEmpty)
+        XCTAssertEqual(midday.first?.payload.metadata["checkInWindowID"], "midday")
+    }
+
+    func testBookRememberedSurfacesOldPageWhenTodayRhymes() {
+        let now = localDate(hour: 9, minute: 15)
+        let oldDate = Calendar.current.date(byAdding: .day, value: -180, to: now) ?? now.addingTimeInterval(-180 * 24 * 3600)
+        let remembered = BookPage(
+            id: "fog-walk",
+            type: .souvenir,
+            createdAt: oldDate,
+            promptText: "Catch one bright particular.",
+            userInput: "The fog on the walk made the window light look soft.",
+            tags: ["souvenir", "fog", "walk"],
+            usedInBookOfYou: true
+        )
+        var inputs = richInputs()
+        inputs.weather = WeatherSourceSignal(
+            phrase: "Fog at the window.",
+            source: "test",
+            forecast: "fog through morning",
+            conditionSymbolName: "cloud.fog"
+        )
+        inputs.resurfacingCandidates = [remembered]
+        let today = BookDay(id: BookDay.id(for: now), date: Calendar.current.startOfDay(for: now), pages: [])
+
+        let pages = BookCurator.surfacedPages(
+            for: today,
+            inputs: inputs,
+            now: now,
+            limit: 3
+        )
+
+        let page = pages.first { $0.type == BookPageType.bookRemembered }
+        XCTAssertEqual(page?.payload.metadata["rememberedPageID"], "fog-walk")
+        XCTAssertEqual(page?.payload.metadata["tinyAction"], "Stand at the nearest threshold for ten seconds. Let the outside know you noticed.")
+        XCTAssertTrue(page?.payload.body.contains("\"The fog on the walk made the window light look soft.\"") == true)
+    }
+
+    func testBookRememberedDoesNotRepeatAfterTodayKeptAVisitation() {
+        let now = localDate(hour: 9, minute: 15)
+        let oldDate = Calendar.current.date(byAdding: .day, value: -90, to: now) ?? now.addingTimeInterval(-90 * 24 * 3600)
+        let remembered = BookPage(
+            id: "rain-window",
+            type: .souvenir,
+            createdAt: oldDate,
+            promptText: "Catch one bright particular.",
+            userInput: "Rain threaded the window.",
+            tags: ["souvenir", "rain"],
+            usedInBookOfYou: true
+        )
+        let today = BookDay(
+            id: BookDay.id(for: now),
+            date: Calendar.current.startOfDay(for: now),
+            pages: [
+                BookPage(
+                    id: "already-remembered",
+                    type: .bookRemembered,
+                    createdAt: now,
+                    promptText: "The Book remembered.",
+                    userInput: "A remembered page returned.",
+                    tags: ["book-remembered", "remembered-page:rain-window"]
+                )
+            ]
+        )
+        var inputs = richInputs()
+        inputs.resurfacingCandidates = [remembered]
+
+        let pages = BookRememberedPageSourceAdapter().candidates(
+            for: today,
+            context: CuratorContext.make(for: today),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertTrue(pages.isEmpty)
+    }
+
     func testIllustrationSurfaceExposesBundledMediaAsset() throws {
         let pages = BookCurator.surfacedPages(
             for: emptyDay(),
@@ -514,6 +626,46 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertNotNil(event.effect.createdEntityHint)
     }
 
+    func testIlluminatedPhotoComposerMovesMarginaliaAcrossSeeds() throws {
+        let first = IlluminatedPageComposer.compose(
+            analysis: .academyFallback,
+            sourceAssetName: "IlluminatedPhotoSource",
+            seed: 101
+        )
+        let second = IlluminatedPageComposer.compose(
+            analysis: .academyFallback,
+            sourceAssetName: "IlluminatedPhotoSource",
+            seed: 9_901
+        )
+
+        let firstSlots = Dictionary(uniqueKeysWithValues: first.compositionPlan.textSlots.map { ($0.slotId, $0) })
+        let secondSlots = Dictionary(uniqueKeysWithValues: second.compositionPlan.textSlots.map { ($0.slotId, $0) })
+        let movedRequiredSlots = ["field-note", "observation-list", "closing-line", "frame-line", "compass-reminder", "souvenir-line"].filter { slotID in
+            guard let a = firstSlots[slotID], let b = secondSlots[slotID] else { return false }
+            return distance(a.position, b.position) > 140
+                || abs(a.size.width - b.size.width) > 20
+                || abs(a.size.height - b.size.height) > 20
+        }
+
+        XCTAssertGreaterThanOrEqual(movedRequiredSlots.count, 4)
+    }
+
+    func testIlluminatedPhotoComposerKeepsDifferentSeedsSerializable() {
+        let drafts = (0..<8).map { seed in
+            IlluminatedPageComposer.compose(
+                analysis: .goodCompanyFallback,
+                sourceAssetName: "IlluminatedPhotoSource",
+                seed: seed * 1_337 + 42
+            )
+        }
+
+        let encoded = drafts.compactMap { try? JSONEncoder().encode($0.compositionPlan) }
+
+        XCTAssertEqual(encoded.count, drafts.count)
+        XCTAssertEqual(Set(drafts.map(\.compositionPlan.randomSeed)).count, drafts.count)
+        XCTAssertTrue(drafts.allSatisfy { $0.compositionPlan.textSlots.count >= 9 })
+    }
+
     func testStoryChoiceCreatesNarrativeEventWithChoiceEffect() throws {
         let packet = StoryScenePacketBuilder.packet(
             for: dayWithMusicSouvenir(),
@@ -620,7 +772,7 @@ final class BookCuratorTests: XCTestCase {
             id: "\(packID):\(questionID)",
             questionID: questionID,
             question: firstQuestion.prompt,
-            answer: "BJ",
+            answer: "Avery",
             bookTranslation: "The Book knows this now.",
             sensitivity: .identity,
             usePermission: .privateContext,
@@ -765,6 +917,49 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(preferences.adjustedScore(for: fuel), 68)
     }
 
+    func testManualLorePageRotatesWithinRelevantPool() throws {
+        let day = emptyDay()
+        let context = CuratorContext.make(for: day)
+        let first = BookPageSourceAdapters.manualSurface(
+            for: .lore,
+            day: day,
+            context: context,
+            inputs: richInputs(),
+            now: localDate(hour: 10, minute: 0)
+        )
+        let second = BookPageSourceAdapters.manualSurface(
+            for: .lore,
+            day: day,
+            context: context,
+            inputs: richInputs(),
+            now: localDate(hour: 10, minute: 1)
+        )
+
+        let firstSnippetID = try XCTUnwrap(first.payload.metadata["snippetID"])
+        let secondSnippetID = try XCTUnwrap(second.payload.metadata["snippetID"])
+        XCTAssertNotEqual(firstSnippetID, secondSnippetID)
+    }
+
+    func testCuratorLorePageRotatesAcrossSurfaceSlots() throws {
+        let day = emptyDay()
+        let morning = BookCurator.surfacedPages(
+            for: day,
+            inputs: richInputs(),
+            now: localDate(hour: 10, minute: 0),
+            limit: 12
+        )
+        let later = BookCurator.surfacedPages(
+            for: day,
+            inputs: richInputs(),
+            now: localDate(hour: 10, minute: 40),
+            limit: 12
+        )
+
+        let morningLore = try XCTUnwrap(morning.first { $0.type == .lore }?.payload.metadata["snippetID"])
+        let laterLore = try XCTUnwrap(later.first { $0.type == .lore }?.payload.metadata["snippetID"])
+        XCTAssertNotEqual(morningLore, laterLore)
+    }
+
     private func emptyDay() -> BookDay {
         BookDay(id: "2026-06-01", date: localDate(hour: 0), pages: [])
     }
@@ -819,5 +1014,27 @@ final class BookCuratorTests: XCTestCase {
         components.minute = minute
         components.second = 0
         return Calendar.current.date(from: components) ?? Date()
+    }
+
+    private func assertCheckInPrimary(
+        _ expected: BookPageType,
+        atHour hour: Int,
+        minute: Int,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let date = localDate(hour: hour, minute: minute)
+        let types: [BookPageType] = [.mood, .fuel, .souvenir]
+        let boosts = Dictionary(uniqueKeysWithValues: types.map { ($0, CuratorTimeAffinity.boost(for: $0, at: date)) })
+        XCTAssertEqual(boosts[expected], 24, file: file, line: line)
+        for type in types where type != expected {
+            XCTAssertEqual(boosts[type], -18, file: file, line: line)
+        }
+    }
+
+    private func distance(_ a: CodablePoint, _ b: CodablePoint) -> Double {
+        let dx = a.x - b.x
+        let dy = a.y - b.y
+        return (dx * dx + dy * dy).squareRoot()
     }
 }
