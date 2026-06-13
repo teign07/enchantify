@@ -2636,3 +2636,145 @@ struct OuterStacksRoomEngine: OuterStacksRoomWriting {
         return try await FakeOuterStacksRoomWriter().visitScene(anchor: anchor, visitCount: visitCount, day: day)
     }
 }
+
+// MARK: - The Bleed press room
+
+/// Live research for the Reader's Shelf column. Reddit first (communities
+/// talk about everything), open-web abstract as fallback. The reader chose
+/// these interests on the About You page; the registry note for The Bleed
+/// discloses the lookup.
+struct BleedInterestSearcher {
+    private struct RedditListing: Decodable {
+        struct DataBox: Decodable {
+            var children: [Child]
+        }
+        struct Child: Decodable {
+            var data: Post
+        }
+        struct Post: Decodable {
+            var title: String
+            var subreddit: String
+            var selftext: String?
+            var ups: Int?
+            var permalink: String?
+            var over_18: Bool?
+        }
+        var data: DataBox
+    }
+
+    func clippings(for interest: String) async -> (text: String, sources: String) {
+        if let reddit = await redditClippings(for: interest) {
+            return reddit
+        }
+        let fallback = await RealInterestGossipSearcher().clippings(for: [interest], limit: 2)
+        guard !fallback.isEmpty else {
+            return ("No live clippings reached the press room before deadline.", "")
+        }
+        let text = fallback.map(\.promptLine).joined(separator: "\n\n")
+        let sources = fallback.map(\.sourceURL).filter { !$0.isEmpty }.joined(separator: "\n")
+        return (text, sources)
+    }
+
+    private func redditClippings(for interest: String) async -> (text: String, sources: String)? {
+        let query = interest.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? interest
+        guard let url = URL(string: "https://www.reddit.com/search.json?q=\(query)&sort=top&t=week&limit=8&raw_json=1") else {
+            return nil
+        }
+        var request = URLRequest(url: url)
+        request.setValue("ReEnchanted/1.0 (in-world newspaper research)", forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 12
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let listing = try? JSONDecoder().decode(RedditListing.self, from: data) else {
+            return nil
+        }
+        let posts = listing.data.children
+            .map(\.data)
+            .filter { ($0.over_18 ?? false) == false && !$0.title.isEmpty }
+            .prefix(5)
+        guard !posts.isEmpty else { return nil }
+        let text = posts.map { post -> String in
+            let snippet = (post.selftext ?? "")
+                .replacingOccurrences(of: "\n", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let clippedSnippet = snippet.isEmpty ? "" : " - \(String(snippet.prefix(220)))"
+            let upvotes = post.ups.map { " (\($0) upvotes)" } ?? ""
+            return "From the r/\(post.subreddit) commons this week\(upvotes): \"\(post.title)\"\(clippedSnippet)"
+        }.joined(separator: "\n\n")
+        let sources = posts.compactMap { post in
+            post.permalink.map { "https://www.reddit.com\($0)" }
+        }.joined(separator: "\n")
+        return (text, sources)
+    }
+}
+
+/// Writes one Bleed column in Penny Blackletter's voice, or falls back to a
+/// deterministic clerk-voice composition when no local brain is available.
+struct BleedColumnWriter {
+    func write(brief: BleedColumnBrief, clippings: String) async -> String {
+        guard brief.needsLocalBrain else { return brief.composedBody }
+        let packet = brief.packet.replacingOccurrences(of: "{{CLIPPINGS}}", with: clippings)
+        if let response = await LocalBrainProse.write(
+            prompt: """
+            COLUMN: \(brief.title)
+            BYLINE: \(brief.byline)
+
+            MATERIAL (write only from this; invent nothing beyond it):
+            \(packet)
+            """,
+            instructions: instructions(for: brief),
+            maxTokens: max(brief.maxTokens, 240),
+            sourceID: "the-bleed",
+            tags: ["bleed", brief.id]
+        ) {
+            return response
+        }
+        return fallback(brief: brief, packet: packet)
+    }
+
+    private func instructions(for brief: BleedColumnBrief) -> String {
+        let shared = """
+        You write for The Bleed, the Academy of Unlikely Arts student newspaper inside ReEnchanted.
+        The voice is Penny Blackletter, Records Clerk, Department of Attestation: dry, precise, fond of evidence, suspicious of the word "resolution", permitted exactly one opinion per column and she places it carefully.
+        Literary observations, never clinical claims. Never diagnose, never moralize, never invent completed real-world actions by the reader. Do not name the app. Plain prose, no markdown headers.
+        """
+        switch brief.id {
+        case "front-page":
+            return shared + """
+
+            Write the lead column: 2-3 short paragraphs reading the supplied ledger material the way a clerk reads a window page - patterns, weights, what props itself up. If the Book has named constellations or sealed wagers, treat them as Registry filings worth noting. End with one understated clerk's opinion in the margin.
+            """
+        case "corridor-whispers":
+            return shared + """
+
+            Write 3-4 corridor whispers from the supplied simulation turns. Each whisper is one juicy italicized-feeling sentence or two, signed with invented initials (like -M.B.). Preserve every mechanical fact in the turns (who, which thread, Belief spent or dealt); replace only the prose. No new named characters.
+            """
+        case "interest-desk":
+            return shared + """
+
+            Write the Reader's Shelf column from the supplied live web clippings: 2-3 short paragraphs of genuinely useful, current information about the reader's interest, reported as dispatches Penny received "from beyond the casement". Name real communities and sources plainly (r/whatever is fine; the Academy finds the names charming). Do not fabricate clippings; if the material is thin, say so in clerk fashion and work with what arrived.
+            """
+        default:
+            return shared
+        }
+    }
+
+    private func fallback(brief: BleedColumnBrief, packet: String) -> String {
+        let lines = packet
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.hasPrefix("- ") || $0.hasPrefix("From the r/") }
+            .prefix(5)
+        let material = lines.isEmpty ? "" : "\n\n" + lines.joined(separator: "\n")
+        switch brief.id {
+        case "front-page":
+            return "The Registry files the following without commentary, which is itself a kind of commentary.\(material)\n\nThe clerk notes the weights and leaves the verdicts to people with less filing to do."
+        case "corridor-whispers":
+            return "The corridor was quiet enough today that the whispers went unsigned. The mechanics stand as filed.\(material)"
+        case "interest-desk":
+            return "Dispatches from beyond the casement arrived too late for proper typesetting; the raw clippings are pinned below, which Penny insists is a style, not a failure.\(material)"
+        default:
+            return packet
+        }
+    }
+}

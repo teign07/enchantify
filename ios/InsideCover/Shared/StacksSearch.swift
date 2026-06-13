@@ -124,7 +124,7 @@ struct StacksQuery: Equatable {
             ("braid", [.bookOfYou]),
             ("book of you", [.bookOfYou]),
             ("letter", [.letter]),
-            ("story", [.narrativeOS]),
+            ("story", [.narrativeOS, .bookConnections]),
             ("gossip", [.gossip]),
             ("diary", [.diary])
         ]

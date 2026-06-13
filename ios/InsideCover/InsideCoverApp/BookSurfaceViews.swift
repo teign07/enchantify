@@ -351,6 +351,478 @@ struct IlluminatedArtifactPreview: View {
     }
 }
 
+struct BookConnectionsSheet: View {
+    enum Section: String, CaseIterable, Identifiable {
+        case clusters = "Clusters"
+        case constellations = "Stars"
+        case themes = "Themes"
+
+        var id: String { rawValue }
+    }
+
+    let days: [BookDay]
+    let inputs: BookSourceInputs
+    var onOpenPage: (BookPage) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedSection: Section = .clusters
+
+    private var clusters: [BookMotifCluster] {
+        let derived = inputs.clusters.isEmpty
+            ? BookMotifClusterEngine.clusters(from: inputs.continuity, constellations: inputs.constellations, themes: inputs.themes)
+            : inputs.clusters
+        return derived.sorted { left, right in
+            if left.strength == right.strength {
+                return left.name < right.name
+            }
+            return left.strength > right.strength
+        }
+    }
+
+    private var constellations: [Constellation] {
+        inputs.constellations.sorted { left, right in
+            if left.phase == right.phase {
+                return left.strengthPeak > right.strengthPeak
+            }
+            return left.phase.title < right.phase.title
+        }
+    }
+
+    private var themes: [BookTheme] {
+        inputs.themes.sorted { $0.monthKey > $1.monthKey }
+    }
+
+    private var pageByID: [String: BookPage] {
+        Dictionary(uniqueKeysWithValues: days.flatMap(\.pages).map { ($0.id, $0) })
+    }
+
+    private var evidencePages: [BookPage] {
+        let ids = Set(
+            clusters.flatMap(\.evidencePageIDs)
+                + constellations.flatMap(\.evidencePageIDs)
+                + themes.flatMap(\.evidencePageIDs)
+        )
+        return days
+            .flatMap(\.pages)
+            .filter { ids.contains($0.id) }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    header
+                    BookConnectionsMapView(
+                        clusters: clusters,
+                        constellations: constellations,
+                        themes: themes
+                    )
+                    .frame(height: 230)
+                    .accessibilityLabel("A symbolic map of the Book's clusters, constellations, and themes")
+
+                    Picker("Connections section", selection: $selectedSection) {
+                        ForEach(Section.allCases) { section in
+                            Text(section.rawValue).tag(section)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    selectedSectionView
+                    evidenceShelf
+                }
+                .padding(18)
+            }
+            .background(BookBackground().ignoresSafeArea())
+            .navigationTitle("Book Connections")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold)
+                }
+            }
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("The Book's private map", systemImage: "point.3.connected.trianglepath.dotted")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(BookPalette.teal)
+            Text("Connections")
+                .font(.system(size: 34, weight: .bold, design: .serif))
+                .foregroundStyle(BookPalette.lampGold)
+            Text(summaryLine)
+                .font(.callout)
+                .foregroundStyle(BookPalette.nightText.opacity(0.78))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .background(BookPalette.nightPanel.opacity(0.52), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.teal.opacity(0.22), lineWidth: 1)
+        )
+    }
+
+    private var summaryLine: String {
+        let clusterCount = clusters.count
+        let namedCount = constellations.filter(\.isNamed).count
+        let themeCount = themes.count
+        if clusterCount + namedCount + themeCount == 0 {
+            return "The Book needs a little more kept material before it can draw a trustworthy map."
+        }
+        return "I can currently see \(clusterCount) cluster\(clusterCount == 1 ? "" : "s"), \(namedCount) named constellation\(namedCount == 1 ? "" : "s"), and \(themeCount) remembered theme\(themeCount == 1 ? "" : "s")."
+    }
+
+    @ViewBuilder
+    private var selectedSectionView: some View {
+        switch selectedSection {
+        case .clusters:
+            if clusters.isEmpty {
+                EmptyBookCard(title: "No clusters yet", message: "Keep a few more pages. The Book is looking for places where several motifs begin to share gravity.")
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(clusters) { cluster in
+                        BookClusterCard(cluster: cluster, evidencePages: pages(for: cluster.evidencePageIDs), onOpenPage: onOpenPage)
+                    }
+                }
+            }
+        case .constellations:
+            if constellations.isEmpty {
+                EmptyBookCard(title: "No constellations yet", message: "A thread needs to return before it earns a place in the sky.")
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(constellations) { constellation in
+                        BookConstellationCard(constellation: constellation, evidencePages: pages(for: constellation.evidencePageIDs), onOpenPage: onOpenPage)
+                    }
+                }
+            }
+        case .themes:
+            if themes.isEmpty {
+                EmptyBookCard(title: "No themes remembered yet", message: "A month needs enough pages before it can take a title in the margins.")
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(themes) { theme in
+                        BookThemeConnectionCard(theme: theme, evidencePages: pages(for: theme.evidencePageIDs), onOpenPage: onOpenPage)
+                    }
+                }
+            }
+        }
+    }
+
+    private var evidenceShelf: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Evidence Pages")
+                .sectionRuneLabel()
+            if evidencePages.isEmpty {
+                Text("When a connection points to kept pages, they will collect here.")
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.6))
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(evidencePages.prefix(12)) { page in
+                            Button {
+                                BookFeedback.play(.openPage)
+                                onOpenPage(page)
+                            } label: {
+                                BookEvidenceMiniCard(page: page)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.bottom, 2)
+                }
+            }
+        }
+        .padding(14)
+        .background(BookPalette.nightPanel.opacity(0.30), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func pages(for ids: [String]) -> [BookPage] {
+        ids.compactMap { pageByID[$0] }.sorted { $0.createdAt > $1.createdAt }
+    }
+}
+
+private struct BookConnectionsMapView: View {
+    let clusters: [BookMotifCluster]
+    let constellations: [Constellation]
+    let themes: [BookTheme]
+
+    private var nodes: [ConnectionMapNode] {
+        let clusterNodes = clusters.prefix(5).map {
+            ConnectionMapNode(id: $0.id, strength: $0.strength, kind: .cluster)
+        }
+        let constellationNodes = constellations.filter(\.isAlive).prefix(6).map {
+            ConnectionMapNode(id: $0.id, strength: $0.strengthPeak, kind: .constellation)
+        }
+        let themeNodes = themes.prefix(4).map {
+            ConnectionMapNode(id: $0.id, strength: $0.strength, kind: .theme)
+        }
+        return Array(clusterNodes + constellationNodes + themeNodes)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            let center = CGPoint(x: size.width * 0.5, y: size.height * 0.5)
+            let radius = max(58, min(size.width, size.height) * 0.34)
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(BookPalette.nightPanel.opacity(0.44))
+                ForEach(0..<4, id: \.self) { ring in
+                    Circle()
+                        .stroke(BookPalette.gold.opacity(0.08 + Double(ring) * 0.025), lineWidth: 1)
+                        .frame(width: radius * CGFloat(ring + 2) * 0.62, height: radius * CGFloat(ring + 2) * 0.62)
+                        .position(center)
+                }
+                if nodes.isEmpty {
+                    Text("The map is still dark.")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                } else {
+                    ForEach(Array(nodes.enumerated()), id: \.element.id) { index, node in
+                        let point = point(for: index, count: nodes.count, center: center, radius: radius, strength: node.strength)
+                        Path { path in
+                            path.move(to: center)
+                            path.addLine(to: point)
+                        }
+                        .stroke(node.color.opacity(0.28), lineWidth: 1)
+                        Circle()
+                            .fill(node.color.opacity(0.22))
+                            .frame(width: node.diameter + 14, height: node.diameter + 14)
+                            .position(point)
+                        Circle()
+                            .fill(node.color)
+                            .frame(width: node.diameter, height: node.diameter)
+                            .shadow(color: node.color.opacity(0.35), radius: 8, x: 0, y: 0)
+                            .position(point)
+                    }
+                }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.gold.opacity(0.18), lineWidth: 1)
+        )
+    }
+
+    private func point(for index: Int, count: Int, center: CGPoint, radius: CGFloat, strength: Int) -> CGPoint {
+        let angle = (Double(index) / Double(max(1, count))) * Double.pi * 2 - Double.pi / 2
+        let pull = CGFloat(0.72 + Double(min(96, max(40, strength)) - 40) / 180)
+        return CGPoint(
+            x: center.x + cos(angle) * radius * pull,
+            y: center.y + sin(angle) * radius * pull
+        )
+    }
+}
+
+private struct ConnectionMapNode {
+    enum Kind {
+        case cluster
+        case constellation
+        case theme
+    }
+
+    var id: String
+    var strength: Int
+    var kind: Kind
+
+    var color: Color {
+        switch kind {
+        case .cluster: return BookPalette.teal
+        case .constellation: return BookPalette.lampGold
+        case .theme: return BookPalette.violet
+        }
+    }
+
+    var diameter: CGFloat {
+        CGFloat(8 + min(18, max(4, strength / 5)))
+    }
+}
+
+private struct BookClusterCard: View {
+    let cluster: BookMotifCluster
+    let evidencePages: [BookPage]
+    var onOpenPage: (BookPage) -> Void
+
+    var body: some View {
+        BookConnectionCardShell(accent: BookPalette.teal) {
+            VStack(alignment: .leading, spacing: 10) {
+                connectionHeader(title: cluster.name, subtitle: "\(cluster.strength)% glow · \(cluster.motifs.count) motifs", symbol: "sparkles.rectangle.stack", accent: BookPalette.teal)
+                Text(cluster.line)
+                    .font(.callout)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
+                motifCloud(cluster.motifs, accent: BookPalette.teal)
+                evidenceButtons(evidencePages, accent: BookPalette.teal, onOpenPage: onOpenPage)
+            }
+        }
+    }
+}
+
+private struct BookConstellationCard: View {
+    let constellation: Constellation
+    let evidencePages: [BookPage]
+    var onOpenPage: (BookPage) -> Void
+
+    var body: some View {
+        BookConnectionCardShell(accent: BookPalette.lampGold) {
+            VStack(alignment: .leading, spacing: 10) {
+                connectionHeader(
+                    title: constellation.displayName,
+                    subtitle: "\(constellation.phase.title) · \(constellation.sightingCount) sightings · peak \(constellation.strengthPeak)",
+                    symbol: constellation.isNamed ? "star.fill" : "star",
+                    accent: BookPalette.lampGold
+                )
+                Text(constellation.latestLine)
+                    .font(.callout)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
+                if !constellation.tags.isEmpty {
+                    motifCloud(Array(constellation.tags.prefix(8)), accent: BookPalette.lampGold)
+                }
+                evidenceButtons(evidencePages, accent: BookPalette.lampGold, onOpenPage: onOpenPage)
+            }
+        }
+    }
+}
+
+private struct BookThemeConnectionCard: View {
+    let theme: BookTheme
+    let evidencePages: [BookPage]
+    var onOpenPage: (BookPage) -> Void
+
+    var body: some View {
+        BookConnectionCardShell(accent: BookPalette.violet) {
+            VStack(alignment: .leading, spacing: 10) {
+                connectionHeader(title: theme.name, subtitle: "\(theme.monthKey) · \(theme.strength)% strength", symbol: "moon.stars", accent: BookPalette.violet)
+                Text(theme.line)
+                    .font(.callout)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
+                motifCloud(theme.motifs, accent: BookPalette.violet)
+                if !theme.excerptLines.isEmpty {
+                    Text(theme.excerptLines.prefix(2).joined(separator: "\n"))
+                        .font(.caption)
+                        .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                evidenceButtons(evidencePages, accent: BookPalette.violet, onOpenPage: onOpenPage)
+            }
+        }
+    }
+}
+
+private struct BookConnectionCardShell<Content: View>: View {
+    let accent: Color
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(BookPalette.nightPanel.opacity(0.44), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(accent.opacity(0.22), lineWidth: 1)
+            )
+    }
+}
+
+private func connectionHeader(title: String, subtitle: String, symbol: String, accent: Color) -> some View {
+    HStack(alignment: .top, spacing: 10) {
+        Image(systemName: symbol)
+            .font(.headline.weight(.bold))
+            .foregroundStyle(accent)
+            .frame(width: 26, height: 26)
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(BookPalette.nightText)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(subtitle)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(accent.opacity(0.82))
+        }
+        Spacer()
+    }
+}
+
+private func motifCloud(_ motifs: [String], accent: Color) -> some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 6) {
+            ForEach(motifs.prefix(10), id: \.self) { motif in
+                Text(motif)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(accent.opacity(0.92))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(accent.opacity(0.10), in: Capsule())
+            }
+        }
+    }
+}
+
+private func evidenceButtons(_ pages: [BookPage], accent: Color, onOpenPage: @escaping (BookPage) -> Void) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+        if !pages.isEmpty {
+            Text("Evidence")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(BookPalette.nightText.opacity(0.54))
+            ForEach(pages.prefix(3)) { page in
+                Button {
+                    BookFeedback.play(.openPage)
+                    onOpenPage(page)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .foregroundStyle(accent)
+                        Text(page.userInput.nonEmpty ?? page.promptText)
+                            .font(.caption)
+                            .foregroundStyle(BookPalette.nightText.opacity(0.76))
+                            .lineLimit(2)
+                        Spacer()
+                    }
+                    .padding(8)
+                    .background(BookPalette.ink.opacity(0.16), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+private struct BookEvidenceMiniCard: View {
+    let page: BookPage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(page.type.shortTitle)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(BookPalette.teal)
+            Text(page.userInput.nonEmpty ?? page.promptText)
+                .font(.caption)
+                .foregroundStyle(BookPalette.nightText.opacity(0.82))
+                .lineLimit(4)
+                .frame(width: 156, alignment: .leading)
+        }
+        .padding(10)
+        .frame(width: 180, alignment: .topLeading)
+        .frame(minHeight: 104, alignment: .topLeading)
+        .background(BookPalette.nightPanel.opacity(0.46), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.gold.opacity(0.18), lineWidth: 1)
+        )
+    }
+}
+
 private struct OrganicPlacementVariation {
     let xOffset: Double
     let yOffset: Double
@@ -476,7 +948,10 @@ struct SurfaceCard: View {
             || surface.type == .quip
             || surface.type == .narrativeOS
             || surface.type == .marginsAtlas
+            || surface.type == .bookConnections
             || surface.type == .bookRemembered
+            || surface.type == .bookNotices
+            || surface.type == .theBleed
             || surface.type == .facultyResearch
             || surface.type == .supportGuild
             || surface.type == .castMember
@@ -487,7 +962,7 @@ struct SurfaceCard: View {
         guard isReadingCard else { return nil }
         let body = surface.payload.body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return nil }
-        if surface.type == .wonderCompass || surface.type == .narrativeOS || surface.type == .marginsAtlas || surface.type == .bookRemembered || surface.type == .gossip || surface.type == .facultyResearch || surface.type == .supportGuild || surface.type == .castMember {
+        if surface.type == .wonderCompass || surface.type == .narrativeOS || surface.type == .marginsAtlas || surface.type == .bookConnections || surface.type == .bookRemembered || surface.type == .bookNotices || surface.type == .theBleed || surface.type == .gossip || surface.type == .facultyResearch || surface.type == .supportGuild || surface.type == .castMember {
             return body.bookPreviewSentenceLimit(2)
         }
         return body
@@ -497,7 +972,7 @@ struct SurfaceCard: View {
         switch surface.type {
         case .wonderCompass:
             return 3
-        case .narrativeOS, .marginsAtlas, .bookRemembered:
+        case .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .theBleed:
             return 4
         case .gossip:
             return 4
@@ -2198,7 +2673,7 @@ struct PageVisualStyle {
                 watermarkOpacity: 0.15,
                 scrapWidth: 86
             )
-        case .lore, .narrativeOS, .marginsAtlas, .bookRemembered:
+        case .lore, .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .theBleed:
             return PageVisualStyle(
                 accent: BookPalette.violet,
                 symbolColor: BookPalette.violet,

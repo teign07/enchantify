@@ -388,12 +388,26 @@ extension ContentView {
 
     @MainActor
     func buildSaveFile() -> ReEnchantedSaveFile {
-        ReEnchantedSaveFile(
+        let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 5000)) ?? narrativeEvents
+        let archiveMemories = (try? BookDatabase.entityMemories(limit: 5000)) ?? entityMemories
+        let continuity = LiteraryContinuityProjector.digest(
+            days: days,
+            events: archiveEvents,
+            entityMemories: archiveMemories,
+            entityBelief: entityBeliefLedger,
+            pageBelief: pageBeliefLedger
+        )
+        let clusters = BookMotifClusterEngine.clusters(
+            from: continuity,
+            constellations: vault.data.constellations ?? [],
+            themes: vault.data.themes ?? []
+        )
+        return ReEnchantedSaveFile(
             exportedAt: Date(),
             days: days,
             selfFacts: (try? BookDatabase.selfFacts()) ?? selfFacts,
-            narrativeEvents: (try? BookDatabase.narrativeEvents(limit: 5000)) ?? narrativeEvents,
-            entityMemories: (try? BookDatabase.entityMemories(limit: 5000)) ?? entityMemories,
+            narrativeEvents: archiveEvents,
+            entityMemories: archiveMemories,
             facultyEntries: (try? BookDatabase.facultyEntries(limit: 5000)) ?? facultyEntries,
             customCastMembers: customCastMembers,
             anchors: anchorLedger,
@@ -403,7 +417,12 @@ extension ContentView {
             pageBeliefLedger: pageBeliefLedger,
             marginTutorSeen: Array(MarginTutorLedger.seenIDs(from: marginTutorSeenData)),
             didCompleteStoryOnboarding: didCompleteStoryOnboarding,
-            sourcePreferences: decodedSourcePreferenceLedger()
+            sourcePreferences: decodedSourcePreferenceLedger(),
+            constellations: vault.data.constellations,
+            wagers: vault.data.wagers,
+            themes: vault.data.themes,
+            clusters: clusters,
+            continuity: continuity
         )
     }
 
@@ -424,6 +443,233 @@ extension ContentView {
             BookFeedback.play(.braidComplete)
         } catch {
             statusMessage = "The save file would not bind: \(error.localizedDescription)"
+            BookFeedback.play(.error)
+        }
+    }
+
+    @MainActor
+    func exportContinuityFile() {
+        do {
+            let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 5000)) ?? narrativeEvents
+            let archiveMemories = (try? BookDatabase.entityMemories(limit: 5000)) ?? entityMemories
+            let digest = LiteraryContinuityProjector.digest(
+                days: days,
+                events: archiveEvents,
+                entityMemories: archiveMemories,
+                entityBelief: entityBeliefLedger,
+                pageBelief: pageBeliefLedger
+            )
+            let export = BookArchiveExport(
+                days: [],
+                continuity: LiteraryContinuityDigest(
+                    signals: Array(digest.strongestSignals.prefix(16)),
+                    beliefLifecycles: Array(digest.beliefLifecycles.prefix(12))
+                ),
+                constellations: Array((vault.data.constellations ?? []).prefix(16)),
+                wagers: Array((vault.data.wagers ?? []).prefix(12)),
+                themes: Array((vault.data.themes ?? []).suffix(12)),
+                clusters: Array(BookMotifClusterEngine.clusters(
+                    from: digest,
+                    constellations: vault.data.constellations ?? [],
+                    themes: vault.data.themes ?? []
+                ).prefix(12))
+            )
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("insidecover-continuity.json")
+            try export.encodedData().write(to: url, options: [.atomic])
+            preparedContinuityURL = url
+            statusMessage = "The Book's continuity is bound and ready to share."
+            BookFeedback.play(.braidComplete)
+        } catch {
+            statusMessage = "The continuity file would not bind: \(error.localizedDescription)"
+            BookFeedback.play(.error)
+        }
+    }
+
+    /// The keeper of constellations and sealed margins: recomputes the
+    /// continuity digest, advances the durable constellation ledger, opens
+    /// any wagers whose date has come, and seals new ones. Runs alongside
+    /// tendArc so the Book's long memory moves whenever the field does.
+    @MainActor
+    func tendConstellations(now: Date = Date()) {
+        let digest = LiteraryContinuityProjector.digest(
+            days: days,
+            events: narrativeEvents,
+            entityMemories: entityMemories,
+            entityBelief: entityBeliefLedger,
+            pageBelief: pageBeliefLedger,
+            now: now
+        )
+        let advanced = ConstellationKeeper.advanced(
+            vault.data.constellations ?? [],
+            observing: digest,
+            now: now
+        )
+        var wagers = SealedMarginEngine.resolved(vault.data.wagers ?? [], against: days, now: now)
+        wagers += SealedMarginEngine.mintWagers(from: digest, existing: wagers, now: now)
+
+        let calendar = Calendar.current
+        let monthKey = BookThemeEngine.monthKey(for: now, calendar: calendar)
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? now
+        let monthPages = days
+            .filter { $0.date >= calendar.startOfDay(for: monthStart) }
+            .flatMap(\.pages)
+        let currentTheme = BookThemeEngine.theme(
+            for: monthPages,
+            digest: digest,
+            constellations: advanced,
+            monthKey: monthKey,
+            now: now
+        )
+        let themes = BookThemeEngine.remembered(vault.data.themes ?? [], observing: currentTheme, monthKey: monthKey)
+
+        let changed = advanced != (vault.data.constellations ?? [])
+            || wagers != (vault.data.wagers ?? [])
+            || themes != (vault.data.themes ?? [])
+        guard changed else { return }
+        vault.data.constellations = advanced
+        vault.data.wagers = wagers
+        vault.data.themes = themes
+        vault.save()
+        surfaceRefreshDate = now
+    }
+
+    // MARK: - The Bleed press run
+
+    /// Sets the presses running: live interest research, then one local-brain
+    /// call per written column, composited into a single edition page.
+    @MainActor
+    @discardableResult
+    func prepareBleedEditionIfPossible(from announcement: SurfacePage? = nil) async -> Bool {
+        guard !generation.isPreparingBleedEdition, !localBrainTelemetry.isWorking else { return false }
+        let surface: SurfacePage
+        if let announcement, announcement.payload.metadata["bleedBriefs"]?.isEmpty == false {
+            surface = announcement
+        } else if let built = TheBleedEditionBuilder.announcementSurface(for: today, inputs: sourceInputs, now: Date()) {
+            surface = built
+        } else {
+            statusMessage = "The presses rest in the afternoon. The next edition sets at four."
+            return false
+        }
+
+        if let prepared = generation.preparedBleedEditionSurface,
+           prepared.payload.metadata["bleedSlotID"] == surface.payload.metadata["bleedSlotID"] {
+            return true
+        }
+
+        generation.isPreparingBleedEdition = true
+        defer { generation.isPreparingBleedEdition = false }
+
+        let briefs = TheBleedEditionBuilder.decodedBriefs(surface.payload.metadata["bleedBriefs"] ?? "")
+        guard !briefs.isEmpty else {
+            statusMessage = "The type tray came up empty. Penny is re-sorting the briefs."
+            return false
+        }
+
+        let interest = surface.payload.metadata["bleedInterest"]?.nonEmpty
+        var clippings = ""
+        var clippingSources = ""
+        if let interest {
+            statusMessage = "Penny is interviewing the wider world about \(interest)..."
+            let research = await BleedInterestSearcher().clippings(for: interest)
+            clippings = research.text
+            clippingSources = research.sources
+        }
+
+        let writer = BleedColumnWriter()
+        var columns: [(brief: BleedColumnBrief, body: String)] = []
+        for brief in briefs {
+            if brief.needsLocalBrain {
+                statusMessage = "Setting type: \(brief.title)..."
+            }
+            let body = await writer.write(brief: brief, clippings: clippings)
+            columns.append((brief, body))
+        }
+
+        let kind = BleedEditionKind(rawValue: surface.payload.metadata["bleedEditionKind"] ?? "") ?? .morning
+        let issueNumber = Int(surface.payload.metadata["bleedIssueNumber"] ?? "") ?? 1
+        let body = TheBleedEditionBuilder.compositedBody(
+            kind: kind,
+            issueNumber: issueNumber,
+            columns: columns,
+            now: Date()
+        )
+        generation.preparedBleedEditionSurface = TheBleedEditionBuilder.preparedCopy(
+            of: surface,
+            body: body,
+            interestSources: clippingSources
+        )
+        surfaceRefreshDate = Date()
+        statusMessage = "Issue #\(issueNumber) is off the press."
+        BookFeedback.play(.braidComplete)
+        return true
+    }
+
+    /// Binds the most recent edition (prepared or kept today) as a PDF.
+    @MainActor
+    func exportBleedPDF() {
+        let candidate: (headline: String, body: String)? = {
+            if let prepared = generation.preparedBleedEditionSurface,
+               let prose = prepared.payload.metadata["bleedProse"]?.nonEmpty {
+                return (prepared.payload.headline, prose)
+            }
+            if let kept = today.pages.last(where: { $0.type == .theBleed && !$0.userInput.isEmpty }) {
+                return (kept.promptText.nonEmpty ?? "The Bleed", kept.userInput)
+            }
+            return nil
+        }()
+        guard let candidate else {
+            statusMessage = "No edition has been printed yet today."
+            BookFeedback.play(.error)
+            return
+        }
+        do {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd-HHmm"
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("TheBleed-\(formatter.string(from: Date())).pdf")
+            try BleedPDFWriter.write(headline: candidate.headline, body: candidate.body, to: url)
+            preparedBleedPDFURL = url
+            statusMessage = "The Bleed is bound for sharing."
+            BookFeedback.play(.braidComplete)
+        } catch {
+            statusMessage = "The edition would not bind: \(error.localizedDescription)"
+            BookFeedback.play(.error)
+        }
+    }
+
+    @MainActor
+    func exportMonthlyEdition() {
+        do {
+            let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 5000)) ?? narrativeEvents
+            let archiveMemories = (try? BookDatabase.entityMemories(limit: 5000)) ?? entityMemories
+            let edition = MonthlyEditionBuilder.previousMonth(
+                from: days,
+                events: archiveEvents,
+                entityMemories: archiveMemories,
+                entityBelief: entityBeliefLedger,
+                pageBelief: pageBeliefLedger,
+                constellations: vault.data.constellations ?? [],
+                wagers: vault.data.wagers ?? [],
+                themes: vault.data.themes ?? [],
+                readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
+                now: Date()
+            )
+            guard !edition.isEmpty else {
+                statusMessage = "The previous month has no kept pages to bind yet."
+                BookFeedback.play(.error)
+                return
+            }
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM"
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("ReEnchanted-Monthly-\(formatter.string(from: edition.startDate)).pdf")
+            try MonthlyEditionPDFWriter.write(edition, to: url)
+            preparedMonthlyEditionURL = url
+            statusMessage = "The monthly edition is bound and ready to share."
+            BookFeedback.play(.braidComplete)
+        } catch {
+            statusMessage = "The monthly edition would not bind: \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
     }
@@ -484,6 +730,29 @@ extension ContentView {
                let encoded = String(data: data, encoding: .utf8) {
                 pageBeliefLedgerData = encoded
             }
+            if let importedConstellations = save.constellations, !importedConstellations.isEmpty {
+                var merged = vault.data.constellations ?? []
+                for constellation in importedConstellations where !merged.contains(where: { $0.id == constellation.id }) {
+                    merged.append(constellation)
+                }
+                vault.data.constellations = merged
+            }
+            if let importedWagers = save.wagers, !importedWagers.isEmpty {
+                var merged = vault.data.wagers ?? []
+                for wager in importedWagers where !merged.contains(where: { $0.id == wager.id }) {
+                    merged.append(wager)
+                }
+                vault.data.wagers = merged
+            }
+            if let importedThemes = save.themes, !importedThemes.isEmpty {
+                var merged = vault.data.themes ?? []
+                for theme in importedThemes {
+                    merged.removeAll { $0.monthKey == theme.monthKey }
+                    merged.append(theme)
+                }
+                vault.data.themes = merged.sorted { $0.monthKey < $1.monthKey }
+            }
+            vault.save()
             marginTutorSeenData = MarginTutorLedger.encode(Set(save.marginTutorSeen))
             if save.didCompleteStoryOnboarding {
                 didCompleteStoryOnboarding = true

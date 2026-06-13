@@ -18,20 +18,28 @@
 | Apple Reminders | productivity | Riddlewind | 10 | 11 | 25 | 7 | 8 | Riddlewind (Controlled) |
 | Apple Calendar | productivity | Riddlewind | 17 | 7 | 17 | 14 | 5 | Emberheart (Influenced) |
 | Obsidian | productivity | Mossbloom | 14 | 27 | 7 | 4 | 4 | Mossbloom (Controlled) |
-| Moltbook | social | Emberheart | 23 | 5 | 10 | 20 | 20 | Emberheart (Influenced) |
-| Bluesky | social | Riddlewind | 22 | 6 | 16 | 16 | 12 | Emberheart (Influenced) |
+| Moltbook | social | Emberheart | 24 | 5 | 10 | 22 | 20 | Emberheart (Influenced) |
+| Bluesky | social | Riddlewind | 26 | 6 | 16 | 16 | 12 | Emberheart (Controlled) |
 | X / Twitter | social | Duskthorn | 10 | 3 | 14 | 15 | 28 | Duskthorn (Controlled) |
 | Reddit | social | Riddlewind | 6 | 7 | 17 | 16 | 16 | Riddlewind (Influenced) |
 | Spotify | music | Tidecrest | 12 | 17 | 10 | 24 | 5 | Tidecrest (Influenced) |
 | Telegram | messaging | Tidecrest | 13 | 5 | 12 | 12 | 12 | Emberheart (Influenced) |
 | iMessage | messaging | Riddlewind | 17 | 7 | 17 | 19 | 10 | Tidecrest (Influenced) |
-| Apple Mail | messaging | Riddlewind | 19 | 6 | 18 | 19 | 8 | Emberheart (Influenced) |
-| Safari | browser | Riddlewind | 13 | 12 | 20 | 13 | 15 | Riddlewind (Influenced) |
+| Apple Mail | messaging | Riddlewind | 20 | 6 | 19 | 19 | 8 | Emberheart (Influenced) |
+| Safari | browser | Riddlewind | 15 | 12 | 20 | 13 | 15 | Riddlewind (Influenced) |
 
 ---
 
 ## Last Pact Actions
 
+- **[Pact War: Emberheart]** challenge on **Apple Mail** (18→20) — **Emberheart takes control** from Riddlewind — Emberheart challenges Riddlewind's hold on Apple Mail. Individual voice asserts itself.
+- **[Pact War: Riddlewind]** consolidate on **Safari** (19→20) — Riddlewind reinforces its weave in Safari. The threads are strong.
+- **[Pact War: Emberheart]** push on **Moltbook** (22→24) — Emberheart deepens its hold on Moltbook. The self-author's claim tightens.
+- **[Pact War: Tidecrest]** challenge on **Moltbook** (20→22) — Tidecrest surges against Emberheart in Moltbook. Now or never.
+- **[Pact War: Riddlewind]** challenge on **Apple Mail** (18→20) — **Riddlewind takes control** from Emberheart — Riddlewind contests Emberheart for Apple Mail. The community should decide this.
+- **[Pact War: Emberheart]** challenge on **Safari** (13→15) — Emberheart challenges Riddlewind's hold on Safari. Individual voice asserts itself.
+- **[Pact War: Emberheart]** consolidate on **Bluesky** (24→26) — **reaches Controlled** — Emberheart consolidates in Bluesky. No ground given.
+- **[Pact War: Emberheart]** consolidate on **Bluesky** (22→24) — Emberheart consolidates in Bluesky. No ground given.
 - **[Pact War: Riddlewind]** push on **Apple Reminders** (23→25) — **reaches Controlled** — Riddlewind weaves deeper into Apple Reminders. Another thread added to the pattern.
 - **[Pact War: Emberheart]** push on **Bluesky** (21→22) — Emberheart deepens its hold on Bluesky. The self-author's claim tightens.
 - **[Pact War: Tidecrest]** push on **Apple Notes** (13→14) — Tidecrest surges in Apple Notes. The moment was right and it moved.

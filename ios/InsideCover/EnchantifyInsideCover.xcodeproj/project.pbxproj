@@ -21,6 +21,7 @@
 		01000000000000000000001F /* CapturePageSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000117 /* CapturePageSections.swift */; };
 		030000000000000000000201 /* SearchTheStacksSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000101 /* SearchTheStacksSheet.swift */; };
 		030000000000000000000202 /* BookShopSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000102 /* BookShopSheet.swift */; };
+		030000000000000000000203 /* MonthlyEditionPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000103 /* MonthlyEditionPDF.swift */; };
 		010000000000000000000003 /* InsideCoverState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000103 /* InsideCoverState.swift */; };
 		030000000000000000000200 /* StacksSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000100 /* StacksSearch.swift */; };
 		030000000000000000000300 /* StacksSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000100 /* StacksSearch.swift */; };
@@ -42,6 +43,10 @@
 		020000000000000000000307 /* PagePacks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000107 /* PagePacks.swift */; };
 		020000000000000000000208 /* SourceAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000108 /* SourceAdapters.swift */; };
 		020000000000000000000308 /* SourceAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000108 /* SourceAdapters.swift */; };
+		020000000000000000000209 /* LiteraryContinuity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000109 /* LiteraryContinuity.swift */; };
+		02000000000000000000020B /* Constellations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010B /* Constellations.swift */; };
+		02000000000000000000020C /* TheBleed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010C /* TheBleed.swift */; };
+		02000000000000000000020A /* MonthlyEdition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010A /* MonthlyEdition.swift */; };
 		010000000000000000000004 /* InsideCoverStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000104 /* InsideCoverStore.swift */; };
 		010000000000000000000015 /* BookArchiveDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010E /* BookArchiveDatabase.swift */; };
 		010000000000000000000005 /* widget-state.json in Resources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000105 /* widget-state.json */; };
@@ -65,6 +70,7 @@
 		010000000000000000000117 /* CapturePageSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePageSections.swift; sourceTree = "<group>"; };
 		030000000000000000000101 /* SearchTheStacksSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchTheStacksSheet.swift; sourceTree = "<group>"; };
 		030000000000000000000102 /* BookShopSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookShopSheet.swift; sourceTree = "<group>"; };
+		030000000000000000000103 /* MonthlyEditionPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEditionPDF.swift; sourceTree = "<group>"; };
 		010000000000000000000103 /* InsideCoverState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverState.swift; sourceTree = "<group>"; };
 		030000000000000000000100 /* StacksSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StacksSearch.swift; sourceTree = "<group>"; };
 		020000000000000000000100 /* PageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageModel.swift; sourceTree = "<group>"; };
@@ -76,6 +82,10 @@
 		020000000000000000000106 /* WorldSystems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldSystems.swift; sourceTree = "<group>"; };
 		020000000000000000000107 /* PagePacks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagePacks.swift; sourceTree = "<group>"; };
 		020000000000000000000108 /* SourceAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceAdapters.swift; sourceTree = "<group>"; };
+		020000000000000000000109 /* LiteraryContinuity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteraryContinuity.swift; sourceTree = "<group>"; };
+		02000000000000000000010B /* Constellations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constellations.swift; sourceTree = "<group>"; };
+		02000000000000000000010C /* TheBleed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheBleed.swift; sourceTree = "<group>"; };
+		02000000000000000000010A /* MonthlyEdition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEdition.swift; sourceTree = "<group>"; };
 		010000000000000000000104 /* InsideCoverStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverStore.swift; sourceTree = "<group>"; };
 		010000000000000000000105 /* widget-state.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "widget-state.json"; sourceTree = "<group>"; };
 		01000000000000000000010C /* BookReferenceLibrary.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = BookReferenceLibrary.json; sourceTree = "<group>"; };
@@ -123,6 +133,7 @@
 				010000000000000000000117 /* CapturePageSections.swift */,
 				030000000000000000000101 /* SearchTheStacksSheet.swift */,
 				030000000000000000000102 /* BookShopSheet.swift */,
+				030000000000000000000103 /* MonthlyEditionPDF.swift */,
 				01000000000000000000010B /* BookDatabase.swift */,
 				010000000000000000000109 /* InsideCoverApp.entitlements */,
 				01000000000000000000010D /* Assets.xcassets */,
@@ -144,6 +155,10 @@
 				020000000000000000000106 /* WorldSystems.swift */,
 				020000000000000000000107 /* PagePacks.swift */,
 				020000000000000000000108 /* SourceAdapters.swift */,
+				020000000000000000000109 /* LiteraryContinuity.swift */,
+				02000000000000000000010B /* Constellations.swift */,
+				02000000000000000000010C /* TheBleed.swift */,
+				02000000000000000000010A /* MonthlyEdition.swift */,
 				010000000000000000000104 /* InsideCoverStore.swift */,
 				01000000000000000000010C /* BookReferenceLibrary.json */,
 				01000000000000000000010E /* BookArchiveDatabase.swift */,
@@ -267,6 +282,7 @@
 				01000000000000000000001F /* CapturePageSections.swift in Sources */,
 				030000000000000000000201 /* SearchTheStacksSheet.swift in Sources */,
 				030000000000000000000202 /* BookShopSheet.swift in Sources */,
+				030000000000000000000203 /* MonthlyEditionPDF.swift in Sources */,
 				010000000000000000000003 /* InsideCoverState.swift in Sources */,
 				030000000000000000000200 /* StacksSearch.swift in Sources */,
 				020000000000000000000200 /* PageModel.swift in Sources */,
@@ -278,6 +294,10 @@
 				020000000000000000000206 /* WorldSystems.swift in Sources */,
 				020000000000000000000207 /* PagePacks.swift in Sources */,
 				020000000000000000000208 /* SourceAdapters.swift in Sources */,
+				020000000000000000000209 /* LiteraryContinuity.swift in Sources */,
+				02000000000000000000020B /* Constellations.swift in Sources */,
+				02000000000000000000020C /* TheBleed.swift in Sources */,
+				02000000000000000000020A /* MonthlyEdition.swift in Sources */,
 				010000000000000000000004 /* InsideCoverStore.swift in Sources */,
 				010000000000000000000015 /* BookArchiveDatabase.swift in Sources */,
 			);

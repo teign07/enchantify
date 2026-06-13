@@ -372,6 +372,13 @@ struct ReEnchantedSaveFile: Codable {
     var marginTutorSeen: [String]
     var didCompleteStoryOnboarding: Bool
     var sourcePreferences: [String: Bool]
+    var constellations: [Constellation]?
+    var wagers: [BookWager]?
+    var themes: [BookTheme]?
+    var clusters: [BookMotifCluster]?
+    /// The full continuity digest at export time, so the wider Labyrinth
+    /// (scene engine, NPC dialogue) can reference what the Book has noticed.
+    var continuity: LiteraryContinuityDigest?
 }
 
 /// Tolerant JSON recovery for small-model output: extracts the object,
@@ -455,6 +462,9 @@ struct PlayerVaultData: Codable, Equatable {
     var ownedPacks: [String]?
     var currentArc: StoryArc?
     var lastCompletedArcThreadID: String?
+    var constellations: [Constellation]?
+    var wagers: [BookWager]?
+    var themes: [BookTheme]?
 }
 
 // MARK: - The BookShop

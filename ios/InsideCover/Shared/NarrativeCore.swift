@@ -1217,11 +1217,27 @@ enum NarrativeEventResolver {
             entityDeltas["the-book", default: 0] += 1
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 1
+        case .bookConnections:
+            entityDeltas["the-book", default: 0] += 2
+            threadDeltas["ordinary-magic", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 2
+            createdHint = "A connection map can make future pages refer to the same cluster by name."
         case .bookRemembered:
             entityDeltas["the-book", default: 0] += 2
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 1
             createdHint = "A remembered page can return again when the day rhymes."
+        case .bookNotices:
+            entityDeltas["the-book", default: 0] += 3
+            threadDeltas["ordinary-magic", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 2
+            createdHint = "A noticed pattern can become a future letter, return, or constellation."
+        case .theBleed:
+            entityDeltas["penny-blackletter", default: 0] += 2
+            entityDeltas["the-book", default: 0] += 1
+            relationshipDeltas["penny-files-book", default: 0] += 2
+            threadDeltas["ordinary-magic", default: 0] += 1
+            createdHint = "A kept edition becomes part of the record Penny is attesting."
         case .gossip:
             entityDeltas["the-book", default: 0] += 1
             threadDeltas["ordinary-magic", default: 0] += 1

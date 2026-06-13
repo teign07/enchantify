@@ -399,8 +399,9 @@ final class WorldSystemsTests: XCTestCase {
         // Across several days, rain context should surface a rain-tagged
         // spark at least once for the modes that carry them.
         var sawRainSpark = false
+        let morning = date(2026, 6, 10, hour: 9, calendar: utcCalendar)
         for day in 0..<8 {
-            let text = WonderSparkRegistry.spark(for: .vibe, inputs: inputs, dayID: "rain-day-\(day)")
+            let text = WonderSparkRegistry.spark(for: .vibe, inputs: inputs, now: morning, dayID: "rain-day-\(day)")
             if text.contains("rain") || text.contains("percussion") {
                 sawRainSpark = true
             }
@@ -1051,5 +1052,103 @@ final class WorldSystemsTests: XCTestCase {
         )
         XCTAssertFalse(pages.contains { $0.payload.metadata["electiveOffer"] == "true" })
         XCTAssertTrue(pages.contains { $0.payload.metadata["electiveFlyleaf"] == "true" })
+    }
+
+    // MARK: Literary continuity
+
+    func testLiteraryContinuityFindsRepeatedPatternAndAbsence() {
+        let calendar = utcCalendar
+        let now = date(2026, 6, 12, hour: 12, calendar: calendar)
+        let oldOne = BookPage(
+            id: "old-harbor-1",
+            type: .souvenir,
+            createdAt: date(2026, 3, 1, hour: 9, calendar: calendar),
+            promptText: "Souvenir",
+            userInput: "The harbor kept its minutes.",
+            tags: ["harbor", "water"]
+        )
+        let oldTwo = BookPage(
+            id: "old-harbor-2",
+            type: .diary,
+            createdAt: date(2026, 3, 8, hour: 9, calendar: calendar),
+            promptText: "Diary",
+            userInput: "I walked near the harbor again.",
+            tags: ["harbor"]
+        )
+        let oldThree = BookPage(
+            id: "old-harbor-3",
+            type: .weather,
+            createdAt: date(2026, 3, 15, hour: 9, calendar: calendar),
+            promptText: "Weather",
+            userInput: "Fog over the harbor.",
+            tags: ["harbor", "fog"]
+        )
+        let recent = BookPage(
+            id: "recent-porch",
+            type: .souvenir,
+            createdAt: date(2026, 6, 10, hour: 9, calendar: calendar),
+            promptText: "Souvenir",
+            userInput: "The porch light stayed warm.",
+            tags: ["porch"]
+        )
+        let digest = LiteraryContinuityProjector.digest(
+            days: [BookDay(id: "d1", date: date(2026, 6, 12, hour: 0, calendar: calendar), pages: [oldOne, oldTwo, oldThree, recent])],
+            events: [],
+            entityMemories: [],
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertTrue(digest.signals.contains { $0.kind == .pattern && $0.subjectID == "harbor" })
+        XCTAssertTrue(digest.signals.contains { $0.kind == .absence && $0.subjectID == "harbor" })
+    }
+
+    func testBookNoticesPageSurfacesContinuitySignals() {
+        let calendar = utcCalendar
+        let now = date(2026, 6, 12, hour: 12, calendar: calendar)
+        var inputs = BookSourceInputs.empty
+        inputs.continuity = LiteraryContinuityDigest(
+            signals: [
+                LiteraryContinuitySignal(
+                    id: "pattern-water",
+                    kind: .pattern,
+                    subjectID: "water",
+                    subjectName: "Water",
+                    line: "Water has gathered across four kept pages.",
+                    evidencePageIDs: ["a", "b", "c"],
+                    relatedEntityIDs: [],
+                    tags: ["water", "pattern"],
+                    firstSeenAt: date(2026, 5, 1, hour: 9, calendar: calendar),
+                    lastSeenAt: now,
+                    strength: 78
+                ),
+                LiteraryContinuitySignal(
+                    id: "duration-book",
+                    kind: .duration,
+                    subjectID: "book",
+                    subjectName: "The Book",
+                    line: "The oldest kept page has been in the Book for 42 days.",
+                    evidencePageIDs: ["a"],
+                    relatedEntityIDs: [],
+                    tags: ["duration"],
+                    firstSeenAt: date(2026, 5, 1, hour: 9, calendar: calendar),
+                    lastSeenAt: now,
+                    strength: 70
+                )
+            ],
+            beliefLifecycles: []
+        )
+
+        let day = BookDay(id: "today", date: date(2026, 6, 12, hour: 0, calendar: calendar), pages: [])
+        let surfaces = BookNoticesPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertEqual(surfaces.first?.type, .bookNotices)
+        XCTAssertTrue(surfaces.first?.payload.body.contains("I have noticed") == true)
+        XCTAssertEqual(surfaces.first?.payload.metadata["source"], "the-book-notices")
     }
 }

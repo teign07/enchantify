@@ -1,9 +1,9 @@
 ReEnchanted iOS App
 
-This is a small SwiftUI + WidgetKit companion app. The widget reads a compact
-state file exported by:
+This is a small SwiftUI companion app. It can import a compact state file
+exported by:
 
-  python3 scripts/widget-state.py bj
+  python3 scripts/widget-state.py <player>
 
 The exporter writes:
 
@@ -15,21 +15,19 @@ The JSON embeds the image data, so the iOS app only needs to import the JSON.
 Install path:
 
 1. Open ios/InsideCover/EnchantifyInsideCover.xcodeproj in Xcode.
-2. Select the InsideCoverApp target, set your Team, and change the bundle id if
-   Xcode asks.
-3. Select the InsideCoverWidgetExtension target and use the same Team.
-4. In Signing & Capabilities, make sure both targets share the same App Group:
-   group.com.openclaw.enchantify.insidecover
-5. Run InsideCoverApp on the iPhone or iPad.
-6. On the device, open the app and import hooks/widget-state.json by AirDrop,
+2. Select the InsideCoverApp scheme and an iOS simulator to run without signing
+   changes.
+3. For a physical device, select the InsideCoverApp target, set your Team, and
+   change the bundle id if Xcode asks.
+4. Run InsideCoverApp on the simulator, iPhone, or iPad.
+5. On the device, open the app and import hooks/widget-state.json by AirDrop,
    iCloud Drive, or Files.
-7. Add the "ReEnchanted" widget from the Home Screen widget picker.
 
 Refresh path:
 
-1. Run python3 scripts/widget-state.py bj on the Mac.
+1. Run python3 scripts/widget-state.py <player> on the Mac.
 2. Send hooks/widget-state.json to the device.
-3. Open it in InsideCoverApp. The widget reloads.
+3. Open it in InsideCoverApp.
 
 Prototype note:
 

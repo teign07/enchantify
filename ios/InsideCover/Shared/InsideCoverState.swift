@@ -663,17 +663,29 @@ struct LocalBrainTelemetryState: Codable, Equatable {
 }
 
 struct BookArchiveExport: Codable, Equatable {
-    static let schemaVersion = 1
+    static let schemaVersion = 2
 
     var schemaVersion: Int
     var generatedAt: Date
     var dayCount: Int
     var pageCount: Int
     var days: [BookDay]
+    /// What the Book has noticed, named, and wagered - exported so the wider
+    /// Labyrinth (scene engine, NPC dialogue) can reference the same threads.
+    var continuity: LiteraryContinuityDigest?
+    var constellations: [Constellation]?
+    var wagers: [BookWager]?
+    var themes: [BookTheme]?
+    var clusters: [BookMotifCluster]?
 
     init(
         generatedAt: Date = Date(),
         days: [BookDay],
+        continuity: LiteraryContinuityDigest? = nil,
+        constellations: [Constellation]? = nil,
+        wagers: [BookWager]? = nil,
+        themes: [BookTheme]? = nil,
+        clusters: [BookMotifCluster]? = nil,
         calendar: Calendar = .current
     ) {
         let normalizedDays = Self.normalizedDays(days, calendar: calendar)
@@ -682,6 +694,11 @@ struct BookArchiveExport: Codable, Equatable {
         self.dayCount = normalizedDays.count
         self.pageCount = normalizedDays.reduce(0) { $0 + $1.pages.count }
         self.days = normalizedDays
+        self.continuity = continuity
+        self.constellations = constellations
+        self.wagers = wagers
+        self.themes = themes
+        self.clusters = clusters
     }
 
     func encodedData() throws -> Data {

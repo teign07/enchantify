@@ -1340,8 +1340,14 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "a story thread waking" : "a story thread tugging \(clipped)"
         case .marginsAtlas:
             return clipped.isEmpty ? "the Margins Atlas unfolding" : "the Atlas drawing \(clipped)"
+        case .bookConnections:
+            return clipped.isEmpty ? "the Book's connections brightening" : "the Book connecting \(clipped)"
         case .bookRemembered:
             return clipped.isEmpty ? "an old kept page returning" : "an old kept page returning with \(clipped)"
+        case .bookNotices:
+            return clipped.isEmpty ? "the Book noticing a pattern" : "the Book noticing \(clipped)"
+        case .theBleed:
+            return clipped.isEmpty ? "ink still wet on the newest Bleed" : "the morning paper carrying \(clipped)"
         case .gossip:
             return clipped.isEmpty ? "a rumor moving in the margins" : "the margins reporting \(clipped)"
         case .facultyResearch:
@@ -1386,7 +1392,7 @@ struct FakeBraider: Braider {
         if fragments.contains(where: { $0.type == .illuminatedPhoto || $0.type == .souvenir }) {
             return "one bright fragment"
         }
-        if fragments.contains(where: { $0.type == .wonderCompass || $0.type == .lore || $0.type == .narrativeOS || $0.type == .marginsAtlas || $0.type == .gossip || $0.type == .castMember }) {
+        if fragments.contains(where: { $0.type == .wonderCompass || $0.type == .lore || $0.type == .narrativeOS || $0.type == .marginsAtlas || $0.type == .bookNotices || $0.type == .gossip || $0.type == .castMember }) {
             return "one true thread"
         }
         return "the ordinary"

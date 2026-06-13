@@ -160,7 +160,11 @@ struct ContentView: View {
     @State var calendarEvents: [CalendarEventSignal] = []
     @State var nearbyPlaces: [LocalPlaceSignal] = []
     @State var preparedSaveFileURL: URL?
+    @State var preparedContinuityURL: URL?
+    @State var preparedMonthlyEditionURL: URL?
+    @State var preparedBleedPDFURL: URL?
     @State var isSaveImporterPresented = false
+    @State var isConnectionsPresented = false
     @State var activeTutorNote: MarginTutorNote?
     @AppStorage("isTodaysMarginsExpanded") var isTodaysMarginsExpanded = false
     @AppStorage("isReturnedStacksExpanded") var isReturnedStacksExpanded = false
@@ -258,6 +262,7 @@ struct ContentView: View {
             isPreparingGossipPage: generation.isPreparingGossipPage,
             isPreparingFacultyResearchPage: generation.isPreparingFacultyResearchPage,
             isPreparingLetterPage: generation.isPreparingLetterPage,
+            isPreparingBleedEdition: generation.isPreparingBleedEdition,
             isRequestingWeather: isRequestingWeather
         )
     }
@@ -280,6 +285,26 @@ struct ContentView: View {
         inputs.quietDays = NothingTide.quietDays(in: days, today: today.id)
         inputs.currentArc = vault.data.currentArc
         inputs.recentNarrativeEvents = narrativeEvents
+        let continuityDigest = LiteraryContinuityProjector.digest(
+            days: days,
+            events: narrativeEvents,
+            entityMemories: entityMemories,
+            entityBelief: entityBeliefLedger,
+            pageBelief: pageBeliefLedger,
+            now: surfaceRefreshDate
+        )
+        inputs.continuity = continuityDigest
+        inputs.constellations = vault.data.constellations ?? []
+        inputs.wagers = vault.data.wagers ?? []
+        inputs.themes = vault.data.themes ?? []
+        inputs.clusters = BookMotifClusterEngine.clusters(
+            from: continuityDigest,
+            constellations: inputs.constellations,
+            themes: inputs.themes,
+            now: surfaceRefreshDate
+        )
+        inputs.bleedIssueNumber = days.flatMap(\.pages).filter { $0.type == .theBleed }.count + 1
+        inputs.preparedBleedEditionSurface = generation.preparedBleedEditionSurface
         inputs.preparedAnchorSurface = preparedAnchorSurface
         inputs.selectedWonderCompass = selectedWonderCompassSnippet
         inputs.selectedWonderCompassSelector = selectedWonderCompassSelector
@@ -683,6 +708,17 @@ struct ContentView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $isConnectionsPresented) {
+                BookConnectionsSheet(
+                    days: days,
+                    inputs: sourceInputs
+                ) { page in
+                    isConnectionsPresented = false
+                    openKeptPage(page)
+                }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -792,6 +828,7 @@ struct ContentView: View {
         }
         PackEntitlements.ownedPackIDs = Set(vault.data.ownedPacks ?? [])
         tendArc()
+        tendConstellations()
         nearbyPlaces = LocalPlacesScout.cachedPlaces()
         if didRequestAnchorLocation || didRequestWeatherLocation {
             let scouted = await LocalPlacesScout.refreshIfNeeded()
@@ -1277,6 +1314,8 @@ struct ContentView: View {
             )
         case .letter:
             selectedSurface = freshManualSurface(for: .letter)
+        case .bookConnections:
+            isConnectionsPresented = true
         case .weather:
             if weatherPageSignal == nil || enchantedWeather == nil {
                 statusMessage = "The Weather Page is asking the sky, then Gemma."
@@ -1703,6 +1742,8 @@ struct ContentView: View {
                         case .open:
                             if SurfaceReadinessState(surface: surface).needsLocalBrainToOpen {
                                 Task { await generateAndOpenSurface(surface) }
+                            } else if surface.type == .bookConnections {
+                                isConnectionsPresented = true
                             } else {
                                 selectedSurface = surface
                             }
@@ -2141,6 +2182,90 @@ struct ContentView: View {
                         .tint(BookPalette.lampGold)
                     }
 
+                    HStack(spacing: 10) {
+                        Text("Book continuity.")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                        Spacer()
+                        Button {
+                            BookFeedback.play(.openPage)
+                            isConnectionsPresented = true
+                        } label: {
+                            Label("Open connections", systemImage: "sparkles.rectangle.stack")
+                                .font(.caption.weight(.bold))
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(BookPalette.lampGold)
+                        if let preparedContinuityURL {
+                            ShareLink(item: preparedContinuityURL) {
+                                Label("Share continuity", systemImage: "square.and.arrow.up")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(BookPalette.teal)
+                        } else {
+                            Button {
+                                BookFeedback.play(.sourceRefresh)
+                                exportContinuityFile()
+                            } label: {
+                                Label("Export continuity", systemImage: "point.3.connected.trianglepath.dotted")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(BookPalette.teal)
+                        }
+                    }
+
+                    HStack(spacing: 10) {
+                        Text("Bind last month.")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                        Spacer()
+                        if let preparedMonthlyEditionURL {
+                            ShareLink(item: preparedMonthlyEditionURL) {
+                                Label("Share monthly edition", systemImage: "square.and.arrow.up")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(BookPalette.lampGold)
+                        } else {
+                            Button {
+                                BookFeedback.play(.sourceRefresh)
+                                exportMonthlyEdition()
+                            } label: {
+                                Label("Bind monthly edition", systemImage: "book.pages")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(BookPalette.lampGold)
+                        }
+                    }
+
+                    HStack(spacing: 10) {
+                        Text("Today's paper.")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                        Spacer()
+                        if let preparedBleedPDFURL {
+                            ShareLink(item: preparedBleedPDFURL) {
+                                Label("Share The Bleed", systemImage: "square.and.arrow.up")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(BookPalette.lampGold)
+                        } else {
+                            Button {
+                                BookFeedback.play(.sourceRefresh)
+                                exportBleedPDF()
+                            } label: {
+                                Label("Bind The Bleed as PDF", systemImage: "newspaper")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(BookPalette.lampGold)
+                        }
+                    }
+
                     labPanelShelf
 
                     ModelStatusCard(
@@ -2300,6 +2425,7 @@ struct ContentView: View {
             statusMessage = "The page is kept, but one hidden margin note slipped: \(error.localizedDescription)"
         }
         tendArc()
+        tendConstellations()
     }
 
     /// The ArcKeeper checks the field whenever events land: promotion,
@@ -2579,6 +2705,14 @@ struct ContentView: View {
                 title: "Gossip Page",
                 action: "write a Gossip Page"
             )
+        case .theBleed:
+            statusMessage = "The presses are running. Penny is setting type..."
+            _ = await prepareBleedEditionIfPossible(from: surface)
+            selectedSurface = generation.preparedBleedEditionSurface ?? localBrainIssueSurface(
+                type: surface.type,
+                title: "The Bleed",
+                action: "print the edition"
+            )
         case .facultyResearch:
             statusMessage = "The faculty folio is asking Gemma to read the clippings..."
             _ = await prepareFacultyResearchPageIfPossible(force: true)
@@ -2615,6 +2749,8 @@ struct ContentView: View {
             statusMessage = "An installed page is asking the Book to write..."
             selectedSurface = await packPageSurfaceWithProse(from: surface)
             statusMessage = ""
+        case .bookConnections:
+            isConnectionsPresented = true
         case .illuminatedPhoto:
             statusMessage = "Penny is asking Gemma to illuminate a photo."
             _ = await prepareAutomaticIlluminatedPageIfPossible()

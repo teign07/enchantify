@@ -713,12 +713,21 @@ enum GossipSimulationBuilder {
         let threads = rankedThreads(tags: tags, inputs: inputs, seed: seed)
         let actor = pick(actors, offset: offset) ?? fallbackActor
         let thread = pick(threads, offset: offset) ?? fallbackThread
+        let witness = witnessActor(among: actors, excluding: actor, offset: offset)
         let actionKind = actionKind(for: actor, thread: thread, tags: tags, seed: seed)
         let combat = beliefCombat(actor: actor, thread: thread, actionKind: actionKind, seed: seed)
         let talismanMove = ChapterTalismanBeliefMoves.move(for: actor, actionKind: actionKind, seed: seed)
-        let trace = visibleTrace(actor: actor, thread: thread, actionKind: actionKind, tags: tags, seed: seed, talismanMove: talismanMove)
-        let overheard = overheardLine(actor: actor, thread: thread, actionKind: actionKind, seed: seed)
-        let consequences = consequenceLines(actor: actor, thread: thread, actionKind: actionKind, beliefCombat: combat, talismanMove: talismanMove)
+        let readerEcho = readerEchoSnippet(for: day, seed: seed)
+        let constellationHook = constellationHook(for: actor, thread: thread, inputs: inputs)
+        let trace = visibleTrace(actor: actor, witness: witness, thread: thread, actionKind: actionKind, tags: tags, seed: seed, talismanMove: talismanMove)
+        let overheard = overheardLine(actor: actor, witness: witness, thread: thread, actionKind: actionKind, seed: seed)
+        var consequences = consequenceLines(actor: actor, thread: thread, actionKind: actionKind, beliefCombat: combat, talismanMove: talismanMove)
+        if let readerEcho {
+            consequences.append("The margins matched it to one of the reader's own kept pages: \"\(readerEcho)\"")
+        }
+        if let constellationHook {
+            consequences.append(constellationHook)
+        }
         let turnTags = Array(Set(tags)
             .union(actor.tags)
             .union(thread.tags)
@@ -730,6 +739,7 @@ enum GossipSimulationBuilder {
                 "thread:\(thread.id)",
                 "action:\(actionKind.rawValue)"
             ])
+            .union(witness.map { ["witness:\($0.id)"] } ?? [])
             .union(talismanMove.map { ["chapter-talisman", "talisman:\($0.targetTalismanID)", "chapter:\($0.targetChapter.lowercased())", "talisman-move:\($0.kind.rawValue)"] } ?? [])
         ).sorted()
 
@@ -842,21 +852,95 @@ enum GossipSimulationBuilder {
         return seed % 3 == 0 ? .takeAction : .investBelief
     }
 
+    private static func witnessActor(
+        among actors: [NarrativeWorldEntity],
+        excluding actor: NarrativeWorldEntity,
+        offset: Int
+    ) -> NarrativeWorldEntity? {
+        let characters = actors.filter { $0.kind == .character && $0.id != actor.id }
+        guard !characters.isEmpty else { return nil }
+        return characters[(offset + 1) % characters.count]
+    }
+
+    /// A short fragment of the reader's own day, so the rumor lands close
+    /// to home instead of floating in generic margin-space.
+    private static func readerEchoSnippet(for day: BookDay, seed: Int) -> String? {
+        let candidates = day.capturedPages.suffix(8).compactMap { page -> String? in
+            let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard text.count >= 12 else { return nil }
+            return text.bookPreviewSentenceLimit(1)
+        }
+        guard !candidates.isEmpty else { return nil }
+        let snippet = candidates[stableIndex(for: "reader-echo-\(seed)", count: candidates.count)]
+        return snippet.count > 90 ? String(snippet.prefix(87)) + "..." : snippet
+    }
+
+    /// If the Book keeps a named constellation that touches this turn, the
+    /// rumor knows about it. The world reading the Book's own marginalia is
+    /// the juiciest gossip there is.
+    private static func constellationHook(
+        for actor: NarrativeWorldEntity,
+        thread: NarrativeStoryThread,
+        inputs: BookSourceInputs
+    ) -> String? {
+        let named = ConstellationKeeper.namedConstellations(inputs.constellations)
+        guard let match = named.first(where: { constellation in
+            constellation.relatedEntityIDs.contains(actor.id)
+                || constellation.tags.contains(where: { thread.tags.contains($0) || actor.tags.contains($0) })
+        }) ?? named.first else {
+            return nil
+        }
+        return "Some in the stacks whisper that this touches \(match.displayName), the constellation the Book keeps about the reader."
+    }
+
+    private static func juicyDetail(for actor: NarrativeWorldEntity, seed: Int) -> String {
+        var details: [String] = []
+        if let quirk = actor.quirks.first {
+            details.append("everyone pretends not to know that \(actor.name) \(quirk)")
+        }
+        if let fault = actor.faults.first {
+            details.append("the unkind version says it is just \(actor.name) being \(fault) again")
+        }
+        if let belief = actor.beliefs.first {
+            details.append("\(actor.name) has always insisted that \(belief), and this looks like acting on it")
+        }
+        if let interest = actor.unwrittenInterest {
+            details.append("those who know \(actor.name) say the real question underneath is: \(interest)")
+        }
+        guard !details.isEmpty else {
+            return "no one can agree on why, which is how you know it matters"
+        }
+        return details[stableIndex(for: "\(actor.id)-\(seed)-juice", count: details.count)]
+    }
+
     private static func visibleTrace(
         actor: NarrativeWorldEntity,
+        witness: NarrativeWorldEntity?,
         thread: NarrativeStoryThread,
         actionKind: GossipSimulationActionKind,
         tags: Set<String>,
         seed: Int,
         talismanMove: ChapterTalismanBeliefMove?
     ) -> String {
-        let detail: String
-        if let interest = actor.unwrittenInterest, seed % 2 == 0 {
-            detail = "Its unwritten interest was visible in the ink: \(interest)"
+        let stakes: String
+        if let goal = actor.goals.first, let fault = actor.faults.first {
+            stakes = " If it works: \(goal) If it curdles, \"\(fault)\" becomes the story everyone tells at breakfast."
         } else if let goal = actor.goals.first {
-            detail = "The goal under it was plain enough for the Book to file: \(goal)"
+            stakes = " What is at stake, plainly: \(goal)"
         } else {
-            detail = "No one called it important. The margins disagreed."
+            stakes = " No one called it important. The margins disagreed."
+        }
+
+        let witnessLine: String
+        if let witness {
+            let reactions = [
+                "\(witness.name) saw it happen and has been conspicuously silent, which from \(witness.name) is practically a public statement.",
+                "\(witness.name) claims not to have been watching. \(witness.name) was absolutely watching.",
+                "\(witness.name) reported it to exactly three people, each sworn to secrecy, which is how the whole Academy knows by now."
+            ]
+            witnessLine = " " + reactions[stableIndex(for: "\(witness.id)-\(seed)-reaction", count: reactions.count)]
+        } else {
+            witnessLine = ""
         }
 
         let talismanTrace: String
@@ -871,30 +955,50 @@ enum GossipSimulationBuilder {
             talismanTrace = ""
         }
 
+        let move: String
         switch actionKind {
         case .takeAction:
-            return "\(actor.name) made a small move inside \(thread.title). \(detail)\(talismanTrace)"
+            move = "\(actor.name) made a real move inside \(thread.title) - \(juicyDetail(for: actor, seed: seed))."
         case .investBelief:
-            return "\(actor.name) tucked one point of Belief into \(thread.title), where it warmed the thread instead of explaining itself. \(detail)\(talismanTrace)"
+            move = "\(actor.name) tucked Belief into \(thread.title) when it thought no one was looking - \(juicyDetail(for: actor, seed: seed))."
         case .attackBelief:
-            return "\(actor.name) worried at a brittle edge of \(thread.title), testing whether the thread was attention or only habit. \(detail)\(talismanTrace)"
+            move = "\(actor.name) went after a brittle edge of \(thread.title), in the open, where everyone could see - \(juicyDetail(for: actor, seed: seed))."
         }
+        return move + stakes + witnessLine + talismanTrace
     }
 
     private static func overheardLine(
         actor: NarrativeWorldEntity,
+        witness: NarrativeWorldEntity?,
         thread: NarrativeStoryThread,
         actionKind: GossipSimulationActionKind,
         seed: Int
     ) -> String {
-        let verbs: [GossipSimulationActionKind: [String]] = [
-            .takeAction: ["left a trace in", "nudged", "quietly rearranged"],
-            .investBelief: ["fed a lamp inside", "paid attention into", "warmed"],
-            .attackBelief: ["tested the edge of", "picked at the lock of", "asked a sharp question of"]
-        ]
-        let options = verbs[actionKind] ?? ["stirred"]
-        let verb = options[stableIndex(for: "\(actor.id)-\(thread.id)-\(seed)-verb", count: options.count)]
-        return "Overheard in the stacks: \(actor.name) \(verb) \(thread.title)."
+        let attribution = witness.map { "Overheard by \($0.name)" } ?? "Overheard in the stacks"
+        let quirkAside = actor.quirks.first.map { " - and yes, \($0), as always" } ?? ""
+        let templates: [String]
+        switch actionKind {
+        case .takeAction:
+            templates = [
+                "\"\(actor.name) was at \(thread.title) again before the lamps were lit\(quirkAside). The ink was still wet when I passed.\"",
+                "\"Don't quote me, but \(actor.name) just moved something inside \(thread.title), and it was not a small something.\"",
+                "\"Third time I've caught \(actor.name) near \(thread.title) this chapter. Once is errand, twice is habit, three times is plot.\""
+            ]
+        case .investBelief:
+            templates = [
+                "\"\(actor.name) is pouring Belief into \(thread.title) and won't say why. When \(actor.name) goes quiet about money, watch the money.\"",
+                "\"I saw the glow myself - \(actor.name) fed \(thread.title) like it owed the thread an apology.\"",
+                "\"\(actor.name) swears it's nothing. \(actor.name) only ever says 'it's nothing' about the things that are something.\""
+            ]
+        case .attackBelief:
+            templates = [
+                "\"\(actor.name) finally said out loud what it's been thinking about \(thread.title), and the shelves are still rattling.\"",
+                "\"It wasn't an argument, exactly. \(actor.name) just asked \(thread.title) one question, and the question had teeth.\"",
+                "\"Someone had to test whether \(thread.title) is still real or just well-rehearsed. Trust \(actor.name) to do it in front of everyone.\""
+            ]
+        }
+        let line = templates[stableIndex(for: "\(actor.id)-\(thread.id)-\(seed)-overheard", count: templates.count)]
+        return "\(attribution): \(line)"
     }
 
     private static func stableIndex(for key: String, count: Int) -> Int {
@@ -1355,12 +1459,16 @@ enum CharacterLetterPageGenerator {
         let talismanMoveLines = talismanMoves.map(\.promptLine).joined(separator: "\n")
         let talismanDeltaTokens = talismanMoves.compactMap(\.ledgerToken).joined(separator: ",")
         let query = researchQuery(for: interest, homeContext: homeContext)
+        let occasion = letterOccasion(inputs: inputs)
         let body = """
         Sender: \(entity.name)
         Address the player as: \(playerName)
         Unwritten Interest: \(interest)
         Home Context: \(homeContext)
         Research Query: \(query)
+
+        Letter occasion:
+        \(occasion ?? "No special occasion. Write because the sender wanted to.")
 
         Writing Voice:
         \(voice.promptDescription)
@@ -1371,7 +1479,7 @@ enum CharacterLetterPageGenerator {
         Chapter talisman move:
         \(talismanMoveLines.isEmpty ? "No chapter talisman move is being made in this letter." : talismanMoveLines)
 
-        Write a real letter to the player. Use live web research if clippings are supplied. If no clippings are supplied, fall back to the model's own general knowledge without pretending it browsed.
+        Write a real letter to the player. If a letter occasion is given, it is the reason this letter exists - open from it and let it carry the letter, gently and without diagnosing. Use live web research if clippings are supplied. If no clippings are supplied, fall back to the model's own general knowledge without pretending it browsed.
         """
         return SurfacePage(
             id: "\(source.id)-\(day.id)-\(slot)-\(entity.id)",
@@ -1393,6 +1501,7 @@ enum CharacterLetterPageGenerator {
                     "playerName": playerName,
                     "unwrittenInterest": interest,
                     "homeContext": homeContext,
+                    "letterOccasion": occasion ?? "",
                     "researchQuery": query,
                     "writingVoice": voice.promptDescription,
                     "chapterTalismanMoves": talismanMoveLines,
@@ -1489,13 +1598,47 @@ enum CharacterLetterPageGenerator {
             .prefix(4)
             .map { "- \($0.summary)" }
             .joined(separator: "\n") ?? ""
+        let continuity = continuityPacket(for: entity, inputs: inputs)
         return """
         Recent pages:
         \(pages.isEmpty ? "No kept pages yet today." : pages)
 
         Entity memories:
         \(memories.isEmpty ? "No explicit memory packet for this sender." : memories)
+
+        What the Book has begun to notice:
+        \(continuity.isEmpty ? "No stable literary pattern has been offered to this sender." : continuity)
         """
+    }
+
+    private static func continuityPacket(for entity: NarrativeWorldEntity, inputs: BookSourceInputs) -> String {
+        let related = inputs.continuity.strongestSignals.filter { signal in
+            signal.relatedEntityIDs.contains(entity.id)
+                || signal.tags.contains(entity.id)
+                || entity.tags.contains(where: { signal.tags.contains($0) })
+        }
+        let selected = related.isEmpty ? inputs.continuity.strongestSignals.prefix(3).map(\.self) : Array(related.prefix(4))
+        var lines = selected.map { "- \($0.line)" }
+        for constellation in ConstellationKeeper.namedConstellations(inputs.constellations).prefix(3) {
+            lines.append("- The Book has named a constellation it keeps about the reader: \(constellation.displayName). \(constellation.latestLine) Characters may refer to it by name, as something the Book keeps.")
+        }
+        for wager in inputs.wagers.filter(\.isSealed).prefix(2) {
+            lines.append("- The Book has a sealed wager pending: \(wager.prediction) Characters may know the Book wagers but not the outcome.")
+        }
+        if let theme = inputs.themes.max(by: { $0.monthKey < $1.monthKey }) {
+            lines.append("- \(theme.promptLine) Characters may allude to the theme without naming the app or sounding clinical.")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// When something the reader used to write about has gone properly quiet,
+    /// that absence becomes the reason a letter exists - the sender writes
+    /// because of it, not merely mentioning it.
+    private static func letterOccasion(inputs: BookSourceInputs) -> String? {
+        guard let absence = inputs.continuity.strongestSignals.first(where: { $0.kind == .absence && $0.strength >= 60 }) else {
+            return nil
+        }
+        return "\(absence.line) The sender writes because of this quiet: ask after \(absence.subjectName) the way a friend asks after someone who stopped coming to the cafe - warmly, without alarm, leaving room for the answer to be ordinary. Do not demand a reply; let the margin hold the question."
     }
 
     private static func stableIndex(for key: String, count: Int) -> Int {

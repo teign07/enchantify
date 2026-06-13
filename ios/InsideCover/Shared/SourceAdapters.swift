@@ -21,6 +21,13 @@ struct BookSourceInputs: Equatable {
     var quietDays: Int = 0
     var currentArc: StoryArc?
     var recentNarrativeEvents: [NarrativeEvent] = []
+    var continuity: LiteraryContinuityDigest = .empty
+    var constellations: [Constellation] = []
+    var wagers: [BookWager] = []
+    var themes: [BookTheme] = []
+    var clusters: [BookMotifCluster] = []
+    var bleedIssueNumber: Int = 1
+    var preparedBleedEditionSurface: SurfacePage?
 
     func recentVarietyKeys(within seconds: TimeInterval = 48 * 3600, now: Date = Date()) -> Set<String> {
         Set(surfaceHistory.filter { now.timeIntervalSince($0.value.lastShownAt) < seconds }.keys)
@@ -56,6 +63,7 @@ struct BookSourceInputs: Equatable {
             customCastMembers: [],
             resurfacingCandidates: [],
             recentNarrativeEvents: [],
+            continuity: .empty,
             selectedWonderCompass: nil,
             selectedWonderCompassSelector: nil,
             preparedIlluminatedPhotoSurface: nil,
@@ -401,6 +409,317 @@ struct BookRememberedPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .bookNotices)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        var pages: [SurfacePage] = []
+        pages += namingSurfaces(for: day, inputs: inputs, now: now)
+        pages += wagerSurfaces(for: day, inputs: inputs, now: now)
+        pages += noticeSurfaces(for: day, inputs: inputs, now: now)
+        return pages
+    }
+
+    private func noticeSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard !didNoticeToday(day) else { return [] }
+        let signals = inputs.continuity.strongestSignals.filter { $0.strength >= 58 }
+        let clusters = inputs.clusters.isEmpty
+            ? BookMotifClusterEngine.clusters(from: inputs.continuity, constellations: inputs.constellations, themes: inputs.themes, now: now)
+            : inputs.clusters
+        guard signals.count >= 2 || !clusters.isEmpty else { return [] }
+        let selected = Array(signals.prefix(4))
+        let selectedClusters = Array(clusters.prefix(2))
+        let lead = selected.first
+        let currentTheme = inputs.themes.max { $0.monthKey < $1.monthKey }
+        let body = Self.body(for: selected, theme: currentTheme, clusters: selectedClusters)
+        let evidence = (selected.flatMap(\.evidencePageIDs) + selectedClusters.flatMap(\.evidencePageIDs)).prefix(10).joined(separator: ",")
+        let tags = Array(Set(selected.flatMap(\.tags) + selectedClusters.flatMap(\.motifs) + ["book-notices", "literary-continuity", "patterns", "clusters"])).sorted()
+        let slot = SurfaceCadence.slotID(for: now, hours: 24)
+        let surfaceID = "\(source.id)-\(day.id)-\(slot)"
+        let strongestSignal = max(selected.map(\.strength).max() ?? 0, selectedClusters.map(\.strength).max() ?? 0)
+        let signalBonus = strongestSignal / 4
+        let countBonus = selected.count * 4 + selectedClusters.count * 6
+        let score = min(92, 60 + signalBonus + countBonus)
+        let detail = (selectedClusters.map(\.line) + selected.map(\.line)).prefix(2).joined(separator: " ")
+        return [
+            SurfacePage(
+                id: surfaceID,
+                type: .bookNotices,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                score: score,
+                reason: lead?.line ?? "The Book has found a few connections in the margins.",
+                prompt: "The Book has noticed something.",
+                detail: detail,
+                payload: BookPagePayload(
+                    headline: source.title,
+                    body: body,
+                    metadata: [
+                        "source": source.id,
+                        "continuitySignals": selected.map(\.promptLine).joined(separator: "\n"),
+                        "motifClusters": selectedClusters.map(\.promptLine).joined(separator: "\n"),
+                        "evidencePageIDs": evidence,
+                        "strongestSignalID": lead?.id ?? selectedClusters.first?.id ?? "",
+                        "tags": tags.joined(separator: ",")
+                    ]
+                )
+            )
+        ]
+    }
+
+    private func namingSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        let newlyNamed = ConstellationKeeper.newlyNamed(inputs.constellations, on: now)
+        guard let constellation = newlyNamed.first, let name = constellation.name else { return [] }
+        guard !day.pages.contains(where: { $0.tags.contains("named:\(constellation.id)") }) else {
+            return []
+        }
+        let firstSeen = constellation.ageInDays(now: now)
+        let body = """
+        I have been keeping a thread about \(constellation.subjectName) for \(firstSeen) days now, across \(constellation.sightingCount) separate sightings. Books should be careful with certainty, but a thread watched this long has earned a name.
+
+        I am calling it \(name).
+
+        \(constellation.latestLine)
+
+        A named constellation is not a verdict. It is a lamp I will keep lit, so that when this returns - and I believe it will - we will both recognize it.
+        """
+        return [
+            SurfacePage(
+                id: "\(source.id)-named-\(constellation.id)",
+                type: .bookNotices,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                score: 88,
+                reason: "The Book has named a constellation it keeps about you.",
+                prompt: "The Book names what it has watched.",
+                detail: name,
+                payload: BookPagePayload(
+                    headline: "The Book Names: \(name)",
+                    body: body,
+                    metadata: [
+                        "source": source.id,
+                        "constellationID": constellation.id,
+                        "constellationName": name,
+                        "constellationPhase": constellation.phase.rawValue,
+                        "evidencePageIDs": constellation.evidencePageIDs.prefix(10).joined(separator: ","),
+                        "tags": "constellation,named:\(constellation.id)"
+                    ]
+                )
+            )
+        ]
+    }
+
+    private func wagerSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        var pages: [SurfacePage] = []
+        if let opened = SealedMarginEngine.openedToday(inputs.wagers, on: now).first,
+           !day.pages.contains(where: { $0.tags.contains("wager-opened:\(opened.id)") }) {
+            let verdict = opened.status == .right
+                ? "The seal comes off and the Book was right."
+                : "The seal comes off and the Book was wrong."
+            let body = """
+            On \(Self.sealDateFormatter.string(from: opened.sealedAt)) I sealed a wager in this margin:
+
+            "\(opened.prediction)"
+
+            \(opened.resolutionLine ?? "")
+
+            A book that never risks being wrong is only a ledger. I would rather be a book.
+            """
+            pages.append(SurfacePage(
+                id: "\(source.id)-wager-opened-\(opened.id)",
+                type: .bookNotices,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                score: 90,
+                reason: verdict,
+                prompt: "The Book opens a sealed margin.",
+                detail: opened.prediction,
+                payload: BookPagePayload(
+                    headline: opened.status == .right ? "The Seal Opens: The Book Was Right" : "The Seal Opens: The Book Was Wrong",
+                    body: body,
+                    metadata: [
+                        "source": source.id,
+                        "wagerID": opened.id,
+                        "wagerMoment": "opened",
+                        "wagerStatus": opened.status.rawValue,
+                        "wagerSubject": opened.subjectName,
+                        "tags": "sealed-margin,wager-opened:\(opened.id)"
+                    ]
+                )
+            ))
+        }
+        if let sealed = SealedMarginEngine.sealedToday(inputs.wagers, on: now).first,
+           !day.pages.contains(where: { $0.tags.contains("wager-sealed:\(sealed.id)") }) {
+            let body = """
+            I am going to risk something. Based on what I have read - \(sealed.basisLine.prefix(1).lowercased() + sealed.basisLine.dropFirst()) - I am sealing this prediction into the margin, dated \(Self.sealDateFormatter.string(from: sealed.sealedAt)):
+
+            "\(sealed.prediction)"
+
+            The seal opens on \(Self.sealDateFormatter.string(from: sealed.opensAt)). Do not let me pretend otherwise later. Books that hedge everything remember nothing.
+            """
+            pages.append(SurfacePage(
+                id: "\(source.id)-wager-sealed-\(sealed.id)",
+                type: .bookNotices,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                score: 84,
+                reason: "The Book has sealed a dated wager in the margin.",
+                prompt: "The Book seals a wager.",
+                detail: sealed.prediction,
+                payload: BookPagePayload(
+                    headline: "A Sealed Margin",
+                    body: body,
+                    metadata: [
+                        "source": source.id,
+                        "wagerID": sealed.id,
+                        "wagerMoment": "sealed",
+                        "wagerOpensAt": Self.sealDateFormatter.string(from: sealed.opensAt),
+                        "wagerSubject": sealed.subjectName,
+                        "tags": "sealed-margin,wager-sealed:\(sealed.id)"
+                    ]
+                )
+            ))
+        }
+        return pages
+    }
+
+    private static let sealDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM d, yyyy"
+        return formatter
+    }()
+
+    private func didNoticeToday(_ day: BookDay) -> Bool {
+        day.pages.contains { page in
+            page.tags.contains("book-notices")
+                || (page.type == .bookNotices && !page.tags.contains(where: { $0.hasPrefix("wager-") || $0.hasPrefix("named:") }))
+        }
+    }
+
+    private static func body(for signals: [LiteraryContinuitySignal], theme: BookTheme?, clusters: [BookMotifCluster] = []) -> String {
+        let countWord: String
+        switch signals.count + clusters.count {
+        case 2: countWord = "two"
+        case 3: countWord = "three"
+        case 4: countWord = "four"
+        default: countWord = "\(signals.count + clusters.count)"
+        }
+        let opening = "I have noticed \(countWord) things, and I am setting them beside one another before they learn to look unrelated."
+        let clusterLines = clusters.map { cluster in
+            "- \(cluster.name): \(cluster.line) The motifs currently lit inside it are \(cluster.motifs.prefix(5).joined(separator: ", "))."
+        }.joined(separator: "\n")
+        let lines = signals.map { signal in
+            "- \(voiceLine(for: signal))"
+        }.joined(separator: "\n")
+        let bodyLines = [clusterLines, lines]
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .joined(separator: "\n")
+        let themeLine = theme.map {
+            """
+
+            The month itself has begun taking a title in my margins: "\($0.name)." \($0.line)
+            """
+        } ?? ""
+        return """
+        \(opening)
+
+        \(bodyLines)
+
+        I am not diagnosing you. I am reading you the way a careful book reads: by recurrence, by silence, by what the margin refuses to let go.\(themeLine)
+
+        I may be wrong. I would rather be a little wrong and awake than perfectly safe and blind.
+        """
+    }
+
+    private static func voiceLine(for signal: LiteraryContinuitySignal) -> String {
+        switch signal.kind {
+        case .pattern:
+            return "\(signal.subjectName) keeps returning. \(signal.line)"
+        case .beliefLifecycle:
+            return "\(signal.subjectName) is no longer just a page type; it has weight. \(signal.line)"
+        case .absence:
+            return "\(signal.subjectName) is interesting because it has gone quiet. \(signal.line)"
+        case .duration:
+            return "Time has started to matter around \(signal.subjectName). \(signal.line)"
+        }
+    }
+}
+
+struct BookConnectionsPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .bookConnections)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        let clusters = inputs.clusters.isEmpty
+            ? BookMotifClusterEngine.clusters(from: inputs.continuity, constellations: inputs.constellations, themes: inputs.themes, now: now)
+            : inputs.clusters
+        let namedConstellations = inputs.constellations.filter(\.isNamed)
+        let strongSignals = inputs.continuity.strongestSignals.filter { $0.strength >= 58 }
+        let themeCount = inputs.themes.count
+        let connectionWeight = clusters.count * 3 + namedConstellations.count * 2 + themeCount + strongSignals.count
+        guard connectionWeight >= 3 else { return [] }
+        guard !day.pages.contains(where: { $0.type == .bookConnections }) else { return [] }
+
+        let lead = clusters.first?.name
+            ?? namedConstellations.first?.displayName
+            ?? inputs.themes.last?.name
+            ?? strongSignals.first?.subjectName
+            ?? "the margins"
+        let score = min(88, 56 + connectionWeight * 3)
+        return [
+            SurfacePage(
+                id: "\(source.id)-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 12))",
+                type: .bookConnections,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .graphEvent,
+                score: score,
+                reason: "The Book has enough returning material to draw a map.",
+                prompt: "Open the Book's map of connections.",
+                detail: "Clusters, constellations, themes, and the kept pages behind them. The brightest thread is \(lead).",
+                payload: BookPagePayload(
+                    headline: "Book Connections",
+                    body: "The Book has drawn a map of what keeps returning, what has earned a name, and which kept pages lit the pattern.",
+                    metadata: [
+                        "source": source.id,
+                        "clusterCount": "\(clusters.count)",
+                        "constellationCount": "\(inputs.constellations.count)",
+                        "themeCount": "\(themeCount)",
+                        "strongSignalCount": "\(strongSignals.count)",
+                        "lead": lead,
+                        "tags": "book-connections,continuity,constellations,clusters,themes"
+                    ]
+                )
+            )
+        ]
+    }
+
+    func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        candidates(for: day, context: context, inputs: inputs, now: now).first ?? SurfacePage(
+            id: "\(source.id)-empty-\(day.id)-\(Int(now.timeIntervalSince1970))",
+            type: .bookConnections,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .graphEvent,
+            score: 52,
+            reason: "Opened directly from the Pages menu.",
+            prompt: "The Book's map is still faint.",
+            detail: "Keep more pages and the connections will brighten.",
+            payload: BookPagePayload(
+                headline: "Book Connections",
+                body: "The page is waiting for clusters, constellations, themes, and evidence pages to gather enough light.",
+                metadata: [
+                    "source": source.id,
+                    "tags": "book-connections,continuity,empty"
+                ]
+            )
+        )
+    }
+}
+
 struct BookRememberedVisitation: Equatable {
     var page: BookPage
     var score: Int
@@ -546,6 +865,11 @@ enum BookRememberedEngine {
         if let word = overlap.sorted().first {
             score += min(18, overlap.count * 6)
             reasons.append("The word \"\(word)\" has returned to the margin.")
+        }
+
+        if let signal = inputs.continuity.signals(relatedTo: page, limit: 1).first {
+            score += min(24, max(10, signal.strength / 4))
+            reasons.append(signal.line)
         }
 
         if page.type == .souvenir {
@@ -2334,6 +2658,9 @@ enum BookPageSourceAdapters {
         SouvenirPageSourceAdapter(),
         BookOfYouPageSourceAdapter(),
         BookRememberedPageSourceAdapter(),
+        BookConnectionsPageSourceAdapter(),
+        BookNoticesPageSourceAdapter(),
+        TheBleedPageSourceAdapter(),
         AskTheBookPageSourceAdapter(),
         BodyPageSourceAdapter(),
         FuelLogPageSourceAdapter(),

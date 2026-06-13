@@ -1176,6 +1176,9 @@ final class GenerationCoordinator {
     var preparedLetterSurface: SurfacePage?
     var isPreparingLetterPage = false
     var letterPageRecovery = PreparedPageRecoveryState()
+    var preparedBleedEditionSurface: SurfacePage?
+    var isPreparingBleedEdition = false
+    var bleedEditionRecovery = PreparedPageRecoveryState()
 }
 
 /// Owns PlayerVaultData on disk. Replaces five separate JSON-in-AppStorage

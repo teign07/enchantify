@@ -34,7 +34,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case helpTips
     case welcome
     case marginsAtlas
+    case bookConnections
     case bookRemembered
+    case bookNotices
+    case theBleed
 
     var id: String { rawValue }
 
@@ -104,8 +107,14 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Welcome Page"
         case .marginsAtlas:
             return "The Margins Atlas"
+        case .bookConnections:
+            return "Book Connections"
         case .bookRemembered:
             return "The Book Remembered"
+        case .bookNotices:
+            return "The Book Notices"
+        case .theBleed:
+            return "The Bleed"
         }
     }
 
@@ -175,8 +184,14 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Welcome"
         case .marginsAtlas:
             return "Atlas"
+        case .bookConnections:
+            return "Connections"
         case .bookRemembered:
             return "Remembered"
+        case .bookNotices:
+            return "Notices"
+        case .theBleed:
+            return "Bleed"
         }
     }
 
@@ -246,8 +261,14 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "sparkles.rectangle.stack"
         case .marginsAtlas:
             return "point.3.filled.connected.trianglepath.dotted"
+        case .bookConnections:
+            return "sparkles.rectangle.stack"
         case .bookRemembered:
             return "clock.arrow.circlepath"
+        case .bookNotices:
+            return "sparkle.magnifyingglass"
+        case .theBleed:
+            return "newspaper"
         }
     }
 }
@@ -434,6 +455,18 @@ enum BookPageSourceRegistry {
             note: "The Loom and the Constellation, drawn from relationships and Belief."
         ),
         BookPageSource(
+            id: "book-connections",
+            type: .bookConnections,
+            title: "Book Connections",
+            shortTitle: "Connections",
+            symbolName: "sparkles.rectangle.stack",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "when clusters gather",
+            note: "The Book's visible map of clusters, constellations, themes, and evidence pages."
+        ),
+        BookPageSource(
             id: "the-book-remembered",
             type: .bookRemembered,
             title: "The Book Remembered",
@@ -444,6 +477,30 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "quiet visitation",
             note: "Old kept pages return when today rhymes with them."
+        ),
+        BookPageSource(
+            id: "the-book-notices",
+            type: .bookNotices,
+            title: "The Book Notices",
+            shortTitle: "Notices",
+            symbolName: "sparkle.magnifyingglass",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "when patterns gather",
+            note: "The Book surfaces literary patterns, absences, living Beliefs, and duration."
+        ),
+        BookPageSource(
+            id: "the-bleed",
+            type: .theBleed,
+            title: "The Bleed",
+            shortTitle: "Bleed",
+            symbolName: "newspaper",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "morning and evening editions",
+            note: "Penny Blackletter's pocket newspaper. The interest column knowingly uses live web lookups (Reddit and the open web)."
         ),
         BookPageSource(
             id: "gossip-page",
@@ -749,12 +806,14 @@ enum BookPageSourceRegistry {
             return 36
         case .body, .supportGuild, .bookOfYou:
             return 32
-        case .narrativeOS, .marginsAtlas, .bookRemembered, .wonderCompass, .anchor, .welcome:
+        case .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .wonderCompass, .anchor, .welcome:
             return 30
         case .diary, .souvenir, .askTheBook, .enchantment:
             return 28
         case .weather, .gossip, .facultyResearch, .letter, .academyClass, .elective:
             return 26
+        case .theBleed:
+            return 30
         case .castMember:
             return 25
         case .aboutYou, .rest, .helpTips:
@@ -770,7 +829,7 @@ enum BookPageSourceRegistry {
 
     static func narrativeWeight(for source: BookPageSource) -> Int {
         switch source.type {
-        case .narrativeOS, .marginsAtlas, .bookRemembered:
+        case .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices:
             return 34
         case .mood, .fuel:
             return 30
@@ -782,6 +841,8 @@ enum BookPageSourceRegistry {
             return 24
         case .weather, .gossip, .facultyResearch, .letter, .castMember, .askTheBook, .enchantment, .academyClass, .elective:
             return 22
+        case .theBleed:
+            return 26
         case .aboutYou, .rest, .helpTips:
             return 20
         case .lore, .illustration, .illuminatedPhoto, .packPage:

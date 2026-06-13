@@ -345,6 +345,8 @@ struct CapturePageSheet: View {
     @State private var lastVentureMode: CompassVentureMode = .neighborhood
     @State private var isGeneratingPlayfulMission = false
     @State private var playfulMissionGenerationMessage = ""
+    @State private var bleedPDFURL: URL?
+    @State private var bleedExportMessage = ""
     @AppStorage("illuminatedPhotoHistory") private var illuminatedPhotoHistoryData = "{}"
     #if canImport(PhotosUI)
     @State private var selectedPhotoItem: PhotosPickerItem?
@@ -401,6 +403,7 @@ struct CapturePageSheet: View {
             currentEnchantmentSurface != nil ||
             surface.type == .narrativeOS ||
             surface.type == .gossip ||
+            surface.type == .theBleed ||
             surface.type == .letter ||
             surface.type == .elective ||
             surface.type == .academyClass ||
@@ -685,7 +688,7 @@ struct CapturePageSheet: View {
                 selectedResult.nonEmpty
             ].compactMap { $0 }.joined(separator: "\n\n")
         } else if isPreparedPage {
-            body = surface.payload.body
+            body = bleedEditionText ?? surface.payload.body
         } else {
             body = [surface.detail, preparedInput]
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -985,6 +988,97 @@ struct CapturePageSheet: View {
             .font(.system(.body, design: .serif))
             .foregroundStyle(BookPalette.ink)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var bleedEditionText: String? {
+        surface.payload.metadata["bleedProse"]?.nonEmpty ?? surface.payload.body.nonEmpty
+    }
+
+    private var bleedEditionView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let bleedEditionText {
+                Text(bleedEditionText)
+                    .font(.system(.body, design: .serif))
+                    .foregroundStyle(BookPalette.ink)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("The formes are locked, but the ink has not reached this copy yet.")
+                    .font(.system(.body, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let sources = surface.payload.metadata["bleedInterestSources"]?.nonEmpty {
+                Text("Clippings: \(sources)")
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.ink.opacity(0.56))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Divider()
+                .overlay(BookPalette.ink.opacity(0.14))
+
+            if let bleedPDFURL {
+                ShareLink(item: bleedPDFURL) {
+                    Label("Share The Bleed PDF", systemImage: "square.and.arrow.up")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
+                        }
+                }
+                .foregroundStyle(BookPalette.lampGold)
+            } else {
+                Button {
+                    bindBleedPDF()
+                } label: {
+                    Label("Bind The Bleed as PDF", systemImage: "newspaper")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(BookPalette.teal.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(BookPalette.teal.opacity(0.36), lineWidth: 1)
+                        }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.teal)
+                .disabled(bleedEditionText == nil)
+            }
+
+            if !bleedExportMessage.isEmpty {
+                Text(bleedExportMessage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(openPageSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func bindBleedPDF() {
+        guard let body = bleedEditionText else {
+            bleedExportMessage = "No edition has been printed yet."
+            BookFeedback.play(.error)
+            return
+        }
+        do {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd-HHmm"
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("TheBleed-\(formatter.string(from: Date())).pdf")
+            try BleedPDFWriter.write(headline: surface.payload.headline, body: body, to: url)
+            bleedPDFURL = url
+            bleedExportMessage = "The Bleed is bound for sharing."
+            BookFeedback.play(.braidComplete)
+        } catch {
+            bleedExportMessage = "The edition would not bind: \(error.localizedDescription)"
+            BookFeedback.play(.error)
+        }
     }
 
     private var askTheBookView: some View {
@@ -1419,6 +1513,8 @@ struct CapturePageSheet: View {
 
             if isLocalBrainIssuePage {
                 localBrainIssueBody
+            } else if surface.type == .theBleed {
+                bleedEditionView
             } else if let activeStoryTurn {
                 storySceneView(activeStoryTurn)
             }
@@ -1446,7 +1542,7 @@ struct CapturePageSheet: View {
                     .foregroundStyle(BookPalette.teal)
             }
 
-            if surface.type != .narrativeOS && !isCompassPracticePage && surface.type != .supportGuild && !isPendingLetterPage {
+            if surface.type != .narrativeOS && surface.type != .theBleed && !isCompassPracticePage && surface.type != .supportGuild && !isPendingLetterPage {
                 Text(surface.payload.body)
                     .font(.system(.body, design: .serif))
                     .foregroundStyle(BookPalette.ink)
@@ -2939,6 +3035,13 @@ struct CapturePageSheet: View {
                     illuminatedDraft.analysis.marginalia.closingLine
                 ].joined(separator: "\n\n") + renderLine + manualNote
             }
+            if surface.type == .theBleed {
+                let body = bleedEditionText ?? surface.payload.body
+                guard !trimmed.isEmpty else {
+                    return body
+                }
+                return "\(body)\n\nMargin note: \(trimmed)"
+            }
             guard !trimmed.isEmpty else {
                 return surface.payload.body
             }
@@ -3082,6 +3185,15 @@ struct CapturePageSheet: View {
         }
         if preparedSurface.type == .gossip {
             tags.append("gossip-page")
+        }
+        if preparedSurface.type == .theBleed {
+            tags.append("the-bleed")
+            if let slotID = preparedSurface.payload.metadata["bleedSlotID"], !slotID.isEmpty {
+                tags.append(slotID)
+            }
+            if let kind = preparedSurface.payload.metadata["bleedEditionKind"], !kind.isEmpty {
+                tags.append("bleed:\(kind)")
+            }
         }
         if preparedSurface.type == .askTheBook {
             tags.append("ask-chain")

@@ -48,6 +48,57 @@ final class BookArchiveExportTests: XCTestCase {
         XCTAssertEqual(export.pageCount, 3)
     }
 
+    func testMonthlyEditionPreviousMonthCuratesExpectedSections() {
+        let now = calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 7,
+            day: 12,
+            hour: 12
+        ))!
+        let may = BookDay(
+            id: "2026-05-31",
+            date: calendar.date(from: DateComponents(timeZone: calendar.timeZone, year: 2026, month: 5, day: 31))!,
+            pages: [
+                BookPage(id: "may", type: .souvenir, createdAt: calendar.date(from: DateComponents(timeZone: calendar.timeZone, year: 2026, month: 5, day: 31, hour: 9))!, promptText: "Old", userInput: "Too early")
+            ]
+        )
+        let june = BookDay(
+            id: "2026-06-03",
+            date: date(day: 3, hour: 0),
+            pages: [
+                BookPage(id: "braid", type: .bookOfYou, createdAt: date(day: 3, hour: 22), promptText: "Braid", userInput: "The day braided itself."),
+                BookPage(id: "souvenir", type: .souvenir, createdAt: date(day: 3, hour: 12), promptText: "Souvenir", userInput: "The harbor kept its minutes.", tags: ["harbor"]),
+                BookPage(id: "letter", type: .letter, createdAt: date(day: 3, hour: 13), promptText: "Letter", userInput: "Dear keeper, the margins are listening."),
+                BookPage(id: "image", type: .illuminatedPhoto, createdAt: date(day: 3, hour: 14), promptText: "Photo", userInput: "A plate of light.", mediaAssets: [
+                    BookPageMediaAsset(kind: .renderedImageFile, reference: "/tmp/fake.png", caption: "Fake", sourceID: "test")
+                ])
+            ]
+        )
+        let july = BookDay(
+            id: "2026-07-01",
+            date: calendar.date(from: DateComponents(timeZone: calendar.timeZone, year: 2026, month: 7, day: 1))!,
+            pages: [
+                BookPage(id: "july", type: .souvenir, createdAt: calendar.date(from: DateComponents(timeZone: calendar.timeZone, year: 2026, month: 7, day: 1, hour: 9))!, promptText: "New", userInput: "Too late")
+            ]
+        )
+
+        let edition = MonthlyEditionBuilder.previousMonth(
+            from: [may, june, july],
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(edition.title, "Book of You: June 2026")
+        XCTAssertEqual(edition.dayCount, 1)
+        XCTAssertEqual(edition.pageCount, 4)
+        XCTAssertTrue(edition.sections.contains { $0.id == "daily-braids" })
+        XCTAssertTrue(edition.sections.contains { $0.id == "souvenirs" })
+        XCTAssertTrue(edition.sections.contains { $0.id == "letters" })
+        XCTAssertTrue(edition.sections.contains { $0.id == "images" })
+        XCTAssertFalse(edition.sections.flatMap(\.items).contains { $0.id == "may" || $0.id == "july" })
+    }
+
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt

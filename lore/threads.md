@@ -119,9 +119,9 @@ Two endings:
 **entities:** Zara Finch
 **Nothing pressure:** medium — the Nothing would love to make her doubt the portfolio is good enough. Self-erasure before the deadline.
 
-**Next beat:** Overnight the draft wins: the two fallen pages vanish fully beneath the shelf, leaving only a pale rectangle in the dust where they'd lain — while the proud-lifted page in the squared stack slides askew, its watermark groove catching the morning lamp so the Inkwright crest reads backward, as if something tried to file it and changed its mind. The fainter second line beside the underscored sketch has been gone over once more, darker now, almost a decision.
+**Next beat:** Offscreen, Zara's Inkwright Application has acquired a concrete trace: Overnight the draft wins: the two fallen pages vanish fully beneath the shelf, leaving only a pale rectangle in the dust where they'd lain — while the proud-lifted page in the squared stack slides askew, its watermark groove catching the mo… The next visible scene should surface that trace in the room, rumor, object, or NPC behavior before asking the player what to do.
 
-**Last advanced:** 2026-06-07
+**Last advanced:** 2026-06-11
 **born:** 2026-04-12
 **closed:** —
 
@@ -138,9 +138,9 @@ Two endings:
 **entities:** Wicker Eddies
 **Nothing pressure:** high — Wicker is adjacent to the Nothing. His schemes drain Belief from others as a feature, not a side effect. The Nothing doesn't control him; they simply have similar tastes.
 
-**Next beat:** By midday the betting stub has filled both sides with penciled guesses and the red-threaded pencil has snapped from overuse, so a bystander lashes a fresh one in its place and the tally on Wicker's chalk scoreboard climbs to six lines without him touching it again. The next visible trace: the steward, worn down, has quietly started his own small ledger beneath the window — not to settle the vault numbers, but to record who keeps adding to them.
+**Next beat:** Offscreen, Wicker's Campaign has acquired a concrete trace: By the time the breakfast crowd thins, three separate people have repeated the receipt's line as if they'd thought it themselves, and the steward — caught between two unguarded ledgers — quietly slides Finn's betting stub into his apron rat… The next visible scene should surface that trace in the room, rumor, object, or NPC behavior before asking the player what to do.
 
-**Last advanced:** 2026-06-08
+**Last advanced:** 2026-06-12
 **born:** 2026-04-01
 **closed:** —
 
@@ -159,9 +159,9 @@ Two endings:
 **entities:** Headmistress Thorne, Dusk Thorn Talisman, Victor Ebonheart
 **Nothing pressure:** high — something in Duskthorn is already adjacent to absence. The sealed corridor smells of it.
 
-**Next beat:** By afternoon the Registry's threshold sits visibly gap-toothed where Thorne pried the cornerstone chip loose, a clerk having looped twine across the missing corner with a fresh card — MIND THE STEP / STONE OUT FOR REVIEW — so anyone approaching the counter now crosses a doorway that announces its own wound; behind the glass the brass tag has been read often enough that a second, anonymous chit has appeared beside it asking, in different handwriting, *whose threshold did she think it was to pry?* The empty felt slot…
+**Next beat:** Offscreen, The Duskthorn Investigation has acquired a concrete trace: Offscreen, The Duskthorn Investigation has acquired a concrete trace: Dusk Thorn lets a bead of candle-wax cool over the Registry's Ember Seal overnight, and by lamplight the lifted cast shows the griffin's beak a hair too blunt — the press… The next visible scene should surface that trace in the room, rumor, object, or NPC behavior before asking the player what to do.
 
-**Last advanced:** 2026-06-08
+**Last advanced:** 2026-06-12
 **born:** 2026-04-01
 **closed:** —
 
@@ -259,9 +259,9 @@ When a new subplot, mystery, or character goal emerges with enough Belief to sus
 **entities:** Serenity Brown
 **Nothing pressure:** medium - the Nothing can flatten this into mere trivia instead of lived story
 
-**Next beat:** By full dark the seven salt-specks have set hard enough to catch lamplight, and a thin rime of dried brine traces the unfinished line between Zara's marble-rim and the verdigris crack on the Daedric X — half a gull-stroke laid down by the room itself, waiting for a hand to close it. Inkwell's pun-ledger has fallen open to a blank page that now faintly reeks of low tide, as if the nook were holding the pen out.
+**Next beat:** By full dark the brine sets hard and silver, locking six of the seven specks into crisp Marathon code along the shelf — but the unfinished last dot wicks sideways into the verdigris crack, so the dried line reads as a letter that keeps flickering between two meanings depending on which way the lamp leans. The chip of green sea-glass has fogged over from the inside overnight, and Inkwell's ledger now holds a faint salt-ring around the blank page, as if something tried to sign it and thought better of it.
 
-**Last advanced:** 2026-06-07
+**Last advanced:** 2026-06-09
 **born:** 2026-05-26
 **closed:** —
 
@@ -281,6 +281,24 @@ When a new subplot, mystery, or character goal emerges with enough Belief to sus
 
 **Last advanced:** 2026-06-02
 **born:** 2026-06-02
+**closed:** —
+
+
+## Thread: Bellkeeper's Unwritten Thread
+
+**id:** `bellkeeper-unwritten-thread`
+**type:** npc-subplot
+**phase:** setup
+**pressure:** low
+**npc_anchor:** Bellkeeper Elian Quill
+**locations:** Academy corridors, Library, Great Hall, and wherever the Unwritten Interest touches the day
+**entities:** Bellkeeper Elian Quill
+**Nothing pressure:** medium - the Nothing can flatten this into mere trivia instead of lived story
+
+**Next beat:** Bellkeeper Elian Quill leaves a concrete trace of this interest where bj can find it: a note, object, recommendation, or small request that reveals whether their gift is helping or becoming tangled in can over-prepare; may make a day feel too neatly arranged if not reminded that surprise is part of being alive; sometimes treats open time as a thing to protect so carefully that nothing enters it..
+
+**Last advanced:** 2026-06-09
+**born:** 2026-06-09
 **closed:** —
 
 
