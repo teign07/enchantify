@@ -52,6 +52,7 @@ struct SearchTheStacksSheet: View {
                         }
                     }
                     .padding(18)
+                    .textSelection(.enabled)
                 }
             }
             .navigationTitle("Search the Stacks")

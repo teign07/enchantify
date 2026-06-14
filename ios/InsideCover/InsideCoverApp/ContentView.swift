@@ -162,6 +162,8 @@ struct ContentView: View {
     @State var preparedSaveFileURL: URL?
     @State var preparedContinuityURL: URL?
     @State var preparedMonthlyEditionURL: URL?
+    @State var preparedAnnualEditionURL: URL?
+    @State var bookJumpCustomTitle: String = ""
     @State var preparedBleedPDFURL: URL?
     @State var isSaveImporterPresented = false
     @State var isConnectionsPresented = false
@@ -196,8 +198,7 @@ struct ContentView: View {
     @State var isGlowMenuPresented = false
     @State var isStacksSearchPresented = false
     @State var isBookShopPresented = false
-    @State var isMarginPresented = false
-    @State var isGoblinMarketPresented = false
+    @State var currentStall: GoblinStall?
     @State var isPactMapPresented = false
     @State var busySealID: String?
     @State var bannerSeed = Int.random(in: 0..<10_000)
@@ -316,6 +317,7 @@ struct ContentView: View {
         inputs.clusters = cachedMotifClusters
         inputs.bleedIssueNumber = days.flatMap(\.pages).filter { $0.type == .theBleed }.count + 1
         inputs.preparedBleedEditionSurface = generation.preparedBleedEditionSurface
+        inputs.bookJump = vault.data.bookJump ?? BookJumpState()
         inputs.preparedAnchorSurface = preparedAnchorSurface
         inputs.selectedWonderCompass = selectedWonderCompassSnippet
         inputs.selectedWonderCompassSelector = selectedWonderCompassSelector
@@ -721,30 +723,18 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $isBookShopPresented) {
-                BookShopSheet { packID in
-                    unlockPack(packID)
-                }
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-            }
-            .sheet(isPresented: $isMarginPresented) {
-                TheMarginSheet(
-                    fae: vault.data.fae ?? FaePlayerState(),
-                    now: Date(),
-                    canEnterMarket: FaeEconomy.canEnterMarket(state: vault.data.fae ?? FaePlayerState()),
-                    onEnterMarket: {
-                        isMarginPresented = false
-                        isGoblinMarketPresented = true
-                    }
-                )
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-            }
-            .sheet(isPresented: $isGoblinMarketPresented) {
-                GoblinMarketSheet(
-                    fae: vault.data.fae ?? FaePlayerState(),
-                    now: Date(),
-                    onBuy: { offerID in buyFaeGift(offerID: offerID) },
+                let fae = vault.data.fae ?? FaePlayerState()
+                BookShopSheet(
+                    stall: currentStall ?? buildGoblinStall(),
+                    fae: fae,
+                    attention: fae.attention,
+                    belief: beliefScore,
+                    goblinWarmth: fae.warmth(for: .goblin),
+                    onBuyWare: { buyMarketWare($0) },
+                    onUnlock: { unlockPack($0) },
+                    onHaggle: { haggleWare($0) },
+                    onClerkBanter: { await goblinClerkBanter() },
+                    onOpenBargain: { openFaeBargainPage($0) },
                     onMarkNextMarket: { Task { await addNextMarketToCalendar() } }
                 )
                 .presentationDetents([.large])
@@ -869,6 +859,8 @@ struct ContentView: View {
         facultyEntries = payload.facultyEntries
         modelReport = payload.modelReport
         didHydrateLaunchState = true
+        runBeliefEconomyDailyTick()
+        tendBookJump()
         refreshContinuityCache(force: true)
     }
 
@@ -1039,10 +1031,8 @@ struct ContentView: View {
             Task { await openManualPage(type) }
             closeGlowMenu()
         case .openBookShop:
+            currentStall = buildGoblinStall()
             isBookShopPresented = true
-            closeGlowMenu()
-        case .openMargin:
-            isMarginPresented = true
             closeGlowMenu()
         case .openPactMap:
             isPactMapPresented = true
@@ -2385,6 +2375,68 @@ struct ContentView: View {
                     }
 
                     HStack(spacing: 10) {
+                        Text("Bind the year.")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                        Spacer()
+                        if let preparedAnnualEditionURL {
+                            ShareLink(item: preparedAnnualEditionURL) {
+                                Label("Share the annual", systemImage: "square.and.arrow.up")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(BookPalette.lampGold)
+                        } else {
+                            Button {
+                                BookFeedback.play(.sourceRefresh)
+                                exportAnnualEdition()
+                            } label: {
+                                Label("Bind the annual", systemImage: "books.vertical")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(BookPalette.lampGold)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Open any book.")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                        if let active = vault.data.bookJump?.active {
+                            Text("A jump into \(active.title) is already open — finish it from the feed first.")
+                                .font(.caption2)
+                                .foregroundStyle(BookPalette.nightText.opacity(0.5))
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            HStack(spacing: 10) {
+                                TextField("Name a public-domain book…", text: $bookJumpCustomTitle)
+                                    .textFieldStyle(.plain)
+                                    .font(.caption)
+                                    .foregroundStyle(BookPalette.nightText)
+                                    .padding(8)
+                                    .background(BookPalette.nightPanel.opacity(0.7), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                Button {
+                                    BookFeedback.play(.sourceRefresh)
+                                    openCustomBookJump()
+                                } label: {
+                                    Label("Open the Spine", systemImage: "book.closed")
+                                        .font(.caption.weight(.bold))
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(BookPalette.lampGold)
+                                .disabled(bookJumpCustomTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            }
+                        }
+                        if let rules = vault.data.bookJump?.activeBorrowedRules(at: Date()), !rules.isEmpty {
+                            Text("Rules you're carrying: " + rules.map { "“\($0.text)” (\($0.bookTitle))" }.joined(separator: "; "))
+                                .font(.caption2.italic())
+                                .foregroundStyle(BookPalette.lampGold.opacity(0.85))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    HStack(spacing: 10) {
                         Text("Today's paper.")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(BookPalette.nightText.opacity(0.62))
@@ -2497,6 +2549,7 @@ struct ContentView: View {
             checkInAnchorIfNeeded(surface)
         }
         acceptElectiveIfNeeded(surface: surface)
+        applyBookJumpActionIfNeeded(surface: surface, input: input)
         clearPreparedSurfaceIfNeeded(surface)
         let page = BookPage(
             type: surface.type,
@@ -2515,6 +2568,7 @@ struct ContentView: View {
         saveSelfFactIfNeeded(surface: surface, answer: input)
         saveFacultyEntryIfNeeded(surface: surface, page: page, answer: input, tags: tags, dayID: day.id)
         awardBelief(for: surface)
+        warmPageSourceForKeptSurface(surface)
         applyGeneratedChapterTalismanDeltas(from: surface)
         let keptMessage: String
         if today.capturedPages.isEmpty, let returnLine = NothingTide.returnLine(forGreyLevel: greyBeforeKeeping) {
@@ -2524,6 +2578,66 @@ struct ContentView: View {
         }
         persist(day: day, message: keptMessage)
         retireKeptSurfaceFromRising(surface)
+    }
+
+    func applyBookJumpActionIfNeeded(surface: SurfacePage, input: String) {
+        guard surface.type == .bookJump,
+              let rawAction = surface.payload.metadata["bookJumpAction"],
+              let action = BookJumpAction(rawValue: rawAction) else {
+            return
+        }
+        let current = vault.data.bookJump ?? BookJumpState()
+        let activeBefore = current.active
+        let next: BookJumpState
+        switch action {
+        case .start:
+            next = BookJumpEngine.start(from: surface)
+        case .advance:
+            next = BookJumpEngine.advance(current, line: surface.payload.headline, direction: surface.payload.metadata["bookJumpChosenDirection"]?.nonEmpty)
+        case .stabilize:
+            next = BookJumpEngine.stabilize(current, line: input)
+        case .return:
+            next = BookJumpEngine.return(current, souvenir: input, outcome: surface.payload.headline)
+        }
+        vault.data.bookJump = next
+        vault.save()
+        if action == .return, let active = activeBefore {
+            applyBookJumpReturnEffects(active: active, souvenir: input, next: next)
+        }
+        surfaceRefreshDate = Date()
+    }
+
+    /// A safe return leaves marks on the living world: the guide who traveled
+    /// with you deepens, a companion-flavored rule warms the cast web, and the
+    /// borrowed rule is announced.
+    func applyBookJumpReturnEffects(active: ActiveBookJump, souvenir: String, next: BookJumpState) {
+        // The guide shared an adventure; their standing rises a little.
+        let cast = NarrativePackRegistry.entities + customCastMembers.map(\.entity)
+        if let guide = cast.first(where: { $0.name == active.guide }) {
+            applyEntityEconomyDelta(
+                entityID: guide.id,
+                name: guide.name,
+                delta: 2,
+                sourcePageType: .bookJump,
+                note: "\(guide.name) guided you into \(active.title) and came back changed by the trip."
+            )
+        }
+
+        let granted = next.borrowedRules.first { $0.bookID == active.bookID }
+        // A companionship rule warms the thread between the guide and the cast.
+        if granted?.effect == .warmTheCast, let guide = cast.first(where: { $0.name == active.guide }) {
+            let other = cast.first { $0.id != guide.id && $0.kind == .character }
+            if let other {
+                var field = vault.data.relationshipField ?? [:]
+                RelationshipFieldEngine.weave(into: &field, entityIDs: [guide.id, other.id], warmth: 3, familiarity: 1)
+                vault.data.relationshipField = field
+                vault.save()
+            }
+        }
+
+        if let rule = granted {
+            statusMessage = "You carried a rule home from \(rule.bookTitle): \u{201C}\(rule.text)\u{201D} — \(rule.effect.title) holds for a few days."
+        }
     }
 
     func applyGeneratedChapterTalismanDeltas(from surface: SurfacePage) {
@@ -2850,12 +2964,45 @@ struct ContentView: View {
             guard pair.count == 2 else { continue }
             let (actorID, targetID) = (pair[0], pair[1])
             let kind = String(halves[1])
+            let actorName = castName(for: actorID)
             let target = GlowEntityMenuItem(id: targetID, name: castName(for: targetID), kind: "character", glow: 0, line: "")
+            let actorGlow = effectiveCastBelief(for: actorID)
+            let actorSpend = BeliefEconomyEngine.castSpendDelta(actorBelief: actorGlow, requested: amount)
+            // The actor can only move as much Belief as they can actually spend
+            // (down to their floor). Conserve it: an investor never mints Belief.
+            let spent = -actorSpend
+            if actorSpend != 0 {
+                applyEntityEconomyDelta(
+                    entityID: actorID,
+                    name: actorName,
+                    delta: actorSpend,
+                    sourcePageType: surface.type,
+                    note: "\(actorName) spent \(spent) Belief moving the cast web."
+                )
+            }
             if kind == GossipRelationshipMoveKind.invest.rawValue {
-                adjustEntityBelief(target, delta: amount, kind: .beliefInvested)
-                RelationshipFieldEngine.weave(into: &field, entityIDs: [actorID, targetID], warmth: amount, familiarity: 1)
+                // Invest is a transfer: the target gains exactly what the actor
+                // paid. A depleted actor can't gift Belief they don't have.
+                guard spent > 0 else {
+                    RelationshipFieldEngine.weave(into: &field, entityIDs: [actorID, targetID], familiarity: 1)
+                    continue
+                }
+                applyEntityEconomyDelta(
+                    entityID: target.id,
+                    name: target.name,
+                    delta: spent,
+                    sourcePageType: surface.type,
+                    note: "\(actorName) invested \(spent) Belief in \(target.name)."
+                )
+                RelationshipFieldEngine.weave(into: &field, entityIDs: [actorID, targetID], warmth: spent, familiarity: 1)
             } else {
-                adjustEntityBelief(target, delta: -amount, kind: .beliefAttacked)
+                applyEntityEconomyDelta(
+                    entityID: target.id,
+                    name: target.name,
+                    delta: -amount,
+                    sourcePageType: surface.type,
+                    note: "\(actorName) chipped \(amount) Belief from \(target.name)."
+                )
                 RelationshipFieldEngine.weave(into: &field, entityIDs: [actorID, targetID], tension: amount, familiarity: 1)
             }
         }
@@ -2892,6 +3039,153 @@ struct ContentView: View {
 
     /// Spend Attention at the Goblin Market for a gift. Pure local economy — no
     /// model call.
+    /// Build today's living Goblin Market stall from the world's current state.
+    func buildGoblinStall(now: Date = Date()) -> GoblinStall {
+        let fae = vault.data.fae ?? FaePlayerState()
+        let hemisphere = Hemisphere.from(latitude: lastAnchorReadingLatitude)
+        let grey = NothingTide.greyLevel(
+            quietDays: sourceInputs.quietDays,
+            narrativeHeat: narrativeEvents.prefix(24).count,
+            distressActive: DistressSignals.evaluate(day: today).isActive,
+            celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: hemisphere)
+        )
+        // The Goblins push the rare shelf out after a recent Book Jump collapse.
+        let recentCollapse = (vault.data.bookJump?.returned.first { $0.souvenir.isEmpty })
+            .map { now.timeIntervalSince($0.returnedAt) < 3 * 86_400 } ?? false
+        return GoblinMarketEngine.stall(
+            on: now,
+            fae: fae,
+            belief: beliefScore,
+            greyLevel: grey,
+            hemisphere: hemisphere,
+            recentBookJumpCollapse: recentCollapse,
+            ownedPackIDs: Set(vault.data.ownedPacks ?? [])
+        )
+    }
+
+    /// Open a specific owed/lapsed Fae bargain's page from the BookShop standing
+    /// section: close the shop, then present the bargain so it can be paid.
+    func openFaeBargainPage(_ bargain: FaeBargain) {
+        isBookShopPresented = false
+        let surface = FaeBargainPageSourceAdapter.surface(for: bargain)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            selectedSurface = surface
+        }
+    }
+
+    /// A unified in-world purchase: spend Attention or Belief, grant the good,
+    /// and ripple into the living world (Warmth with the Goblins, a word to the
+    /// cast). Money packs go through the StoreKit path in the sheet.
+    func buyMarketWare(_ ware: MarketWare, now: Date = Date()) {
+        var fae = vault.data.fae ?? FaePlayerState()
+        let price = GoblinMarketEngine.price(ware, mood: FaeEconomy.mood(for: now), goblinWarmth: fae.warmth(for: .goblin))
+
+        switch ware.currency {
+        case .attention:
+            guard fae.attention >= price else { BookFeedback.play(.error); return }
+            fae.attention -= price
+        case .belief:
+            guard beliefScore >= price else { BookFeedback.play(.error); return }
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+                beliefScore = max(0, beliefScore - price)
+            }
+        case .money:
+            return // handled by StoreKit in the sheet
+        }
+
+        switch ware.good {
+        case let .gift(effect, kind):
+            fae.gifts.append(FaeGift(
+                id: "shop-\(ware.id)-\(Int(now.timeIntervalSince1970))",
+                faeKind: kind, name: ware.title, descriptionText: ware.contents,
+                effect: effect, isCold: false, acquiredAt: now,
+                chargesRemaining: effect == .callingCard ? 1 : nil, boundSourceID: nil
+            ))
+        case .warmWord:
+            if let target = warmWordTarget() {
+                applyEntityEconomyDelta(
+                    entityID: target.id, name: target.name, delta: 1,
+                    sourcePageType: nil,
+                    note: "A warm word bought at the Goblin Market reached \(target.name)."
+                )
+            }
+        case .pack:
+            break
+        }
+
+        // Ripple: the Goblins warm to a paying customer, and they talk.
+        fae.warmth["goblin", default: 0] += 1
+        vault.data.fae = fae
+        vault.save()
+        recordGoblinPurchaseGossip(ware: ware, now: now)
+        surfaceRefreshDate = now
+        BookFeedback.play(.select)
+    }
+
+    /// Haggle: spend 1 Warmth with the Goblins for a discount. A feverish-mood
+    /// goblin refuses and pockets the warmth anyway — the stake. Returns the
+    /// discount, or nil if refused.
+    func haggleWare(_ ware: MarketWare, now: Date = Date()) -> Int? {
+        var fae = vault.data.fae ?? FaePlayerState()
+        guard fae.warmth(for: .goblin) > 0 else { return nil }
+        fae.warmth["goblin", default: 0] -= 1
+        vault.data.fae = fae
+        vault.save()
+        // Feverish goblins are unreliable; otherwise standing earns a real cut.
+        if FaeEconomy.mood(for: now) == .feverish { return nil }
+        return 2
+    }
+
+    /// The Goblin clerk speaks — mercantile, precise, unpredictable — reacting to
+    /// mood, the reader's standing, and the night. The shop's one model call,
+    /// button-triggered.
+    @MainActor
+    func goblinClerkBanter(now: Date = Date()) async -> String? {
+        let fae = vault.data.fae ?? FaePlayerState()
+        let stall = currentStall ?? buildGoblinStall(now: now)
+        let prompt = """
+        You are a Marginalia Goblin clerk running the BookShop inside ReEnchanted — mercantile, precise, dryly funny, a little unpredictable. Speak ONE or TWO sentences directly to the reader, in character. No quotes, no headings.
+
+        Tonight: \(stall.moodLine)
+        \(stall.windowLine)
+        The reader holds \(fae.attention) Attention, \(beliefScore) Belief, and \(fae.warmth(for: .goblin)) Warmth with you.
+        React to their standing and the night. Do not invent specific wares or prices. Be brief and characterful.
+        """
+        let line = await LocalBrainProse.write(
+            prompt: prompt,
+            instructions: "You are a Marginalia Goblin shopkeeper. One or two sentences, in character, prose only.",
+            maxTokens: 120,
+            sourceID: "goblin-clerk",
+            tags: ["goblin-market", "clerk", "fae"]
+        )
+        guard let line, !line.hasPrefix("{") else { return nil }
+        return line.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Who a "warm word" lands on: the most-believed character in the cast.
+    private func warmWordTarget() -> (id: String, name: String)? {
+        let cast = (NarrativePackRegistry.entities + customCastMembers.map(\.entity))
+            .filter { $0.kind == .character }
+        guard let top = cast.max(by: { effectiveCastBelief(for: $0.id) < effectiveCastBelief(for: $1.id) }) else { return nil }
+        return (top.id, top.name)
+    }
+
+    /// The Goblins gossip a purchase to the cast — a small narrative event.
+    private func recordGoblinPurchaseGossip(ware: MarketWare, now: Date) {
+        let event = NarrativeEvent(
+            id: "goblin-purchase-\(ware.id)-\(UUID().uuidString)",
+            kind: .pageKept,
+            sourcePageType: nil,
+            sourcePageID: nil,
+            createdAt: now,
+            summary: "The Marginalia Goblins mention, to anyone who'll listen, that the reader bought \(ware.title).",
+            tags: ["goblin-market", "gossip", "fae"],
+            effect: NarrativeEventEffect()
+        )
+        try? BookDatabase.upsertNarrativeEvent(event)
+        narrativeEvents = (try? BookDatabase.narrativeEvents(limit: 160)) ?? narrativeEvents
+    }
+
     func buyFaeGift(offerID: String, now: Date = Date()) {
         var state = vault.data.fae ?? FaePlayerState()
         guard FaeEconomy.purchase(offerID: offerID, into: &state, now: now) != nil else {
@@ -3003,11 +3297,25 @@ struct ContentView: View {
         if surface.type == .festival {
             delta = Int(surface.payload.metadata["beliefBonus"] ?? "") ?? 3
         } else if surface.type == .wonderCompass, surface.payload.metadata["runID"] != nil {
-            delta = surface.payload.metadata["compassStep"] == "rest" ? 6 : 0
+            delta = 0
         } else if surface.type == .enchantment || surface.payload.metadata["source"] == "enchantment" {
             delta = Int(surface.payload.metadata["enchantmentBeliefReward"] ?? "") ?? 3
         } else if surface.type == .anchor {
             delta = Int(surface.payload.metadata["beliefReward"] ?? "") ?? AnchorRegistry.checkInBeliefReward
+        } else if surface.type == .bookJump {
+            // The deeper you dared, the more the Spine charges to go on — and the
+            // more it pays to come home with a true souvenir.
+            let depth = Int(surface.payload.metadata["bookJumpDepth"] ?? "") ?? 1
+            switch surface.payload.metadata["bookJumpAction"] {
+            case "start":
+                delta = -BookJumpEngine.startCost
+            case "advance":
+                delta = -BookJumpEngine.advanceCost(depth: depth)
+            case "return":
+                delta = BookJumpEngine.returnReward(depth: depth, hasSouvenir: true)
+            default:
+                delta = 0
+            }
         } else {
             delta = 1
         }
@@ -3022,6 +3330,216 @@ struct ContentView: View {
         guard newScore != beliefScore else { return }
         withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
             beliefScore = newScore
+        }
+    }
+
+    /// The open shelf: turn any title the reader names into an improvised Book
+    /// Jump door, anchored to their real day and guided by their brightest cast.
+    func openCustomBookJump() {
+        let current = vault.data.bookJump ?? BookJumpState()
+        guard current.active == nil else {
+            statusMessage = "Finish the open jump before opening another door."
+            return
+        }
+        guard let work = BookJumpEngine.improvisedWork(title: bookJumpCustomTitle, author: "", gutenbergID: "") else { return }
+        let guide = (NarrativePackRegistry.entities + customCastMembers.map(\.entity))
+            .filter { $0.kind == .character }
+            .max { effectiveCastBelief(for: $0.id) < effectiveCastBelief(for: $1.id) }?
+            .name ?? "the Book"
+        let anchor = today.capturedPages.last?.userInput.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let next = BookJumpEngine.startCustom(
+            work: work,
+            anchor: anchor,
+            intention: "bring back a sentence that still belongs to real life",
+            guide: guide,
+            into: current
+        )
+        vault.data.bookJump = next
+        vault.save()
+        bookJumpCustomTitle = ""
+        statusMessage = "The Spine opens onto \(work.title). Find the jump in your feed to step through."
+        BookFeedback.play(.braidComplete)
+        surfaceRefreshDate = Date()
+    }
+
+    /// Once a day, an unstabilized Book Jump lets the Nothing gain a margin; if
+    /// it overruns, the jump collapses — you lose the staked Belief and the book
+    /// goes cold. Also prunes expired Borrowed Rules.
+    func tendBookJump(now: Date = Date()) {
+        let current = vault.data.bookJump ?? BookJumpState()
+        guard current.active != nil || !current.borrowedRules.isEmpty else { return }
+        let result = BookJumpEngine.dailyDecay(current, now: now)
+        vault.data.bookJump = result.state
+        vault.save()
+        if result.collapsed {
+            if result.lostBelief > 0 {
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+                    beliefScore = max(0, beliefScore - result.lostBelief)
+                }
+            }
+            statusMessage = "\(result.bookTitle) collapsed into the Nothing overnight. You slipped back empty-handed; the book is cold for a while."
+            BookFeedback.play(.error)
+            surfaceRefreshDate = now
+        }
+    }
+
+    func runBeliefEconomyDailyTick(now: Date = Date()) {
+        let result = BeliefEconomyEngine.dailyTick(BeliefEconomyDailyContext(
+            now: now,
+            days: days,
+            entities: NarrativePackRegistry.entities + customCastMembers.map(\.entity),
+            entityBelief: entityBeliefLedger,
+            pageBelief: pageBeliefLedger,
+            readerBelief: beliefScore,
+            events: narrativeEvents,
+            state: vault.data.beliefEconomy ?? BeliefEconomyState()
+        ))
+        applyBeliefEconomyResult(result, now: now)
+    }
+
+    func applyBeliefEconomyResult(_ result: BeliefEconomyDailyResult, now: Date = Date()) {
+        guard result.readerDelta != 0 || !result.entityDeltas.isEmpty || !result.pageDeltas.isEmpty || result.state != (vault.data.beliefEconomy ?? BeliefEconomyState()) else {
+            vault.data.beliefEconomy = result.state
+            vault.save()
+            return
+        }
+
+        if result.readerDelta != 0 {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+                beliefScore = min(100, max(0, beliefScore + result.readerDelta))
+            }
+        }
+        for (entityID, delta) in result.entityDeltas where delta != 0 {
+            applyEntityBeliefLedgerDelta(entityID: entityID, delta: delta)
+        }
+        for (sourceID, delta) in result.pageDeltas where delta != 0 {
+            applyPageBeliefLedgerDelta(sourceID: sourceID, delta: delta)
+        }
+        vault.data.beliefEconomy = result.state
+        vault.save()
+        surfaceRefreshDate = now
+
+        if let digest = beliefEconomyOvernightDigest(result) {
+            statusMessage = digest
+        }
+    }
+
+    /// Turn the overnight Belief movements into one legible, in-world line so the
+    /// economy is visible instead of silent bookkeeping. Reader first, then a
+    /// couple of the most notable Cast/page shifts.
+    func beliefEconomyOvernightDigest(_ result: BeliefEconomyDailyResult) -> String? {
+        guard !result.movements.isEmpty else { return nil }
+        var parts: [String] = []
+
+        if result.readerDelta > 0 {
+            parts.append("your Glow caught \(result.readerDelta) point\(result.readerDelta == 1 ? "" : "s")")
+        } else if result.readerDelta < 0 {
+            parts.append("your Glow settled by \(abs(result.readerDelta))")
+        }
+
+        let others = result.movements
+            .filter { $0.targetKind != .reader && $0.delta != 0 }
+            .sorted { abs($0.delta) > abs($1.delta) }
+            .prefix(2)
+        for move in others {
+            let verb = move.delta > 0 ? "brightened" : "cooled"
+            parts.append("\(move.targetName) \(verb) \(abs(move.delta))")
+        }
+
+        guard !parts.isEmpty else { return nil }
+        let body = parts.count == 1 ? parts[0] : parts.dropLast().joined(separator: ", ") + ", and " + parts.last!
+        return "Overnight: \(body)."
+    }
+
+    func warmPageSourceForKeptSurface(_ surface: SurfacePage, now: Date = Date()) {
+        let result = BeliefEconomyEngine.sourceKeep(
+            source: surface.source,
+            dayID: today.id,
+            now: now,
+            pageBelief: pageBeliefLedger,
+            state: vault.data.beliefEconomy ?? BeliefEconomyState()
+        )
+        vault.data.beliefEconomy = result.state
+        if result.delta != 0 {
+            applyPageBeliefLedgerDelta(sourceID: surface.sourceID, delta: result.delta)
+            surfaceRefreshDate = now
+        }
+        vault.save()
+    }
+
+    func coolPageSourceForDismissedSurface(_ surface: SurfacePage, now: Date = Date()) {
+        let result = BeliefEconomyEngine.sourceDismissed(
+            source: surface.source,
+            dayID: today.id,
+            now: now,
+            pageBelief: pageBeliefLedger,
+            state: vault.data.beliefEconomy ?? BeliefEconomyState()
+        )
+        vault.data.beliefEconomy = result.state
+        if result.delta != 0 {
+            applyPageBeliefLedgerDelta(sourceID: surface.sourceID, delta: result.delta)
+            surfaceRefreshDate = now
+        }
+        vault.save()
+    }
+
+    func effectiveCastBelief(for entityID: String) -> Int {
+        let entity = (NarrativePackRegistry.entities + customCastMembers.map(\.entity)).first { $0.id == entityID }
+        let base = entity?.belief ?? 20
+        return max(0, min(100, base + (entityBeliefLedger[entityID] ?? 0)))
+    }
+
+    func applyEntityBeliefLedgerDelta(entityID: String, delta: Int) {
+        guard delta != 0 else { return }
+        var ledger = entityBeliefLedger
+        let base = (NarrativePackRegistry.entities + customCastMembers.map(\.entity)).first { $0.id == entityID }?.belief ?? 20
+        let current = max(0, min(100, base + (ledger[entityID] ?? 0)))
+        let next = max(0, min(100, current + delta))
+        ledger[entityID] = next - base
+        if ledger[entityID] == 0 {
+            ledger[entityID] = nil
+        }
+        if let data = try? JSONEncoder().encode(ledger),
+           let encoded = String(data: data, encoding: .utf8) {
+            entityBeliefLedgerData = encoded
+        }
+    }
+
+    func applyPageBeliefLedgerDelta(sourceID: String, delta: Int) {
+        guard delta != 0 else { return }
+        var ledger = pageBeliefLedger
+        let source = BookPageSourceRegistry.source(id: sourceID)
+        let base = BookPageSourceRegistry.defaultBelief(for: source)
+        let current = max(0, min(100, base + (ledger[sourceID] ?? 0)))
+        let next = max(0, min(100, current + delta))
+        ledger[sourceID] = next - base
+        if ledger[sourceID] == 0 {
+            ledger[sourceID] = nil
+        }
+        if let data = try? JSONEncoder().encode(ledger),
+           let encoded = String(data: data, encoding: .utf8) {
+            pageBeliefLedgerData = encoded
+        }
+    }
+
+    func applyEntityEconomyDelta(entityID: String, name: String, delta: Int, sourcePageType: BookPageType?, note: String) {
+        guard delta != 0 else { return }
+        applyEntityBeliefLedgerDelta(entityID: entityID, delta: delta)
+        let event = NarrativeEvent(
+            id: "belief-economy-\(entityID)-\(UUID().uuidString)",
+            kind: delta > 0 ? .beliefInvested : .beliefAttacked,
+            sourcePageType: sourcePageType,
+            sourcePageID: nil,
+            createdAt: Date(),
+            summary: note,
+            tags: ["belief", "belief-economy", "entity:\(entityID)"],
+            effect: NarrativeEventEffect(entityWeightDeltas: [entityID: delta])
+        )
+        do {
+            try BookDatabase.upsertNarrativeEvent(event)
+            narrativeEvents = try BookDatabase.narrativeEvents(limit: 160)
+        } catch {
+            statusMessage = "The Belief moved, but the hidden ledger missed a line: \(error.localizedDescription)"
         }
     }
 
@@ -3203,6 +3721,10 @@ struct ContentView: View {
         case .castBond:
             statusMessage = "The Loom is staging what changed between \(surface.payload.metadata["entityAName"] ?? "two figures") and \(surface.payload.metadata["entityBName"] ?? "another")..."
             selectedSurface = await castBondSurfaceWithProse(from: surface)
+            statusMessage = ""
+        case .bookJump:
+            statusMessage = "The Spine is opening to \(surface.payload.metadata["bookTitle"] ?? "the public stacks")..."
+            selectedSurface = await bookJumpSurfaceWithProse(from: surface)
             statusMessage = ""
         case .academyClass:
             statusMessage = "The classroom door is opening..."
@@ -3772,6 +4294,7 @@ struct ContentView: View {
         undoDayID = today.id
         surfaceRefreshDate = now
         statusMessage = "The \(surface.type.shortTitle.lowercased()) page slipped back into the stacks for a while."
+        coolPageSourceForDismissedSurface(surface, now: now)
     }
 
     func undoLastSurfaceDismissal() {

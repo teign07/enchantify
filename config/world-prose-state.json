@@ -90,11 +90,23 @@
       "register_note": "Vellum re-tapes cabinet, resin persists; groove wiped, sleeve-thread snagged in lintel varnish.",
       "thread": "The Duskthorn Investigation"
     },
+    "150a2b89c7f6469226774a99": {
+      "beat": "On the underside of the slid glass slide, where Thorne's grease-pencil marks no longer line up, a single snag of indigo wool has caught \u2014 the exact dye of the scarf Ellie Moons swears she never wears past the Registry. Dusk Thorn leaves the thread half-pulled, pointing the way a hand reaches in, so the clerk's one-name-short tally now has a color to chase even if it still has no name.",
+      "date": "2026-06-09",
+      "register_note": "Indigo wool now trails from sealed counter toward Registry; one arrival name silently overwritten.",
+      "thread": "The Duskthorn Investigation"
+    },
     "15f43b6f621d3777b9ff7594": {
       "beat": "Headmistress Thorne protected The Duskthorn Investigation: copied the fragile memory into a second notebook before dusk. As a result, the thread now has a backup if pressure rises. Pressure source: Dusk Thorn (duskthorn 100), Victor Ebonheart (npc 6). Offscreen reason: Headmistress Thorne reacts against strong Nothing pressure under pressure from Dusk Thorn (duskthorn 100), Victor Ebonheart (npc 6).",
       "date": "2026-05-13",
       "register_note": "Thorne moved the backup copy; original remains; ink smell is a trace.",
       "thread": "The Duskthorn Investigation"
+    },
+    "15fd5fa284f751ad773f701a": {
+      "beat": "Overnight the draft wins: the two fallen pages vanish fully beneath the shelf, leaving only a pale rectangle in the dust where they'd lain \u2014 while the proud-lifted page in the squared stack slides askew, its watermark groove catching the morning lamp so the Inkwright crest reads backward, as if something tried to file it and changed its mind. The fainter second line beside the underscored sketch has been gone over on\u2026",
+      "date": "2026-06-11",
+      "register_note": "Overnight the draft wins: the two fallen pages vanish fully beneath the shelf, leaving only a pale rectangle in the dust\u2026",
+      "thread": "Zara's Inkwright Application"
     },
     "1e2c97beb941f269285dc009": {
       "beat": "Headmistress Thorne protected The Duskthorn Investigation: locked the vulnerable record in a drawer with two names on the key-tag. As a result, the Nothing cannot erase that detail casually. Pressure source: Dusk Thorn (duskthorn 89), Victor Ebonheart (npc 6). Offscreen reason: Headmistress Thorne reacts against strong Nothing pressure under pressure from Dusk Thorn (duskthorn 89), Victor Ebonheart (npc 6).",
@@ -113,6 +125,12 @@
       "date": "2026-06-06",
       "register_note": "Thorne's match holds; vault ledger circled, names listed, a re-verification notice now posted publicly.",
       "thread": "Wicker's Campaign"
+    },
+    "209c100d570d9711d8f92bbc": {
+      "beat": "Thorne bridges the roped-off counter with a thin glass slide \u2014 the kind masons lay across a crack to see if a wall is still moving \u2014 and dates it in grease-pencil at both ends. Under it she tucks a torn corner of star-chart: *if the glass snaps, the building shifted in the night; if it only slides, someone has hands. The threshold will tell us which by morning.*",
+      "date": "2026-06-08",
+      "register_note": "Glass slide moved, not snapped \u2014 hand confirmed. Clerk now logging passersby; one name missing.",
+      "thread": "The Duskthorn Investigation"
     },
     "22295ee9dcf6a61b4979c8d2": {
       "beat": "Dusk Thorn protected The Duskthorn Investigation: moved out of reach the duskthorn fragile memory with a redirected whisper, a witness, and one detail copied before it could blur. As a result, dusk changed the available interpretation of the thread. Pressure source: Dusk Thorn (talisman 104), Headmistress Thorne (npc 74), Victor Ebonheart (npc 7). Offscreen reason: Dusk Thorn resists thinning where its chapter still \u2026",
@@ -185,6 +203,18 @@
       "date": "2026-05-17",
       "register_note": "Zara annotated the ledger page; left sea glass marker; the cargo line flagged.",
       "thread": "Zara's Inkwright Application"
+    },
+    "2d2682a350b33e78d6c4227b": {
+      "beat": "Wicker palms a coffee-shop receipt from his coat \u2014 the date smudged, a wax-pencil curl in one corner that only looks like a slip of the hand \u2014 and lets it fall on the steward's sill beside the face-down ledger. On the back, in that same borrowed slant: *Finn paid for two cups that morning. Ask him who the second was for.*",
+      "date": "2026-06-09",
+      "register_note": "Forged receipt seeds a witness rumor; Finn's scoreboard name now carries doubt, steward's grip slipping.",
+      "thread": "Wicker's Campaign"
+    },
+    "2db36920555c9dba7de38f20": {
+      "beat": "Serenity wets a fingertip in Zara's marble-rim brine and drags the seven salt-specks into a short row of dots and dashes along the nook shelf, then taps Inkwell's open pun-ledger and grins: *that's a Marathon terminal code \u2014 it says GET OUT WHILE YOU CAN, but friendly.* She leaves the last dot unfinished and a chip of green sea-glass beside it, daring Zara to guess the missing letter before the brine sets.",
+      "date": "2026-06-08",
+      "register_note": "Salt code set hard but the final letter stayed ambiguous; sea-glass fogged, ledger ringed \u2014 riddle still open.",
+      "thread": "Serenity's Unwritten Thread"
     },
     "2ebd454c059451d46aea65d5": {
       "beat": "Wicker chalks a little scoreboard beside the steward's window \u2014 *lines added so far: \u25ae\u25ae\u25ae\u25ae* \u2014 and tucks a torn betting stub under the candle-stub, odds penciled in his looping doodle-hand: *3-to-1 the vault numbers never agree by Friday. Put your name, put your guess.* He signs no one's, and ties the pencil to the sill with red thread so it can't walk off.",
@@ -300,6 +330,12 @@
       "register_note": "Tide Glass weeps fourth bead at 1872 mark; Letitia tallies silently, brackish smell reaches cabinet.",
       "thread": "The Duskthorn Investigation"
     },
+    "4f1cacd7518692a776decf8e": {
+      "beat": "Headmistress Thorne kneels at the Registry sill and lifts a candle-soot rubbing of the worn doorstep, then tilts it to the lamp: the hollow is scooped deeper on the left, the way a body leans coming *in* and never the way it leans going out. She tacks the smudged paper above the clerk's tally in silverpoint \u2014 *count the ones who arrive and never leave by this door; your list is short by exactly that one* \u2014 and pins i\u2026",
+      "date": "2026-06-09",
+      "register_note": "Clerk opens a second arrivals column; tally off by one, circled in Thorne's silverpoint.",
+      "thread": "The Duskthorn Investigation"
+    },
     "5118ce2736245a838eeb5f6c": {
       "beat": "Before the annex clerk's first round, Headmistress Thorne lifts the lost-and-found drawer's unmarked envelope with ivory letter-tongs, lays it between two slate foundation-chips in her artifact cabinet, and slips into the drawer's emptied place a folded drafting square of the lintel's 1804 cross-section \u2014 annotated in her own hand: *worth saving \u2014 even the part that was wrong.*",
       "date": "2026-06-06",
@@ -317,6 +353,12 @@
       "date": "2026-06-05",
       "register_note": "Button pocketed by clerk, splinter settled atop carbon-paper slip beneath cavity.",
       "thread": "The Duskthorn Investigation"
+    },
+    "585490d62980ec2766dcc8c4": {
+      "beat": "Wicker pins the smudged receipt straight onto the chalk betting-stub where Finn's name keeps getting rewritten, and inks a careless little curl in the corner \u2014 the kind that only looks like a doodle until you've seen his margins. Underneath, in that borrowed forward slant: *two cups, and the second hand was steadier than the first \u2014 funny, for a boy who can't keep his story straight.*",
+      "date": "2026-06-09",
+      "register_note": "Forged line goes viral by word of mouth; steward pockets the stub, Finn's tally docked, Wicker's signature curl sits unnoticed.",
+      "thread": "Wicker's Campaign"
     },
     "586d2764469217f8d744381d": {
       "beat": "Sometime after the tide turns, the Tide Glass throws a thin wet rectangle of light onto Serenity's blank felt sheet at the Tidecrest nook, and where the glare lands the salt has dried into seven specks that sit exactly like the gull-shaped scatter she keeps meaning to draw. The sea-glass marble on Zara Finch's stool now points its chipped rim at the verdigris crack on the Daedric X, and someone could finish the line \u2026",
@@ -618,6 +660,12 @@
       "register_note": "Thorne secures drawer; corridor exhales cold\u2014a new whisper of hidden lore.",
       "thread": "The Duskthorn Investigation"
     },
+    "9e48cac525b99e6ea0996b9d": {
+      "beat": "Wicker slides a fresh saucer under the steward's brand-new ledger and leaves the coffee to dry into one of his looping margin-doodles right where a thumb would rest, then pencils a single line at the top in someone else's slanted hand: *log who adds, not what they add \u2014 Finn Bridges was here twice before the bell.* He never signs it, and he's already gone when the steward returns to find his own honest little record \u2026",
+      "date": "2026-06-08",
+      "register_note": "Wicker forged the steward's ledger; the honest record is now suspect, Finn Bridges falsely implicated.",
+      "thread": "Wicker's Campaign"
+    },
     "9ebaaacaff4d7591dc4a0a36": {
       "beat": "Victor Ebonheart changed the usable evidence inside The Duskthorn Investigation: copied the investigation margin record by borrowing an ordinary school rule and bending it toward corporate. Later, The thread became less theoretical and more difficult to ignore.",
       "date": "2026-05-21",
@@ -804,6 +852,12 @@
       "register_note": "Alcove evidence swapped; dust ghost remains. Witness uncontacted. Copy exists offsite.",
       "thread": "The Duskthorn Investigation"
     },
+    "cbaf9867b6806f67893b40d0": {
+      "beat": "Offscreen, The Duskthorn Investigation has acquired a concrete trace: Dusk Thorn lets a bead of candle-wax cool over the Registry's Ember Seal overnight, and by lamplight the lifted cast shows the griffin's beak a hair too blunt \u2014 the press that stamped last week's arrivals isn't the one locked in Thorne's dr\u2026 The next visible scene should surface that trace in the room, rumor, object, or NPC behavior before asking t\u2026",
+      "date": "2026-06-12",
+      "register_note": "Offscreen, The Duskthorn Investigation has acquired a concrete trace: Dusk Thorn lets a bead of candle-wax cool over the\u2026",
+      "thread": "The Duskthorn Investigation"
+    },
     "cbb43395b696230d333dbca6": {
       "beat": "Wicker stopped beside Pell Grundy between periods and said, quiet and almost kind, *she writes like someone who learned from a left-handed teacher \u2014 you can tell by the pressure on the downstrokes.* He nodded at the closed notebook Pell was carrying and walked on before Pell had time to say it wasn't hers.",
       "date": "2026-05-26",
@@ -930,6 +984,12 @@
       "register_note": "Tide Glass custom anchored; tidal ring visible and tactile on portfolio cover.",
       "thread": "Zara's Inkwright Application"
     },
+    "dd4187ed06fe40c35b2177c3": {
+      "beat": "Dusk Thorn lets a bead of candle-wax cool over the Registry's Ember Seal overnight, and by lamplight the lifted cast shows the griffin's beak a hair too blunt \u2014 the press that stamped last week's arrivals isn't the one locked in Thorne's drawer. The false impression lies face-up beside the silverpoint name, beak pointing straight at it.",
+      "date": "2026-06-09",
+      "register_note": "Dusk Thorn lets a bead of candle-wax cool over the Registry's Ember Seal overnight, and by lamplight the lifted cast sho\u2026",
+      "thread": "The Duskthorn Investigation"
+    },
     "de026313354c4b15a76eef74": {
       "beat": "Headmistress Thorne spent twenty minutes in the subbasement below the east stairwell, dragging a bent copper wire along the perimeter wall until it dipped twice over the same floor stone. She pressed her palm flat against it, found nothing she could name, and marked the spot in her pocket ledger with a symbol she'd last written into a Founders' Hall survey dated thirty years before her appointment.",
       "date": "2026-05-27",
@@ -978,6 +1038,12 @@
       "register_note": "Astrid's evidence found and marked; thorn-needle points at registry; ledger fingerprint sealed in resin.",
       "thread": "The Duskthorn Investigation"
     },
+    "e860feac7985429f4cab906f": {
+      "beat": "By the time the breakfast crowd thins, three separate people have repeated the receipt's line as if they'd thought it themselves, and the steward \u2014 caught between two unguarded ledgers \u2014 quietly slides Finn's betting stub into his apron rather than answer for it, so the next visible trace is an empty pin on the board where the evidence used to hang and a fresh tally-mark docked from Finn's name in a hand that isn't t\u2026",
+      "date": "2026-06-12",
+      "register_note": "By the time the breakfast crowd thins, three separate people have repeated the receipt's line as if they'd thought it th\u2026",
+      "thread": "Wicker's Campaign"
+    },
     "e93a12c539cec56d6c044eb9": {
       "beat": "Wicker Eddies invested belief in Dusk Thorn around Wicker's Campaign: made a complication feel necessary instead of unfortunate. As a result, Belief gathered around friction. Pressure source: Dusk Thorn (talisman 85). Offscreen reason: Wicker Eddies feels their chapter's talisman pulling for investment under pressure from Dusk Thorn (talisman 85).",
       "date": "2026-05-08",
@@ -1013,6 +1079,12 @@
       "date": "2026-05-16",
       "register_note": "Original record relocated offsite; duplicate stands in place. Wicker holds the real one.",
       "thread": "Wicker's Campaign"
+    },
+    "f38cd1558ca1e791585f6318": {
+      "beat": "Thorne sets a brass plumb-bob swinging in the gap-toothed Registry threshold and pins her own answer beneath the anonymous chit: *no one's threshold \u2014 a door belongs to whoever still has to cross it.* She weights the card with the pried cornerstone chip's smaller twin, so the clerk who lifts it to read finds her hand has already filled half the wound.",
+      "date": "2026-06-08",
+      "register_note": "Counter roped off; Thorne's plumb-bob drifts toward the empty slot; a third anonymous chit and a shifted chip suggest someone tested her ans\u2026",
+      "thread": "The Duskthorn Investigation"
     },
     "f61492096fe1f0f2f088ad69": {
       "beat": "At a quarter past eleven Thorne tilted the boiler-room ventilation grate open until Polaris crossed the 1791 seam, then pressed Dusk Thorn's pin to the leather strap and scored the bearing in shorthand beside the date \u2014 14\u00b047\u2032E of the chisel-mark angle, repeatable any clear night from the same grate. She wound the strap one extra turn so the new notch rides under her thumb when the talisman warms.",

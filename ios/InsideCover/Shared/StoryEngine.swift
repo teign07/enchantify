@@ -192,6 +192,956 @@ enum BeliefCombatResolver {
     }
 }
 
+enum BookJumpAction: String, Codable, Equatable, CaseIterable {
+    case start
+    case advance
+    case stabilize
+    case `return`
+
+    var title: String {
+        switch self {
+        case .start: return "Open the Spine"
+        case .advance: return "Go one page deeper"
+        case .stabilize: return "Stabilize the page"
+        case .return: return "Find the Spine"
+        }
+    }
+}
+
+struct BookJumpWork: Identifiable, Codable, Equatable {
+    var id: String
+    var title: String
+    var author: String
+    var gutenbergID: String
+    var world: String
+    var arrival: String
+    var nothing: String
+    var rules: [String]
+    var resonances: [String]
+
+    var gutenbergURL: String {
+        "https://www.gutenberg.org/ebooks/\(gutenbergID)"
+    }
+}
+
+struct BookJumpBeat: Identifiable, Codable, Equatable {
+    var id: String
+    var at: Date
+    var action: BookJumpAction
+    var depth: Int
+    var degradation: Int
+    var line: String
+}
+
+struct ActiveBookJump: Identifiable, Codable, Equatable {
+    var id: String
+    var bookID: String
+    var title: String
+    var author: String
+    var gutenbergID: String
+    var world: String
+    var arrival: String
+    var nothing: String
+    var rules: [String]
+    var resonances: [String]
+    var anchor: String
+    var intention: String
+    var guide: String
+    var startedAt: Date
+    var updatedAt: Date
+    var depth: Int
+    var returnCount: Int
+    var degradation: Int
+    var souvenirDue: Bool
+    var beats: [BookJumpBeat]
+    /// The StoryChoiceRole the reader picked to reach the current depth, so the
+    /// next beat can honor the direction they chose. Optional for migration.
+    var lastDirection: String?
+}
+
+struct ReturnedBookJump: Identifiable, Codable, Equatable {
+    var id: String
+    var bookID: String
+    var title: String
+    var author: String
+    var returnedAt: Date
+    var depth: Int
+    var degradation: Int
+    var souvenir: String
+    var outcome: String
+}
+
+/// A rule carried back from a book, active for a few days, with a real,
+/// cross-system effect — Book Jumping's answer to a Fae gift.
+enum BorrowedRuleEffect: String, Codable, Equatable, CaseIterable {
+    case sharpenNotices   // the small detail is loud → Book Notices / patterns surface
+    case warmRecords      // keep records → Diary & Souvenir glow warmer
+    case pushBackNothing   // tend / mercy / growth → the grey holds back a shade
+    case warmTheCast      // companionship → relationship field warms on grant
+    case steadyTheBody    // healing / home → Body, Rest, Center lean forward
+    case openWonder       // curiosity / imagination → Wonder Compass leans forward
+
+    var title: String {
+        switch self {
+        case .sharpenNotices: return "A Sharpened Eye"
+        case .warmRecords: return "Keep Records"
+        case .pushBackNothing: return "Tend What Answers Slowly"
+        case .warmTheCast: return "Travel With Companions"
+        case .steadyTheBody: return "Mend the Walled Garden"
+        case .openWonder: return "Answer Nonsense Sideways"
+        }
+    }
+
+    /// How it bends the feed while it's active. (warmTheCast applies once, at grant.)
+    var surfaceBoosts: [BookPageType: Int] {
+        switch self {
+        case .sharpenNotices: return [.bookNotices: 8, .marginsAtlas: 4]
+        case .warmRecords: return [.diary: 6, .souvenir: 6]
+        case .pushBackNothing: return [:]
+        case .warmTheCast: return [.castMember: 4, .letter: 4]
+        case .steadyTheBody: return [.body: 6, .rest: 6]
+        case .openWonder: return [.wonderCompass: 8]
+        }
+    }
+
+    var greyShift: Int { self == .pushBackNothing ? -1 : 0 }
+}
+
+struct BorrowedRule: Identifiable, Codable, Equatable {
+    var id: String
+    var bookID: String
+    var bookTitle: String
+    var text: String
+    var effect: BorrowedRuleEffect
+    var grantedAt: Date
+    var expiresAt: Date
+
+    func isActive(at date: Date) -> Bool { date < expiresAt }
+}
+
+struct BookJumpState: Codable, Equatable {
+    var active: ActiveBookJump?
+    var returned: [ReturnedBookJump]
+    var borrowedRules: [BorrowedRule]
+    var coldBooks: [String: Date]   // bookID -> the date the book reopens
+
+    init(
+        active: ActiveBookJump? = nil,
+        returned: [ReturnedBookJump] = [],
+        borrowedRules: [BorrowedRule] = [],
+        coldBooks: [String: Date] = [:]
+    ) {
+        self.active = active
+        self.returned = returned
+        self.borrowedRules = borrowedRules
+        self.coldBooks = coldBooks
+    }
+
+    func activeBorrowedRules(at date: Date) -> [BorrowedRule] {
+        borrowedRules.filter { $0.isActive(at: date) }
+    }
+
+    func isCold(_ bookID: String, at date: Date) -> Bool {
+        guard let until = coldBooks[bookID] else { return false }
+        return date < until
+    }
+}
+
+enum BookJumpEngine {
+    static let startCost = 1
+    static let returnReward = 6
+    static let maxDepth = 4
+    static let borrowedRuleDays = 4
+    static let coldDays = 5
+
+    /// Going one beat deeper costs escalating Belief; the Nothing charges rent on depth.
+    static func advanceCost(depth: Int) -> Int { max(0, depth - 1) }
+
+    /// Returning pays the base reward plus a bonus for how deep you dared, but
+    /// only when you bring a real souvenir home.
+    static func returnReward(depth: Int, hasSouvenir: Bool) -> Int {
+        guard hasSouvenir else { return 1 }
+        return returnReward + max(0, depth - 1) * 2
+    }
+
+    static let publicDomainShelf: [BookJumpWork] = [
+        BookJumpWork(
+            id: "alice-wonderland",
+            title: "Alice's Adventures in Wonderland",
+            author: "Lewis Carroll",
+            gutenbergID: "11",
+            world: "a bright impossible country where logic wears gloves and every rule has teeth",
+            arrival: "You land beside a corridor of doors, with the sound of a rabbit-sized hurry somewhere ahead.",
+            nothing: "The Nothing appears as blank labels, jokes without punchlines, and paths that forget where they were going.",
+            rules: ["Do not argue with dream-logic; answer it sideways.", "Size, time, and manners are unstable.", "The Spine hides where nonsense suddenly becomes exact."],
+            resonances: ["curiosity", "small adventures", "confusion", "play"]
+        ),
+        BookJumpWork(
+            id: "wizard-oz",
+            title: "The Wonderful Wizard of Oz",
+            author: "L. Frank Baum",
+            gutenbergID: "55",
+            world: "a road-colored country where homesickness, courage, tenderness, and cleverness keep putting on costumes",
+            arrival: "You step onto yellow bricks still warm from a storm that has already decided it is part of the story.",
+            nothing: "The Nothing comes as color draining from the road and companions forgetting what they were looking for.",
+            rules: ["Travel works better with companions.", "What is missing may already be present.", "Follow the road, but do not mistake it for the whole map."],
+            resonances: ["home", "companionship", "courage", "wonder"]
+        ),
+        BookJumpWork(
+            id: "pride-prejudice",
+            title: "Pride and Prejudice",
+            author: "Jane Austen",
+            gutenbergID: "1342",
+            world: "a drawing-room labyrinth where weather, manners, money, and misread glances alter destinies",
+            arrival: "You arrive just outside a lit room where every pause has already been noticed.",
+            nothing: "The Nothing wears the face of certainty: first impressions hardening before anyone can revise them.",
+            rules: ["Listen twice before concluding once.", "A room can be more dangerous than a road.", "The Spine hides in revised judgment."],
+            resonances: ["attention", "misreading", "wit", "second chances"]
+        ),
+        BookJumpWork(
+            id: "frankenstein",
+            title: "Frankenstein; Or, The Modern Prometheus",
+            author: "Mary Wollstonecraft Shelley",
+            gutenbergID: "84",
+            world: "a cold, brilliant world of ambition, loneliness, lightning, and responsibility",
+            arrival: "You wake under a high, pale sky with mountains watching like witnesses.",
+            nothing: "The Nothing gathers wherever maker and made refuse to recognize one another.",
+            rules: ["Do not confuse creation with care.", "Loneliness distorts every corridor.", "The Spine hides near responsibility accepted too late."],
+            resonances: ["responsibility", "loneliness", "making", "mercy"]
+        ),
+        BookJumpWork(
+            id: "dracula",
+            title: "Dracula",
+            author: "Bram Stoker",
+            gutenbergID: "345",
+            world: "a world of letters, trains, thresholds, folk protections, and old hunger learning modern routes",
+            arrival: "You enter at a threshold after sunset; every document nearby seems to know it may become evidence.",
+            nothing: "The Nothing moves as invitation without consent and fog that edits the edges of memory.",
+            rules: ["Keep records; records keep you.", "Thresholds matter.", "The Spine hides in shared evidence."],
+            resonances: ["boundaries", "letters", "protection", "night"]
+        ),
+        BookJumpWork(
+            id: "christmas-carol",
+            title: "A Christmas Carol",
+            author: "Charles Dickens",
+            gutenbergID: "46",
+            world: "a candlelit moral weather system where memory, present kindness, and possible futures argue by apparition",
+            arrival: "You arrive in a room where the fire has an opinion and the clock sounds slightly haunted.",
+            nothing: "The Nothing appears as a locked heart and a future no one speaks kindly of.",
+            rules: ["Memory is a door, not a prison.", "Small mercies change the temperature.", "The Spine hides where a future can still turn."],
+            resonances: ["mercy", "memory", "winter", "change"]
+        ),
+        BookJumpWork(
+            id: "sherlock-holmes",
+            title: "The Adventures of Sherlock Holmes",
+            author: "Arthur Conan Doyle",
+            gutenbergID: "1661",
+            world: "a gaslit city of clues, habits, disguises, and rooms where one overlooked detail holds the hinge",
+            arrival: "You arrive near a window with rain on it and a problem pretending to be ordinary.",
+            nothing: "The Nothing hides in assumptions so tidy they stop the eye from looking again.",
+            rules: ["Observe before explaining.", "The small detail is often the loudest witness.", "The Spine hides in the fact that does not fit."],
+            resonances: ["attention", "mystery", "patterns", "evidence"]
+        ),
+        BookJumpWork(
+            id: "secret-garden",
+            title: "The Secret Garden",
+            author: "Frances Hodgson Burnett",
+            gutenbergID: "113",
+            world: "a walled, breathing place where neglected things remember how to grow",
+            arrival: "You find a locked garden wall and the smell of earth deciding whether to trust you.",
+            nothing: "The Nothing appears as neglect: rooms unaired, gates unopened, living things not spoken to.",
+            rules: ["Growth is quiet before it is visible.", "Tend what answers slowly.", "The Spine hides where a locked place becomes shared."],
+            resonances: ["healing", "gardens", "friendship", "return"]
+        ),
+        BookJumpWork(
+            id: "treasure-island",
+            title: "Treasure Island",
+            author: "Robert Louis Stevenson",
+            gutenbergID: "120",
+            world: "a salt-stung world of maps, bargains, mutiny, courage, and voices too charming to trust completely",
+            arrival: "You arrive with the smell of tar and tide in the air and a map trying not to rustle.",
+            nothing: "The Nothing comes as greed: every landmark flattened into what can be taken from it.",
+            rules: ["Maps reveal and conceal.", "Charm is not safety.", "The Spine hides where courage refuses the easy bargain."],
+            resonances: ["adventure", "maps", "risk", "loyalty"]
+        ),
+        BookJumpWork(
+            id: "moby-dick",
+            title: "Moby-Dick; Or, The Whale",
+            author: "Herman Melville",
+            gutenbergID: "2701",
+            world: "a vast salt scripture of obsession, labor, jokes, omens, and terrible whiteness",
+            arrival: "You arrive with deck-planks underfoot and the sea rewriting every certainty in grey-green ink.",
+            nothing: "The Nothing wears obsession: one symbol swollen until it erases the rest of the world.",
+            rules: ["Do not let one sign devour all others.", "Shipmates are context.", "The Spine hides in the thing you can still notice besides the whale."],
+            resonances: ["water", "obsession", "work", "awe"]
+        ),
+        BookJumpWork(
+            id: "don-quixote",
+            title: "Don Quixote",
+            author: "Miguel de Cervantes",
+            gutenbergID: "996",
+            world: "a road of tilting certainties where imagination makes trouble and sometimes mercy",
+            arrival: "You arrive on a road where dust, dignity, and bad interpretations are already traveling together.",
+            nothing: "The Nothing appears when enchantment becomes a refusal to see what is really there.",
+            rules: ["Imagination needs a witness.", "Names change what courage thinks it is doing.", "The Spine hides where wonder and reality agree to share a saddle."],
+            resonances: ["imagination", "ordinary magic", "roads", "companionship"]
+        ),
+        BookJumpWork(
+            id: "odyssey",
+            title: "The Odyssey",
+            author: "Homer",
+            gutenbergID: "1727",
+            world: "a sea-road of longing, hospitality, monsters, cleverness, and home seen from too far away",
+            arrival: "You arrive at the edge of a wine-dark crossing with a shore behind you and another refusing to come closer.",
+            nothing: "The Nothing comes as forgetting: names, homes, oaths, and the shape of return.",
+            rules: ["Hospitality is magic with rules.", "Cleverness has a cost.", "The Spine hides where return becomes more than arrival."],
+            resonances: ["homecoming", "travel", "cleverness", "sea"]
+        )
+    ]
+
+    static func work(id: String) -> BookJumpWork? {
+        publicDomainShelf.first { $0.id == id }
+    }
+
+    /// A constellation the reader is drawing through the public stacks: a book
+    /// they keep returning to, or a family of resonances repeating across books.
+    static func companionLine(state: BookJumpState) -> String? {
+        let successful = state.returned.filter { !$0.souvenir.isEmpty }
+        guard successful.count >= 2 else { return nil }
+
+        let byBook = Dictionary(grouping: successful, by: \.bookID)
+        if let (bookID, visits) = byBook.first(where: { $0.value.count >= 2 }) {
+            let title = visits.first?.title ?? work(id: bookID)?.title ?? "this book"
+            return "You and \(title) keep meeting — a constellation is forming between your real life and its pages."
+        }
+
+        // A repeated resonance family across different books.
+        var familyCounts: [String: Int] = [:]
+        for jump in successful {
+            for resonance in (work(id: jump.bookID)?.resonances ?? []) {
+                familyCounts[resonance, default: 0] += 1
+            }
+        }
+        if let (family, count) = familyCounts.max(by: { $0.value < $1.value }), count >= 3 {
+            return "A constellation of \(family) is gathering across the books you've visited."
+        }
+        return nil
+    }
+
+    static func selectWork(day: BookDay, inputs: BookSourceInputs, now: Date = Date()) -> BookJumpWork {
+        let context = contextText(day: day, inputs: inputs)
+        // A book that collapsed recently stays shut until it warms back.
+        let openShelf = publicDomainShelf.filter { !inputs.bookJump.isCold($0.id, at: now) }
+        let shelf = openShelf.isEmpty ? publicDomainShelf : openShelf
+        let scores = shelf.map { work -> (BookJumpWork, Int) in
+            let overlap = work.resonances.reduce(0) { total, term in
+                total + (context.contains(term.lowercased()) ? 18 : 0)
+            }
+            let priorReturns = inputs.bookJump.returned.filter { $0.bookID == work.id }.count
+            let jitter = abs("\(day.id)-\(work.id)-\(Calendar.current.component(.day, from: now))".stableHash) % 13
+            return (work, overlap - priorReturns * 10 + jitter)
+        }
+        return scores.sorted { left, right in
+            if left.1 == right.1 { return left.0.title < right.0.title }
+            return left.1 > right.1
+        }.first?.0 ?? publicDomainShelf[0]
+    }
+
+    static func surface(for state: BookJumpState, day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date, manual: Bool = false) -> SurfacePage {
+        if let active = state.active {
+            // The default beat climbs deeper; the reader can fork to Find the
+            // Spine (return) from depth 2 on, via the page's own controls. The
+            // Nothing forces a stabilize when it gets loud, and the book has a
+            // floor at max depth.
+            let action: BookJumpAction
+            if active.degradation >= 3 {
+                action = .stabilize
+            } else if active.depth >= maxDepth {
+                action = .return
+            } else {
+                action = .advance
+            }
+            return activeSurface(active, action: action, day: day, score: manual ? 72 : activeScore(active, action: action, context: context), now: now)
+        }
+
+        let work = selectWork(day: day, inputs: inputs, now: now)
+        return startSurface(work: work, day: day, inputs: inputs, score: manual ? 68 : 58, now: now)
+    }
+
+    static func start(from surface: SurfacePage, now: Date = Date()) -> BookJumpState {
+        let metadata = surface.payload.metadata
+        let workID = metadata["bookID"] ?? "alice-wonderland"
+        let work = self.work(id: workID) ?? publicDomainShelf[0]
+        let anchor = metadata["bookJumpAnchor"] ?? "one true detail from today"
+        let intention = metadata["bookJumpIntention"] ?? "bring back a sentence that still belongs to real life"
+        let guide = metadata["bookJumpGuide"] ?? "the Book"
+        let active = ActiveBookJump(
+            id: metadata["bookJumpID"] ?? "jump-\(work.id)-\(Int(now.timeIntervalSince1970))",
+            bookID: work.id,
+            title: work.title,
+            author: work.author,
+            gutenbergID: work.gutenbergID,
+            world: work.world,
+            arrival: work.arrival,
+            nothing: work.nothing,
+            rules: work.rules,
+            resonances: work.resonances,
+            anchor: anchor,
+            intention: intention,
+            guide: guide,
+            startedAt: now,
+            updatedAt: now,
+            depth: 1,
+            returnCount: 0,
+            degradation: 0,
+            souvenirDue: false,
+            beats: [
+                BookJumpBeat(
+                    id: "beat-start-\(Int(now.timeIntervalSince1970))",
+                    at: now,
+                    action: .start,
+                    depth: 1,
+                    degradation: 0,
+                    line: "Entered \(work.title) with \(guide) as guide."
+                )
+            ],
+            lastDirection: nil
+        )
+        return BookJumpState(active: active, returned: [])
+    }
+
+    static func advance(_ state: BookJumpState, line: String, direction: String? = nil, now: Date = Date()) -> BookJumpState {
+        guard var active = state.active else { return state }
+        active.depth = min(maxDepth, active.depth + 1)
+        // The deeper you are, the more rent the Nothing charges per page.
+        active.degradation = min(4, active.degradation + (active.depth >= 2 ? 1 : 0))
+        active.souvenirDue = active.depth >= 2
+        active.lastDirection = direction
+        active.updatedAt = now
+        active.beats.append(BookJumpBeat(
+            id: "beat-advance-\(Int(now.timeIntervalSince1970))-\(active.depth)",
+            at: now,
+            action: .advance,
+            depth: active.depth,
+            degradation: active.degradation,
+            line: line.isEmpty ? "Went one page deeper." : line
+        ))
+        var updated = state
+        updated.active = active
+        return updated
+    }
+
+    static func stabilize(_ state: BookJumpState, line: String, now: Date = Date()) -> BookJumpState {
+        guard var active = state.active else { return state }
+        active.degradation = max(0, active.degradation - 2)
+        active.updatedAt = now
+        active.beats.append(BookJumpBeat(
+            id: "beat-stabilize-\(Int(now.timeIntervalSince1970))",
+            at: now,
+            action: .stabilize,
+            depth: active.depth,
+            degradation: active.degradation,
+            line: line.isEmpty ? "Stabilized the page by naming one true thing." : line
+        ))
+        var updated = state
+        updated.active = active
+        return updated
+    }
+
+    static func `return`(_ state: BookJumpState, souvenir: String, outcome: String, now: Date = Date()) -> BookJumpState {
+        guard var active = state.active else { return state }
+        active.returnCount += 1
+        active.updatedAt = now
+        let trimmedSouvenir = souvenir.trimmingCharacters(in: .whitespacesAndNewlines)
+        let returned = ReturnedBookJump(
+            id: "return-\(active.id)-\(Int(now.timeIntervalSince1970))",
+            bookID: active.bookID,
+            title: active.title,
+            author: active.author,
+            returnedAt: now,
+            depth: active.depth,
+            degradation: active.degradation,
+            souvenir: trimmedSouvenir,
+            outcome: outcome.isEmpty ? "Returned through the Spine." : outcome
+        )
+        var updated = state
+        updated.active = nil
+        updated.returned = ([returned] + state.returned).prefix(24).map { $0 }
+
+        // Carry one of the book's rules home, active for a few days, with a real
+        // effect — but only when a true souvenir came back with you.
+        updated.borrowedRules = activeRules(in: state.borrowedRules, at: now)
+        if !trimmedSouvenir.isEmpty,
+           let ruleText = borrowableRule(from: active.rules) {
+            let rule = BorrowedRule(
+                id: "rule-\(active.bookID)-\(Int(now.timeIntervalSince1970))",
+                bookID: active.bookID,
+                bookTitle: active.title,
+                text: ruleText,
+                effect: effect(resonances: active.resonances),
+                grantedAt: now,
+                expiresAt: Calendar.current.date(byAdding: .day, value: borrowedRuleDays, to: now) ?? now.addingTimeInterval(Double(borrowedRuleDays) * 86_400)
+            )
+            // One borrowed rule per book at a time; a fresh return refreshes it.
+            updated.borrowedRules.removeAll { $0.bookID == rule.bookID }
+            updated.borrowedRules = (([rule] + updated.borrowedRules).prefix(6)).map { $0 }
+        }
+        return updated
+    }
+
+    /// The Nothing collapses an unstabilized jump: you slip back empty-handed,
+    /// lose the Belief you staked, and that book goes cold for a while.
+    static func collapse(_ state: BookJumpState, now: Date = Date()) -> (state: BookJumpState, lostBelief: Int, bookTitle: String) {
+        guard let active = state.active else { return (state, 0, "") }
+        let lost = max(1, active.depth)
+        let collapsed = ReturnedBookJump(
+            id: "collapse-\(active.id)-\(Int(now.timeIntervalSince1970))",
+            bookID: active.bookID,
+            title: active.title,
+            author: active.author,
+            returnedAt: now,
+            depth: active.depth,
+            degradation: active.degradation,
+            souvenir: "",
+            outcome: "The page dissolved into the Nothing; you slipped back with empty hands."
+        )
+        var updated = state
+        updated.active = nil
+        updated.returned = ([collapsed] + state.returned).prefix(24).map { $0 }
+        updated.coldBooks[active.bookID] = Calendar.current.date(byAdding: .day, value: coldDays, to: now) ?? now.addingTimeInterval(Double(coldDays) * 86_400)
+        updated.borrowedRules = activeRules(in: state.borrowedRules, at: now)
+        return (updated, lost, active.title)
+    }
+
+    /// Overnight, an active jump left unstable lets the Nothing gain a margin.
+    /// If it overruns, the jump collapses. Returns the new state and any loss.
+    static func dailyDecay(_ state: BookJumpState, now: Date = Date()) -> (state: BookJumpState, collapsed: Bool, lostBelief: Int, bookTitle: String) {
+        guard let active = state.active else {
+            // No active jump: just prune expired rules.
+            var pruned = state
+            pruned.borrowedRules = activeRules(in: state.borrowedRules, at: now)
+            return (pruned, false, 0, "")
+        }
+        let calendar = Calendar.current
+        let dayGap = calendar.dateComponents([.day], from: active.updatedAt, to: now).day ?? 0
+        guard dayGap >= 1 else {
+            var pruned = state
+            pruned.borrowedRules = activeRules(in: state.borrowedRules, at: now)
+            return (pruned, false, 0, "")
+        }
+        var advanced = active
+        advanced.degradation += 1
+        if advanced.degradation > 4 {
+            let result = collapse(state, now: now)
+            return (result.state, true, result.lostBelief, result.bookTitle)
+        }
+        advanced.updatedAt = now
+        advanced.beats.append(BookJumpBeat(
+            id: "beat-decay-\(Int(now.timeIntervalSince1970))",
+            at: now,
+            action: .advance,
+            depth: advanced.depth,
+            degradation: advanced.degradation,
+            line: "The page blurred a little further overnight."
+        ))
+        var updated = state
+        updated.active = advanced
+        updated.borrowedRules = activeRules(in: state.borrowedRules, at: now)
+        return (updated, false, 0, "")
+    }
+
+    private static func activeRules(in rules: [BorrowedRule], at date: Date) -> [BorrowedRule] {
+        rules.filter { $0.isActive(at: date) }
+    }
+
+    /// The first practical rule of a book (not the "Spine hides…" meta-rule) is
+    /// the one you can carry home.
+    static func borrowableRule(from rules: [String]) -> String? {
+        rules.first { !$0.lowercased().contains("spine") } ?? rules.first
+    }
+
+    static func effect(resonances rawResonances: [String]) -> BorrowedRuleEffect {
+        let resonances = Set(rawResonances.map { $0.lowercased() })
+        if resonances.contains(where: { ["attention", "patterns", "mystery", "evidence", "misreading", "wit"].contains($0) }) { return .sharpenNotices }
+        if resonances.contains(where: { ["letters", "boundaries", "records", "protection", "night"].contains($0) }) { return .warmRecords }
+        if resonances.contains(where: { ["mercy", "healing", "gardens", "change", "memory", "winter"].contains($0) }) { return .pushBackNothing }
+        if resonances.contains(where: { ["companionship", "home", "homecoming", "loyalty", "friendship", "courage"].contains($0) }) { return .warmTheCast }
+        if resonances.contains(where: { ["return", "work", "responsibility", "awe"].contains($0) }) { return .steadyTheBody }
+        return .openWonder
+    }
+
+    /// Active borrowed rules bend the feed the way the Almanac's feasts do.
+    static func surfaceBoosts(state: BookJumpState, now: Date = Date()) -> [BookPageType: Int] {
+        var boosts: [BookPageType: Int] = [:]
+        for rule in state.activeBorrowedRules(at: now) {
+            for (type, amount) in rule.effect.surfaceBoosts {
+                boosts[type, default: 0] += amount
+            }
+        }
+        return boosts
+    }
+
+    static func greyShift(state: BookJumpState, now: Date = Date()) -> Int {
+        state.activeBorrowedRules(at: now).reduce(0) { $0 + $1.effect.greyShift }
+    }
+
+    /// The open shelf: turn any title the reader names into an improvised door.
+    /// We never claim to know the book's text — the Book improvises a threshold
+    /// and lets the live prose do the rest.
+    static func improvisedWork(title rawTitle: String, author rawAuthor: String, gutenbergID rawID: String) -> BookJumpWork? {
+        let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return nil }
+        let author = rawAuthor.trimmingCharacters(in: .whitespacesAndNewlines)
+        let gutenbergID = rawID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = title.lowercased()
+        func has(_ words: [String]) -> Bool { words.contains { lower.contains($0) } }
+        let resonances: [String]
+        if has(["sea", "ocean", "island", "ship", "voyage", "tide"]) { resonances = ["water", "travel", "risk"] }
+        else if has(["garden", "wood", "forest", "wild", "tree"]) { resonances = ["healing", "gardens", "return"] }
+        else if has(["love", "heart", "manners", "marriage"]) { resonances = ["attention", "second chances", "wit"] }
+        else if has(["ghost", "dark", "night", "haunt", "fear", "shadow"]) { resonances = ["boundaries", "night", "protection"] }
+        else if has(["war", "city", "crime", "mystery", "detective"]) { resonances = ["attention", "patterns", "evidence"] }
+        else { resonances = ["curiosity", "imagination", "story"] }
+
+        return BookJumpWork(
+            id: "open-\(slug(title))",
+            title: title,
+            author: author.isEmpty ? "an unnamed hand" : author,
+            gutenbergID: gutenbergID,
+            world: "a book you named yourself — \(title) — whose weather the Book has not read but agrees to enter with you",
+            arrival: "The Spine opens onto \(title). The Book steps in beside you, reading as it goes.",
+            nothing: "The Nothing here is whatever this book most fears forgetting; name a true thing and it loses its grip.",
+            rules: ["Carry one true detail from real life as ballast.", "Let the book lead; you keep the way back.", "The Spine hides where the borrowed world and your real one rhyme."],
+            resonances: resonances
+        )
+    }
+
+    /// Open an improvised door directly (the reader pasted a title), bypassing
+    /// the curated-shelf surface.
+    static func startCustom(work: BookJumpWork, anchor: String, intention: String, guide: String, into state: BookJumpState, now: Date = Date()) -> BookJumpState {
+        let active = ActiveBookJump(
+            id: "jump-\(work.id)-\(Int(now.timeIntervalSince1970))",
+            bookID: work.id,
+            title: work.title,
+            author: work.author,
+            gutenbergID: work.gutenbergID,
+            world: work.world,
+            arrival: work.arrival,
+            nothing: work.nothing,
+            rules: work.rules,
+            resonances: work.resonances,
+            anchor: anchor.isEmpty ? "one true detail from today" : anchor,
+            intention: intention.isEmpty ? "bring back a sentence that still belongs to real life" : intention,
+            guide: guide.isEmpty ? "the Book" : guide,
+            startedAt: now,
+            updatedAt: now,
+            depth: 1,
+            returnCount: 0,
+            degradation: 0,
+            souvenirDue: false,
+            beats: [BookJumpBeat(id: "beat-start-\(Int(now.timeIntervalSince1970))", at: now, action: .start, depth: 1, degradation: 0, line: "Entered \(work.title) through an improvised door.")],
+            lastDirection: nil
+        )
+        var updated = state
+        updated.active = active
+        return updated
+    }
+
+    private static func slug(_ text: String) -> String {
+        let allowed = text.lowercased().map { ch -> Character in
+            ch.isLetter || ch.isNumber ? ch : "-"
+        }
+        return String(allowed).split(separator: "-").prefix(5).joined(separator: "-")
+    }
+
+    private static func startSurface(work: BookJumpWork, day: BookDay, inputs: BookSourceInputs, score: Int, now: Date) -> SurfacePage {
+        let source = BookPageSourceRegistry.source(for: .bookJump)
+        let anchor = startAnchor(day: day, inputs: inputs)
+        let intention = startIntention(day: day, inputs: inputs)
+        let guide = startGuide(inputs: inputs)
+        let companion = companionLine(state: inputs.bookJump)
+        let companionParagraph = companion.map { "\n\($0)\n" } ?? ""
+        let body = """
+        The Book has found a public-domain door: \(work.title), by \(work.author).
+
+        \(work.arrival)
+        \(companionParagraph)
+        Anchor: \(anchor)
+        Intention: \(intention)
+        Guide: \(guide)
+
+        Keeping this page spends \(startCost) Belief and opens a controlled Book Jump. You remain yourself. The page takes one step only.
+        """
+        return SurfacePage(
+            id: "\(source.id)-start-\(work.id)-\(day.id)-\(Int(now.timeIntervalSince1970))",
+            type: .bookJump,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: score,
+            reason: "A public-domain book is close enough for a safe one-page jump.",
+            prompt: "Book Jump: \(work.title)",
+            detail: "Step through a known public-domain text. One beat, one anchor, one safe way back.",
+            payload: BookPagePayload(
+                headline: "The Spine Opens",
+                body: body,
+                metadata: surfaceMetadata(work: work, action: .start, extra: [
+                    "bookJumpID": "jump-\(work.id)-\(Int(now.timeIntervalSince1970))",
+                    "bookJumpAnchor": anchor,
+                    "bookJumpIntention": intention,
+                    "bookJumpGuide": guide,
+                    "bookJumpBeliefDelta": "-\(startCost)",
+                    "bookJumpDepth": "0",
+                    "bookJumpDegradation": "0",
+                    "placeholder": "Optional: what do you want to bring back?",
+                    "tags": "book-jump,book-jump:start,public-domain,\(work.id)"
+                ])
+            )
+        )
+    }
+
+    private static func activeSurface(_ active: ActiveBookJump, action: BookJumpAction, day: BookDay, score: Int, now: Date) -> SurfacePage {
+        let source = BookPageSourceRegistry.source(for: .bookJump)
+        let body: String
+        switch action {
+        case .advance:
+            body = """
+            You are inside \(active.title), at depth \(active.depth).
+
+            \(active.world)
+
+            Anchor: \(active.anchor)
+            Intention: \(active.intention)
+            Guide: \(active.guide)
+
+            Keeping this page moves one beat deeper. The Nothing pressure is \(active.degradation)/4.
+            """
+        case .stabilize:
+            body = """
+            The page is beginning to blur.
+
+            \(active.nothing)
+
+            Name one true real-world detail in the margin, then keep this page. The Book will use it as ballast and lower the Nothing pressure.
+            """
+        case .return:
+            body = """
+            The Spine is visible.
+
+            You have gone deep enough into \(active.title). The Book wants one sentence from the journey before it closes the door.
+
+            Write a one-sentence souvenir in the margin. Keeping this page returns you and restores \(returnReward) Belief.
+            """
+        case .start:
+            body = active.arrival
+        }
+
+        return SurfacePage(
+            id: "\(source.id)-\(action.rawValue)-\(active.id)-\(day.id)-\(Int(now.timeIntervalSince1970))",
+            type: .bookJump,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: score,
+            reason: reason(for: action, active: active),
+            prompt: "\(action.title): \(active.title)",
+            detail: detail(for: action, active: active),
+            payload: BookPagePayload(
+                headline: headline(for: action),
+                body: body,
+                metadata: surfaceMetadata(active: active, action: action, extra: [
+                    "bookJumpBeliefDelta": action == .return ? "\(returnReward)" : "0",
+                    "bookJumpDepth": "\(active.depth)",
+                    "bookJumpDegradation": "\(active.degradation)",
+                    "bookJumpDirection": active.lastDirection ?? "",
+                    "placeholder": action == .return ? "One sentence you brought back from the book." : "Optional: one true detail to steady the page.",
+                    "tags": "book-jump,book-jump:\(action.rawValue),public-domain,\(active.bookID)"
+                ])
+            )
+        )
+    }
+
+    private static func activeScore(_ active: ActiveBookJump, action: BookJumpAction, context: CuratorContext) -> Int {
+        switch action {
+        case .return:
+            return 88
+        case .stabilize:
+            return 84
+        case .advance:
+            return context.distress.isActive ? 56 : min(76, 62 + active.depth * 4)
+        case .start:
+            return 58
+        }
+    }
+
+    private static func reason(for action: BookJumpAction, active: ActiveBookJump) -> String {
+        switch action {
+        case .start:
+            return "The Book has found a public-domain door."
+        case .advance:
+            return "\(active.title) is open and stable enough for one more beat."
+        case .stabilize:
+            return "The Nothing is blurring the page; the jump needs ballast."
+        case .return:
+            return "The Spine is visible; the jump is ready to come home with a souvenir."
+        }
+    }
+
+    private static func detail(for action: BookJumpAction, active: ActiveBookJump) -> String {
+        switch action {
+        case .start:
+            return active.arrival
+        case .advance:
+            return "Depth \(active.depth). \(active.world)"
+        case .stabilize:
+            return "Nothing pressure \(active.degradation)/4. Name one real detail."
+        case .return:
+            return "Write a one-sentence souvenir and return through the Spine."
+        }
+    }
+
+    private static func headline(for action: BookJumpAction) -> String {
+        switch action {
+        case .start: return "The Spine Opens"
+        case .advance: return "One Page Deeper"
+        case .stabilize: return "Hold the Page Still"
+        case .return: return "Find the Spine"
+        }
+    }
+
+    private static func surfaceMetadata(work: BookJumpWork, action: BookJumpAction, extra: [String: String]) -> [String: String] {
+        var metadata = [
+            "source": "book-jump",
+            "bookJumpAction": action.rawValue,
+            "bookID": work.id,
+            "bookTitle": work.title,
+            "bookAuthor": work.author,
+            "gutenbergID": work.gutenbergID,
+            "gutenbergURL": work.gutenbergURL,
+            "bookWorld": work.world,
+            "bookArrival": work.arrival,
+            "bookNothing": work.nothing,
+            "bookRules": work.rules.joined(separator: " | "),
+            "privacy": "private local"
+        ]
+        if let canon = canonicalDetail[work.id] {
+            metadata["bookLandmarks"] = canon.landmarks.joined(separator: " | ")
+            metadata["bookOpeningScene"] = canon.openingScene
+        }
+        extra.forEach { metadata[$0.key] = $0.value }
+        return metadata
+    }
+
+    /// Concrete, canonical furniture for each shelf book — the named places,
+    /// figures, objects, and set-pieces the live scene must be built from, plus
+    /// the specific scene the reader lands in mid-action on the first beat. This
+    /// is what keeps a jump from going atmospheric-but-empty: the model is given
+    /// real nouns to drop the reader among. Open-shelf books have no entry and
+    /// fall back to the model's own knowledge of the named title.
+    struct BookCanon { let landmarks: [String]; let openingScene: String }
+    static let canonicalDetail: [String: BookCanon] = [
+        "alice-wonderland": BookCanon(
+            landmarks: ["the White Rabbit with his waistcoat and pocket-watch", "the hall of locked doors and the little golden key", "the 'DRINK ME' bottle and 'EAT ME' cake", "the Caterpillar on his mushroom with the hookah", "the Cheshire Cat's grin", "the Mad Hatter's endless tea-table", "the Queen of Hearts' croquet-ground of flamingos and hedgehogs"],
+            openingScene: "the long hall after the fall down the rabbit-hole: too tall or too small, the tiny door to the garden, the glass table with the key just out of reach."),
+        "wizard-oz": BookCanon(
+            landmarks: ["the yellow brick road", "the Munchkins and the silver shoes", "the Scarecrow on his pole", "the Tin Woodman rusted in the forest", "the Cowardly Lion", "the field of deadly poppies", "the green glow of the Emerald City"],
+            openingScene: "the moment the farmhouse settles in Munchkin Country and the door opens on impossible colour, the Good Witch and the silver shoes waiting, the road beginning at your feet."),
+        "pride-prejudice": BookCanon(
+            landmarks: ["the assembly-room ball at Meryton", "Mr. Darcy's cold first impression", "Elizabeth Bennet's quick eyes", "the drawing-rooms of Longbourn and Netherfield", "muddy hems from walking the fields", "candlelight, card-tables, and overheard remarks"],
+            openingScene: "the crowded assembly ball: music and the press of muslin and broadcloth, a slighting remark just overheard across the room, every glance already being counted."),
+        "frankenstein": BookCanon(
+            landmarks: ["Victor's attic laboratory and its instruments", "the spark of unnatural life", "the creature's yellow eyes and yellow skin", "the Alpine ice of Mont Blanc and the sea of Chamonix", "lightning over the mountains", "the lonely creature watching from the cold"],
+            openingScene: "the laboratory the night the thing first breathes — guttering candle, the dull yellow eye opening, Victor's horror as the creature's hand stirs."),
+        "dracula": BookCanon(
+            landmarks: ["the Borgo Pass and the calèche driven by red eyes", "Castle Dracula's crumbling battlements", "the Count's cold handshake and growing youth", "the three pale brides and their laughter", "the peasant woman's crucifix pressed into your hand", "Harker's locked journal", "wolves answering the Count — 'the children of the night'"],
+            openingScene: "the castle courtyard at midnight after the long ride: the great door swinging open by no hand, the Count waiting on the stair with his candle, the howl of wolves behind you and the cold coming off the stone."),
+        "christmas-carol": BookCanon(
+            landmarks: ["Scrooge's cold counting-house and single coal", "Marley's chained ghost and clanking cash-boxes", "the Cratchit family's small dinner and Tiny Tim", "the Ghost of Christmas Past's steady flame", "the Ghost of Christmas Present's heaped feast", "the silent black-robed Ghost of Christmas Yet to Come", "the snowy London streets and church bells"],
+            openingScene: "the freezing counting-house on Christmas Eve as the bells ring out, the fire mean and small, a door-knocker beginning, impossibly, to take on Marley's face."),
+        "sherlock-holmes": BookCanon(
+            landmarks: ["221B Baker Street's cluttered sitting-room", "the gasogene, the pipe, and the violin", "Holmes reading a stranger from mud and cuffs", "fog at the window and a hansom at the kerb", "a client unwinding an impossible problem", "the small overlooked detail that holds the case"],
+            openingScene: "the Baker Street sitting-room as a rain-soaked client is shown in: Holmes already reading their boots and sleeve, Watson by the fire, a problem pretending to be ordinary laid on the table."),
+        "secret-garden": BookCanon(
+            landmarks: ["the locked walled garden and its buried key", "the robin who shows the way", "the hundred rooms of Misselthwaite Manor", "the cry heard down the corridors at night", "Dickon and his wild creatures", "green shoots breaking the cold soil"],
+            openingScene: "the moment the key turns and the door in the wall swings in: the hushed, overgrown, half-dead garden no one has entered in ten years, a robin watching, the air deciding whether to trust you."),
+        "treasure-island": BookCanon(
+            landmarks: ["the Admiral Benbow inn and the old sea-chest", "the black spot", "Long John Silver and his parrot 'Pieces of eight!'", "the Hispaniola under sail", "the apple-barrel where the mutiny is overheard", "the island stockade and the buried cache", "Captain Flint's map with its red cross"],
+            openingScene: "the deck of the Hispaniola at dusk near the island: the smell of tar and tide, and from inside the apple-barrel the low voices of Silver and the crew letting slip the word 'mutiny.'"),
+        "moby-dick": BookCanon(
+            landmarks: ["the Pequod bristling with whalebone", "Captain Ahab's ivory leg and burning stare", "the gold doubloon nailed to the mast", "Queequeg and his harpoon", "the try-works fires rendering blubber at night", "the white whale breaching", "the vast grey-green sea"],
+            openingScene: "the deck of the Pequod as Ahab nails the gold doubloon to the mast and roars his oath against the white whale, the crew caught up in it, the sea heaving under a hard sky."),
+        "don-quixote": BookCanon(
+            landmarks: ["the windmills mistaken for giants", "the gaunt knight on Rocinante", "Sancho Panza on his donkey", "a roadside inn taken for a castle", "a barber's basin worn as a golden helmet", "the dusty plains of La Mancha"],
+            openingScene: "the open plain where the windmills turn: the knight levelling his lance, certain they are giants, Sancho calling out the truth, the charge already beginning."),
+        "odyssey": BookCanon(
+            landmarks: ["the wine-dark sea and a battered raft", "the Cyclops Polyphemus and his cave of sheep", "Circe's hall and her cup", "the Sirens' song and the mast", "Scylla and Charybdis in the strait", "the longed-for shore of Ithaca", "the rule of guest-friendship"],
+            openingScene: "a shore at the edge of the wine-dark sea, salt and smoke on the wind, a cave of penned sheep ahead and the ground trembling with something vast returning to it."),
+    ]
+
+    private static func surfaceMetadata(active: ActiveBookJump, action: BookJumpAction, extra: [String: String]) -> [String: String] {
+        let work = BookJumpWork(
+            id: active.bookID,
+            title: active.title,
+            author: active.author,
+            gutenbergID: active.gutenbergID,
+            world: active.world,
+            arrival: active.arrival,
+            nothing: active.nothing,
+            rules: active.rules,
+            resonances: []
+        )
+        return surfaceMetadata(work: work, action: action, extra: extra.merging([
+            "bookJumpID": active.id,
+            "bookJumpAnchor": active.anchor,
+            "bookJumpIntention": active.intention,
+            "bookJumpGuide": active.guide
+        ]) { current, _ in current })
+    }
+
+    private static func contextText(day: BookDay, inputs: BookSourceInputs) -> String {
+        let pageText = ([day] + Array(inputs.days.prefix(5)))
+            .flatMap(\.pages)
+            .suffix(20)
+            .map { "\($0.promptText) \($0.userInput) \($0.tags.joined(separator: " "))" }
+            .joined(separator: " ")
+        let themeText = inputs.themes.prefix(8).map(\.name).joined(separator: " ")
+        let clusterText = inputs.clusters.prefix(6).map(\.name).joined(separator: " ")
+        return "\(pageText) \(themeText) \(clusterText)".lowercased()
+    }
+
+    private static func startAnchor(day: BookDay, inputs: BookSourceInputs) -> String {
+        if let last = day.capturedPages.last?.userInput.trimmingCharacters(in: .whitespacesAndNewlines), !last.isEmpty {
+            return String(last.prefix(90))
+        }
+        if let weather = inputs.weather?.phrase, !weather.isEmpty {
+            return "today's \(weather)"
+        }
+        return "one true detail from today"
+    }
+
+    private static func startIntention(day: BookDay, inputs: BookSourceInputs) -> String {
+        if let theme = inputs.themes.first?.name, !theme.isEmpty {
+            return "find how \(theme) behaves in another book"
+        }
+        if day.capturedPages.contains(where: { $0.type == .souvenir }) {
+            return "bring back a sentence that still belongs to real life"
+        }
+        return "notice one useful impossibility and return with it intact"
+    }
+
+    private static func startGuide(inputs: BookSourceInputs) -> String {
+        if let entity = inputs.customCastMembers.max(by: { left, right in
+            let leftBelief = left.baseBelief + (inputs.entityBeliefOffsets[left.id] ?? 0)
+            let rightBelief = right.baseBelief + (inputs.entityBeliefOffsets[right.id] ?? 0)
+            if leftBelief == rightBelief { return left.narrativeWeight < right.narrativeWeight }
+            return leftBelief < rightBelief
+        }) {
+            return entity.name
+        }
+        return "the Book"
+    }
+}
+
 enum StoryChoiceRole: String, Codable, Equatable, CaseIterable {
     case sliceOfLife
     case progressArc
@@ -1494,6 +2444,134 @@ enum SupportGuildSynthesisGenerator {
             return "Pair the next Fuel Log with one Inner Weather word so Vellum and Inkrest can compare timing."
         }
         return "Choose one repeatable observation for today: what happened to energy and mood one hour after the most ordinary meal or drink?"
+    }
+}
+
+struct SupportGuildGeneratedProse: Equatable {
+    var scene: String
+    var vellum: String
+    var inkrest: String
+    var connections: String
+    var experiment: String
+    var safety: String
+}
+
+enum SupportGuildProseParser {
+    private static let orderedLabels = ["SCENE", "VELLUM", "INKREST", "CONNECTIONS", "EXPERIMENT", "SAFETY"]
+
+    static func parse(_ raw: String, fallbackMetadata: [String: String] = [:], fallbackBody: String = "") -> SupportGuildGeneratedProse {
+        let sections = labeledSections(in: raw)
+        let hasStructuredSections = !sections.isEmpty
+        let sceneSource = hasStructuredSections ? sections["SCENE", default: ""] : raw
+
+        return SupportGuildGeneratedProse(
+            scene: clean(sceneSource, maxCharacters: 2_200, preserveLineBreaks: true).nonEmpty
+                ?? clean(fallbackBody, maxCharacters: 1_600, preserveLineBreaks: true),
+            vellum: clean(sections["VELLUM"] ?? fallbackMetadata["vellumSection"] ?? "", maxCharacters: 700, preserveLineBreaks: true),
+            inkrest: clean(sections["INKREST"] ?? fallbackMetadata["inkrestSection"] ?? "", maxCharacters: 700, preserveLineBreaks: true),
+            connections: clean(sections["CONNECTIONS"] ?? fallbackMetadata["connectionsSection"] ?? "", maxCharacters: 700, preserveLineBreaks: true),
+            experiment: clean(sections["EXPERIMENT"] ?? fallbackMetadata["experimentSection"] ?? "", maxCharacters: 700, preserveLineBreaks: true),
+            safety: clean(sections["SAFETY"] ?? fallbackMetadata["safetySection"] ?? "", maxCharacters: 420, preserveLineBreaks: true)
+        )
+    }
+
+    static func clean(_ raw: String, maxCharacters: Int, preserveLineBreaks: Bool = false) -> String {
+        var text = raw
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: #"(?im)^\s*(try|scene|vellum|inkrest|connections|experiment|safety)\s*:\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"(?m)^\s*[-•]\s+"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        text = text
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: preserveLineBreaks ? "\n" : " ")
+            .replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
+            .replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        text = droppingDanglingTail(from: text)
+
+        guard text.count > maxCharacters else { return text }
+        let clipped = String(text.prefix(maxCharacters))
+        if let sentenceEnd = clipped.lastIndex(where: { ".!?\"”".contains($0) }) {
+            return String(clipped[...sentenceEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let paragraphBreak = clipped.range(of: "\n\n", options: .backwards) {
+            return String(clipped[..<paragraphBreak.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return clipped.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func labeledSections(in raw: String) -> [String: String] {
+        var sections: [String: [String]] = [:]
+        var currentLabel: String?
+
+        raw.replacingOccurrences(of: "\r\n", with: "\n")
+            .components(separatedBy: "\n")
+            .forEach { line in
+                if let marker = sectionMarker(in: line) {
+                    currentLabel = marker.label
+                    if !marker.remainder.isEmpty {
+                        sections[marker.label, default: []].append(marker.remainder)
+                    }
+                } else if let currentLabel {
+                    sections[currentLabel, default: []].append(line)
+                }
+            }
+
+        return sections.mapValues { lines in
+            lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    private static func sectionMarker(in line: String) -> (label: String, remainder: String)? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let colon = trimmed.firstIndex(of: ":") else { return nil }
+        let rawLabel = String(trimmed[..<colon])
+            .replacingOccurrences(of: "#", with: "")
+            .replacingOccurrences(of: "*", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+        guard orderedLabels.contains(rawLabel) else { return nil }
+        let remainder = String(trimmed[trimmed.index(after: colon)...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (rawLabel, remainder)
+    }
+
+    private static func droppingDanglingTail(from text: String) -> String {
+        let lines = text.components(separatedBy: "\n")
+        if let lastIndex = lines.lastIndex(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+            let lastLine = lines[lastIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+            if lastIndex > 0, isDanglingFragment(lastLine) {
+                return lines[..<lastIndex]
+                    .joined(separator: "\n")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        let paragraphs = text.components(separatedBy: "\n\n")
+        guard let last = paragraphs.last?.trimmingCharacters(in: .whitespacesAndNewlines),
+              paragraphs.count > 1,
+              !last.isEmpty
+        else {
+            return text
+        }
+
+        if isDanglingFragment(last) {
+            return paragraphs.dropLast().joined(separator: "\n\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return text
+    }
+
+    private static func isDanglingFragment(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let endsCleanly = ".!?\"”".contains(text.last ?? ".")
+        let looksLikeFragment = lower == "try"
+            || lower.hasPrefix("try: ")
+            || lower.hasPrefix("dr. ")
+            || lower.split(separator: " ").count <= 4
+        return !endsCleanly && looksLikeFragment
     }
 }
 

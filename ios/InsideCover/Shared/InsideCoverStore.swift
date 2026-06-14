@@ -1060,15 +1060,79 @@ enum LocalModelManager {
         \((metadata["keptToday"]?.isEmpty == false) ? metadata["keptToday"]! : "nothing kept yet today")
         Connection the template noticed: \(metadata["connectionsSection"] ?? "none noted")
 
+        OUTPUT FORMAT:
+        Write exactly these labeled sections, in this order:
+        SCENE:
+        VELLUM:
+        INKREST:
+        CONNECTIONS:
+        EXPERIMENT:
+        SAFETY:
+
         RULES:
-        - Write the meeting as a short scene: the two doctors talking to each other, synthesizing ALL of the data above — body numbers, the day's weather, and the kept pages with their clock times. The good material is in the crossings: what the 7 a.m. page says next to the sleep number, what the weather was doing when the mood page was kept.
+        - SCENE is the meeting itself: 3 to 5 short paragraphs, with the two doctors talking to each other and synthesizing ALL of the data above — body numbers, the day's weather, and the kept pages with their clock times. The good material is in the crossings: what the 7 a.m. page says next to the sleep number, what the weather was doing when the mood page was kept.
         - Every number, note, time, or pattern they mention must come from the data above. Do not invent readings, dates, or symptoms.
         - Vellum reads the body and the plate; Inkrest reads the inner weather and the story the kept pages tell. Each should catch one thing the other missed.
         - No diagnosis, no treatment advice, no shame. Patterns are held lightly, as things to notice.
         - Let them disagree or tease each other gently at least once.
-        - After the scene, the two of them agree on one or two SMALL EXPERIMENTS: concrete, observation-shaped, doable within 48 hours, each tied to a specific crossing in the data (for example, if late pages and low sleep co-occur: an earlier page one evening, just to see). Write each on its own line beginning exactly "Try: ". Experiments are invitations to notice, never prescriptions.
-        - Close with this exact line: "\(metadata["safetySection"] ?? "This is not diagnosis or treatment. It is a low-shame pattern note for deciding what to observe next.")"
-        - 4 to 6 short paragraphs before the experiments. Simple concrete sentences. No headings.
+        - VELLUM is 1 or 2 sentences of Dr. Vellum's practical reading.
+        - INKREST is 1 or 2 sentences of Dr. Inkrest's story/weather reading.
+        - CONNECTIONS is 1 or 2 concrete crossings they noticed.
+        - EXPERIMENT is one or two SMALL experiments: concrete, observation-shaped, doable within 48 hours, each tied to a specific crossing in the data. Start with a verb. Do not use "Try:" as a label.
+        - SAFETY must be this exact line: "\(metadata["safetySection"] ?? "This is not diagnosis or treatment. It is a low-shame pattern note for deciding what to observe next.")"
+        - Keep the whole answer under 750 words. Complete every sentence. No assistant language.
+        """
+    }
+
+    static func bookJumpPrompt(surface: SurfacePage) -> String {
+        let metadata = surface.payload.metadata
+        let action = metadata["bookJumpAction"] ?? "advance"
+        let landmarks = metadata["bookLandmarks"]?.nonEmpty
+        let touchstoneBlock = landmarks.map { "A few touchstones, only to confirm we mean the same book — do NOT limit yourself to these:\n\($0)" }
+            ?? ""
+        let directionBlock = metadata["bookJumpDirection"].flatMap { StoryChoiceRole(rawValue: $0) }.map {
+            "THE READER'S CHOSEN DIRECTION (honor this in the scene you pick): \($0.title) — \($0.directorInstruction)"
+        } ?? ""
+        return """
+        You are the Book Jumping engine inside ReEnchanted. Write ONE contained scene beat for a reader who has physically fallen into a real public-domain book and is now standing inside an actual scene from it.
+
+        PUBLIC-DOMAIN WORK, FIXED:
+        Title: \(metadata["bookTitle"] ?? "unknown")
+        Author: \(metadata["bookAuthor"] ?? "unknown")
+        \(touchstoneBlock)
+
+        CHOOSE THE SCENE YOURSELF:
+        You know this book. From your own memory of it, CHOOSE one specific, real scene to drop the reader into — a concrete moment that actually happens in the text, with its real setting, characters, and events. Do not default to the single most obvious scene every time; let the reader's anchor and intention below pull you toward the scene that most resonates, and vary your choice across jumps. Deeper jumps should land in later, stranger, higher-stakes scenes from further into the book.
+
+        \(directionBlock)
+
+        JUMP STATE:
+        Action: \(action)
+        Depth: \(metadata["bookJumpDepth"] ?? "0") (deeper = further into the book, stranger, higher stakes)
+        Nothing pressure: \(metadata["bookJumpDegradation"] ?? "0") of 4 (how much the scene is blurring/forgetting itself)
+        Anchor from the reader's real day: \(metadata["bookJumpAnchor"] ?? "one true detail")
+        Intention: \(metadata["bookJumpIntention"] ?? "bring back a sentence")
+        Guide: \(metadata["bookJumpGuide"] ?? "the Book")
+
+        CONCRETENESS — THE WHOLE POINT:
+        - Be IN this book. Name its real places, people, and objects from the list above. The reader should never wonder which book they are in.
+        - Write to the five senses: what they smell, hear, touch, the temperature, the light. Specific nouns, not adjectives about "wonder" or "magic."
+        - Drop the reader into the MIDDLE of an actual scene already in motion — not a vague threshold, not a summary. Something is happening when they land; people are mid-action; they have to react.
+
+        ABSOLUTE RULES:
+        - Use ONLY the named work. No invented Enchantify books, no modern/copyrighted franchises, no other titles.
+        - The reader remains themself — an outsider who has fallen in. They do NOT replace the protagonist (not Harker, Alice, Dorothy, Elizabeth, Victor, Holmes, etc.); they stand beside the story and are affected by it.
+        - Do not quote the source text verbatim. Render it freshly from knowledge.
+        - Weave the reader's real-day anchor in as a physical object or detail that exists with them inside the scene.
+        - One beat, not a chapter. Keep the way home (the Spine) faintly sensed.
+        - The Nothing is degradation — blankness, edges forgetting themselves, names going grey — not a monster to fight.
+        - No headings, no lists, no assistant framing. Prose only.
+
+        SHAPE (4–6 paragraphs, the Book's voice — vivid, concrete, a little dangerous):
+        - If action is START: open with the FALL — a visceral, bodily sensation of being pulled out of the reader's own day and down THROUGH the page (ink, paper-grain, vertigo, words streaming past, the smell changing) — then the LANDING, hard, in the middle of the real scene you chose, surrounded by its specific people and things, the action already happening around them.
+        - If action is ADVANCE: carry them into a different, later, real scene from deeper in the book; raise the stakes with a concrete pressure (a named character notices them, a door, a turn) without asking a formal question.
+        - If action is STABILIZE: show the scene smearing/forgetting itself (Nothing pressure), then how naming one true real-world detail snaps a specific part of the book back into sharp focus.
+        - If action is RETURN: bring the Spine close — a seam of light, the page-edge — and invite (do not invent) one one-sentence souvenir to carry back.
         """
     }
 
@@ -1630,6 +1694,10 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "two of the cast reading the same week differently" : "a disagreement over \(clipped)"
         case .castBond:
             return clipped.isEmpty ? "the living web changing between two members of the cast" : "a cast bond turning around \(clipped)"
+        case .todaysSky:
+            return clipped.isEmpty ? "the night sky read over the reader" : "tonight's sky reading of \(clipped)"
+        case .bookJump:
+            return clipped.isEmpty ? "a public-domain door opening through the Spine" : "a Book Jump returning with \(clipped)"
         case .enchantment:
             return clipped.isEmpty ? "an Enchantment completed with proof" : "an Enchantment changing the margins with \(clipped)"
         case .anchor:

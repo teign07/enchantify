@@ -23,7 +23,7 @@ durations, relationships, recurring Beliefs, and seasonal shape.
 - Shared SwiftPM package: `InsideCoverCore`
 - Supported runtime target: iOS 17+
 - Shared-core test target: `Tests/InsideCoverCoreTests`
-- Current verified shared suite: 296 tests
+- Current verified shared suite: 325 tests
 - Device builds: build/install to a physical device (the local brain only runs on
   device; the iOS Simulator compiles but exercises only the fake fallbacks).
 - Widget status: removed from this project. The old widget source has been
@@ -352,8 +352,27 @@ Every edition opens with a **foreword written by the Book**
 which constellations it named, and how its wagers went. The foreword is
 deterministic - the same month always gets the same foreword.
 
-`MonthlyEditionBuilder.year(...)` binds a whole year into an annual
-("Book of You: The 2026 Annual") using the same machinery.
+### Volume I — The Annual
+
+`MonthlyEditionBuilder.annual(year:...)` binds a whole year as a real **book of
+chapters**, not one oversized month. It builds a fully-formed `MonthlyEdition`
+for every month that kept pages (each keeping its own theme, foreword, star
+chart, and binding style), and wraps them in an `AnnualEdition` carrying a
+year-level foreword, the year's constellations and wager record, and a closing —
+all deterministic and pure-local. Empty months are skipped; chapter numbers are
+the months' positions among months with pages. Totals sum the chapters. Covered
+by `AnnualEditionTests`.
+
+`MonthlyEditionPDFWriter.writeAnnual(...)` renders it as a grand volume: a
+constellation-cover title page; the Book's *Foreword to the Year* (with drop
+cap); a *The Year in N Chapters* table listing each month and its theme; then,
+per chapter, a **chapter-divider page** (month, theme, line) followed by that
+chapter's own foreword, star chart, and curated sections (drawn in the chapter's
+own palette/ornament, with per-chapter running heads and marginalia); and finally
+back matter — *The Year's Constellations* star chart and a closing colophon. It
+reuses the monthly renderer's primitives so the annual and the monthlies share a
+visual language. The lab/export area exposes **Bind the annual** (→ `ShareLink`),
+which binds the most recent year that kept pages.
 
 `InsideCoverApp/MonthlyEditionPDF.swift` writes the edition to a PDF using
 `UIGraphicsPDFRenderer`, and every month binds differently on purpose.
@@ -664,6 +683,70 @@ entities. Those changes become ledgers and narrative events, not invisible
 settings. The Glow menu is also the entry point to the BookShop, **The Margin**
 (Fae standing), and **The Pact Map** (the Talisman territory war).
 
+### The Belief Economy Engine
+
+`BeliefEconomyEngine` (`Shared/WorldSystems.swift`) keeps Belief from inflating to
+"topped-up Glow everywhere," with a persisted `BeliefEconomyState` on the vault:
+
+- **Daily tide (targeted income).** A once-a-day tick (`runBeliefEconomyDailyTick`,
+  day-gated) gives the reader a small ember for keeping pages and feeds only the
+  **top-2 recently-touched** entities under 70 — never the whole cast.
+- **Settling (the sink).** Reader Glow above a soft ceiling cools overnight;
+  untouched high-Glow entities (>70) and page sources (>60) cool toward floors.
+  The Nothing and its kin are excluded from both the tide and the cooling —
+  antagonist Glow only moves through real events.
+- **A closed cast economy.** Gossip invest/attack makes the *actor spend* Belief
+  (`castSpendDelta`, never below a floor), and **invest is conservative** — a
+  depleted actor can't mint Belief for a target; the target gains exactly what the
+  actor paid.
+- **Keep/dismiss pressure.** Keeping a source warms it (once/day, capped);
+  repeated dismissals cool it.
+- **Legibility.** Each tick records `recentMovements`; the app surfaces a one-line
+  **overnight digest** ("Overnight: your Glow settled by 3, Zara Finch cooled 2.").
+
+## Book Jumping (stepping into public-domain books)
+
+`BookJumpEngine` (`Shared/StoryEngine.swift`) lets the reader step through the
+Spine into a real public-domain book — a controlled, page-at-a-time ritual that
+**leaves marks on the book they live in**.
+
+- **The shelf.** Fourteen hand-authored public-domain works (Alice, Oz, Austen,
+  Frankenstein, Dracula, *A Christmas Carol*, Holmes, *The Secret Garden*,
+  Treasure Island, Moby-Dick, Don Quixote, the Odyssey…), each with its own world,
+  arrival, Nothing, rules, and resonances, plus a Gutenberg link. Selection is
+  resonance-matched to the reader's recent pages, themes, and clusters.
+- **The loop.** Open the Spine (spends Belief) → go deeper (escalating cost; the
+  Nothing's pressure climbs with depth) → stabilize (name a real detail to lower
+  pressure) → Find the Spine and return with a one-sentence souvenir
+  (depth-scaled reward). One beat per kept page; the live brain writes each beat,
+  anchored to a true detail from the reader's day and a chosen guide.
+- **The fork (reader agency).** An open jump replaces the generic Keep button with
+  explicit in-page controls — **Go one page deeper**, **Steady the page** (once the
+  Nothing is loud), and **Find the Spine and return** (from depth 2 on, its label
+  showing whether a souvenir is in hand). Each rewrites the beat's action + tag so
+  Belief cost/reward, the borrowed-rule grant, and souvenir resurfacing stay
+  correct (`keepBookJump(as:)` in `CapturePageSheet`). Depth and Nothing meters
+  make the stakes visible.
+- **Borrowed Rules.** Returning *with a souvenir* carries one of the book's rules
+  home as a time-boxed `BorrowedRule` with a real, cross-system effect
+  (`BorrowedRuleEffect`) — Holmes sharpens Book Notices, Dracula warms records,
+  *A Christmas Carol*/Secret Garden push the Nothing's grey back, Oz warms the
+  cast. Effects feed the same curator seams as the Almanac (`surfaceBoosts`,
+  `greyShift`).
+- **Real stakes.** Leave a jump unstabilized and the daily tick lets the Nothing
+  gain a margin; if it overruns, the jump **collapses** — you lose the staked
+  Belief and that book goes **cold** for a few days (skipped by selection until it
+  warms back), mirroring the Fae-lapse pattern.
+- **Living-world marks.** The guide who traveled with you deepens (Belief +
+  relationship warmth on a companionship rule); the brought-back souvenir
+  resurfaces through The Book Remembered, attributed to its source book; repeated
+  visits to a book — or a repeating resonance family across books — form a named
+  **companion constellation** ("You and Oz keep meeting…").
+- **The open shelf.** The lab area lets the reader name *any* book; the Book
+  improvises a door (`improvisedWork` + `startCustom`) and enters it live.
+
+Covered by Book Jump and Belief-economy tests in `WorldSystemsTests`.
+
 ## Chapters And Talismans
 
 Chapters are represented as talisman entities in the narrative pack. Talisman
@@ -861,6 +944,31 @@ The Wheel bends every system, all pure-local and distress-aware:
   feast to my Calendar" button (`EventKitWriter`).
 
 Hemisphere comes from the reader's last known latitude (`Hemisphere.from`).
+
+### Today's Sky
+
+`SkyAlmanac` (also in `Shared/WorldSystems.swift`) reads the night overhead for a
+date and hemisphere — the everyday companion to the Almanac's special feasts. It
+is pure local astronomy: `SkyEphemeris` computes low-precision ecliptic
+longitudes for the Sun and Moon (good to a degree or two — "close enough for a
+storybook"), `Zodiac` names the tropical sign each one stands in, and
+`SkyAlmanac.lightTrend` reports whether the light is lengthening, drawing in, or
+near balance (hemisphere-aware, from the Sun's longitude relative to the equinox
+and solstice points). `SkyAlmanac.nextEvent` picks the soonest reason to look up
+— the next Full Moon, New Moon, or meteor-shower peak (seven showers, from the
+Quadrantids to the Geminids) — with a "tonight / tomorrow night / in N nights"
+phrase.
+
+`SkyAlmanac.reading` bundles all of it into a `SkyReading` (moon phase + sign,
+sun sign, light trend, next event, any shower peaking now, a rotating opener, and
+a set of prose notes). The `todaysSky` page type surfaces it in the evening
+(after 5pm, once a day) via `TodaysSkyPageSourceAdapter` — a gentle page,
+welcome even on a hard day. The page shows three callouts (the Moon and its sign,
+the Sun and the turning of the light, the next event) plus an "add a sky-watch to
+my Calendar" button (`EventKitWriter`) seeded with the next event's date. Keeping
+it deepens the reader's tie to *ordinary-magic* and the Book. The Almanac leans
+the feed toward Today's Sky on esbat and shower nights via `surfaceBoosts`. No
+model call — the reading is entirely computed. Covered by `TodaysSkyTests`.
 
 ## The Returning Greeting
 
@@ -1419,6 +1527,16 @@ keep/dismiss, source refresh, braiding, selection, knock, errors, and undo.
 sounds. The banner knock interaction can return state-aware notes through
 `BannerKnockNotes`.
 
+### Text Selection And Copy/Paste
+
+The reading surfaces use the standard iOS edit menu — no custom affordances. Page
+prose is long-press selectable/copyable via `.textSelection(.enabled)` on the open
+page (`CapturePageSheet`, covering live pages and kept-page readback), the feed
+cards (`SurfaceCard`), and Search the Stacks results. Capture inputs are ordinary
+SwiftUI `TextEditor`/`TextField`, so Select / Copy / Paste (and ⌘V) work natively;
+the `dictationInput` mic button is a small corner overlay that does not block the
+text gesture.
+
 ## BookShop And Packs
 
 The pack system is partly data-driven and partly enum-backed.
@@ -1566,11 +1684,19 @@ Coverage areas include:
   dispatches, Sovereign automation, next-new-moon),
 - the Almanac (sabbats, esbats, hemisphere flip, grey shift, surface boosts,
   festival adapter),
+- Today's Sky (zodiac/ephemeris, light trend, next event, reading, evening adapter),
 - the returning greeting composer,
 - The Two Readings (dynamic disagreement engine, adapter, siding effects),
 - cross-letter memory,
 - the living relationship field (weave, emergent/cooled Loom threads) and gossip
-  Belief moves.
+  Belief moves,
+- the Belief economy engine (daily tide, high/neglected-Glow settling, kept/dismissed
+  source warmth, cast-spend floor),
+- Book Jumping (public-domain shelf, progression/stabilize/return, Borrowed Rules,
+  collapse + cold books, daily decay, escalating cost, open-shelf, companion
+  constellations),
+- the annual edition (per-month chaptering, ordering, totals, deterministic
+  foreword).
 
 Common test command:
 

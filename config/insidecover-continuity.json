@@ -1,0 +1,1842 @@
+{
+  "constellations" : [
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-13.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md",
+        "diary-2026-04-17.md",
+        "diary-2026-04-22.md"
+      ],
+      "firstNoticedAt" : "2026-04-14T00:00:00Z",
+      "id" : "constellation-belief-lifecycle-diary-page",
+      "kind" : "beliefLifecycle",
+      "lastSeenAt" : "2026-05-31T00:00:00Z",
+      "latestLine" : "Diary Page has become a living thread: 28 kept pages, 0 events, current Glow 28.",
+      "name" : "The Living Diary Page",
+      "namedAt" : "2026-04-30T00:00:00Z",
+      "phase" : "woven",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-04-13",
+        "2026-04-15",
+        "2026-04-22",
+        "2026-04-23",
+        "2026-04-25",
+        "2026-04-29",
+        "2026-04-30",
+        "2026-05-01",
+        "2026-05-02",
+        "2026-05-05",
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08",
+        "2026-05-09",
+        "2026-05-13",
+        "2026-05-14",
+        "2026-05-15",
+        "2026-05-16",
+        "2026-05-17",
+        "2026-05-18",
+        "2026-05-19",
+        "2026-05-20",
+        "2026-05-21",
+        "2026-05-22",
+        "2026-05-23",
+        "2026-05-24",
+        "2026-05-25",
+        "2026-05-26",
+        "2026-05-28",
+        "2026-05-30"
+      ],
+      "signalID" : "belief-lifecycle-diary-page",
+      "strengthPeak" : 96,
+      "subjectID" : "diary-page",
+      "subjectName" : "Diary Page",
+      "tags" : [
+        "belief",
+        "constellation",
+        "diary-page",
+        "lifecycle",
+        "literary-continuity"
+      ],
+      "wovenAt" : "2026-05-03T00:00:00Z"
+    },
+    {
+      "evidencePageIDs" : [
+        "mood-2026-05-14T06:48:52",
+        "mood-2026-05-14T08:33:03",
+        "mood-2026-05-14T14:48:08",
+        "mood-2026-05-14T22:11:10-04:00",
+        "mood-2026-05-17T12:08:45",
+        "mood-2026-05-18T12:01:44",
+        "mood-2026-05-18T12:04:06"
+      ],
+      "firstNoticedAt" : "2026-05-15T00:00:00Z",
+      "id" : "constellation-belief-lifecycle-inner-weather",
+      "kind" : "beliefLifecycle",
+      "lastSeenAt" : "2026-05-31T00:00:00Z",
+      "latestLine" : "Inner Weather has become a living thread: 28 kept pages, 0 events, current Glow 36.",
+      "name" : "Inner Weather Ascendant",
+      "namedAt" : "2026-05-29T00:00:00Z",
+      "phase" : "woven",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-14",
+        "2026-05-17",
+        "2026-05-18",
+        "2026-05-19",
+        "2026-05-20",
+        "2026-05-21",
+        "2026-05-22",
+        "2026-05-23",
+        "2026-05-24",
+        "2026-05-25",
+        "2026-05-26",
+        "2026-05-28",
+        "2026-05-30"
+      ],
+      "signalID" : "belief-lifecycle-inner-weather",
+      "strengthPeak" : 96,
+      "subjectID" : "inner-weather",
+      "subjectName" : "Inner Weather",
+      "tags" : [
+        "belief",
+        "constellation",
+        "inner-weather",
+        "lifecycle",
+        "literary-continuity"
+      ],
+      "wovenAt" : "2026-05-29T00:00:00Z"
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-13.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md",
+        "diary-2026-04-17.md"
+      ],
+      "firstNoticedAt" : "2026-05-10T00:00:00Z",
+      "id" : "constellation-absence-climax",
+      "kind" : "absence",
+      "lastSeenAt" : "2026-05-22T00:00:00Z",
+      "latestLine" : "Climax used to appear often; it has been quiet for 34 days.",
+      "name" : "The Quiet Shape of Climax",
+      "namedAt" : "2026-05-24T00:00:00Z",
+      "phase" : "woven",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-09",
+        "2026-05-13",
+        "2026-05-14",
+        "2026-05-15",
+        "2026-05-16",
+        "2026-05-17",
+        "2026-05-18",
+        "2026-05-19",
+        "2026-05-20",
+        "2026-05-21"
+      ],
+      "signalID" : "absence-climax",
+      "strengthPeak" : 94,
+      "subjectID" : "climax",
+      "subjectName" : "Climax",
+      "tags" : [
+        "absence",
+        "climax",
+        "constellation",
+        "literary-continuity"
+      ],
+      "wovenAt" : "2026-05-24T00:00:00Z"
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-12.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md",
+        "diary-2026-04-17.md",
+        "diary-2026-04-22.md",
+        "diary-2026-04-23.md"
+      ],
+      "firstNoticedAt" : "2026-05-16T00:00:00Z",
+      "id" : "constellation-absence-flat",
+      "kind" : "absence",
+      "lastSeenAt" : "2026-05-22T00:00:00Z",
+      "latestLine" : "Flat used to appear often; it has been quiet for 28 days.",
+      "name" : "Where Flat Went",
+      "namedAt" : "2026-05-31T00:00:00Z",
+      "phase" : "named",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-15",
+        "2026-05-16",
+        "2026-05-17",
+        "2026-05-18",
+        "2026-05-19",
+        "2026-05-20",
+        "2026-05-21"
+      ],
+      "signalID" : "absence-flat",
+      "strengthPeak" : 94,
+      "subjectID" : "flat",
+      "subjectName" : "Flat",
+      "tags" : [
+        "absence",
+        "constellation",
+        "flat",
+        "literary-continuity"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md",
+        "diary-2026-04-22.md",
+        "diary-2026-04-23.md"
+      ],
+      "firstNoticedAt" : "2026-05-16T00:00:00Z",
+      "id" : "constellation-absence-fell",
+      "kind" : "absence",
+      "lastSeenAt" : "2026-05-22T00:00:00Z",
+      "latestLine" : "Fell used to appear often; it has been quiet for 28 days.",
+      "name" : "What Fell Left Quiet",
+      "namedAt" : "2026-05-31T00:00:00Z",
+      "phase" : "named",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-15",
+        "2026-05-16",
+        "2026-05-17",
+        "2026-05-18",
+        "2026-05-19",
+        "2026-05-20",
+        "2026-05-21"
+      ],
+      "signalID" : "absence-fell",
+      "strengthPeak" : 92,
+      "subjectID" : "fell",
+      "subjectName" : "Fell",
+      "tags" : [
+        "absence",
+        "constellation",
+        "fell",
+        "literary-continuity"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-13.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md",
+        "diary-2026-04-17.md",
+        "diary-2026-04-22.md"
+      ],
+      "firstNoticedAt" : "2026-05-01T00:00:00Z",
+      "id" : "constellation-duration-belief-diary-page",
+      "kind" : "duration",
+      "lastSeenAt" : "2026-05-31T00:00:00Z",
+      "latestLine" : "Diary Page has been in the margins for 51 days.",
+      "name" : "The Long Diary Page",
+      "namedAt" : "2026-05-15T00:00:00Z",
+      "phase" : "woven",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-04-30",
+        "2026-05-01",
+        "2026-05-02",
+        "2026-05-05",
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08",
+        "2026-05-09",
+        "2026-05-13",
+        "2026-05-14",
+        "2026-05-15",
+        "2026-05-16",
+        "2026-05-17",
+        "2026-05-18",
+        "2026-05-19",
+        "2026-05-20",
+        "2026-05-21",
+        "2026-05-22",
+        "2026-05-23",
+        "2026-05-24",
+        "2026-05-25",
+        "2026-05-26",
+        "2026-05-28",
+        "2026-05-30"
+      ],
+      "signalID" : "duration-belief-diary-page",
+      "strengthPeak" : 90,
+      "subjectID" : "diary-page",
+      "subjectName" : "Diary Page",
+      "tags" : [
+        "belief",
+        "constellation",
+        "diary-page",
+        "duration",
+        "literary-continuity"
+      ],
+      "wovenAt" : "2026-05-15T00:00:00Z"
+    },
+    {
+      "evidencePageIDs" : [
+        "mood-2026-05-14T06:48:52",
+        "mood-2026-05-14T08:33:03",
+        "mood-2026-05-14T14:48:08",
+        "mood-2026-05-14T22:11:10-04:00",
+        "mood-2026-05-17T12:08:45",
+        "mood-2026-05-18T12:01:44",
+        "mood-2026-05-18T12:04:06",
+        "mood-2026-05-18T12:04:06"
+      ],
+      "firstNoticedAt" : "2026-05-29T00:00:00Z",
+      "id" : "constellation-duration-belief-inner-weather",
+      "kind" : "duration",
+      "lastSeenAt" : "2026-05-31T00:00:00Z",
+      "latestLine" : "Inner Weather has been in the margins for 16 days.",
+      "phase" : "noticed",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-28",
+        "2026-05-30"
+      ],
+      "signalID" : "duration-belief-inner-weather",
+      "strengthPeak" : 90,
+      "subjectID" : "inner-weather",
+      "subjectName" : "Inner Weather",
+      "tags" : [
+        "belief",
+        "constellation",
+        "duration",
+        "inner-weather",
+        "literary-continuity"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-13.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md",
+        "diary-2026-04-17.md",
+        "diary-2026-04-22.md"
+      ],
+      "fadedAt" : "2026-05-29T00:00:00Z",
+      "firstNoticedAt" : "2026-04-13T00:00:00Z",
+      "id" : "constellation-pattern-diary",
+      "kind" : "pattern",
+      "lastSeenAt" : "2026-04-30T00:00:00Z",
+      "latestLine" : "The word diary has gathered across 11 kept pages.",
+      "name" : "Diary, Recurring",
+      "namedAt" : "2026-04-30T00:00:00Z",
+      "phase" : "faded",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-04-12",
+        "2026-04-13",
+        "2026-04-15",
+        "2026-04-16",
+        "2026-04-17",
+        "2026-04-22",
+        "2026-04-23",
+        "2026-04-25",
+        "2026-04-29"
+      ],
+      "signalID" : "pattern-diary",
+      "strengthPeak" : 85,
+      "subjectID" : "diary",
+      "subjectName" : "Diary",
+      "tags" : [
+        "constellation",
+        "diary",
+        "literary-continuity",
+        "pattern"
+      ],
+      "wovenAt" : "2026-04-30T00:00:00Z"
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-13.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md",
+        "diary-2026-04-17.md",
+        "diary-2026-04-22.md"
+      ],
+      "fadedAt" : "2026-05-29T00:00:00Z",
+      "firstNoticedAt" : "2026-04-13T00:00:00Z",
+      "id" : "constellation-pattern-labyrinth",
+      "kind" : "pattern",
+      "lastSeenAt" : "2026-04-30T00:00:00Z",
+      "latestLine" : "The word labyrinth has gathered across 11 kept pages.",
+      "name" : "Labyrinth, Recurring",
+      "namedAt" : "2026-04-30T00:00:00Z",
+      "phase" : "faded",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-04-12",
+        "2026-04-13",
+        "2026-04-15",
+        "2026-04-16",
+        "2026-04-17",
+        "2026-04-22",
+        "2026-04-23",
+        "2026-04-25",
+        "2026-04-29"
+      ],
+      "signalID" : "pattern-labyrinth",
+      "strengthPeak" : 85,
+      "subjectID" : "labyrinth",
+      "subjectName" : "Labyrinth",
+      "tags" : [
+        "constellation",
+        "labyrinth",
+        "literary-continuity",
+        "pattern"
+      ],
+      "wovenAt" : "2026-04-30T00:00:00Z"
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md",
+        "diary-2026-04-17.md",
+        "diary-2026-04-22.md",
+        "diary-2026-04-23.md"
+      ],
+      "firstNoticedAt" : "2026-04-13T00:00:00Z",
+      "id" : "constellation-pattern-alive",
+      "kind" : "pattern",
+      "lastSeenAt" : "2026-05-31T00:00:00Z",
+      "latestLine" : "The word alive has gathered across 15 kept pages.",
+      "name" : "What Alive Keeps Asking",
+      "namedAt" : "2026-04-30T00:00:00Z",
+      "phase" : "woven",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-04-12",
+        "2026-04-13",
+        "2026-04-15",
+        "2026-04-16",
+        "2026-04-17",
+        "2026-04-22",
+        "2026-04-23",
+        "2026-04-25",
+        "2026-04-29",
+        "2026-05-22",
+        "2026-05-23",
+        "2026-05-24",
+        "2026-05-25",
+        "2026-05-26",
+        "2026-05-28",
+        "2026-05-30"
+      ],
+      "signalID" : "pattern-alive",
+      "strengthPeak" : 81,
+      "subjectID" : "alive",
+      "subjectName" : "Alive",
+      "tags" : [
+        "alive",
+        "constellation",
+        "literary-continuity",
+        "pattern"
+      ],
+      "wovenAt" : "2026-04-30T00:00:00Z"
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md",
+        "diary-2026-04-17.md",
+        "diary-2026-04-22.md",
+        "diary-2026-04-23.md"
+      ],
+      "fadedAt" : "2026-05-29T00:00:00Z",
+      "firstNoticedAt" : "2026-04-13T00:00:00Z",
+      "id" : "constellation-pattern-flat",
+      "kind" : "pattern",
+      "lastSeenAt" : "2026-04-30T00:00:00Z",
+      "latestLine" : "The word flat has gathered across 8 kept pages.",
+      "name" : "Flat, Recurring",
+      "namedAt" : "2026-04-30T00:00:00Z",
+      "phase" : "faded",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-04-12",
+        "2026-04-17",
+        "2026-04-22",
+        "2026-04-23",
+        "2026-04-25",
+        "2026-04-29"
+      ],
+      "signalID" : "pattern-flat",
+      "strengthPeak" : 79,
+      "subjectID" : "flat",
+      "subjectName" : "Flat",
+      "tags" : [
+        "constellation",
+        "flat",
+        "literary-continuity",
+        "pattern"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-13.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md",
+        "diary-2026-04-17.md",
+        "diary-2026-04-22.md"
+      ],
+      "fadedAt" : "2026-05-29T00:00:00Z",
+      "firstNoticedAt" : "2026-04-14T00:00:00Z",
+      "id" : "constellation-pattern-moment",
+      "kind" : "pattern",
+      "lastSeenAt" : "2026-04-30T00:00:00Z",
+      "latestLine" : "The word moment has gathered across 8 kept pages.",
+      "name" : "The Return of Moment",
+      "namedAt" : "2026-04-30T00:00:00Z",
+      "phase" : "faded",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-04-13",
+        "2026-04-15",
+        "2026-04-16",
+        "2026-04-17",
+        "2026-04-22",
+        "2026-04-23",
+        "2026-04-25",
+        "2026-04-29"
+      ],
+      "signalID" : "pattern-moment",
+      "strengthPeak" : 79,
+      "subjectID" : "moment",
+      "subjectName" : "Moment",
+      "tags" : [
+        "constellation",
+        "literary-continuity",
+        "moment",
+        "pattern"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-13.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-17.md",
+        "diary-2026-04-25.md"
+      ],
+      "fadedAt" : "2026-05-29T00:00:00Z",
+      "firstNoticedAt" : "2026-04-13T00:00:00Z",
+      "id" : "constellation-pattern-academy",
+      "kind" : "pattern",
+      "lastSeenAt" : "2026-04-30T00:00:00Z",
+      "latestLine" : "The word academy has gathered across 7 kept pages.",
+      "name" : "The Academy Thread",
+      "namedAt" : "2026-04-30T00:00:00Z",
+      "phase" : "faded",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-04-12",
+        "2026-04-13",
+        "2026-04-15",
+        "2026-04-16",
+        "2026-04-17",
+        "2026-04-22",
+        "2026-04-25",
+        "2026-04-29"
+      ],
+      "signalID" : "pattern-academy",
+      "strengthPeak" : 77,
+      "subjectID" : "academy",
+      "subjectName" : "Academy",
+      "tags" : [
+        "academy",
+        "constellation",
+        "literary-continuity",
+        "pattern"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-13.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md",
+        "diary-2026-04-17.md"
+      ],
+      "fadedAt" : "2026-05-29T00:00:00Z",
+      "firstNoticedAt" : "2026-04-13T00:00:00Z",
+      "id" : "constellation-pattern-climax",
+      "kind" : "pattern",
+      "lastSeenAt" : "2026-04-30T00:00:00Z",
+      "latestLine" : "The word climax has gathered across 7 kept pages.",
+      "name" : "The Return of Climax",
+      "namedAt" : "2026-04-30T00:00:00Z",
+      "phase" : "faded",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-04-12",
+        "2026-04-13",
+        "2026-04-15",
+        "2026-04-16",
+        "2026-04-17",
+        "2026-04-22",
+        "2026-04-23",
+        "2026-04-25",
+        "2026-04-29"
+      ],
+      "signalID" : "pattern-climax",
+      "strengthPeak" : 77,
+      "subjectID" : "climax",
+      "subjectName" : "Climax",
+      "tags" : [
+        "climax",
+        "constellation",
+        "literary-continuity",
+        "pattern"
+      ],
+      "wovenAt" : "2026-04-30T00:00:00Z"
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md",
+        "diary-2026-04-22.md",
+        "diary-2026-04-23.md"
+      ],
+      "fadedAt" : "2026-05-22T00:00:00Z",
+      "firstNoticedAt" : "2026-04-13T00:00:00Z",
+      "id" : "constellation-pattern-fell",
+      "kind" : "pattern",
+      "lastSeenAt" : "2026-04-24T00:00:00Z",
+      "latestLine" : "The word fell has gathered across 7 kept pages.",
+      "phase" : "faded",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-04-12",
+        "2026-04-16",
+        "2026-04-23"
+      ],
+      "signalID" : "pattern-fell",
+      "strengthPeak" : 77,
+      "subjectID" : "fell",
+      "subjectName" : "Fell",
+      "tags" : [
+        "constellation",
+        "fell",
+        "literary-continuity",
+        "pattern"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-13.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-22.md"
+      ],
+      "firstNoticedAt" : "2026-05-15T00:00:00Z",
+      "id" : "constellation-absence-wing",
+      "kind" : "absence",
+      "lastSeenAt" : "2026-05-15T00:00:00Z",
+      "latestLine" : "Wing used to appear often; it has been quiet for 22 days.",
+      "phase" : "noticed",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-14"
+      ],
+      "signalID" : "absence-wing",
+      "strengthPeak" : 76,
+      "subjectID" : "wing",
+      "subjectName" : "Wing",
+      "tags" : [
+        "absence",
+        "constellation",
+        "literary-continuity",
+        "wing"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-29.md",
+        "diary-2026-05-07.md",
+        "diary-2026-05-08.md",
+        "diary-2026-05-09.md",
+        "diary-2026-05-14.md"
+      ],
+      "firstNoticedAt" : "2026-05-23T00:00:00Z",
+      "id" : "constellation-pattern-closed",
+      "kind" : "pattern",
+      "lastSeenAt" : "2026-05-31T00:00:00Z",
+      "latestLine" : "The word closed has gathered across 14 kept pages.",
+      "phase" : "watched",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-22",
+        "2026-05-23",
+        "2026-05-24",
+        "2026-05-25",
+        "2026-05-26",
+        "2026-05-28",
+        "2026-05-30"
+      ],
+      "signalID" : "pattern-closed",
+      "strengthPeak" : 76,
+      "subjectID" : "closed",
+      "subjectName" : "Closed",
+      "tags" : [
+        "closed",
+        "constellation",
+        "literary-continuity",
+        "pattern"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-23.md",
+        "diary-2026-04-25.md",
+        "diary-2026-04-29.md",
+        "diary-2026-05-01.md",
+        "diary-2026-05-13.md"
+      ],
+      "firstNoticedAt" : "2026-05-23T00:00:00Z",
+      "id" : "constellation-pattern-player",
+      "kind" : "pattern",
+      "lastSeenAt" : "2026-05-31T00:00:00Z",
+      "latestLine" : "The word player has gathered across 13 kept pages.",
+      "phase" : "watched",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-22",
+        "2026-05-23",
+        "2026-05-24",
+        "2026-05-25",
+        "2026-05-26",
+        "2026-05-28",
+        "2026-05-30"
+      ],
+      "signalID" : "pattern-player",
+      "strengthPeak" : 76,
+      "subjectID" : "player",
+      "subjectName" : "Player",
+      "tags" : [
+        "constellation",
+        "literary-continuity",
+        "pattern",
+        "player"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-13.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-29.md",
+        "diary-2026-05-05.md",
+        "diary-2026-05-07.md",
+        "diary-2026-05-08.md"
+      ],
+      "firstNoticedAt" : "2026-05-23T00:00:00Z",
+      "id" : "constellation-pattern-quiet",
+      "kind" : "pattern",
+      "lastSeenAt" : "2026-05-31T00:00:00Z",
+      "latestLine" : "The word quiet has gathered across 14 kept pages.",
+      "phase" : "watched",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-22",
+        "2026-05-23",
+        "2026-05-24",
+        "2026-05-25",
+        "2026-05-26",
+        "2026-05-28",
+        "2026-05-30"
+      ],
+      "signalID" : "pattern-quiet",
+      "strengthPeak" : 76,
+      "subjectID" : "quiet",
+      "subjectName" : "Quiet",
+      "tags" : [
+        "constellation",
+        "literary-continuity",
+        "pattern",
+        "quiet"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-12.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md",
+        "diary-2026-04-17.md",
+        "diary-2026-04-22.md",
+        "diary-2026-04-23.md",
+        "diary-2026-05-08.md",
+        "diary-2026-05-15.md"
+      ],
+      "firstNoticedAt" : "2026-05-23T00:00:00Z",
+      "id" : "constellation-pattern-session",
+      "kind" : "pattern",
+      "lastSeenAt" : "2026-05-27T00:00:00Z",
+      "latestLine" : "The word session has gathered across 13 kept pages.",
+      "phase" : "watched",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-22",
+        "2026-05-23",
+        "2026-05-24",
+        "2026-05-25",
+        "2026-05-26"
+      ],
+      "signalID" : "pattern-session",
+      "strengthPeak" : 75,
+      "subjectID" : "session",
+      "subjectName" : "Session",
+      "tags" : [
+        "constellation",
+        "literary-continuity",
+        "pattern",
+        "session"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-13.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md",
+        "diary-2026-04-17.md"
+      ],
+      "fadedAt" : "2026-05-16T00:00:00Z",
+      "firstNoticedAt" : "2026-04-18T00:00:00Z",
+      "id" : "constellation-pattern-world",
+      "kind" : "pattern",
+      "lastSeenAt" : "2026-04-18T00:00:00Z",
+      "latestLine" : "The word world has gathered across 6 kept pages.",
+      "phase" : "faded",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-04-17"
+      ],
+      "signalID" : "pattern-world",
+      "strengthPeak" : 75,
+      "subjectID" : "world",
+      "subjectName" : "World",
+      "tags" : [
+        "constellation",
+        "literary-continuity",
+        "pattern",
+        "world"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-13.md",
+        "diary-2026-04-15.md"
+      ],
+      "firstNoticedAt" : "2026-05-08T00:00:00Z",
+      "id" : "constellation-absence-unwritten",
+      "kind" : "absence",
+      "lastSeenAt" : "2026-05-22T00:00:00Z",
+      "latestLine" : "Unwritten used to appear often; it has been quiet for 36 days.",
+      "name" : "The Quiet Shape of Unwritten",
+      "namedAt" : "2026-05-22T00:00:00Z",
+      "phase" : "woven",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-07",
+        "2026-05-08",
+        "2026-05-09",
+        "2026-05-13",
+        "2026-05-14",
+        "2026-05-15",
+        "2026-05-16",
+        "2026-05-17",
+        "2026-05-18",
+        "2026-05-19",
+        "2026-05-20",
+        "2026-05-21"
+      ],
+      "signalID" : "absence-unwritten",
+      "strengthPeak" : 74,
+      "subjectID" : "unwritten",
+      "subjectName" : "Unwritten",
+      "tags" : [
+        "absence",
+        "constellation",
+        "literary-continuity",
+        "unwritten"
+      ],
+      "wovenAt" : "2026-05-22T00:00:00Z"
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md"
+      ],
+      "fadedAt" : "2026-05-15T00:00:00Z",
+      "firstNoticedAt" : "2026-04-13T00:00:00Z",
+      "id" : "constellation-pattern-cold",
+      "kind" : "pattern",
+      "lastSeenAt" : "2026-04-17T00:00:00Z",
+      "latestLine" : "The word cold has gathered across 5 kept pages.",
+      "phase" : "faded",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-04-12",
+        "2026-04-15",
+        "2026-04-16"
+      ],
+      "signalID" : "pattern-cold",
+      "strengthPeak" : 73,
+      "subjectID" : "cold",
+      "subjectName" : "Cold",
+      "tags" : [
+        "cold",
+        "constellation",
+        "literary-continuity",
+        "pattern"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-13.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md"
+      ],
+      "firstNoticedAt" : "2026-05-09T00:00:00Z",
+      "id" : "constellation-absence-weight",
+      "kind" : "absence",
+      "lastSeenAt" : "2026-05-18T00:00:00Z",
+      "latestLine" : "Weight used to appear often; it has been quiet for 31 days.",
+      "name" : "The Quiet Shape of Weight",
+      "namedAt" : "2026-05-23T00:00:00Z",
+      "phase" : "named",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-08",
+        "2026-05-09",
+        "2026-05-13",
+        "2026-05-14",
+        "2026-05-15",
+        "2026-05-16",
+        "2026-05-17"
+      ],
+      "signalID" : "absence-weight",
+      "strengthPeak" : 72,
+      "subjectID" : "weight",
+      "subjectName" : "Weight",
+      "tags" : [
+        "absence",
+        "constellation",
+        "literary-continuity",
+        "weight"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-12.md",
+        "diary-2026-04-13.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-22.md"
+      ],
+      "firstNoticedAt" : "2026-05-15T00:00:00Z",
+      "id" : "constellation-absence-professor",
+      "kind" : "absence",
+      "lastSeenAt" : "2026-05-22T00:00:00Z",
+      "latestLine" : "Professor used to appear often; it has been quiet for 29 days.",
+      "name" : "Where Professor Went",
+      "namedAt" : "2026-05-29T00:00:00Z",
+      "phase" : "named",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-14",
+        "2026-05-15",
+        "2026-05-16",
+        "2026-05-18",
+        "2026-05-19",
+        "2026-05-20",
+        "2026-05-21"
+      ],
+      "signalID" : "absence-professor",
+      "strengthPeak" : 71,
+      "subjectID" : "professor",
+      "subjectName" : "Professor",
+      "tags" : [
+        "absence",
+        "constellation",
+        "literary-continuity",
+        "professor"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-15.md"
+      ],
+      "firstNoticedAt" : "2026-05-08T00:00:00Z",
+      "id" : "constellation-absence-chapter",
+      "kind" : "absence",
+      "lastSeenAt" : "2026-05-14T00:00:00Z",
+      "latestLine" : "Chapter used to appear often; it has been quiet for 28 days.",
+      "phase" : "watched",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-07",
+        "2026-05-08",
+        "2026-05-09",
+        "2026-05-13"
+      ],
+      "signalID" : "absence-chapter",
+      "strengthPeak" : 64,
+      "subjectID" : "chapter",
+      "subjectName" : "Chapter",
+      "tags" : [
+        "absence",
+        "chapter",
+        "constellation",
+        "literary-continuity"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-15.md"
+      ],
+      "firstNoticedAt" : "2026-05-08T00:00:00Z",
+      "id" : "constellation-absence-right",
+      "kind" : "absence",
+      "lastSeenAt" : "2026-05-14T00:00:00Z",
+      "latestLine" : "Right used to appear often; it has been quiet for 28 days.",
+      "phase" : "watched",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-07",
+        "2026-05-08",
+        "2026-05-09",
+        "2026-05-13"
+      ],
+      "signalID" : "absence-right",
+      "strengthPeak" : 64,
+      "subjectID" : "right",
+      "subjectName" : "Right",
+      "tags" : [
+        "absence",
+        "constellation",
+        "literary-continuity",
+        "right"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-15.md"
+      ],
+      "firstNoticedAt" : "2026-05-08T00:00:00Z",
+      "id" : "constellation-absence-tutorial",
+      "kind" : "absence",
+      "lastSeenAt" : "2026-05-14T00:00:00Z",
+      "latestLine" : "Tutorial used to appear often; it has been quiet for 28 days.",
+      "phase" : "watched",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-07",
+        "2026-05-08",
+        "2026-05-09",
+        "2026-05-13"
+      ],
+      "signalID" : "absence-tutorial",
+      "strengthPeak" : 64,
+      "subjectID" : "tutorial",
+      "subjectName" : "Tutorial",
+      "tags" : [
+        "absence",
+        "constellation",
+        "literary-continuity",
+        "tutorial"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-15.md"
+      ],
+      "firstNoticedAt" : "2026-05-08T00:00:00Z",
+      "id" : "constellation-absence-breath",
+      "kind" : "absence",
+      "lastSeenAt" : "2026-05-08T00:00:00Z",
+      "latestLine" : "Breath used to appear often; it has been quiet for 22 days.",
+      "phase" : "noticed",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-07"
+      ],
+      "signalID" : "absence-breath",
+      "strengthPeak" : 62,
+      "subjectID" : "breath",
+      "subjectName" : "Breath",
+      "tags" : [
+        "absence",
+        "breath",
+        "constellation",
+        "literary-continuity"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-15.md"
+      ],
+      "firstNoticedAt" : "2026-05-08T00:00:00Z",
+      "id" : "constellation-absence-moved",
+      "kind" : "absence",
+      "lastSeenAt" : "2026-05-08T00:00:00Z",
+      "latestLine" : "Moved used to appear often; it has been quiet for 22 days.",
+      "phase" : "noticed",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-05-07"
+      ],
+      "signalID" : "absence-moved",
+      "strengthPeak" : 62,
+      "subjectID" : "moved",
+      "subjectName" : "Moved",
+      "tags" : [
+        "absence",
+        "constellation",
+        "literary-continuity",
+        "moved"
+      ]
+    },
+    {
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-11.md",
+        "diary-2026-04-13.md"
+      ],
+      "fadedAt" : "2026-05-14T00:00:00Z",
+      "firstNoticedAt" : "2026-04-14T00:00:00Z",
+      "id" : "constellation-pattern-belief",
+      "kind" : "pattern",
+      "lastSeenAt" : "2026-04-14T00:00:00Z",
+      "latestLine" : "The word belief has gathered across three kept pages.",
+      "phase" : "faded",
+      "relatedEntityIDs" : [
+
+      ],
+      "returnCount" : 0,
+      "sightingDayIDs" : [
+        "2026-04-13"
+      ],
+      "signalID" : "pattern-belief",
+      "strengthPeak" : 59,
+      "subjectID" : "belief",
+      "subjectName" : "Belief",
+      "tags" : [
+        "belief",
+        "constellation",
+        "literary-continuity",
+        "pattern"
+      ]
+    }
+  ],
+  "continuity" : {
+    "beliefLifecycles" : [
+      {
+        "characterCount" : 0,
+        "currentGlow" : 36,
+        "eventCount" : 0,
+        "evidencePageIDs" : [
+          "mood-2026-05-14T06:48:52",
+          "mood-2026-05-14T08:33:03",
+          "mood-2026-05-14T14:48:08",
+          "mood-2026-05-14T22:11:10-04:00",
+          "mood-2026-05-17T12:08:45",
+          "mood-2026-05-18T12:01:44",
+          "mood-2026-05-18T12:04:06",
+          "mood-2026-05-18T12:04:06"
+        ],
+        "firstSeenAt" : "2026-05-14T10:48:52Z",
+        "id" : "inner-weather",
+        "lastSeenAt" : "2026-05-30T18:52:26Z",
+        "name" : "Inner Weather",
+        "pageCount" : 28,
+        "relatedEntityIDs" : [
+
+        ]
+      },
+      {
+        "characterCount" : 0,
+        "currentGlow" : 28,
+        "eventCount" : 0,
+        "evidencePageIDs" : [
+          "diary-2026-04-09.md",
+          "diary-2026-04-11.md",
+          "diary-2026-04-12.md",
+          "diary-2026-04-13.md",
+          "diary-2026-04-15.md",
+          "diary-2026-04-16.md",
+          "diary-2026-04-17.md",
+          "diary-2026-04-22.md"
+        ],
+        "firstSeenAt" : "2026-04-10T01:00:00Z",
+        "id" : "diary-page",
+        "lastSeenAt" : "2026-05-25T01:00:00Z",
+        "name" : "Diary Page",
+        "pageCount" : 28,
+        "relatedEntityIDs" : [
+
+        ]
+      },
+      {
+        "characterCount" : 1,
+        "currentGlow" : 20,
+        "eventCount" : 0,
+        "evidencePageIDs" : [
+          "diary-2026-04-17.md",
+          "diary-2026-04-22.md"
+        ],
+        "firstSeenAt" : "2026-04-18T01:00:00Z",
+        "id" : "zara-finch",
+        "lastSeenAt" : "2026-04-23T01:00:00Z",
+        "name" : "Zara Finch",
+        "pageCount" : 2,
+        "relatedEntityIDs" : [
+          "zara-finch"
+        ]
+      }
+    ],
+    "signals" : [
+      {
+        "evidencePageIDs" : [
+          "diary-2026-04-09.md",
+          "diary-2026-04-11.md",
+          "diary-2026-04-12.md",
+          "diary-2026-04-13.md",
+          "diary-2026-04-15.md",
+          "diary-2026-04-16.md",
+          "diary-2026-04-17.md",
+          "diary-2026-04-22.md"
+        ],
+        "firstSeenAt" : "2026-04-10T01:00:00Z",
+        "id" : "belief-lifecycle-diary-page",
+        "kind" : "beliefLifecycle",
+        "lastSeenAt" : "2026-05-25T01:00:00Z",
+        "line" : "Diary Page has become a living thread: 28 kept pages, 0 events, current Glow 28.",
+        "relatedEntityIDs" : [
+
+        ],
+        "strength" : 96,
+        "subjectID" : "diary-page",
+        "subjectName" : "Diary Page",
+        "tags" : [
+          "belief",
+          "lifecycle",
+          "literary-continuity",
+          "diary-page"
+        ]
+      },
+      {
+        "evidencePageIDs" : [
+          "mood-2026-05-14T06:48:52",
+          "mood-2026-05-14T08:33:03",
+          "mood-2026-05-14T14:48:08",
+          "mood-2026-05-14T22:11:10-04:00",
+          "mood-2026-05-17T12:08:45",
+          "mood-2026-05-18T12:01:44",
+          "mood-2026-05-18T12:04:06",
+          "mood-2026-05-18T12:04:06"
+        ],
+        "firstSeenAt" : "2026-05-14T10:48:52Z",
+        "id" : "belief-lifecycle-inner-weather",
+        "kind" : "beliefLifecycle",
+        "lastSeenAt" : "2026-05-30T18:52:26Z",
+        "line" : "Inner Weather has become a living thread: 28 kept pages, 0 events, current Glow 36.",
+        "relatedEntityIDs" : [
+
+        ],
+        "strength" : 96,
+        "subjectID" : "inner-weather",
+        "subjectName" : "Inner Weather",
+        "tags" : [
+          "belief",
+          "lifecycle",
+          "literary-continuity",
+          "inner-weather"
+        ]
+      },
+      {
+        "evidencePageIDs" : [
+          "diary-2026-04-09.md",
+          "diary-2026-04-11.md",
+          "diary-2026-04-12.md",
+          "diary-2026-04-13.md",
+          "diary-2026-04-15.md",
+          "diary-2026-04-16.md",
+          "diary-2026-04-17.md",
+          "diary-2026-04-22.md"
+        ],
+        "firstSeenAt" : "2026-04-10T01:00:00Z",
+        "id" : "duration-belief-diary-page",
+        "kind" : "duration",
+        "lastSeenAt" : "2026-05-25T01:00:00Z",
+        "line" : "Diary Page has been in the margins for 51 days.",
+        "relatedEntityIDs" : [
+
+        ],
+        "strength" : 90,
+        "subjectID" : "diary-page",
+        "subjectName" : "Diary Page",
+        "tags" : [
+          "duration",
+          "belief",
+          "literary-continuity",
+          "diary-page"
+        ]
+      },
+      {
+        "evidencePageIDs" : [
+          "mood-2026-05-14T06:48:52",
+          "mood-2026-05-14T08:33:03",
+          "mood-2026-05-14T14:48:08",
+          "mood-2026-05-14T22:11:10-04:00",
+          "mood-2026-05-17T12:08:45",
+          "mood-2026-05-18T12:01:44",
+          "mood-2026-05-18T12:04:06",
+          "mood-2026-05-18T12:04:06"
+        ],
+        "firstSeenAt" : "2026-05-14T10:48:52Z",
+        "id" : "duration-belief-inner-weather",
+        "kind" : "duration",
+        "lastSeenAt" : "2026-05-30T18:52:26Z",
+        "line" : "Inner Weather has been in the margins for 16 days.",
+        "relatedEntityIDs" : [
+
+        ],
+        "strength" : 90,
+        "subjectID" : "inner-weather",
+        "subjectName" : "Inner Weather",
+        "tags" : [
+          "duration",
+          "belief",
+          "literary-continuity",
+          "inner-weather"
+        ]
+      },
+      {
+        "evidencePageIDs" : [
+          "diary-2026-04-09.md",
+          "diary-2026-04-11.md",
+          "diary-2026-04-12.md",
+          "diary-2026-04-15.md",
+          "diary-2026-04-16.md",
+          "diary-2026-04-17.md",
+          "diary-2026-04-22.md",
+          "diary-2026-04-23.md"
+        ],
+        "firstSeenAt" : "2026-04-10T01:00:00Z",
+        "id" : "pattern-alive",
+        "kind" : "pattern",
+        "lastSeenAt" : "2026-05-10T01:00:00Z",
+        "line" : "The word alive has gathered across 15 kept pages.",
+        "relatedEntityIDs" : [
+
+        ],
+        "strength" : 77,
+        "subjectID" : "alive",
+        "subjectName" : "Alive",
+        "tags" : [
+          "alive",
+          "pattern",
+          "literary-continuity"
+        ]
+      },
+      {
+        "evidencePageIDs" : [
+          "diary-2026-04-09.md",
+          "diary-2026-04-12.md",
+          "diary-2026-04-15.md",
+          "diary-2026-04-29.md",
+          "diary-2026-05-07.md",
+          "diary-2026-05-08.md",
+          "diary-2026-05-09.md",
+          "diary-2026-05-14.md"
+        ],
+        "firstSeenAt" : "2026-04-10T01:00:00Z",
+        "id" : "pattern-closed",
+        "kind" : "pattern",
+        "lastSeenAt" : "2026-05-28T12:01:31Z",
+        "line" : "The word closed has gathered across 14 kept pages.",
+        "relatedEntityIDs" : [
+
+        ],
+        "strength" : 76,
+        "subjectID" : "closed",
+        "subjectName" : "Closed",
+        "tags" : [
+          "closed",
+          "pattern",
+          "literary-continuity"
+        ]
+      },
+      {
+        "evidencePageIDs" : [
+          "diary-2026-04-11.md",
+          "diary-2026-04-12.md",
+          "diary-2026-04-15.md",
+          "diary-2026-04-23.md",
+          "diary-2026-04-25.md",
+          "diary-2026-04-29.md",
+          "diary-2026-05-01.md",
+          "diary-2026-05-13.md"
+        ],
+        "firstSeenAt" : "2026-04-12T01:00:00Z",
+        "id" : "pattern-player",
+        "kind" : "pattern",
+        "lastSeenAt" : "2026-05-25T01:00:00Z",
+        "line" : "The word player has gathered across 13 kept pages.",
+        "relatedEntityIDs" : [
+
+        ],
+        "strength" : 76,
+        "subjectID" : "player",
+        "subjectName" : "Player",
+        "tags" : [
+          "player",
+          "pattern",
+          "literary-continuity"
+        ]
+      },
+      {
+        "evidencePageIDs" : [
+          "diary-2026-04-09.md",
+          "diary-2026-04-12.md",
+          "diary-2026-04-13.md",
+          "diary-2026-04-15.md",
+          "diary-2026-04-29.md",
+          "diary-2026-05-05.md",
+          "diary-2026-05-07.md",
+          "diary-2026-05-08.md"
+        ],
+        "firstSeenAt" : "2026-04-10T01:00:00Z",
+        "id" : "pattern-quiet",
+        "kind" : "pattern",
+        "lastSeenAt" : "2026-05-25T01:00:00Z",
+        "line" : "The word quiet has gathered across 14 kept pages.",
+        "relatedEntityIDs" : [
+
+        ],
+        "strength" : 76,
+        "subjectID" : "quiet",
+        "subjectName" : "Quiet",
+        "tags" : [
+          "quiet",
+          "pattern",
+          "literary-continuity"
+        ]
+      },
+      {
+        "evidencePageIDs" : [
+          "diary-2026-04-12.md",
+          "diary-2026-04-15.md",
+          "diary-2026-04-16.md",
+          "diary-2026-04-17.md",
+          "diary-2026-04-22.md",
+          "diary-2026-04-23.md",
+          "diary-2026-05-08.md",
+          "diary-2026-05-15.md"
+        ],
+        "firstSeenAt" : "2026-04-13T01:00:00Z",
+        "id" : "pattern-session",
+        "kind" : "pattern",
+        "lastSeenAt" : "2026-05-25T01:00:00Z",
+        "line" : "The word session has gathered across 13 kept pages.",
+        "relatedEntityIDs" : [
+
+        ],
+        "strength" : 76,
+        "subjectID" : "session",
+        "subjectName" : "Session",
+        "tags" : [
+          "session",
+          "pattern",
+          "literary-continuity"
+        ]
+      },
+      {
+        "evidencePageIDs" : [
+          "diary-2026-04-09.md",
+          "diary-2026-04-11.md",
+          "diary-2026-04-13.md",
+          "diary-2026-04-17.md",
+          "diary-2026-05-01.md",
+          "diary-2026-05-02.md",
+          "diary-2026-05-09.md",
+          "diary-2026-05-18.md"
+        ],
+        "firstSeenAt" : "2026-04-10T01:00:00Z",
+        "id" : "pattern-belief",
+        "kind" : "pattern",
+        "lastSeenAt" : "2026-05-25T01:00:00Z",
+        "line" : "The word belief has gathered across 11 kept pages.",
+        "relatedEntityIDs" : [
+
+        ],
+        "strength" : 74,
+        "subjectID" : "belief",
+        "subjectName" : "Belief",
+        "tags" : [
+          "belief",
+          "pattern",
+          "literary-continuity"
+        ]
+      },
+      {
+        "evidencePageIDs" : [
+          "diary-2026-04-09.md",
+          "diary-2026-04-12.md",
+          "diary-2026-04-15.md",
+          "diary-2026-04-16.md",
+          "diary-2026-04-25.md",
+          "diary-2026-04-29.md",
+          "diary-2026-05-01.md",
+          "diary-2026-05-08.md"
+        ],
+        "firstSeenAt" : "2026-04-10T01:00:00Z",
+        "id" : "pattern-waiting",
+        "kind" : "pattern",
+        "lastSeenAt" : "2026-05-23T01:00:00Z",
+        "line" : "The word waiting has gathered across 11 kept pages.",
+        "relatedEntityIDs" : [
+
+        ],
+        "strength" : 74,
+        "subjectID" : "waiting",
+        "subjectName" : "Waiting",
+        "tags" : [
+          "waiting",
+          "pattern",
+          "literary-continuity"
+        ]
+      },
+      {
+        "evidencePageIDs" : [
+          "diary-2026-04-09.md",
+          "diary-2026-04-11.md",
+          "diary-2026-04-12.md",
+          "diary-2026-04-13.md",
+          "diary-2026-04-15.md",
+          "diary-2026-04-17.md",
+          "diary-2026-04-25.md",
+          "diary-2026-05-01.md"
+        ],
+        "firstSeenAt" : "2026-04-10T01:00:00Z",
+        "id" : "pattern-academy",
+        "kind" : "pattern",
+        "lastSeenAt" : "2026-05-25T01:00:00Z",
+        "line" : "The word academy has gathered across 10 kept pages.",
+        "relatedEntityIDs" : [
+
+        ],
+        "strength" : 73,
+        "subjectID" : "academy",
+        "subjectName" : "Academy",
+        "tags" : [
+          "academy",
+          "pattern",
+          "literary-continuity"
+        ]
+      }
+    ]
+  },
+  "dayCount" : 0,
+  "days" : [
+
+  ],
+  "generatedAt" : "2026-05-31T00:00:00Z",
+  "pageCount" : 0,
+  "schemaVersion" : 2,
+  "themes" : [
+    {
+      "discoveredAt" : "2026-05-31T00:00:00Z",
+      "evidencePageIDs" : [
+        "diary-2026-04-09.md",
+        "diary-2026-04-11.md",
+        "diary-2026-04-12.md",
+        "diary-2026-04-13.md",
+        "diary-2026-04-15.md",
+        "diary-2026-04-16.md",
+        "diary-2026-04-22.md"
+      ],
+      "excerptLines" : [
+        "Today, bj finished the tutorial and stood at the threshold of the open world.",
+        "The Climax called its Anchor back.",
+        "The first day in the Riddlewind dorm was cut short by the hollow quiet."
+      ],
+      "id" : "theme-2026-04",
+      "line" : "The margins filled with Professor, Unwritten, and Weight before anyone thought to call it a theme.",
+      "monthKey" : "2026-04",
+      "motifs" : [
+        "professor",
+        "unwritten",
+        "weight"
+      ],
+      "name" : "Professor and Unwritten",
+      "strength" : 95
+    },
+    {
+      "discoveredAt" : "2026-05-31T00:00:00Z",
+      "evidencePageIDs" : [
+        "diary-2026-05-15.md",
+        "diary-2026-05-16.md",
+        "diary-2026-05-17.md",
+        "mood-2026-05-14T06:48:52",
+        "mood-2026-05-14T08:33:03",
+        "mood-2026-05-14T14:48:08",
+        "mood-2026-05-14T22:11:10-04:00",
+        "mood-2026-05-17T12:08:45",
+        "mood-2026-05-18T12:01:44",
+        "mood-2026-05-18T12:04:06"
+      ],
+      "excerptLines" : [
+        "2026-05-15 — A brief return before the workday.",
+        "2026-05-16 — Saturday."
+      ],
+      "id" : "theme-2026-05",
+      "line" : "If this month were a chapter, its running heads would say Inkrest, Mood, and Weather.",
+      "monthKey" : "2026-05",
+      "motifs" : [
+        "inkrest",
+        "mood",
+        "weather"
+      ],
+      "name" : "Of Inkrest and Mood",
+      "strength" : 100
+    }
+  ],
+  "wagers" : [
+    {
+      "basisLine" : "The word academy has gathered across 4 kept pages.",
+      "basisSignalID" : "pattern-academy",
+      "id" : "wager-pattern-academy-2026-04-13",
+      "kind" : "pattern",
+      "opensAt" : "2026-04-28T00:00:00Z",
+      "prediction" : "Academy will return to a kept page within 14 days. Patterns this warm rarely cool on their own.",
+      "resolutionLine" : "I was right, which pleases me more than it should. Academy came back, as patterns of attention tend to do.",
+      "resolvedAt" : "2026-04-30T00:00:00Z",
+      "sealedAt" : "2026-04-14T00:00:00Z",
+      "status" : "right",
+      "subjectID" : "academy",
+      "subjectName" : "Academy"
+    },
+    {
+      "basisLine" : "The word climax has gathered across 4 kept pages.",
+      "basisSignalID" : "pattern-climax",
+      "id" : "wager-pattern-climax-2026-04-13",
+      "kind" : "pattern",
+      "opensAt" : "2026-04-28T00:00:00Z",
+      "prediction" : "Climax will return to a kept page within 14 days. Patterns this warm rarely cool on their own.",
+      "resolutionLine" : "I was right, which pleases me more than it should. Climax came back, as patterns of attention tend to do.",
+      "resolvedAt" : "2026-04-30T00:00:00Z",
+      "sealedAt" : "2026-04-14T00:00:00Z",
+      "status" : "right",
+      "subjectID" : "climax",
+      "subjectName" : "Climax"
+    },
+    {
+      "basisLine" : "The word diary has gathered across 11 kept pages.",
+      "basisSignalID" : "pattern-diary",
+      "id" : "wager-pattern-diary-2026-04-29",
+      "kind" : "pattern",
+      "opensAt" : "2026-05-14T00:00:00Z",
+      "prediction" : "Diary will return to a kept page within 14 days. Patterns this warm rarely cool on their own.",
+      "resolutionLine" : "I was right, which pleases me more than it should. Diary came back, as patterns of attention tend to do.",
+      "resolvedAt" : "2026-05-14T00:00:00Z",
+      "sealedAt" : "2026-04-30T00:00:00Z",
+      "status" : "right",
+      "subjectID" : "diary",
+      "subjectName" : "Diary"
+    },
+    {
+      "basisLine" : "The word labyrinth has gathered across 11 kept pages.",
+      "basisSignalID" : "pattern-labyrinth",
+      "id" : "wager-pattern-labyrinth-2026-04-29",
+      "kind" : "pattern",
+      "opensAt" : "2026-05-14T00:00:00Z",
+      "prediction" : "Labyrinth will return to a kept page within 14 days. Patterns this warm rarely cool on their own.",
+      "resolutionLine" : "I was right, which pleases me more than it should. Labyrinth came back, as patterns of attention tend to do.",
+      "resolvedAt" : "2026-05-14T00:00:00Z",
+      "sealedAt" : "2026-04-30T00:00:00Z",
+      "status" : "right",
+      "subjectID" : "labyrinth",
+      "subjectName" : "Labyrinth"
+    },
+    {
+      "basisLine" : "Unwritten used to appear often; it has been quiet for 28 days.",
+      "basisSignalID" : "absence-unwritten",
+      "id" : "wager-absence-unwritten-2026-05-13",
+      "kind" : "absence",
+      "opensAt" : "2026-06-04T00:00:00Z",
+      "prediction" : "Unwritten has gone quiet, but quiet is not gone. It will appear again within 21 days. The Book is betting on return.",
+      "sealedAt" : "2026-05-14T00:00:00Z",
+      "status" : "sealed",
+      "subjectID" : "unwritten",
+      "subjectName" : "Unwritten"
+    },
+    {
+      "basisLine" : "Weight used to appear often; it has been quiet for 27 days.",
+      "basisSignalID" : "absence-weight",
+      "id" : "wager-absence-weight-2026-05-13",
+      "kind" : "absence",
+      "opensAt" : "2026-06-04T00:00:00Z",
+      "prediction" : "Weight has gone quiet, but quiet is not gone. It will appear again within 21 days. The Book is betting on return.",
+      "sealedAt" : "2026-05-14T00:00:00Z",
+      "status" : "sealed",
+      "subjectID" : "weight",
+      "subjectName" : "Weight"
+    }
+  ]
+}

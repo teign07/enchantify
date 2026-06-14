@@ -31,6 +31,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case festival
     case twoReadings
     case castBond
+    case todaysSky
+    case bookJump
     case enchantment
     case anchor
     case academyClass
@@ -107,6 +109,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "The Two Readings"
         case .castBond:
             return "A Turn in the Cast"
+        case .todaysSky:
+            return "Today's Sky"
+        case .bookJump:
+            return "Book Jump"
         case .enchantment:
             return "Cast an Enchantment"
         case .anchor:
@@ -196,6 +202,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Readings"
         case .castBond:
             return "Cast"
+        case .todaysSky:
+            return "Sky"
+        case .bookJump:
+            return "Jump"
         case .enchantment:
             return "Spell"
         case .anchor:
@@ -285,6 +295,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "person.2.fill"
         case .castBond:
             return "person.2.wave.2"
+        case .todaysSky:
+            return "moon.stars"
+        case .bookJump:
+            return "book.closed.fill"
         case .enchantment:
             return "wand.and.sparkles"
         case .anchor:
@@ -665,6 +679,30 @@ enum BookPageSourceRegistry {
             note: "The web shifted on its own: a rivalry erupted, or an alliance formed."
         ),
         BookPageSource(
+            id: "todays-sky",
+            type: .todaysSky,
+            title: "Today's Sky",
+            shortTitle: "Sky",
+            symbolName: "moon.stars",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "almanac",
+            note: "The Book reads the night overhead: the Moon's phase and sign, the Sun's sign, and the nearest reason to look up."
+        ),
+        BookPageSource(
+            id: "book-jump",
+            type: .bookJump,
+            title: "Book Jump",
+            shortTitle: "Jump",
+            symbolName: "book.closed.fill",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "expedition",
+            note: "Step into a public-domain text, one controlled beat at a time, and return with a souvenir."
+        ),
+        BookPageSource(
             id: "faculty-research",
             type: .facultyResearch,
             title: "Faculty Research Notes",
@@ -946,6 +984,8 @@ enum BookPageSourceRegistry {
             return 30
         case .castBond:
             return 30
+        case .todaysSky, .bookJump:
+            return 30
         case .weather, .gossip, .facultyResearch, .letter, .academyClass, .elective:
             return 26
         case .theBleed:
@@ -985,6 +1025,10 @@ enum BookPageSourceRegistry {
             return 26
         case .castBond:
             return 28
+        case .todaysSky:
+            return 24
+        case .bookJump:
+            return 30
         case .weather, .gossip, .facultyResearch, .letter, .castMember, .askTheBook, .enchantment, .academyClass, .elective:
             return 22
         case .theBleed:

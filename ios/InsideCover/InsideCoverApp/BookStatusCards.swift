@@ -679,7 +679,6 @@ enum GlowMenuAction {
     case openPage(BookPageType)
     case openBookSection(String)
     case openBookShop
-    case openMargin
     case openPactMap
 }
 
@@ -1092,19 +1091,11 @@ struct GlowCommandMenu: View {
             pageBeliefSubmenu(compact: compact)
             menuButton(
                 title: "The BookShop",
-                detail: "The Goblin Index Empire sells new kinds of Pages: folios, looms, and marginalia.",
+                detail: "The Marginalia Goblins' living market: pay in coin, Attention, or Belief — plus your standing with the Fae.",
                 systemImage: "books.vertical.fill",
                 compact: compact
             ) {
                 onSelectAction(.openBookShop)
-            }
-            menuButton(
-                title: "The Margin",
-                detail: "Your standing with the Book Fae: warmth, attention, gifts, and any open bargains.",
-                systemImage: "hands.sparkles",
-                compact: compact
-            ) {
-                onSelectAction(.openMargin)
             }
             menuButton(
                 title: "The Pact Map",
@@ -1661,143 +1652,6 @@ struct ModelStatusCard: View {
     }
 }
 
-// MARK: - The Margin (the reader's standing with the Book Fae)
-
-struct TheMarginSheet: View {
-    let fae: FaePlayerState
-    let now: Date
-    let canEnterMarket: Bool
-    var onEnterMarket: () -> Void = {}
-    @Environment(\.dismiss) private var dismiss
-
-    private var mood: GoblinMood { FaeEconomy.mood(for: now) }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    walletRow
-                    if !fae.openBargains.isEmpty || fae.bargains.contains(where: { $0.status == .lapsed }) {
-                        bargainsSection
-                    }
-                    giftsSection
-                    warmthSection
-                    Text(mood.line)
-                        .font(.footnote.italic())
-                        .foregroundStyle(BookPalette.ink.opacity(0.6))
-                }
-                .padding(20)
-            }
-            .background(BookPalette.page.ignoresSafeArea())
-            .navigationTitle("The Margin")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-    }
-
-    private var walletRow: some View {
-        HStack(spacing: 14) {
-            marginStat(value: "\(fae.attention)", label: "Attention", symbol: "eye")
-            marginStat(value: "\(fae.activeGifts.count)", label: "Warm gifts", symbol: "gift")
-            if canEnterMarket {
-                Button(action: onEnterMarket) {
-                    Label("Goblin Market", systemImage: "tag")
-                        .font(.subheadline.weight(.bold))
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 12)
-                        .background(BookPalette.teal.opacity(0.16), in: RoundedRectangle(cornerRadius: 8))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(BookPalette.teal)
-            }
-        }
-    }
-
-    private func marginStat(value: String, label: String, symbol: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Label(value, systemImage: symbol)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(BookPalette.lampGold)
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(BookPalette.ink.opacity(0.6))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
-        .overlay { RoundedRectangle(cornerRadius: 8).stroke(BookPalette.ink.opacity(0.12), lineWidth: 1) }
-    }
-
-    private var bargainsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle("Open Debts")
-            ForEach(fae.bargains.filter { $0.status != .delivered }) { bargain in
-                VStack(alignment: .leading, spacing: 4) {
-                    Label(bargain.faeKind.name, systemImage: bargain.faeKind.symbolName)
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(bargain.status == .lapsed ? BookPalette.ink.opacity(0.5) : BookPalette.ink)
-                    Text(bargain.terms)
-                        .font(.callout)
-                        .foregroundStyle(BookPalette.ink.opacity(0.75))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(bargain.status == .lapsed
-                         ? "Lapsed — \(bargain.giftName) has gone cold; this market is closed until repaired."
-                         : "Owed: \(bargain.giftName) is warm while the debt stands.")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(bargain.status == .lapsed ? BookPalette.ink.opacity(0.5) : BookPalette.teal)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
-                .overlay { RoundedRectangle(cornerRadius: 8).stroke(BookPalette.ink.opacity(0.12), lineWidth: 1) }
-            }
-        }
-    }
-
-    private var giftsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle("Gifts")
-            if fae.gifts.isEmpty {
-                Text("No gifts yet. The Fae give first, unprompted — keep your pages and one will find you.")
-                    .font(.callout)
-                    .foregroundStyle(BookPalette.ink.opacity(0.6))
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                ForEach(fae.gifts) { gift in
-                    FaeGiftCard(gift: gift, now: now)
-                }
-            }
-        }
-    }
-
-    private var warmthSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle("Warmth")
-            ForEach(FaeKind.allCases) { kind in
-                HStack {
-                    Label(kind.name, systemImage: kind.symbolName)
-                        .font(.callout)
-                        .foregroundStyle(BookPalette.ink.opacity(0.8))
-                    Spacer()
-                    Text("\(fae.warmth(for: kind))")
-                        .font(.callout.weight(.bold).monospacedDigit())
-                        .foregroundStyle(fae.warmth(for: kind) < 0 ? BookPalette.ink.opacity(0.45) : BookPalette.lampGold)
-                }
-            }
-        }
-    }
-
-    private func sectionTitle(_ text: String) -> some View {
-        Text(text.uppercased())
-            .font(.caption.weight(.bold))
-            .foregroundStyle(BookPalette.ink.opacity(0.5))
-    }
-}
-
 struct FaeGiftCard: View {
     let gift: FaeGift
     let now: Date
@@ -1853,92 +1707,6 @@ struct FaeGiftCard: View {
         LoosePageReader.fragments.isEmpty
             ? ""
             : LoosePageReader.fragments[abs("\(gift.id)-\(loosePageSalt)".stableHash) % LoosePageReader.fragments.count]
-    }
-}
-
-struct GoblinMarketSheet: View {
-    let fae: FaePlayerState
-    let now: Date
-    var onBuy: (String) -> Void = { _ in }
-    var onMarkNextMarket: () -> Void = {}
-    @Environment(\.dismiss) private var dismiss
-
-    private var mood: GoblinMood { FaeEconomy.mood(for: now) }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Label("\(fae.attention) Attention", systemImage: "eye")
-                            .font(.headline)
-                            .foregroundStyle(BookPalette.lampGold)
-                        Spacer()
-                    }
-                    Text(mood.line)
-                        .font(.footnote.italic())
-                        .foregroundStyle(BookPalette.ink.opacity(0.6))
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    ForEach(FaeMarketCatalog.offers) { offer in
-                        let price = FaeMarketCatalog.cost(of: offer, mood: mood)
-                        let canAfford = fae.attention >= price
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Label(offer.name, systemImage: offer.faeKind.symbolName)
-                                    .font(.subheadline.weight(.bold))
-                                    .foregroundStyle(BookPalette.ink)
-                                Spacer()
-                                Text("\(price)")
-                                    .font(.subheadline.weight(.bold).monospacedDigit())
-                                    .foregroundStyle(BookPalette.lampGold)
-                            }
-                            Text(offer.descriptionText)
-                                .font(.caption)
-                                .foregroundStyle(BookPalette.ink.opacity(0.65))
-                                .fixedSize(horizontal: false, vertical: true)
-                            Button {
-                                onBuy(offer.id)
-                            } label: {
-                                Text(canAfford ? "Trade attention for it" : "Not enough attention")
-                                    .font(.caption.weight(.bold))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 9)
-                                    .background((canAfford ? BookPalette.teal : BookPalette.ink).opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(canAfford ? BookPalette.teal : BookPalette.ink.opacity(0.4))
-                            .disabled(!canAfford)
-                        }
-                        .padding(12)
-                        .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
-                        .overlay { RoundedRectangle(cornerRadius: 8).stroke(BookPalette.ink.opacity(0.12), lineWidth: 1) }
-                    }
-
-                    Button {
-                        onMarkNextMarket()
-                    } label: {
-                        Label("Put the next market (new moon) on my calendar", systemImage: "calendar.badge.plus")
-                            .font(.caption.weight(.bold))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(BookPalette.teal)
-
-                    Text("The goblins trade only in attention — the specific, genuine act of noticing. They have no use for Belief.")
-                        .font(.caption.italic())
-                        .foregroundStyle(BookPalette.ink.opacity(0.5))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(20)
-            }
-            .background(BookPalette.page.ignoresSafeArea())
-            .navigationTitle("The Goblin Market")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Leave") { dismiss() }
-                }
-            }
-        }
     }
 }
 

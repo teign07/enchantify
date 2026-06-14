@@ -181,6 +181,245 @@ enum MonthlyEditionPDFWriter {
         }
     }
 
+    // MARK: Annual (the whole year, bound as a book of chapters)
+
+    static func writeAnnual(_ annual: AnnualEdition, to url: URL) throws {
+        let pageBounds = CGRect(x: 0, y: 0, width: 612, height: 792)
+        let margins = UIEdgeInsets(top: 60, left: 120, bottom: 64, right: 58)
+        let annualStyle = annualStyle(for: annual)
+        let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
+
+        try renderer.writePDF(to: url) { context in
+            var cursor = PDFCursor(bounds: pageBounds, margins: margins)
+
+            // Grand cover.
+            context.beginPage()
+            drawAnnualCover(annual, style: annualStyle, bounds: pageBounds)
+
+            // The year's foreword, in the Book's voice.
+            if !annual.foreword.isEmpty {
+                context.beginPage()
+                cursor.reset()
+                drawAnnualForeword(annual, style: annualStyle, context: context, cursor: &cursor)
+            }
+
+            // The table of the year: every chapter and its theme.
+            context.beginPage()
+            cursor.reset()
+            drawAnnualContents(annual, style: annualStyle, cursor: &cursor)
+
+            // Each month-chapter, bound in its own style.
+            for chapter in annual.chapters {
+                let chapterStyle = EditionStyle.style(for: chapter)
+                let marginalia = marginaliaLines(for: chapter)
+                var marginaliaIndex = 0
+
+                context.beginPage()
+                drawChapterDivider(chapter, style: chapterStyle, bounds: pageBounds)
+
+                if !chapter.foreword.isEmpty {
+                    context.beginPage()
+                    cursor.reset()
+                    drawForeword(chapter, style: chapterStyle, context: context, cursor: &cursor)
+                }
+
+                let alive = chapter.constellations.filter(\.isAlive)
+                if !alive.isEmpty {
+                    context.beginPage()
+                    drawStarChart(alive, edition: chapter, style: chapterStyle, bounds: pageBounds)
+                }
+
+                for section in chapter.sections where section.id != "the-months-theme" {
+                    drawSection(
+                        section,
+                        style: chapterStyle,
+                        marginalia: marginalia,
+                        marginaliaIndex: &marginaliaIndex,
+                        context: context,
+                        cursor: &cursor
+                    )
+                }
+            }
+
+            // Back matter: the threads named across the whole year.
+            let named = annual.namedConstellations
+            if !named.isEmpty {
+                context.beginPage()
+                drawAnnualStarChart(named, annual: annual, style: annualStyle, bounds: pageBounds)
+            }
+
+            // The closing.
+            drawAnnualColophon(annual, style: annualStyle, context: context, cursor: &cursor)
+        }
+    }
+
+    private static func annualStyle(for annual: AnnualEdition) -> EditionStyle {
+        let seed = "annual-\(annual.year)"
+        let palette = EditionStyle.palettes[ConstellationKeeper.stableIndex(for: "\(seed)-palette", count: EditionStyle.palettes.count)]
+        let ornament = EditionStyle.Ornament.allCases[ConstellationKeeper.stableIndex(for: "\(seed)-ornament", count: EditionStyle.Ornament.allCases.count)]
+        // The annual always wears its stars on the cover.
+        return EditionStyle(palette: palette, coverMotif: .constellation, ornament: ornament)
+    }
+
+    private static func drawAnnualCover(_ annual: AnnualEdition, style: EditionStyle, bounds: CGRect) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        drawVerticalWash(in: bounds, top: style.palette.paperTop, bottom: style.palette.paperBottom, cg: cg)
+
+        let illustrationFrame = CGRect(x: bounds.midX - 140, y: 96, width: 280, height: 200)
+        drawConstellationMotif(
+            in: illustrationFrame,
+            constellations: annual.constellations.filter(\.isAlive),
+            seed: "annual-\(annual.year)",
+            stroke: style.palette.gold,
+            glow: style.palette.coverText,
+            labeled: false
+        )
+
+        drawOrnamentRow(style, centerY: 320, in: bounds, color: style.palette.gold)
+
+        let text = style.palette.coverText
+        drawCentered("T H E   B O O K   O F   Y O U", font: .systemFont(ofSize: 13, weight: .semibold), color: text.withAlphaComponent(0.85), y: 348, in: bounds)
+        drawCentered(annual.readerName, font: .serifFont(ofSize: 24, weight: .regular), color: text, y: 374, in: bounds)
+        drawCentered("The \(annual.year) Annual", font: .serifFont(ofSize: 40, weight: .bold), color: text, y: 416, in: bounds)
+        let chapterWord = annual.chapters.count == 1 ? "in one chapter" : "in \(annual.chapters.count) chapters"
+        drawCentered("a year, bound \(chapterWord)", font: .serifItalicFont(ofSize: 18), color: style.palette.gold, y: 474, in: bounds)
+
+        drawOrnamentRow(style, centerY: 524, in: bounds, color: style.palette.gold)
+
+        drawCentered("\(annual.dayCount) days bound \u{00B7} \(annual.pageCount) kept pages", font: .systemFont(ofSize: 11, weight: .medium), color: text.withAlphaComponent(0.7), y: 700, in: bounds)
+        drawCentered("bound in the \(style.palette.name.lowercased()) style", font: .serifItalicFont(ofSize: 10), color: text.withAlphaComponent(0.5), y: 718, in: bounds)
+    }
+
+    private static func drawAnnualForeword(
+        _ annual: AnnualEdition,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        let head = "THE BOOK OF YOU \u{00B7} \(annual.readerName) \u{00B7} THE \(annual.year) ANNUAL"
+        let headAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 8, weight: .semibold),
+            .foregroundColor: style.palette.ink.withAlphaComponent(0.45)
+        ]
+        (head as NSString).draw(at: CGPoint(x: cursor.left, y: 30), withAttributes: headAttributes)
+
+        drawText("Foreword to the Year", font: .serifFont(ofSize: 24, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 10)
+        drawAccentRule(style, cursor: &cursor)
+
+        let paragraphs = annual.foreword.components(separatedBy: "\n\n")
+        for (index, paragraph) in paragraphs.enumerated() {
+            ensureSpace(90, context: context, cursor: &cursor)
+            if index == 0, let first = paragraph.first {
+                let capital = String(first)
+                let capAttributes: [NSAttributedString.Key: Any] = [
+                    .font: UIFont.serifFont(ofSize: 44, weight: .bold),
+                    .foregroundColor: style.palette.accent
+                ]
+                let capSize = (capital as NSString).size(withAttributes: capAttributes)
+                (capital as NSString).draw(at: CGPoint(x: cursor.left, y: cursor.y - 4), withAttributes: capAttributes)
+                drawText(
+                    String(paragraph.dropFirst()),
+                    font: .serifFont(ofSize: 12, weight: .regular),
+                    color: style.palette.ink,
+                    cursor: &cursor,
+                    spacingAfter: 14,
+                    leftInset: capSize.width + 6,
+                    firstLineOnlyInsetHeight: capSize.height
+                )
+            } else {
+                drawText(paragraph, font: .serifFont(ofSize: 12, weight: .regular), color: style.palette.ink, cursor: &cursor, spacingAfter: 14)
+            }
+        }
+        drawOrnamentRow(style, centerY: cursor.y + 14, in: cursor.bounds, color: style.palette.accent)
+        cursor.y += 36
+    }
+
+    private static func drawAnnualContents(_ annual: AnnualEdition, style: EditionStyle, cursor: inout PDFCursor) {
+        drawText("The Year in \(annual.chapters.count == 1 ? "One Chapter" : "\(spelledOut(annual.chapters.count)) Chapters")",
+                 font: .serifFont(ofSize: 22, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 6)
+        drawAccentRule(style, cursor: &cursor)
+        for chapter in annual.chapters {
+            let title = "Chapter \(chapter.chapterNumber) \u{00B7} \(chapter.monthName)"
+            drawText(title, font: .systemFont(ofSize: 13, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 2)
+            let note = (chapter.theme?.name).map { "\u{201C}\($0)\u{201D} \u{00B7} \(chapter.pageCount) pages" } ?? "\(chapter.pageCount) pages"
+            drawText(note, font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.6), cursor: &cursor, spacingAfter: 10)
+        }
+    }
+
+    private static func drawChapterDivider(_ chapter: MonthlyEdition, style: EditionStyle, bounds: CGRect) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        drawVerticalWash(in: bounds, top: style.palette.paperTop, bottom: style.palette.paperBottom, cg: cg)
+        let text = style.palette.coverText
+
+        drawCentered("CHAPTER \(chapter.chapterNumber)", font: .systemFont(ofSize: 13, weight: .semibold), color: text.withAlphaComponent(0.8), y: bounds.midY - 110, in: bounds)
+        drawOrnamentRow(style, centerY: bounds.midY - 78, in: bounds, color: style.palette.gold)
+        drawCentered(chapter.monthName, font: .serifFont(ofSize: 38, weight: .bold), color: text, y: bounds.midY - 56, in: bounds)
+        if let theme = chapter.theme {
+            drawCentered("\u{201C}\(theme.name)\u{201D}", font: .serifItalicFont(ofSize: 18), color: style.palette.gold, y: bounds.midY + 2, in: bounds)
+            drawCentered(theme.line, font: .serifItalicFont(ofSize: 12), color: text.withAlphaComponent(0.8), y: bounds.midY + 34, in: bounds)
+        }
+        drawOrnamentRow(style, centerY: bounds.midY + 84, in: bounds, color: style.palette.gold)
+        drawCentered("\(chapter.dayCount) days \u{00B7} \(chapter.pageCount) kept pages", font: .systemFont(ofSize: 11, weight: .medium), color: text.withAlphaComponent(0.65), y: bounds.midY + 110, in: bounds)
+    }
+
+    private static func drawAnnualStarChart(_ constellations: [Constellation], annual: AnnualEdition, style: EditionStyle, bounds: CGRect) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        drawVerticalWash(in: bounds, top: style.palette.paperTop, bottom: style.palette.paperBottom, cg: cg)
+
+        drawCentered("The Year's Constellations", font: .serifFont(ofSize: 26, weight: .bold), color: style.palette.coverText, y: 64, in: bounds)
+        drawCentered("Threads the Book named across all twelve windows of \(annual.year).", font: .serifItalicFont(ofSize: 12), color: style.palette.coverText.withAlphaComponent(0.75), y: 98, in: bounds)
+
+        let chartFrame = CGRect(x: 70, y: 130, width: bounds.width - 140, height: 430)
+        style.palette.coverText.withAlphaComponent(0.25).setStroke()
+        let border = UIBezierPath(roundedRect: chartFrame, cornerRadius: 10)
+        border.lineWidth = 1
+        border.stroke()
+        drawConstellationMotif(
+            in: chartFrame.insetBy(dx: 18, dy: 18),
+            constellations: constellations,
+            seed: "annual-\(annual.year)",
+            stroke: style.palette.gold,
+            glow: style.palette.coverText,
+            labeled: true
+        )
+
+        var y: CGFloat = chartFrame.maxY + 26
+        for constellation in constellations.prefix(6) {
+            let line = "\(constellation.displayName) \u{00B7} \(constellation.phase.title.lowercased()) \u{00B7} \(constellation.sightingCount) sightings"
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.serifFont(ofSize: 11, weight: .regular),
+                .foregroundColor: style.palette.coverText.withAlphaComponent(0.85)
+            ]
+            drawStar(at: CGPoint(x: 86, y: y + 5), radius: constellation.isNamed ? 3 : 2.2, color: style.palette.gold)
+            (line as NSString).draw(at: CGPoint(x: 100, y: y - 2), withAttributes: attributes)
+            y += 22
+        }
+    }
+
+    private static func drawAnnualColophon(
+        _ annual: AnnualEdition,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        context.beginPage()
+        cursor.reset()
+        cursor.y = 96
+        drawText(annual.closing, font: .serifItalicFont(ofSize: 13), color: style.palette.ink.withAlphaComponent(0.85), cursor: &cursor, spacingAfter: 30)
+
+        cursor.y = cursor.bounds.midY + 40
+        drawOrnamentRow(style, centerY: cursor.y, in: cursor.bounds, color: style.palette.accent)
+        cursor.y += 26
+        drawCentered("The Book of You \u{00B7} \(annual.readerName) \u{00B7} The \(annual.year) Annual", font: .serifItalicFont(ofSize: 12), color: style.palette.ink.withAlphaComponent(0.8), y: cursor.y, in: cursor.bounds)
+        cursor.y += 22
+        drawCentered("Bound by the Book itself, which read every page twice, and the year once more.", font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.55), y: cursor.y, in: cursor.bounds)
+    }
+
+    private static func spelledOut(_ n: Int) -> String {
+        let words = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"]
+        return (0...12).contains(n) ? words[n] : "\(n)"
+    }
+
     // MARK: Cover
 
     private static func drawCover(_ edition: MonthlyEdition, style: EditionStyle, bounds: CGRect) {

@@ -197,6 +197,8 @@ struct SurfaceReadinessState: Codable, Equatable {
             return !hasNonEmptyMetadata("gossipProse")
         case .theBleed:
             return !hasNonEmptyMetadata("bleedProse")
+        case .bookJump:
+            return !hasNonEmptyMetadata("bookJumpProse")
         case .facultyResearch:
             return !hasNonEmptyMetadata("researchProse")
         case .weather:
@@ -362,7 +364,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .reflect
         case .castBond:
             return .importReference
-        case .body, .fuel, .facultyResearch, .supportGuild, .weather, .letter, .academyClass, .bookConnections, .bookNotices, .theBleed:
+        case .body, .fuel, .facultyResearch, .supportGuild, .weather, .letter, .academyClass, .bookConnections, .bookNotices, .theBleed, .todaysSky, .bookJump:
             return .reflect
         case .elective:
             return .capture
@@ -687,6 +689,11 @@ extension SurfacePage {
         if let id = payload.metadata["senderID"]?.nonEmpty { return "sender:\(id)" }
         if let id = payload.metadata["anchorID"]?.nonEmpty { return "anchor:\(id)" }
         if let id = payload.metadata["storyFormID"]?.nonEmpty { return "form:\(id)" }
+        if let id = payload.metadata["bookJumpID"]?.nonEmpty {
+            let action = payload.metadata["bookJumpAction"]?.nonEmpty ?? "step"
+            return "bookjump:\(id):\(action)"
+        }
+        if let id = payload.metadata["bookID"]?.nonEmpty { return "bookjump-book:\(id)" }
         return "source:\(sourceID)"
     }
 }
@@ -759,7 +766,7 @@ enum CuratorTimeAffinity {
             case .weather: return 5
             case .body, .mood: return 4
             case .fuel, .wonderCompass: return 2
-            case .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .gossip: return -3
+            case .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .gossip, .bookJump: return -3
             default: return 0
             }
         case 11..<17:
@@ -772,7 +779,7 @@ enum CuratorTimeAffinity {
         case 17..<21:
             switch type {
             case .bookOfYou: return 6
-            case .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered: return 4
+            case .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .bookJump: return 4
             case .supportGuild, .letter, .fuel: return 3
             case .rest: return 2
             default: return 0
@@ -781,7 +788,7 @@ enum CuratorTimeAffinity {
             switch type {
             case .lore, .rest, .helpTips, .welcome: return 4
             case .packPage: return 3
-            case .illustration, .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered: return 2
+            case .illustration, .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .bookJump: return 2
             case .body: return -4
             case .wonderCompass: return -4
             default: return 0
@@ -859,6 +866,7 @@ struct CuratorMood {
                 narrativeHeat: recentEvents,
                 distressActive: distressActive,
                 celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: inputs.hemisphere)
+                    + BookJumpEngine.greyShift(state: inputs.bookJump, now: now)
             ),
             reshelvedSourceIDs: FaeGiftEffects.reshelvedSourceIDs(
                 state: inputs.faeState,
@@ -867,6 +875,7 @@ struct CuratorMood {
             ),
             pactWar: inputs.pactWar,
             almanacBoosts: Almanac.surfaceBoosts(on: now, hemisphere: inputs.hemisphere)
+                .merging(BookJumpEngine.surfaceBoosts(state: inputs.bookJump, now: now)) { $0 + $1 }
         )
     }
 
@@ -920,7 +929,7 @@ struct CuratorMood {
 
         // A real-world hinge approaching: keep the desk light.
         if let minutes = minutesToNextCalendarEvent, minutes <= 45 {
-            let heavy: Set<BookPageType> = [.narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .gossip, .facultyResearch, .letter, .supportGuild, .bookOfYou]
+            let heavy: Set<BookPageType> = [.narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .gossip, .facultyResearch, .letter, .supportGuild, .bookOfYou, .bookJump]
             if heavy.contains(page.type) {
                 delta -= 12
             }

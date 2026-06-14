@@ -27,6 +27,34 @@ struct MonthlyEdition: Codable, Equatable {
     }
 }
 
+/// A whole year, bound as a real book: a year-level foreword and closing wrap a
+/// sequence of fully-built month-chapters, each with its own theme and star
+/// chart. See `MonthlyEditionBuilder.annual`.
+struct AnnualEdition: Codable, Equatable {
+    var title: String
+    var subtitle: String
+    var year: Int
+    var readerName: String
+    var generatedAt: Date
+    var startDate: Date
+    var endDate: Date
+    var dayCount: Int
+    var pageCount: Int
+    var foreword: String
+    var chapters: [MonthlyEdition]
+    var constellations: [Constellation]
+    var wagers: [BookWager]
+    var closing: String
+    var continuity: LiteraryContinuityDigest
+
+    var isEmpty: Bool { chapters.isEmpty }
+
+    /// The named threads carried across the whole year, for the back matter.
+    var namedConstellations: [Constellation] {
+        ConstellationKeeper.namedConstellations(constellations)
+    }
+}
+
 struct MonthlyEditionSection: Identifiable, Codable, Equatable {
     var id: String
     var title: String
@@ -86,8 +114,12 @@ enum MonthlyEditionBuilder {
         )
     }
 
-    /// The annual: a whole year bound in one edition, foreword and all.
-    static func year(
+    /// The annual: a whole year bound as a real book of twelve month-chapters,
+    /// each keeping its own theme, foreword, and star chart, wrapped in a
+    /// year-level foreword, a table of the year, and a closing. Only months that
+    /// kept pages become chapters. Pure-local and deterministic — the same year
+    /// always binds the same way.
+    static func annual(
         _ year: Int,
         from days: [BookDay],
         events: [NarrativeEvent] = [],
@@ -100,27 +132,84 @@ enum MonthlyEditionBuilder {
         readerName: String = "friend",
         now: Date = Date(),
         calendar: Calendar = .current
-    ) -> MonthlyEdition {
-        let start = calendar.date(from: DateComponents(year: year, month: 1, day: 1)) ?? now
+    ) -> AnnualEdition {
+        let yearStart = calendar.date(from: DateComponents(year: year, month: 1, day: 1)) ?? now
         let nextYear = calendar.date(from: DateComponents(year: year + 1, month: 1, day: 1)) ?? now
-        let end = calendar.date(byAdding: .second, value: -1, to: nextYear) ?? now
-        var annual = edition(
-            from: days,
-            events: events,
-            entityMemories: entityMemories,
+        let yearEnd = calendar.date(byAdding: .second, value: -1, to: nextYear) ?? now
+
+        // Build a chapter for every month of the year that kept pages.
+        var chapters: [MonthlyEdition] = []
+        for month in 1...12 {
+            guard let monthStart = calendar.date(from: DateComponents(year: year, month: month, day: 1)),
+                  let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart),
+                  let monthEnd = calendar.date(byAdding: .second, value: -1, to: nextMonth) else { continue }
+            let chapter = edition(
+                from: days,
+                events: events,
+                entityMemories: entityMemories,
+                entityBelief: entityBelief,
+                pageBelief: pageBelief,
+                constellations: constellations,
+                wagers: wagers,
+                themes: themes,
+                readerName: readerName,
+                startDate: monthStart,
+                endDate: monthEnd,
+                generatedAt: now,
+                calendar: calendar
+            )
+            if !chapter.isEmpty { chapters.append(chapter) }
+        }
+
+        // A year-level reading of the whole span, for the grand foreword.
+        let yearDays = BookArchiveExport(days: days, calendar: calendar).days.filter { day in
+            day.date >= calendar.startOfDay(for: yearStart) && day.date <= calendar.startOfDay(for: yearEnd)
+        }
+        let yearPages = yearDays.flatMap(\.pages)
+        let yearEvents = events.filter { $0.createdAt >= yearStart && $0.createdAt <= yearEnd }
+        let yearMemories = entityMemories.filter { $0.createdAt >= yearStart && $0.createdAt <= yearEnd }
+        let yearContinuity = LiteraryContinuityProjector.digest(
+            days: yearDays,
+            events: yearEvents,
+            entityMemories: yearMemories,
             entityBelief: entityBelief,
             pageBelief: pageBelief,
-            constellations: constellations,
-            wagers: wagers,
-            themes: themes,
-            readerName: readerName,
-            startDate: start,
-            endDate: end,
-            generatedAt: now,
+            now: now,
             calendar: calendar
         )
-        annual.title = "Book of You: The \(year) Annual"
-        return annual
+        let yearWagers = wagers.filter { wager in
+            wager.sealedAt <= yearEnd && (wager.resolvedAt.map { $0 >= yearStart } ?? true)
+        }
+
+        let foreword = BookForewordWriter.annualForeword(
+            year: year,
+            chapters: chapters,
+            pageCount: yearPages.count,
+            dayCount: yearDays.count,
+            continuity: yearContinuity,
+            constellations: constellations,
+            wagers: yearWagers,
+            calendar: calendar
+        )
+        let closing = BookForewordWriter.annualClosing(year: year, chapters: chapters)
+
+        return AnnualEdition(
+            title: "Book of You: The \(year) Annual",
+            subtitle: "\(readerName) — a year, bound",
+            year: year,
+            readerName: readerName,
+            generatedAt: now,
+            startDate: yearStart,
+            endDate: yearEnd,
+            dayCount: chapters.reduce(0) { $0 + $1.dayCount },
+            pageCount: chapters.reduce(0) { $0 + $1.pageCount },
+            foreword: foreword,
+            chapters: chapters,
+            constellations: constellations,
+            wagers: yearWagers,
+            closing: closing,
+            continuity: yearContinuity
+        )
     }
 
     static func edition(
@@ -459,5 +548,84 @@ enum BookForewordWriter {
         paragraphs.append("Whatever else this month was, it was read. - The Book")
 
         return paragraphs.joined(separator: "\n\n")
+    }
+
+    /// The grand foreword for an annual: a year read back as one arc, in the
+    /// Book's voice. Deterministic.
+    static func annualForeword(
+        year: Int,
+        chapters: [MonthlyEdition],
+        pageCount: Int,
+        dayCount: Int,
+        continuity: LiteraryContinuityDigest,
+        constellations: [Constellation],
+        wagers: [BookWager],
+        calendar: Calendar = .current
+    ) -> String {
+        var paragraphs: [String] = []
+
+        let pageLine = pageCount == 1 ? "a single page" : "\(pageCount) pages"
+        let dayLine = dayCount == 1 ? "one day" : "\(dayCount) days"
+        let chapterLine: String
+        switch chapters.count {
+        case 0: chapterLine = "no full month"
+        case 1: chapterLine = "one month"
+        default: chapterLine = "\(chapters.count) months"
+        }
+        paragraphs.append("This is the year \(year), bound: \(pageLine) kept across \(dayLine), gathered into \(chapterLine). A year is too large to hold in the hand all at once, so I have folded it into chapters. Open any of them and the month is still there, waiting where you left it.")
+
+        // The shape of the year, told through its themes.
+        let themed = chapters.compactMap { chapter -> String? in
+            guard let name = chapter.theme?.name else { return nil }
+            return "\(chapter.monthName.split(separator: " ").first.map(String.init) ?? chapter.monthName), \(name)"
+        }
+        if !themed.isEmpty {
+            paragraphs.append("The year moved the way years do — not in a straight line, but in seasons of attention. \(themed.prefix(12).joined(separator: "; ")). Read in order, they make a sentence only a whole year could say.")
+        }
+
+        let signals = continuity.strongestSignals.prefix(4)
+        if !signals.isEmpty {
+            let lines = signals.map { signal in
+                signal.line.hasSuffix(".") ? String(signal.line.dropLast()) : signal.line
+            }
+            paragraphs.append("Across all twelve windows, some things kept returning until I could no longer call them coincidence. \(lines.joined(separator: ". ")). That is what a year is, finally: the patterns that survived it.")
+        }
+
+        let named = ConstellationKeeper.namedConstellations(constellations)
+        if !named.isEmpty {
+            let names = named.prefix(5).map(\.displayName)
+            let nameLine: String
+            switch names.count {
+            case 1: nameLine = names[0]
+            case 2: nameLine = "\(names[0]) and \(names[1])"
+            default: nameLine = "\(names.dropLast().joined(separator: ", ")), and \(names.last ?? "")"
+            }
+            paragraphs.append("Some threads ran long enough through the year that I gave them names and a place in the sky: \(nameLine). They are charted at the back of this volume, so you can find them again from any month.")
+        }
+
+        let resolved = wagers.filter { $0.isSealed == false }
+        if !resolved.isEmpty {
+            let right = resolved.filter { $0.status == .right }.count
+            let wrong = resolved.count - right
+            let scoreLine: String
+            if wrong == 0 {
+                scoreLine = "Every wager I opened and resolved this year came true. I am keeping the record anyway; a book that only remembers being right is not to be trusted."
+            } else if right == 0 {
+                scoreLine = "Every resolved wager this year went against me. I have bound each one in full. Being wrong, written down, is how I learned to read you better."
+            } else {
+                scoreLine = "Of the wagers resolved this year, \(right) came true and \(wrong) did not. Both are set in the same ink, because both were honest."
+            }
+            paragraphs.append(scoreLine)
+        }
+
+        paragraphs.append("Whatever else \(year) was, it was read — all the way to the end, and then once more, slowly, to make this. - The Book")
+        return paragraphs.joined(separator: "\n\n")
+    }
+
+    /// A short closing for the annual's back matter.
+    static func annualClosing(year: Int, chapters: [MonthlyEdition]) -> String {
+        let count = chapters.count
+        let span = count <= 1 ? "this chapter" : "these \(count) chapters"
+        return "Here \(year) ends and is kept. Nothing in \(span) can quietly unhappen now; it has been written, named, and bound. Turn back whenever you like — the year will be exactly where you left it, and so, in some way, will you. The next page is always blank on purpose. - The Book"
     }
 }

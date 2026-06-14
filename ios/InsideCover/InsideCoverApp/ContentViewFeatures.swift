@@ -683,6 +683,47 @@ extension ContentView {
         }
     }
 
+    @MainActor
+    func exportAnnualEdition() {
+        do {
+            let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 20000)) ?? narrativeEvents
+            let archiveMemories = (try? BookDatabase.entityMemories(limit: 20000)) ?? entityMemories
+            // Bind the most recent year that actually kept pages: this year if it
+            // has any, otherwise the year before.
+            let calendar = Calendar.current
+            let thisYear = calendar.component(.year, from: Date())
+            let yearsWithPages = Set(days.filter { !$0.pages.isEmpty }.map { calendar.component(.year, from: $0.date) })
+            let targetYear = yearsWithPages.contains(thisYear) ? thisYear : (yearsWithPages.max() ?? thisYear)
+            let annual = MonthlyEditionBuilder.annual(
+                targetYear,
+                from: days,
+                events: archiveEvents,
+                entityMemories: archiveMemories,
+                entityBelief: entityBeliefLedger,
+                pageBelief: pageBeliefLedger,
+                constellations: vault.data.constellations ?? [],
+                wagers: vault.data.wagers ?? [],
+                themes: vault.data.themes ?? [],
+                readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
+                now: Date()
+            )
+            guard !annual.isEmpty else {
+                statusMessage = "There are no kept pages yet to bind into an annual."
+                BookFeedback.play(.error)
+                return
+            }
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("ReEnchanted-Annual-\(targetYear).pdf")
+            try MonthlyEditionPDFWriter.writeAnnual(annual, to: url)
+            preparedAnnualEditionURL = url
+            statusMessage = "The \(targetYear) annual is bound — \(annual.chapters.count) \(annual.chapters.count == 1 ? "chapter" : "chapters"), ready to share."
+            BookFeedback.play(.braidComplete)
+        } catch {
+            statusMessage = "The annual would not bind: \(error.localizedDescription)"
+            BookFeedback.play(.error)
+        }
+    }
+
     /// Imports by merge-upsert: nothing on the device is deleted; the save's
     /// pages, facts, memories, cast, and ledgers land on top.
     @MainActor
@@ -945,17 +986,59 @@ extension ContentView {
         )
     }
 
-    func supportGuildSurfaceWithProse(from base: SurfacePage) async -> SurfacePage {
+    @MainActor
+    func bookJumpSurfaceWithProse(from base: SurfacePage) async -> SurfacePage {
         await generatedProseSurface(
             from: base,
-            proseKey: "guildProse",
+            proseKey: "bookJumpProse",
+            prompt: LocalModelManager.bookJumpPrompt(surface: base),
+            instructions: """
+            You are the Book inside ReEnchanted staging a controlled Book Jump into a named public-domain work. The reader has physically fallen into the book and stands inside a real, specific scene from it — write it to the senses, name the book's actual places and people, never settle for generic mood. Prose only, no headings, no quotes from the source text.
+            """,
+            maxTokens: 700,
+            sourceID: "book-jump",
+            tags: [
+                "book-jump",
+                base.payload.metadata["bookID"] ?? "public-domain",
+                base.payload.metadata["bookJumpAction"] ?? "advance"
+            ],
+            fallbackBody: base.payload.body
+        )
+    }
+
+    @MainActor
+    func supportGuildSurfaceWithProse(from base: SurfacePage) async -> SurfacePage {
+        var metadata = base.payload.metadata
+        let generated = await LocalBrainProse.write(
             prompt: LocalModelManager.supportGuildPrompt(surface: base),
             instructions: """
-            You are the Support Guild scribe inside ReEnchanted. Write the meeting scene in character, prose only, no headings; experiment lines start with "Try: ".
+            You are the Support Guild scribe inside ReEnchanted. Return only the requested labeled sections. Complete every sentence. Never label prose paragraphs with "Try:".
             """,
-            maxTokens: 680,
+            maxTokens: 760,
             sourceID: "support-guild",
             tags: ["support-guild", "dr-vellum", "dr-inkrest"]
+        )
+        let raw = (generated?.hasPrefix("{") == false) ? (generated ?? "") : ""
+        let parsed = SupportGuildProseParser.parse(raw, fallbackMetadata: metadata, fallbackBody: base.payload.body)
+
+        metadata["guildProse"] = raw.isEmpty ? "fallback" : raw
+        metadata["vellumSection"] = parsed.vellum
+        metadata["inkrestSection"] = parsed.inkrest
+        metadata["connectionsSection"] = parsed.connections
+        metadata["experimentSection"] = parsed.experiment
+        metadata["safetySection"] = parsed.safety
+
+        return SurfacePage(
+            id: base.id,
+            type: base.type,
+            sourceID: base.sourceID,
+            intent: base.intent,
+            renderStyle: base.renderStyle,
+            score: base.score,
+            reason: base.reason,
+            prompt: base.prompt,
+            detail: base.detail,
+            payload: BookPagePayload(headline: base.payload.headline, body: parsed.scene, metadata: metadata)
         )
     }
 

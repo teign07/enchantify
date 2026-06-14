@@ -86,7 +86,36 @@
         }
       },
       "applied_at": "2026-06-02"
+    },
+    {
+      "action": "PROMOTE_SEED",
+      "name": "Bellkeeper's Unwritten Thread",
+      "reason": "Bellkeeper Elian Quill has Belief 32 and 4 queued seed signal(s); score 52.",
+      "confidence": "medium",
+      "payload": {
+        "name": "Bellkeeper's Unwritten Thread",
+        "id": "bellkeeper-unwritten-thread",
+        "type": "npc-subplot",
+        "phase": "setup",
+        "pressure": "low",
+        "npc_anchor": "Bellkeeper Elian Quill",
+        "locations": "Academy corridors, Library, Great Hall, and wherever the Unwritten Interest touches the day",
+        "entities": "Bellkeeper Elian Quill",
+        "nothing_pressure": "medium - the Nothing can flatten this into mere trivia instead of lived story",
+        "status": "Bellkeeper Elian Quill's map-and-route obsession has begun affecting Academy life.",
+        "next_beat": "Bellkeeper Elian Quill leaves a concrete trace of this interest where bj can find it: a note, object, recommendation, or small request that reveals whether their gift is helping or becoming tangled in can over-prepare; may make a day feel too neatly arranged if not reminded that surprise is part of being alive; sometimes treats open time as a thing to protect so carefully that nothing enters it..",
+        "starting_belief": 8,
+        "seed_count": 4,
+        "lore_basis": {
+          "personality": "Calm, lucid, gently exact, quietly theatrical, and allergic to unnecessary jargon. Elian enjoys a good phrase, but prefers a useful sentence.",
+          "faults": "Can over-prepare; may make a day feel too neatly arranged if not reminded that surprise is part of being alive; sometimes treats open time as a thing to protect so carefully that nothing enters it.",
+          "quirks": "Sorts appointment cards by emotional weight, taps a brass pencil before naming a transition, leaves tiny slips that say ARRIVE, RETURN, or ENOUGH, and refuses to call every errand a quest if “errand” is clearer.",
+          "interest": "Chronobiology, humane scheduling, attention rhythms, transition rituals, calendar design, executive function support, after-work re-entry, appointment anxiety, and how ordinary time becomes story without becoming homework.",
+          "hooks": "Appears in the morning, before/after appointments, when the player asks what kind of day this is, when Mission Control needs the day’s shape, when a calendar gap could become a Compass Run, or when the Book of You needs one scrap before night."
+        }
+      },
+      "applied_at": "2026-06-09"
     }
   ],
-  "last_run_at": "2026-06-02T00:30:40"
+  "last_run_at": "2026-06-09T00:31:22"
 }

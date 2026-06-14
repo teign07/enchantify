@@ -337,6 +337,7 @@ struct CapturePageSheet: View {
     @State private var isFaePaying = false
     @State private var faeMessage = ""
     @State private var festivalMessage = ""
+    @State private var todaysSkyMessage = ""
     @State private var twoReadingsSide: String?
     @State private var selectedEnchantmentID: String?
     @State private var enchantmentResult: EnchantmentCastResult?
@@ -425,6 +426,7 @@ struct CapturePageSheet: View {
             surface.type == .elective ||
             surface.type == .academyClass ||
             surface.type == .anchor ||
+            isChapterPrimerPage ||
             surface.renderStyle == .gentleTranslation ||
             surface.origin == .imported
     }
@@ -443,6 +445,60 @@ struct CapturePageSheet: View {
 
     private var isChapterBindingPage: Bool {
         surface.type == .aboutYou && surface.payload.metadata["chapterBinding"] == "true"
+    }
+
+    private var isChapterPrimerPage: Bool {
+        surface.type == .aboutYou && surface.payload.metadata["chapterPrimer"] == "true"
+    }
+
+    private var isBookJumpPage: Bool {
+        surface.type == .bookJump
+    }
+
+    private var bookJumpAction: BookJumpAction? {
+        surface.payload.metadata["bookJumpAction"].flatMap(BookJumpAction.init(rawValue:))
+    }
+
+    private var isBookJumpReturnPage: Bool {
+        isBookJumpPage && bookJumpAction == .return
+    }
+
+    /// An open jump (any beat past Opening the Spine) is steered by the in-page
+    /// Go Deeper / Find the Spine controls rather than the generic Keep button.
+    private var isBookJumpActivePage: Bool {
+        isBookJumpPage && bookJumpAction != nil && bookJumpAction != .start
+    }
+
+    /// Keep the open jump as a chosen beat, rewriting the action (and its tag)
+    /// so the reader's fork — deeper, steady, or home — is what gets applied.
+    private func keepBookJump(as action: BookJumpAction, direction: StoryChoiceRole? = nil) {
+        var metadata = surface.payload.metadata
+        let previous = metadata["bookJumpAction"] ?? "advance"
+        metadata["bookJumpAction"] = action.rawValue
+        if let direction {
+            metadata["bookJumpChosenDirection"] = direction.rawValue
+        }
+        if let tags = metadata["tags"] {
+            metadata["tags"] = tags.replacingOccurrences(of: "book-jump:\(previous)", with: "book-jump:\(action.rawValue)")
+        }
+        let variant = SurfacePage(
+            id: surface.id,
+            type: surface.type,
+            sourceID: surface.sourceID,
+            intent: surface.intent,
+            renderStyle: surface.renderStyle,
+            score: surface.score,
+            reason: surface.reason,
+            prompt: surface.prompt,
+            detail: surface.detail,
+            payload: BookPagePayload(
+                headline: surface.payload.headline,
+                body: surface.payload.body,
+                metadata: metadata
+            )
+        )
+        onSave(variant, preparedInput, preparedTags(for: variant))
+        dismiss()
     }
 
     private func tutorTouchForThisPage() {
@@ -767,6 +823,9 @@ struct CapturePageSheet: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 18)
                         .padding(.bottom, 44)
+                        // All of the page's prose is long-press selectable/copyable.
+                        // (Editable fields keep their own selection behavior.)
+                        .textSelection(.enabled)
                 }
                 .scrollIndicators(.visible)
             }
@@ -777,7 +836,7 @@ struct CapturePageSheet: View {
                         dismiss()
                     }
                 }
-                if !isKeptReadbackPage {
+                if !isKeptReadbackPage && !isBookJumpActivePage {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Keep this page") {
                             if isCompassRunStartPage {
@@ -955,7 +1014,7 @@ struct CapturePageSheet: View {
                 pactFramingCard(epigraph, talisman: surface.payload.metadata["pactDoorTalisman"])
             }
 
-            if isPreparedPage || isCompassPracticePage {
+            if (isPreparedPage && !isChapterPrimerPage && !isBookJumpPage) || isCompassPracticePage {
                 AnyView(preparedPageContent)
             }
 
@@ -1006,6 +1065,10 @@ struct CapturePageSheet: View {
                 ChapterBindingFormView(surface: surface, onBindChapter: onBindChapter)
             }
 
+            if isChapterPrimerPage {
+                chapterPrimerView
+            }
+
             if let externalURL {
                 externalPageLink(externalURL)
             }
@@ -1030,6 +1093,14 @@ struct CapturePageSheet: View {
                 AnyView(festivalView)
             }
 
+            if surface.type == .todaysSky {
+                AnyView(todaysSkyView)
+            }
+
+            if isBookJumpPage {
+                AnyView(bookJumpView)
+            }
+
             if surface.type == .twoReadings {
                 AnyView(twoReadingsView)
             }
@@ -1050,11 +1121,70 @@ struct CapturePageSheet: View {
                 hourPageView
             }
 
-            if surface.type != .narrativeOS && surface.type != .askTheBook && surface.type != .calendar && surface.type != .inkrestOfficeHours && surface.type != .faeBargain {
+            if surface.type != .narrativeOS && surface.type != .askTheBook && surface.type != .calendar && surface.type != .inkrestOfficeHours && surface.type != .faeBargain && !isChapterPrimerPage && !isBookJumpPage {
                 marginNoteEditor(minHeight: isPreparedPage ? 92 : (surface.type == .souvenir ? 120 : 150))
+            } else if isBookJumpActivePage {
+                // Every open beat can carry a line — a souvenir to bring home, or
+                // a real detail to steady the page — so the fork controls have it.
+                marginNoteEditor(minHeight: 118)
             } else if surface.type == .narrativeOS && !isLocalBrainIssuePage {
                 storyMarginNoteField
             }
+        }
+    }
+
+    private var chapterPrimerView: some View {
+        let metadata = surface.payload.metadata
+        let chapter = AcademyChapterRegistry.chapter(id: metadata["chapterID"] ?? "")
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: chapter?.symbolName ?? "book.closed")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold)
+                    .frame(width: 34, height: 34)
+                    .background(BookPalette.lampGold.opacity(0.13), in: Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(metadata["privacy"]?.uppercased() ?? "PUBLIC REFERENCE")
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(BookPalette.teal)
+                    Text(surface.payload.headline)
+                        .font(.system(.title3, design: .serif, weight: .bold))
+                        .foregroundStyle(BookPalette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Text(surface.payload.body)
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.86))
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let chapter {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(chapter.name, systemImage: chapter.symbolName)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.lampGold)
+                    Text(chapter.philosophy)
+                        .font(.callout)
+                        .foregroundStyle(BookPalette.ink.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(BookPalette.lampGold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.lampGold.opacity(0.22), lineWidth: 1)
+                }
+            }
+        }
+        .padding(14)
+        .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
         }
     }
 
@@ -1446,6 +1576,300 @@ struct CapturePageSheet: View {
             ? "The feast is marked on your calendar."
             : "It could not be added (check Calendar permission in Settings)."
         BookFeedback.play(ok ? .select : .error)
+    }
+
+    private var todaysSkyView: some View {
+        let m = surface.payload.metadata
+        let pct = m["moonIllum"].flatMap { $0.nonEmpty }
+        let moonGlyph = m["moonGlyph"]?.nonEmpty
+        let sunGlyph = m["sunGlyph"]?.nonEmpty
+        let moonTitle: String = {
+            var t = m["moonName"] ?? "The Moon"
+            if let pct { t += " · \(pct)% lit" }
+            if let sign = m["moonSign"]?.nonEmpty { t += " in \(sign) \(moonGlyph ?? "")" }
+            return t
+        }()
+        let moonBody = m["moonLine"]?.nonEmpty ?? surface.payload.body
+        let sunTitle: String = {
+            if let sign = m["sunSign"]?.nonEmpty { return "Sun in \(sign) \(sunGlyph ?? "")" }
+            return "The turning of the light"
+        }()
+        let sunBody = m["lightTrend"]?.nonEmpty ?? "The light is turning."
+        let eventTitle = m["eventName"]?.nonEmpty.map { "Next overhead: \($0)" } ?? "Look up soon"
+        let eventBody = m["eventLine"].flatMap { $0.nonEmpty }.map { "Worth looking up for \($0)." }
+            ?? "Keep one true sentence about the sky tonight."
+
+        return VStack(alignment: .leading, spacing: 14) {
+            hourPageCallout(
+                title: moonTitle,
+                symbol: m["moonSymbol"]?.nonEmpty ?? "moon.stars",
+                body: moonBody,
+                tint: BookPalette.teal
+            )
+            hourPageCallout(
+                title: sunTitle,
+                symbol: m["lightSymbol"]?.nonEmpty ?? "sun.max",
+                body: sunBody,
+                tint: BookPalette.lampGold
+            )
+            hourPageCallout(
+                title: eventTitle,
+                symbol: m["eventSymbol"]?.nonEmpty ?? "sparkles",
+                body: eventBody,
+                tint: BookPalette.teal
+            )
+            Button {
+                Task { await addSkyWatchToCalendar() }
+            } label: {
+                Label("Add a sky-watch to my Calendar", systemImage: "calendar.badge.plus")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(BookPalette.teal)
+
+            if !todaysSkyMessage.isEmpty {
+                Text(todaysSkyMessage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(openPageSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func addSkyWatchToCalendar() async {
+        let m = surface.payload.metadata
+        let eventName = m["eventName"]?.nonEmpty ?? "a celestial event"
+        let when: Date = {
+            if let ts = m["eventTimestamp"].flatMap({ Double($0) }) {
+                let day = Date(timeIntervalSince1970: ts)
+                return Calendar.current.date(bySettingHour: 21, minute: 0, second: 0, of: day) ?? day
+            }
+            return Calendar.current.date(bySettingHour: 21, minute: 0, second: 0, of: Date()) ?? Date()
+        }()
+        let ok = await EventKitWriter.addEvent(
+            title: "Look up: \(eventName)",
+            notes: m["eventLine"].flatMap { $0.nonEmpty }.map { "\(eventName) — \($0)." } ?? "",
+            start: when,
+            end: when.addingTimeInterval(3_600)
+        )
+        todaysSkyMessage = ok
+            ? "The sky-watch is marked on your calendar."
+            : "It could not be added (check Calendar permission in Settings)."
+        BookFeedback.play(ok ? .select : .error)
+    }
+
+    private var bookJumpView: some View {
+        let metadata = surface.payload.metadata
+        let action = bookJumpAction ?? .start
+        let title = metadata["bookTitle"]?.nonEmpty ?? "a public-domain book"
+        let author = metadata["bookAuthor"]?.nonEmpty ?? "the public stacks"
+        let depth = Int(metadata["bookJumpDepth"] ?? "") ?? 0
+        let degradation = Int(metadata["bookJumpDegradation"] ?? "") ?? 0
+        let rules = (metadata["bookRules"] ?? "")
+            .split(separator: "|")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "book.closed.fill")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold)
+                    .frame(width: 38, height: 38)
+                    .background(BookPalette.ink.opacity(0.08), in: Circle())
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(action.title.uppercased())
+                        .font(.caption2.weight(.heavy))
+                        .foregroundStyle(BookPalette.teal)
+                    Text(title)
+                        .font(.system(.title3, design: .serif, weight: .semibold))
+                        .foregroundStyle(BookPalette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(author)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.58))
+                }
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 8) {
+                bookJumpMeter(label: "Depth", value: depth, maximum: BookJumpEngine.maxDepth, tint: BookPalette.teal)
+                bookJumpMeter(label: "Nothing", value: degradation, maximum: 4, tint: degradation >= 2 ? BookPalette.violet : BookPalette.lampGold)
+            }
+
+            Text(surface.payload.body)
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !rules.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Rules of this book", systemImage: "text.book.closed")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.teal)
+                    ForEach(Array(rules.enumerated()), id: \.offset) { _, rule in
+                        Text(rule)
+                            .font(.caption)
+                            .foregroundStyle(BookPalette.ink.opacity(0.78))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(12)
+                .background(BookPalette.ink.opacity(0.055), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+
+            if action == .start {
+                Label(
+                    "Keeping this page spends \(BookJumpEngine.startCost) Belief and opens one controlled jump.",
+                    systemImage: "sparkles"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(BookPalette.ink.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+            } else {
+                bookJumpForkControls(depth: depth, degradation: degradation)
+            }
+
+            if let url = metadata["gutenbergURL"].flatMap(URL.init(string:)) {
+                Link(destination: url) {
+                    Label("Public-domain source", systemImage: "link")
+                        .font(.caption.weight(.bold))
+                }
+                .foregroundStyle(BookPalette.teal)
+            }
+        }
+        .padding(14)
+        .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+        }
+    }
+
+    private func bookJumpMeter(label: String, value: Int, maximum: Int, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("\(label) \(Swift.max(0, Swift.min(maximum, value)))/\(maximum)")
+                .font(.caption2.weight(.heavy))
+                .foregroundStyle(tint)
+            HStack(spacing: 3) {
+                ForEach(0..<maximum, id: \.self) { index in
+                    Capsule()
+                        .fill(index < value ? tint : BookPalette.ink.opacity(0.12))
+                        .frame(height: 6)
+                }
+            }
+        }
+        .padding(10)
+        .background(BookPalette.ink.opacity(0.045), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    /// The reader steers an open jump: go deeper (more risk, richer return),
+    /// steady the page when the Nothing is loud, or find the Spine and come home.
+    @ViewBuilder
+    private func bookJumpForkControls(depth: Int, degradation: Int) -> some View {
+        let canDeepen = depth < BookJumpEngine.maxDepth
+        let canReturn = depth >= 2
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        VStack(alignment: .leading, spacing: 10) {
+            if canReturn {
+                Text("Write one sentence to bring home, then find the Spine — or press deeper first.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.teal)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if degradation >= 2 {
+                Text("The page is blurring. Name one true real-world detail to steady it, or press deeper anyway.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.violet)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if canDeepen {
+                Text("Go one page deeper — choose how the next scene turns:")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(StoryChoiceRole.allCases, id: \.self) { role in
+                    bookJumpDeeperButton(role: role, degradation: degradation)
+                }
+            }
+            if degradation >= 1 {
+                bookJumpActionButton(
+                    title: "Steady the page",
+                    systemImage: "hand.raised",
+                    tint: BookPalette.lampGold
+                ) { keepBookJump(as: .stabilize) }
+            }
+            if canReturn {
+                bookJumpActionButton(
+                    title: trimmed.isEmpty ? "Find the Spine (no souvenir)" : "Find the Spine and return",
+                    systemImage: "arrow.uturn.backward.circle.fill",
+                    tint: BookPalette.lampGold,
+                    prominent: true
+                ) { keepBookJump(as: .return) }
+            }
+        }
+    }
+
+    private func bookJumpActionButton(
+        title: String,
+        systemImage: String,
+        tint: Color,
+        prominent: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.bold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background((prominent ? tint.opacity(0.22) : BookPalette.ink.opacity(0.06)),
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(tint.opacity(prominent ? 0.7 : 0.4), lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(tint)
+    }
+
+    private func bookJumpDeeperButton(role: StoryChoiceRole, degradation: Int) -> some View {
+        let tint = degradation >= 2 ? BookPalette.violet : BookPalette.teal
+        let (subtitle, symbol): (String, String) = {
+            switch role {
+            case .sliceOfLife: return ("Linger in a quiet, human corner of the book.", "leaf")
+            case .progressArc: return ("Push toward the book's central drama.", "arrow.up.forward")
+            case .surprise: return ("Veer somewhere unexpected but true to the book.", "sparkles")
+            }
+        }()
+        return Button {
+            keepBookJump(as: .advance, direction: role)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.caption.weight(.bold))
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(role.title)
+                        .font(.caption.weight(.bold))
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(BookPalette.ink.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 9)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(BookPalette.ink.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(tint.opacity(0.4), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(tint)
     }
 
     private var twoReadingsView: some View {
@@ -3454,10 +3878,13 @@ struct CapturePageSheet: View {
         if surface.type == .twoReadings {
             return twoReadingsSide != nil
         }
+        if isBookJumpPage {
+            return !isBookJumpReturnPage || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
         if isEnchantmentPage {
             return !isCastingEnchantment && enchantmentResult != nil
         }
-        if isAnchorOfferPage || isChapterBindingPage {
+        if isAnchorOfferPage || isChapterBindingPage || isChapterPrimerPage {
             return false
         }
         if allowsCompassPhotoProof, proofPhotoURL != nil {
@@ -3672,6 +4099,16 @@ struct CapturePageSheet: View {
                     "Answer: \(turn.answer)"
                 ].joined(separator: "\n\n")
             }.joined(separator: "\n\n---\n\n")
+        }
+        if isBookJumpPage {
+            let note = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            var sections = [surface.payload.body]
+            if isBookJumpReturnPage {
+                sections.append("Souvenir: \(note)")
+            } else if !note.isEmpty {
+                sections.append("Margin note: \(note)")
+            }
+            return sections.joined(separator: "\n\n")
         }
         if surface.type == .twoReadings {
             let metadata = surface.payload.metadata
@@ -3943,6 +4380,15 @@ struct CapturePageSheet: View {
             tags.append("two-readings")
             if let side = twoReadingsSide {
                 tags.append("sided:\(side)")
+            }
+        }
+        if preparedSurface.type == .bookJump {
+            tags.append("book-jump")
+            if let action = preparedSurface.payload.metadata["bookJumpAction"], !action.isEmpty {
+                tags.append("book-jump:\(action)")
+            }
+            if let bookID = preparedSurface.payload.metadata["bookID"], !bookID.isEmpty {
+                tags.append("book:\(bookID)")
             }
         }
         if preparedSurface.type == .castBond {

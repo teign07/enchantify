@@ -473,7 +473,7 @@ final class BookArchiveDatabase {
 
     func resurfacingCandidates(before date: Date = Date(), calendar: Calendar = .current, limit: Int = 12) throws -> [BookPage] {
         let startOfDay = calendar.startOfDay(for: date)
-        return try pages(
+        let souvenirs = try pages(
             matching: BookPageQuery(
                 type: .souvenir,
                 usedInBookOfYou: true,
@@ -481,6 +481,18 @@ final class BookArchiveDatabase {
                 limit: limit
             )
         )
+        // Sentences carried home from a Book Jump resurface too, attributed to
+        // their source book.
+        let broughtBack = try pages(
+            matching: BookPageQuery(
+                type: .bookJump,
+                tag: "book-jump:return",
+                endDate: startOfDay,
+                limit: limit
+            )
+        ).filter { !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+        return Array((souvenirs + broughtBack).sorted { $0.createdAt > $1.createdAt }.prefix(limit))
     }
 
     func recordResurfacing(page: BookPage, reason: String, surface: String = "home") throws {

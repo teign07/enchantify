@@ -418,9 +418,12 @@ final class ConstellationTests: XCTestCase {
                 BookPage(id: "old", type: .souvenir, createdAt: date(2025, 12, 31), promptText: "Old", userInput: "Last year.")
             ]
         )
-        let annual = MonthlyEditionBuilder.year(2026, from: [june, outside], now: now, calendar: calendar)
+        let annual = MonthlyEditionBuilder.annual(2026, from: [june, outside], now: now, calendar: calendar)
         XCTAssertEqual(annual.title, "Book of You: The 2026 Annual")
         XCTAssertEqual(annual.pageCount, 1)
+        // Only the in-year month (June) becomes a chapter; last year is excluded.
+        XCTAssertEqual(annual.chapters.count, 1)
+        XCTAssertEqual(annual.chapters.first?.monthName, "June 2026")
     }
 
     // MARK: Export

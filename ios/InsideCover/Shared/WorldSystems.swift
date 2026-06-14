@@ -149,6 +149,17 @@ enum MoonPhaseCalendar {
         return probe
     }
 
+    /// The next calendar day (after the given date) that reads as a Full Moon —
+    /// when the Luminous Gathering is kept.
+    static func nextFullMoon(after date: Date = Date(), calendar: Calendar = .current) -> Date {
+        var probe = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 1, to: date) ?? date)
+        for _ in 0..<35 {
+            if phase(on: probe).name == "Full Moon" { return probe }
+            probe = calendar.date(byAdding: .day, value: 1, to: probe) ?? probe
+        }
+        return probe
+    }
+
     static func phase(on date: Date = Date()) -> MoonPhase {
         let elapsed = date.timeIntervalSince(referenceNewMoon) / 86_400
         let age = elapsed.truncatingRemainder(dividingBy: synodicMonthDays)
@@ -1800,6 +1811,165 @@ extension FaeEconomy {
     }
 }
 
+// MARK: - The Goblin Market (the living BookShop)
+//
+// The BookShop is a place the Marginalia Goblins run, not a menu. It carries
+// three economies at once: real content packs (money, via StoreKit), in-world
+// wares bought with Attention earned from Fae bargains, and consumable goods
+// bought with Belief — which makes the shop the central SINK the rest of the
+// economy was missing. Stock rotates with the day and the moon; an
+// under-the-counter shelf only appears under the right conditions. Pure, local,
+// testable; the app layer handles money and applies effects.
+
+enum MarketCurrency: String, Codable, Equatable {
+    case attention, belief, money
+
+    var label: String {
+        switch self {
+        case .attention: return "Attention"
+        case .belief: return "Belief"
+        case .money: return "coin"
+        }
+    }
+}
+
+/// What a ware actually gives the reader when bought.
+enum MarketGood: Equatable {
+    case gift(FaeGiftEffect, FaeKind)   // grants a consumable Fae gift
+    case warmWord                        // Belief → a point of Belief to a cast member
+    case pack(String)                    // money → unlock a content pack (packID)
+}
+
+struct MarketWare: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let clerkPitch: String
+    let contents: String
+    let currency: MarketCurrency
+    let basePrice: Int        // Attention/Belief amount (ignored for money)
+    let good: MarketGood
+    let rarity: Int           // 1 common … 3 rare (rare lives under the counter)
+}
+
+struct GoblinStall: Equatable {
+    let open: Bool             // the in-world shelves are buyable (new moon / calling card)
+    let mood: GoblinMood
+    let moodLine: String
+    let windowLine: String
+    let wares: [MarketWare]    // today's open in-world shelf
+    let hidden: [MarketWare]   // under-the-counter, revealed by conditions
+    let packs: [BookShopListing]   // money shelf — always browseable
+}
+
+enum GoblinMarketEngine {
+    /// Belief-priced consumables — the shop's own sinks, on top of the
+    /// Attention wares drawn from the Fae market.
+    static let beliefWares: [MarketWare] = [
+        MarketWare(id: "belief-warm-word", title: "a warm word",
+                   clerkPitch: "Whisper a kindness into the ledger and we'll see it reaches them. Costs you a little shine.",
+                   contents: "Spends Belief to give one point of Belief to a cast member you choose.",
+                   currency: .belief, basePrice: 8, good: .warmWord, rarity: 1),
+        MarketWare(id: "belief-tallow-candle", title: "a tallow candle",
+                   clerkPitch: "Burns slow and unfashionable. The dark keeps its distance from honest tallow.",
+                   contents: "Spends Belief to hold the Nothing's grey back a shade for a day.",
+                   currency: .belief, basePrice: 10, good: .gift(.quieting, .goblin), rarity: 1),
+        MarketWare(id: "belief-borrowed-comma", title: "a borrowed comma",
+                   clerkPitch: "A small pause, lent at interest. Use it to bring a resting page back into the light.",
+                   contents: "Spends Belief to re-shelve a resting kind of page so it finds you again.",
+                   currency: .belief, basePrice: 9, good: .gift(.reshelving, .goblin), rarity: 2),
+        MarketWare(id: "belief-long-memory-ribbon", title: "a long-memory ribbon",
+                   clerkPitch: "Tie it to a page and the Book won't be allowed to forget it. We checked. It won't.",
+                   contents: "Spends Belief to keep one kept page returning as Book Remembered.",
+                   currency: .belief, basePrice: 12, good: .gift(.longMemory, .literaryElf), rarity: 3)
+    ]
+
+    /// Every in-world ware (Attention from the Fae market + Belief consumables).
+    static var inWorldWares: [MarketWare] {
+        let attention = FaeMarketCatalog.offers.map { offer in
+            MarketWare(
+                id: "attention-\(offer.id)",
+                title: offer.name,
+                clerkPitch: "From the Attention shelf — paid in noticing, not coin.",
+                contents: offer.descriptionText,
+                currency: .attention,
+                basePrice: offer.baseCost,
+                good: .gift(offer.effect, offer.faeKind),
+                rarity: offer.effect == .callingCard ? 2 : 1
+            )
+        }
+        return attention + beliefWares
+    }
+
+    /// Mood moves the price; Warmth with the goblins earns a quiet discount
+    /// (the baseline of haggling).
+    static func price(_ ware: MarketWare, mood: GoblinMood, goblinWarmth: Int) -> Int {
+        var p = ware.basePrice
+        switch mood {
+        case .generous: p -= 1
+        case .serious: p -= 2
+        case .feverish: p += 2
+        case .business: break
+        }
+        p -= min(2, goblinWarmth / 4)   // standing shaves a little
+        return max(1, p)
+    }
+
+    private static func dayShuffled(_ wares: [MarketWare], dayID: String) -> [MarketWare] {
+        wares.sorted { "\($0.id)-\(dayID)".stableHash < "\($1.id)-\(dayID)".stableHash }
+    }
+
+    /// Today's living stall.
+    static func stall(
+        on date: Date,
+        fae: FaePlayerState,
+        belief: Int,
+        greyLevel: Int,
+        hemisphere: Hemisphere = .northern,
+        recentBookJumpCollapse: Bool = false,
+        ownedPackIDs: Set<String> = [],
+        calendar: Calendar = .current
+    ) -> GoblinStall {
+        let open = FaeEconomy.canEnterMarket(state: fae, now: date)
+        let mood = FaeEconomy.mood(for: date, calendar: calendar)
+        let dayID = BookDay.id(for: date, calendar: calendar)
+        let goblinWarmth = fae.warmth(for: .goblin)
+
+        let pool = inWorldWares.filter { ware in
+            // Affordable-or-not is shown; but a closed market only teases commons.
+            ware.rarity < 3
+        }
+        let shuffled = dayShuffled(pool, dayID: dayID)
+        // A full new-moon market lays out more; a calling-card visit is a thin stall.
+        let newMoonOpen = FaeEconomy.marketWindowIsOpen(on: date)
+        let visibleCount = newMoonOpen ? 5 : 3
+        let wares = open ? Array(shuffled.prefix(visibleCount)) : []
+
+        // The under-the-counter shelf: rare wares, only when the world leans in.
+        let fullMoon = Almanac.activeEsbat(on: date)?.id == "esbat-full"
+        let sabbat = Almanac.activeSabbat(on: date, hemisphere: hemisphere, calendar: calendar) != nil
+        let revealHidden = open && (fullMoon || sabbat || goblinWarmth >= 8 || greyLevel >= 2 || recentBookJumpCollapse)
+        let hidden = revealHidden
+            ? dayShuffled(inWorldWares.filter { $0.rarity >= 3 }, dayID: dayID)
+            : []
+
+        let packs = BookShopCatalog.listings.filter { !$0.comingSoon && !ownedPackIDs.contains($0.packID) }
+
+        let windowLine: String
+        if newMoonOpen {
+            windowLine = "The new-moon market is in full swing — every stall is lit."
+        } else if open {
+            windowLine = "The window is shut, but your calling card props a side door open. A thin stall, tonight."
+        } else {
+            windowLine = "The in-world stalls are dark until the new moon — or a calling card. The coin shelf is always open."
+        }
+
+        return GoblinStall(
+            open: open, mood: mood, moodLine: mood.line, windowLine: windowLine,
+            wares: wares, hidden: hidden, packs: packs
+        )
+    }
+}
+
 // MARK: - Goblin Marginalia
 //
 // Goblins are born from marginalia — the response to the story, not the story.
@@ -2604,9 +2774,9 @@ enum Almanac {
         for celebration in celebrations(on: date, hemisphere: hemisphere, calendar: calendar) {
             switch celebration.id {
             case "esbat-full":
-                add(.souvenir, 8); add(.diary, 4)            // Moonwrite
+                add(.souvenir, 8); add(.diary, 4); add(.todaysSky, 6)  // Moonwrite
             case "esbat-new":
-                add(.rest, 8); add(.mood, 4)                 // The Listening
+                add(.rest, 8); add(.mood, 4); add(.todaysSky, 4)       // The Listening
             case "sabbat-samhain":
                 add(.bookRemembered, 10); add(.inkrestOfficeHours, 4)  // the returning / the lost
             case "sabbat-beltane":
@@ -2622,12 +2792,239 @@ enum Almanac {
             case "sabbat-yule":
                 add(.rest, 6); add(.diary, 4)                // the darkest, kept warm
             case "shower-perseids", "shower-geminids":
-                add(.wonderCompass, 6); add(.souvenir, 4)    // make a wish
+                add(.wonderCompass, 6); add(.souvenir, 4); add(.todaysSky, 8)  // make a wish
             default:
                 break
             }
         }
         return boosts
+    }
+}
+
+// MARK: - Today's Sky (the living almanac of the night overhead)
+//
+// The Academy shares its window. For a date and hemisphere, the sky reading
+// knows the Moon's phase and the sign it drifts through, the Sun's sign and
+// whether the light is lengthening or drawing in, and the nearest celestial
+// event worth looking up for. Pure local astronomy — low-precision but honest,
+// "close enough for a storybook" (within a degree or two), no network or
+// precise location required. See lore/seasonal-calendar.md.
+
+struct ZodiacSign: Equatable {
+    let name: String
+    let glyph: String       // ♈︎ etc — drawn as text
+    let element: String     // fire / earth / air / water
+    let symbolName: String  // an SF Symbol standing in for the element
+}
+
+enum Zodiac {
+    // Tropical signs in ecliptic-longitude order, Aries beginning at 0°.
+    static let signs: [ZodiacSign] = [
+        ZodiacSign(name: "Aries", glyph: "♈︎", element: "fire", symbolName: "flame"),
+        ZodiacSign(name: "Taurus", glyph: "♉︎", element: "earth", symbolName: "leaf"),
+        ZodiacSign(name: "Gemini", glyph: "♊︎", element: "air", symbolName: "wind"),
+        ZodiacSign(name: "Cancer", glyph: "♋︎", element: "water", symbolName: "drop"),
+        ZodiacSign(name: "Leo", glyph: "♌︎", element: "fire", symbolName: "flame"),
+        ZodiacSign(name: "Virgo", glyph: "♍︎", element: "earth", symbolName: "leaf"),
+        ZodiacSign(name: "Libra", glyph: "♎︎", element: "air", symbolName: "wind"),
+        ZodiacSign(name: "Scorpio", glyph: "♏︎", element: "water", symbolName: "drop"),
+        ZodiacSign(name: "Sagittarius", glyph: "♐︎", element: "fire", symbolName: "flame"),
+        ZodiacSign(name: "Capricorn", glyph: "♑︎", element: "earth", symbolName: "leaf"),
+        ZodiacSign(name: "Aquarius", glyph: "♒︎", element: "air", symbolName: "wind"),
+        ZodiacSign(name: "Pisces", glyph: "♓︎", element: "water", symbolName: "drop")
+    ]
+
+    static func sign(forEclipticLongitude longitude: Double) -> ZodiacSign {
+        let normalized = ((longitude.truncatingRemainder(dividingBy: 360)) + 360)
+            .truncatingRemainder(dividingBy: 360)
+        return signs[min(11, Int(normalized / 30))]
+    }
+}
+
+/// Low-precision ecliptic longitudes for the Sun and Moon. Good to a degree or
+/// two — plenty for naming the sign each one stands in.
+enum SkyEphemeris {
+    static let j2000: Date = {
+        var c = DateComponents()
+        c.year = 2000; c.month = 1; c.day = 1; c.hour = 12; c.minute = 0
+        c.timeZone = TimeZone(identifier: "UTC")
+        return Calendar(identifier: .gregorian).date(from: c) ?? Date(timeIntervalSince1970: 946_728_000)
+    }()
+
+    static func daysSinceJ2000(_ date: Date) -> Double {
+        date.timeIntervalSince(j2000) / 86_400
+    }
+
+    private static func radians(_ degrees: Double) -> Double { degrees * .pi / 180 }
+
+    static func sunLongitude(on date: Date) -> Double {
+        let d = daysSinceJ2000(date)
+        let g = radians(357.529 + 0.985_600_28 * d)          // mean anomaly
+        let q = 280.459 + 0.985_647_36 * d                   // mean longitude
+        return q + 1.915 * sin(g) + 0.020 * sin(2 * g)       // apparent longitude
+    }
+
+    static func moonLongitude(on date: Date) -> Double {
+        let d = daysSinceJ2000(date)
+        let l = 218.316 + 13.176_396 * d                     // mean longitude
+        let m = radians(134.963 + 13.064_993 * d)            // mean anomaly
+        return l + 6.289 * sin(m)                            // dominant term only
+    }
+}
+
+enum LightTrend: String, Equatable {
+    case lengthening, shortening, nearBalance
+
+    var phrase: String {
+        switch self {
+        case .lengthening: return "the light is lengthening, a little more kept each evening"
+        case .shortening: return "the light is drawing in, the dark gaining a margin a night"
+        case .nearBalance: return "light and dark stand nearly equal, the year holding its breath"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .lengthening: return "sun.max"
+        case .shortening: return "sun.haze"
+        case .nearBalance: return "circle.lefthalf.filled"
+        }
+    }
+}
+
+/// A single celestial event the reader could look up for tonight or soon.
+struct SkyEvent: Equatable {
+    let kind: String     // "full moon", "new moon", "meteor shower"
+    let name: String     // "the Full Moon", "the Perseids"
+    let date: Date
+    let daysAway: Int
+    let line: String     // "in 3 nights" etc, woven into prose
+    let symbolName: String
+}
+
+/// Everything the Book reads in the sky on a given night.
+struct SkyReading: Equatable {
+    let date: Date
+    let hemisphere: Hemisphere
+    let moon: MoonPhase
+    let moonSign: ZodiacSign
+    let sunSign: ZodiacSign
+    let lightTrend: LightTrend
+    let nextEvent: SkyEvent
+    let activeShower: Celebration?   // a shower peaking now, if any
+    let openingLine: String
+    let notes: [String]
+}
+
+enum SkyAlmanac {
+    private struct ShowerPeak { let name: String; let month: Int; let day: Int }
+    private static let showerPeaks: [ShowerPeak] = [
+        ShowerPeak(name: "the Quadrantids", month: 1, day: 3),
+        ShowerPeak(name: "the Lyrids", month: 4, day: 22),
+        ShowerPeak(name: "the Eta Aquariids", month: 5, day: 6),
+        ShowerPeak(name: "the Perseids", month: 8, day: 12),
+        ShowerPeak(name: "the Orionids", month: 10, day: 21),
+        ShowerPeak(name: "the Leonids", month: 11, day: 17),
+        ShowerPeak(name: "the Geminids", month: 12, day: 13)
+    ]
+
+    static func lightTrend(on date: Date, hemisphere: Hemisphere) -> LightTrend {
+        let lon = ((SkyEphemeris.sunLongitude(on: date).truncatingRemainder(dividingBy: 360)) + 360)
+            .truncatingRemainder(dividingBy: 360)
+        // Distance to the two equinox points (0° Aries, 180° Libra).
+        let toAries = min(lon, 360 - lon)
+        let toLibra = abs(lon - 180)
+        if min(toAries, toLibra) < 6 { return .nearBalance }
+        // In the north the days lengthen from the winter solstice (≈270°) through
+        // spring to the summer solstice (≈90°); the south is the mirror.
+        let northernLengthening = (lon >= 270 || lon < 90)
+        let lengthening = hemisphere == .northern ? northernLengthening : !northernLengthening
+        return lengthening ? .lengthening : .shortening
+    }
+
+    private static func nextShowerPeak(after date: Date, calendar: Calendar) -> SkyEvent {
+        let startOfToday = calendar.startOfDay(for: date)
+        var best: (date: Date, peak: ShowerPeak)?
+        for yearOffset in 0...1 {
+            let year = calendar.component(.year, from: date) + yearOffset
+            for peak in showerPeaks {
+                var c = DateComponents()
+                c.year = year; c.month = peak.month; c.day = peak.day
+                guard let peakDate = calendar.date(from: c) else { continue }
+                if peakDate >= startOfToday, best == nil || peakDate < best!.date {
+                    best = (peakDate, peak)
+                }
+            }
+        }
+        let resolved = best ?? (calendar.date(byAdding: .day, value: 30, to: date) ?? date, showerPeaks[3])
+        let days = max(0, calendar.dateComponents([.day], from: startOfToday, to: resolved.date).day ?? 0)
+        return SkyEvent(kind: "meteor shower", name: resolved.peak.name, date: resolved.date,
+                        daysAway: days, line: nightsAway(days), symbolName: "sparkles")
+    }
+
+    private static func nightsAway(_ days: Int) -> String {
+        switch days {
+        case 0: return "tonight"
+        case 1: return "tomorrow night"
+        default: return "in \(days) nights"
+        }
+    }
+
+    /// The soonest sky event worth looking up for: the next full moon, the next
+    /// new moon, or the next meteor shower peak — whichever comes first.
+    static func nextEvent(on date: Date, calendar: Calendar = .current) -> SkyEvent {
+        let startOfToday = calendar.startOfDay(for: date)
+        let full = MoonPhaseCalendar.nextFullMoon(after: date, calendar: calendar)
+        let new = MoonPhaseCalendar.nextNewMoon(after: date, calendar: calendar)
+        let shower = nextShowerPeak(after: date, calendar: calendar)
+
+        let fullDays = max(0, calendar.dateComponents([.day], from: startOfToday, to: full).day ?? 0)
+        let newDays = max(0, calendar.dateComponents([.day], from: startOfToday, to: new).day ?? 0)
+
+        let fullEvent = SkyEvent(kind: "full moon", name: "the Full Moon", date: full,
+                                 daysAway: fullDays, line: nightsAway(fullDays),
+                                 symbolName: "moonphase.full.moon")
+        let newEvent = SkyEvent(kind: "new moon", name: "the New Moon", date: new,
+                                daysAway: newDays, line: nightsAway(newDays),
+                                symbolName: "moonphase.new.moon")
+
+        return [fullEvent, newEvent, shower].min(by: { $0.date < $1.date }) ?? shower
+    }
+
+    private static let openers: [String] = [
+        "The Book turns a page toward the window.",
+        "Look up — the Library shares its ceiling tonight.",
+        "The Academy keeps a window open for you.",
+        "Tonight the margins reach all the way to the stars.",
+        "The Book reads the sky aloud, softly."
+    ]
+
+    static func reading(on date: Date = Date(), hemisphere: Hemisphere = .northern, calendar: Calendar = .current) -> SkyReading {
+        let moon = MoonPhaseCalendar.phase(on: date)
+        let moonSign = Zodiac.sign(forEclipticLongitude: SkyEphemeris.moonLongitude(on: date))
+        let sunSign = Zodiac.sign(forEclipticLongitude: SkyEphemeris.sunLongitude(on: date))
+        let trend = lightTrend(on: date, hemisphere: hemisphere)
+        let event = nextEvent(on: date, calendar: calendar)
+        let shower = Almanac.activeShower(on: date, calendar: calendar)
+
+        let dayIndex = Int(date.timeIntervalSince1970 / 86_400)
+        let opener = openers[((dayIndex % openers.count) + openers.count) % openers.count]
+
+        let pct = Int((moon.illuminatedFraction * 100).rounded())
+        var notes: [String] = [
+            "The Moon is \(moon.name.lowercased()) — \(pct)% lit — drifting through \(moonSign.name) (\(moonSign.element)). \(moon.enchantedLine)",
+            "The Sun keeps court in \(sunSign.name); \(trend.phrase).",
+            "Next overhead: \(event.name), \(event.line)."
+        ]
+        if let shower {
+            notes.append("\(shower.commonName) are falling now — \(shower.invitation)")
+        }
+
+        return SkyReading(
+            date: date, hemisphere: hemisphere, moon: moon, moonSign: moonSign,
+            sunSign: sunSign, lightTrend: trend, nextEvent: event, activeShower: shower,
+            openingLine: opener, notes: notes
+        )
     }
 }
 
@@ -2694,5 +3091,273 @@ enum BookGreetingComposer {
             line = "Ready to make some magic?"
         }
         return BookGreeting(greeting: opener, line: line)
+    }
+}
+
+// MARK: - Belief Economy
+
+struct BeliefEconomyState: Codable, Equatable {
+    var lastDailyTickDayID: String?
+    var keepRewardKeys: Set<String> = []
+    var dismissalCounts: [String: Int] = [:]
+    var recentMovements: [BeliefEconomyMovement] = []
+
+    mutating func remember(_ movements: [BeliefEconomyMovement]) {
+        guard !movements.isEmpty else { return }
+        recentMovements = Array((movements + recentMovements).prefix(16))
+    }
+
+    mutating func prune(keepingDayIDs dayIDs: Set<String>) {
+        keepRewardKeys = Set(keepRewardKeys.filter { key in
+            guard let dayID = key.split(separator: "|").first.map(String.init) else { return false }
+            return dayIDs.contains(dayID)
+        })
+        dismissalCounts = dismissalCounts.filter { key, _ in
+            guard let dayID = key.split(separator: "|").first.map(String.init) else { return false }
+            return dayIDs.contains(dayID)
+        }
+    }
+}
+
+struct BeliefEconomyMovement: Codable, Equatable, Identifiable {
+    enum TargetKind: String, Codable, Equatable {
+        case reader
+        case entity
+        case pageSource
+    }
+
+    enum Reason: String, Codable, Equatable {
+        case dailyTide
+        case highGlowSettled
+        case neglectedGlowSettled
+        case sourceKept
+        case sourceDismissed
+        case castSpent
+    }
+
+    var id: String
+    var targetKind: TargetKind
+    var targetID: String
+    var targetName: String
+    var delta: Int
+    var reason: Reason
+    var note: String
+    var createdAt: Date
+
+    init(
+        targetKind: TargetKind,
+        targetID: String,
+        targetName: String,
+        delta: Int,
+        reason: Reason,
+        note: String,
+        createdAt: Date
+    ) {
+        self.targetKind = targetKind
+        self.targetID = targetID
+        self.targetName = targetName
+        self.delta = delta
+        self.reason = reason
+        self.note = note
+        self.createdAt = createdAt
+        self.id = "\(BookDay.id(for: createdAt))|\(targetKind.rawValue)|\(targetID)|\(reason.rawValue)|\(delta)"
+    }
+}
+
+struct BeliefEconomyDailyContext {
+    var now: Date
+    var days: [BookDay]
+    var entities: [NarrativeWorldEntity]
+    var entityBelief: [String: Int]
+    var pageBelief: [String: Int]
+    var readerBelief: Int
+    var events: [NarrativeEvent]
+    var state: BeliefEconomyState
+}
+
+struct BeliefEconomyDailyResult: Equatable {
+    var state: BeliefEconomyState
+    var readerDelta: Int
+    var entityDeltas: [String: Int]
+    var pageDeltas: [String: Int]
+    var movements: [BeliefEconomyMovement]
+
+    static func unchanged(state: BeliefEconomyState) -> BeliefEconomyDailyResult {
+        BeliefEconomyDailyResult(state: state, readerDelta: 0, entityDeltas: [:], pageDeltas: [:], movements: [])
+    }
+}
+
+enum BeliefEconomyEngine {
+    static let sourceKeepCeiling = 75
+    static let pageGlowSettleFloor = 22
+    static let entityGlowSettleFloor = 18
+    static let readerSoftCeiling = 74
+
+    static func dailyTick(_ context: BeliefEconomyDailyContext) -> BeliefEconomyDailyResult {
+        let dayID = BookDay.id(for: context.now)
+        var state = context.state
+        guard state.lastDailyTickDayID != dayID else {
+            return .unchanged(state: state)
+        }
+
+        let recentDayIDs = Set(context.days.suffix(10).map(\.id) + [dayID])
+        state.prune(keepingDayIDs: recentDayIDs)
+        state.lastDailyTickDayID = dayID
+
+        var movements: [BeliefEconomyMovement] = []
+        var readerDelta = 0
+        var entityDeltas: [String: Int] = [:]
+        var pageDeltas: [String: Int] = [:]
+
+        let calendar = Calendar.current
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: context.now) ?? context.now.addingTimeInterval(-86_400)
+        let yesterdayID = BookDay.id(for: yesterday)
+        let keptYesterday = context.days.first { $0.id == yesterdayID }?.pages.count ?? 0
+        if keptYesterday > 0, context.readerBelief < 70 {
+            readerDelta += 1
+            movements.append(movement(.reader, id: "the-reader", name: "You", delta: 1, reason: .dailyTide, now: context.now, note: "Yesterday's kept pages left a small ember behind."))
+        } else if keptYesterday == 0, context.readerBelief < 35 {
+            readerDelta += 1
+            movements.append(movement(.reader, id: "the-reader", name: "You", delta: 1, reason: .dailyTide, now: context.now, note: "The Book set one match beside the margin."))
+        } else if context.readerBelief > readerSoftCeiling {
+            let delta = context.readerBelief >= 90 ? -3 : -1
+            readerDelta += delta
+            movements.append(movement(.reader, id: "the-reader", name: "You", delta: delta, reason: .highGlowSettled, now: context.now, note: "Excess Glow settled back into the paper overnight."))
+        }
+
+        let recentPages = context.days.suffix(7).flatMap(\.pages)
+        let recentSourceIDs = Set(recentPages.map(\.sourceID))
+        let recentlyTouchedEntityIDs = touchedEntityIDs(events: context.events, since: context.now.addingTimeInterval(-14 * 86_400))
+
+        let tideCandidates = context.entities
+            .filter { entity in
+                recentlyTouchedEntityIDs.contains(entity.id)
+                    && effectiveBelief(entity, offsets: context.entityBelief) < 70
+                    && !entity.tags.contains("nothing")
+            }
+            .sorted { left, right in
+                let leftScore = effectiveBelief(left, offsets: context.entityBelief) + left.narrativeWeight
+                let rightScore = effectiveBelief(right, offsets: context.entityBelief) + right.narrativeWeight
+                if leftScore == rightScore { return left.id < right.id }
+                return leftScore > rightScore
+            }
+            .prefix(2)
+
+        for entity in tideCandidates {
+            entityDeltas[entity.id, default: 0] += 1
+            movements.append(movement(.entity, id: entity.id, name: entity.name, delta: 1, reason: .dailyTide, now: context.now, note: "\(entity.name) caught a point of yesterday's attention."))
+        }
+
+        let settlingEntities = context.entities
+            .filter { entity in
+                let adjusted = effectiveBelief(entity, offsets: context.entityBelief)
+                // The Nothing and its kin neither receive the tide nor cool on
+                // their own — antagonist Glow only moves through real events.
+                return adjusted > 70
+                    && !recentlyTouchedEntityIDs.contains(entity.id)
+                    && !entity.tags.contains("nothing")
+            }
+            .sorted { effectiveBelief($0, offsets: context.entityBelief) > effectiveBelief($1, offsets: context.entityBelief) }
+            .prefix(4)
+
+        for entity in settlingEntities {
+            let adjusted = effectiveBelief(entity, offsets: context.entityBelief)
+            let delta = adjusted >= 90 ? -2 : -1
+            let allowed = max(delta, entityGlowSettleFloor - adjusted)
+            guard allowed < 0 else { continue }
+            entityDeltas[entity.id, default: 0] += allowed
+            movements.append(movement(.entity, id: entity.id, name: entity.name, delta: allowed, reason: .neglectedGlowSettled, now: context.now, note: "\(entity.name)'s unattended Glow cooled by \(abs(allowed))."))
+        }
+
+        let settlingSources = BookPageSourceRegistry.activeSources
+            .filter { source in
+                let adjusted = sourceBelief(source, offsets: context.pageBelief)
+                return adjusted > 60 && !recentSourceIDs.contains(source.id)
+            }
+            .sorted { sourceBelief($0, offsets: context.pageBelief) > sourceBelief($1, offsets: context.pageBelief) }
+            .prefix(4)
+
+        for source in settlingSources {
+            let adjusted = sourceBelief(source, offsets: context.pageBelief)
+            let delta = adjusted >= 85 ? -2 : -1
+            let allowed = max(delta, pageGlowSettleFloor - adjusted)
+            guard allowed < 0 else { continue }
+            pageDeltas[source.id, default: 0] += allowed
+            movements.append(movement(.pageSource, id: source.id, name: source.title, delta: allowed, reason: .neglectedGlowSettled, now: context.now, note: "\(source.title) rested and cooled by \(abs(allowed))."))
+        }
+
+        state.remember(movements)
+        return BeliefEconomyDailyResult(state: state, readerDelta: readerDelta, entityDeltas: entityDeltas, pageDeltas: pageDeltas, movements: movements)
+    }
+
+    static func sourceKeep(
+        source: BookPageSource,
+        dayID: String,
+        now: Date,
+        pageBelief: [String: Int],
+        state originalState: BeliefEconomyState
+    ) -> (state: BeliefEconomyState, delta: Int, movement: BeliefEconomyMovement?) {
+        var state = originalState
+        let key = "\(dayID)|keep|\(source.id)"
+        guard !state.keepRewardKeys.contains(key) else { return (state, 0, nil) }
+        state.keepRewardKeys.insert(key)
+        let adjusted = sourceBelief(source, offsets: pageBelief)
+        guard adjusted < sourceKeepCeiling else { return (state, 0, nil) }
+        let movement = movement(.pageSource, id: source.id, name: source.title, delta: 1, reason: .sourceKept, now: now, note: "\(source.title) brightened because it was kept today.")
+        state.remember([movement])
+        return (state, 1, movement)
+    }
+
+    static func sourceDismissed(
+        source: BookPageSource,
+        dayID: String,
+        now: Date,
+        pageBelief: [String: Int],
+        state originalState: BeliefEconomyState
+    ) -> (state: BeliefEconomyState, delta: Int, movement: BeliefEconomyMovement?) {
+        var state = originalState
+        let key = "\(dayID)|dismiss|\(source.id)"
+        let count = (state.dismissalCounts[key] ?? 0) + 1
+        state.dismissalCounts[key] = count
+        guard count == 2 || count == 4 else { return (state, 0, nil) }
+        let adjusted = sourceBelief(source, offsets: pageBelief)
+        guard adjusted > 5 else { return (state, 0, nil) }
+        let movement = movement(.pageSource, id: source.id, name: source.title, delta: -1, reason: .sourceDismissed, now: now, note: "\(source.title) cooled after repeated dismissals.")
+        state.remember([movement])
+        return (state, -1, movement)
+    }
+
+    static func castSpendDelta(actorBelief: Int, requested: Int) -> Int {
+        -min(max(0, requested), max(0, actorBelief - entityGlowSettleFloor))
+    }
+
+    private static func effectiveBelief(_ entity: NarrativeWorldEntity, offsets: [String: Int]) -> Int {
+        max(0, min(100, entity.belief + (offsets[entity.id] ?? 0)))
+    }
+
+    private static func sourceBelief(_ source: BookPageSource, offsets: [String: Int]) -> Int {
+        max(0, min(100, BookPageSourceRegistry.defaultBelief(for: source) + (offsets[source.id] ?? 0)))
+    }
+
+    private static func touchedEntityIDs(events: [NarrativeEvent], since cutoff: Date) -> Set<String> {
+        events.reduce(into: Set<String>()) { result, event in
+            guard event.createdAt >= cutoff else { return }
+            result.formUnion(event.effect.entityWeightDeltas.keys)
+            for tag in event.tags where tag.hasPrefix("entity:") {
+                result.insert(String(tag.dropFirst("entity:".count)))
+            }
+        }
+    }
+
+    private static func movement(
+        _ kind: BeliefEconomyMovement.TargetKind,
+        id: String,
+        name: String,
+        delta: Int,
+        reason: BeliefEconomyMovement.Reason,
+        now: Date,
+        note: String
+    ) -> BeliefEconomyMovement {
+        BeliefEconomyMovement(targetKind: kind, targetID: id, targetName: name, delta: delta, reason: reason, note: note, createdAt: now)
     }
 }

@@ -33,6 +33,7 @@ struct BookSourceInputs: Equatable {
     var clusters: [BookMotifCluster] = []
     var bleedIssueNumber: Int = 1
     var preparedBleedEditionSurface: SurfacePage?
+    var bookJump: BookJumpState = BookJumpState()
     var localBrainIsReady = false
 
     func recentVarietyKeys(within seconds: TimeInterval = 48 * 3600, now: Date = Date()) -> Set<String> {
@@ -2551,6 +2552,31 @@ struct LocalBrainAwakePageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+struct BookJumpPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .bookJump)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive else { return [] }
+        if inputs.bookJump.active != nil {
+            return [BookJumpEngine.surface(for: inputs.bookJump, day: day, context: context, inputs: inputs, now: now)]
+        }
+        guard !context.distress.isActive else { return [] }
+        guard !day.pages.contains(where: { $0.type == .bookJump }) else { return [] }
+        if let history = inputs.surfaceHistory["source:\(source.id)"],
+           now.timeIntervalSince(history.lastShownAt) < 20 * 3600 {
+            return []
+        }
+        if day.pages.isEmpty && inputs.days.flatMap(\.pages).isEmpty {
+            return []
+        }
+        return [BookJumpEngine.surface(for: inputs.bookJump, day: day, context: context, inputs: inputs, now: now)]
+    }
+
+    func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        BookJumpEngine.surface(for: inputs.bookJump, day: day, context: context, inputs: inputs, now: now, manual: true)
+    }
+}
+
 enum FirstRunPageSequence {
     static func surfaces(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage]? {
         guard !hasKeptFirstSouvenir(day: day, inputs: inputs) else { return nil }
@@ -2795,6 +2821,12 @@ struct FaeBargainPageSourceAdapter: BookPageSourceAdapter {
         return []
     }
 
+    /// Build the bargain's page on demand (e.g., opened from the BookShop's
+    /// standing section), reusing the same layout the feed uses.
+    static func surface(for bargain: FaeBargain, now: Date = Date()) -> SurfacePage {
+        FaeBargainPageSourceAdapter().page(for: bargain, status: bargain.status, now: now)
+    }
+
     private func page(for bargain: FaeBargain, status: FaeBargainStatus, now: Date) -> SurfacePage {
         let isRepair = status == .lapsed
         let hoursLeft = max(0, Int(bargain.deadline.timeIntervalSince(now) / 3_600))
@@ -2960,6 +2992,75 @@ struct FestivalPageSourceAdapter: BookPageSourceAdapter {
                         "accent": celebration.accent,
                         "placeholder": "Keep the feast in one true sentence...",
                         "tags": "festival,\(tag),almanac,\(celebration.kind.rawValue),celebration:\(celebration.id)"
+                    ]
+                )
+            )
+        ]
+    }
+}
+
+// Surfaces "Today's Sky": the night overhead read for the reader's hemisphere —
+// the Moon's phase and sign, the Sun's sign, whether the light is lengthening or
+// drawing in, and the nearest celestial event. Pure Almanac/ephemeris logic;
+// evening-leaning, once a day. A gentle page: welcome even on a hard day.
+struct TodaysSkyPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .todaysSky)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive else { return [] }
+        // Looking up is an evening (or small-hours) thing.
+        let hour = Calendar.current.component(.hour, from: now)
+        guard hour >= 17 || hour < 5 else { return [] }
+
+        let slot = BookDay.id(for: now)
+        let tag = "todays-sky:\(slot)"
+        let alreadyKept = (inputs.days + [day]).contains { archiveDay in
+            archiveDay.pages.contains { $0.type == .todaysSky && $0.tags.contains(tag) }
+        }
+        guard !alreadyKept else { return [] }
+
+        let reading = SkyAlmanac.reading(on: now, hemisphere: inputs.hemisphere)
+        let pct = Int((reading.moon.illuminatedFraction * 100).rounded())
+        let body = "\(reading.openingLine)\n\n" + reading.notes.joined(separator: "\n\n")
+        let accent = reading.activeShower?.accent ?? (reading.lightTrend == .shortening ? "slate" : "violet")
+
+        return [
+            SurfacePage(
+                id: "\(source.id)-\(slot)",
+                type: .todaysSky,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                score: 70 + (reading.nextEvent.daysAway == 0 ? 8 : 0) + (reading.activeShower == nil ? 0 : 6),
+                reason: "Tonight: \(reading.moon.name) in \(reading.moonSign.name). \(reading.nextEvent.name) \(reading.nextEvent.line).",
+                prompt: "Today's Sky",
+                detail: "Keep one true sentence about the sky tonight.",
+                payload: BookPagePayload(
+                    headline: "Today's Sky",
+                    body: body,
+                    metadata: [
+                        "source": source.id,
+                        "openingLine": reading.openingLine,
+                        "moonName": reading.moon.name,
+                        "moonSymbol": reading.moon.symbolName,
+                        "moonIllum": "\(pct)",
+                        "moonLine": reading.moon.enchantedLine,
+                        "moonSign": reading.moonSign.name,
+                        "moonGlyph": reading.moonSign.glyph,
+                        "moonElement": reading.moonSign.element,
+                        "sunSign": reading.sunSign.name,
+                        "sunGlyph": reading.sunSign.glyph,
+                        "lightTrend": reading.lightTrend.phrase,
+                        "lightSymbol": reading.lightTrend.symbolName,
+                        "eventKind": reading.nextEvent.kind,
+                        "eventName": reading.nextEvent.name,
+                        "eventLine": reading.nextEvent.line,
+                        "eventSymbol": reading.nextEvent.symbolName,
+                        "eventTimestamp": "\(reading.nextEvent.date.timeIntervalSince1970)",
+                        "showerName": reading.activeShower?.commonName ?? "",
+                        "accent": accent,
+                        "placeholder": "Keep the sky in one true sentence...",
+                        "tags": "todays-sky,\(tag),almanac,sky,moon:\(reading.moonSign.name.lowercased())"
                     ]
                 )
             )
@@ -3437,6 +3538,8 @@ enum BookPageSourceAdapters {
         FaeBargainPageSourceAdapter(),
         PactDispatchPageSourceAdapter(),
         FestivalPageSourceAdapter(),
+        TodaysSkyPageSourceAdapter(),
+        BookJumpPageSourceAdapter(),
         TwoReadingsPageSourceAdapter(),
         CastBondPageSourceAdapter(),
         WeatherPageSourceAdapter(),

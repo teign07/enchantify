@@ -859,9 +859,163 @@ final class WorldSystemsTests: XCTestCase {
         var data = PlayerVaultData()
         data.entityBelief = ["tide-glass": 12]
         data.tutorSeen = ["glow-menu"]
+        data.beliefEconomy = BeliefEconomyState(lastDailyTickDayID: "2026-02-03")
+        data.bookJump = BookJumpState(returned: [
+            ReturnedBookJump(
+                id: "return-alice",
+                bookID: "alice-wonderland",
+                title: "Alice's Adventures in Wonderland",
+                author: "Lewis Carroll",
+                returnedAt: date(2026, 6, 12, hour: 21, calendar: utcCalendar),
+                depth: 2,
+                degradation: 0,
+                souvenir: "The door was smaller than the worry.",
+                outcome: "Found the Spine."
+            )
+        ])
         let decoded = try JSONDecoder().decode(PlayerVaultData.self, from: JSONEncoder().encode(data))
         XCTAssertEqual(decoded, data)
         XCTAssertEqual(decoded.version, PlayerVaultData.currentVersion)
+    }
+
+    // MARK: Support Guild prose
+
+    func testSupportGuildParserKeepsDraftLabelsOutOfVisibleScene() {
+        let raw = """
+        SCENE:
+        Try: Dr. Vellum smoothed the edge of her parchment.
+
+        Try: Dr. Inkrest looked at the weather in the margins.
+
+        VELLUM:
+        Try: Read the plate as context, not judgment.
+        INKREST:
+        Try: Read the mood as weather, not a verdict.
+        CONNECTIONS:
+        Try: The late page and short sleep are sharing a corner.
+        EXPERIMENT:
+        Try: Pair the next fuel note with one inner-weather word.
+        SAFETY:
+        This is not diagnosis or treatment. It is a low-shame pattern note for deciding what to observe next.
+        """
+
+        let parsed = SupportGuildProseParser.parse(raw)
+
+        XCTAssertFalse(parsed.scene.contains("Try:"))
+        XCTAssertFalse(parsed.vellum.contains("Try:"))
+        XCTAssertEqual(parsed.experiment, "Pair the next fuel note with one inner-weather word.")
+    }
+
+    func testSupportGuildParserDropsDanglingCutOffTail() {
+        let raw = """
+        Dr. Vellum closed the chart softly. Dr. Inkrest nodded.
+
+        The useful thing was not certainty. It was the place where the notes touched.
+
+        Try: Dr. Sel
+        """
+
+        let parsed = SupportGuildProseParser.parse(raw, fallbackBody: "Fallback.")
+
+        XCTAssertFalse(parsed.scene.contains("Try:"))
+        XCTAssertFalse(parsed.scene.hasSuffix("Dr. Sel"))
+        XCTAssertTrue(parsed.scene.contains("The useful thing was not certainty."))
+    }
+
+    // MARK: Belief economy
+
+    func testBeliefEconomyDailyTickRunsOnceAndDoesNotFeedWholeCast() {
+        let now = date(2026, 2, 3, hour: 9, calendar: utcCalendar)
+        let yesterday = date(2026, 2, 2, hour: 9, calendar: utcCalendar)
+        let page = BookPage(type: .souvenir, createdAt: yesterday, promptText: "One sentence", sourceID: BookPageSourceRegistry.source(for: .souvenir).id)
+        let day = BookDay(id: BookDay.id(for: yesterday, calendar: utcCalendar), date: utcCalendar.startOfDay(for: yesterday), pages: [page])
+        let event = NarrativeEvent(
+            id: "touch-zara",
+            kind: .pageKept,
+            sourcePageType: .souvenir,
+            sourcePageID: page.id,
+            createdAt: yesterday,
+            summary: "Zara was present.",
+            tags: ["entity:zara-finch"],
+            effect: NarrativeEventEffect(entityWeightDeltas: ["zara-finch": 1])
+        )
+
+        let first = BeliefEconomyEngine.dailyTick(BeliefEconomyDailyContext(
+            now: now,
+            days: [day],
+            entities: NarrativePackRegistry.entities,
+            entityBelief: [:],
+            pageBelief: [:],
+            readerBelief: 40,
+            events: [event],
+            state: BeliefEconomyState()
+        ))
+
+        XCTAssertEqual(first.readerDelta, 1)
+        XCTAssertEqual(first.entityDeltas["zara-finch"], 1)
+        XCTAssertLessThanOrEqual(first.entityDeltas.count, 2)
+
+        let second = BeliefEconomyEngine.dailyTick(BeliefEconomyDailyContext(
+            now: now,
+            days: [day],
+            entities: NarrativePackRegistry.entities,
+            entityBelief: first.entityDeltas,
+            pageBelief: [:],
+            readerBelief: 41,
+            events: [event],
+            state: first.state
+        ))
+
+        XCTAssertEqual(second.readerDelta, 0)
+        XCTAssertTrue(second.entityDeltas.isEmpty)
+        XCTAssertTrue(second.pageDeltas.isEmpty)
+    }
+
+    func testBeliefEconomySettlesHighUntouchedGlow() {
+        let now = date(2026, 2, 3, hour: 9, calendar: utcCalendar)
+        let source = BookPageSourceRegistry.source(for: .twoReadings)
+        let result = BeliefEconomyEngine.dailyTick(BeliefEconomyDailyContext(
+            now: now,
+            days: [],
+            entities: NarrativePackRegistry.entities,
+            entityBelief: ["zara-finch": 70],
+            pageBelief: [source.id: 60],
+            readerBelief: 92,
+            events: [],
+            state: BeliefEconomyState()
+        ))
+
+        XCTAssertEqual(result.readerDelta, -3)
+        XCTAssertEqual(result.entityDeltas["zara-finch"], -2)
+        XCTAssertEqual(result.pageDeltas[source.id], -2)
+    }
+
+    func testBeliefEconomyWarmsKeptSourceOncePerDay() {
+        let now = date(2026, 2, 3, hour: 9, calendar: utcCalendar)
+        let source = BookPageSourceRegistry.source(for: .souvenir)
+        let dayID = BookDay.id(for: now, calendar: utcCalendar)
+        let first = BeliefEconomyEngine.sourceKeep(source: source, dayID: dayID, now: now, pageBelief: [:], state: BeliefEconomyState())
+        let second = BeliefEconomyEngine.sourceKeep(source: source, dayID: dayID, now: now, pageBelief: [source.id: first.delta], state: first.state)
+
+        XCTAssertEqual(first.delta, 1)
+        XCTAssertEqual(second.delta, 0)
+    }
+
+    func testBeliefEconomyCoolsAfterRepeatedDismissals() {
+        let now = date(2026, 2, 3, hour: 9, calendar: utcCalendar)
+        let source = BookPageSourceRegistry.source(for: .twoReadings)
+        let dayID = BookDay.id(for: now, calendar: utcCalendar)
+        let first = BeliefEconomyEngine.sourceDismissed(source: source, dayID: dayID, now: now, pageBelief: [:], state: BeliefEconomyState())
+        let second = BeliefEconomyEngine.sourceDismissed(source: source, dayID: dayID, now: now, pageBelief: [:], state: first.state)
+
+        XCTAssertEqual(first.delta, 0)
+        XCTAssertEqual(second.delta, -1)
+    }
+
+    func testCastSpendDeltaNeverSpendsBelowFloor() {
+        XCTAssertEqual(BeliefEconomyEngine.castSpendDelta(actorBelief: 40, requested: 3), -3)
+        XCTAssertEqual(BeliefEconomyEngine.castSpendDelta(actorBelief: 19, requested: 3), -1)
+        XCTAssertEqual(BeliefEconomyEngine.castSpendDelta(actorBelief: 18, requested: 3), 0)
     }
 
     // MARK: Chapters and Talismans
@@ -1306,5 +1460,170 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(surfaces.first?.type, .bookNotices)
         XCTAssertTrue(surfaces.first?.payload.body.contains("I have noticed") == true)
         XCTAssertEqual(surfaces.first?.payload.metadata["source"], "the-book-notices")
+    }
+
+    func testBookJumpShelfUsesPublicDomainProfiles() {
+        XCTAssertGreaterThanOrEqual(BookJumpEngine.publicDomainShelf.count, 8)
+        XCTAssertTrue(BookJumpEngine.publicDomainShelf.allSatisfy { !$0.gutenbergID.isEmpty })
+        XCTAssertTrue(BookJumpEngine.publicDomainShelf.allSatisfy { $0.gutenbergURL.hasPrefix("https://www.gutenberg.org/ebooks/") })
+        XCTAssertFalse(BookJumpEngine.publicDomainShelf.contains { $0.title.lowercased().contains("enchantify") })
+    }
+
+    func testBookJumpStateAdvancesAndReturnsWithSouvenir() {
+        let calendar = utcCalendar
+        let now = date(2026, 6, 12, hour: 20, calendar: calendar)
+        let day = BookDay(id: "today", date: now, pages: [
+            BookPage(type: .souvenir, promptText: "Souvenir", userInput: "Fog on the window.", tags: ["fog"])
+        ])
+        let start = BookJumpEngine.surface(
+            for: BookJumpState(),
+            day: day,
+            context: CuratorContext.make(for: day),
+            inputs: .empty,
+            now: now,
+            manual: true
+        )
+
+        var state = BookJumpEngine.start(from: start, now: now)
+        XCTAssertEqual(state.active?.depth, 1)
+        XCTAssertEqual(state.active?.title, start.payload.metadata["bookTitle"])
+
+        state = BookJumpEngine.advance(state, line: "The page turned.", now: now.addingTimeInterval(60))
+        XCTAssertEqual(state.active?.depth, 2)
+        XCTAssertEqual(state.active?.souvenirDue, true)
+
+        state = BookJumpEngine.return(state, souvenir: "The fog knew the way home.", outcome: "Found the Spine.", now: now.addingTimeInterval(120))
+        XCTAssertNil(state.active)
+        XCTAssertEqual(state.returned.first?.souvenir, "The fog knew the way home.")
+    }
+
+    private func activeJumpFixture(
+        work: BookJumpWork,
+        depth: Int,
+        degradation: Int,
+        now: Date
+    ) -> ActiveBookJump {
+        ActiveBookJump(
+            id: "jump-test",
+            bookID: work.id,
+            title: work.title,
+            author: work.author,
+            gutenbergID: work.gutenbergID,
+            world: work.world,
+            arrival: work.arrival,
+            nothing: work.nothing,
+            rules: work.rules,
+            resonances: work.resonances,
+            anchor: "fog on the window",
+            intention: "bring back one sentence",
+            guide: "the Book",
+            startedAt: now.addingTimeInterval(-300),
+            updatedAt: now.addingTimeInterval(-60),
+            depth: depth,
+            returnCount: 0,
+            degradation: degradation,
+            souvenirDue: depth >= 2,
+            beats: []
+        )
+    }
+
+    func testBookJumpProgressionForcesStabilizeAndReturn() {
+        let now = date(2026, 6, 12, hour: 21, calendar: utcCalendar)
+        let work = BookJumpEngine.publicDomainShelf[0]
+        let day = BookDay(id: "today", date: now, pages: [])
+
+        // High Nothing pressure forces a stabilize beat.
+        var inputs = BookSourceInputs.empty
+        inputs.bookJump = BookJumpState(active: activeJumpFixture(work: work, depth: 3, degradation: 3, now: now))
+        let unstable = BookJumpPageSourceAdapter().candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now).first
+        XCTAssertEqual(unstable?.payload.metadata["bookJumpAction"], "stabilize")
+
+        // At max depth, the book offers the way home.
+        inputs.bookJump = BookJumpState(active: activeJumpFixture(work: work, depth: BookJumpEngine.maxDepth, degradation: 0, now: now))
+        let deepest = BookJumpPageSourceAdapter().candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now).first
+        XCTAssertEqual(deepest?.payload.metadata["bookJumpAction"], "return")
+    }
+
+    func testBookJumpReturnGrantsBorrowedRuleOnlyWithSouvenir() {
+        let now = date(2026, 6, 12, hour: 21, calendar: utcCalendar)
+        let work = BookJumpEngine.work(id: "sherlock-holmes") ?? BookJumpEngine.publicDomainShelf[0]
+        let state = BookJumpState(active: activeJumpFixture(work: work, depth: 2, degradation: 1, now: now))
+
+        let empty = BookJumpEngine.return(state, souvenir: "   ", outcome: "back", now: now)
+        XCTAssertTrue(empty.borrowedRules.isEmpty, "no souvenir, no rule")
+
+        let granted = BookJumpEngine.return(state, souvenir: "The smallest detail was loudest.", outcome: "back", now: now)
+        XCTAssertEqual(granted.borrowedRules.count, 1)
+        XCTAssertEqual(granted.borrowedRules.first?.bookID, work.id)
+        XCTAssertTrue(granted.borrowedRules.first?.isActive(at: now) ?? false)
+        // Sherlock's attention resonances sharpen the reader's notice.
+        XCTAssertEqual(granted.borrowedRules.first?.effect, .sharpenNotices)
+        XCTAssertFalse(BookJumpEngine.surfaceBoosts(state: granted, now: now).isEmpty)
+    }
+
+    func testBookJumpCollapseGoesColdAndCostsBelief() {
+        let now = date(2026, 6, 12, hour: 21, calendar: utcCalendar)
+        let work = BookJumpEngine.publicDomainShelf[0]
+        let state = BookJumpState(active: activeJumpFixture(work: work, depth: 3, degradation: 2, now: now))
+        let result = BookJumpEngine.collapse(state, now: now)
+        XCTAssertNil(result.state.active)
+        XCTAssertGreaterThan(result.lostBelief, 0)
+        XCTAssertTrue(result.state.isCold(work.id, at: now))
+        XCTAssertEqual(result.state.returned.first?.souvenir, "")
+    }
+
+    func testBookJumpDailyDecayCollapsesWhenLongUnstable() {
+        let start = date(2026, 6, 10, hour: 21, calendar: utcCalendar)
+        let later = date(2026, 6, 12, hour: 21, calendar: utcCalendar)
+        let work = BookJumpEngine.publicDomainShelf[0]
+        // Already at the brink, untouched for a day -> the Nothing overruns it.
+        let state = BookJumpState(active: activeJumpFixture(work: work, depth: 3, degradation: 4, now: start))
+        let result = BookJumpEngine.dailyDecay(state, now: later)
+        XCTAssertTrue(result.collapsed)
+        XCTAssertNil(result.state.active)
+        XCTAssertTrue(result.state.isCold(work.id, at: later))
+    }
+
+    func testBookJumpColdBooksAreNotSelected() {
+        let now = date(2026, 6, 12, hour: 21, calendar: utcCalendar)
+        let day = BookDay(id: "today", date: now, pages: [
+            BookPage(type: .souvenir, promptText: "S", userInput: "curiosity and play and small adventures")
+        ])
+        var inputs = BookSourceInputs.empty
+        // Make Alice cold; selection must pick a different open book.
+        var jump = BookJumpState()
+        jump.coldBooks["alice-wonderland"] = now.addingTimeInterval(3 * 86_400)
+        inputs.bookJump = jump
+        let picked = BookJumpEngine.selectWork(day: day, inputs: inputs, now: now)
+        XCTAssertNotEqual(picked.id, "alice-wonderland")
+    }
+
+    func testBookJumpAdvanceCostEscalatesWithDepth() {
+        XCTAssertEqual(BookJumpEngine.advanceCost(depth: 1), 0)
+        XCTAssertEqual(BookJumpEngine.advanceCost(depth: 3), 2)
+        XCTAssertEqual(BookJumpEngine.returnReward(depth: 1, hasSouvenir: true), BookJumpEngine.returnReward)
+        XCTAssertGreaterThan(BookJumpEngine.returnReward(depth: 4, hasSouvenir: true), BookJumpEngine.returnReward)
+        XCTAssertEqual(BookJumpEngine.returnReward(depth: 4, hasSouvenir: false), 1)
+    }
+
+    func testBookJumpCompanionConstellationFormsOnRepeatVisits() {
+        let now = date(2026, 6, 12, hour: 21, calendar: utcCalendar)
+        func returned(_ bookID: String, _ title: String) -> ReturnedBookJump {
+            ReturnedBookJump(id: "r-\(bookID)-\(title)", bookID: bookID, title: title, author: "a", returnedAt: now, depth: 2, degradation: 0, souvenir: "a kept sentence", outcome: "back")
+        }
+        // One visit: no constellation yet.
+        XCTAssertNil(BookJumpEngine.companionLine(state: BookJumpState(returned: [returned("wizard-oz", "Oz")])))
+        // Two returns to the same book: a bond names itself.
+        let repeated = BookJumpState(returned: [returned("wizard-oz", "Oz"), returned("wizard-oz", "Oz")])
+        XCTAssertTrue(BookJumpEngine.companionLine(state: repeated)?.contains("Oz") ?? false)
+    }
+
+    func testBookJumpOpenShelfImprovisesADoor() {
+        let work = BookJumpEngine.improvisedWork(title: "The Voyage of the Dawn Treader", author: "C. S. Lewis", gutenbergID: "")
+        XCTAssertNotNil(work)
+        XCTAssertEqual(work?.resonances.contains("water"), true)
+        let state = BookJumpEngine.startCustom(work: work!, anchor: "", intention: "", guide: "", into: BookJumpState())
+        XCTAssertEqual(state.active?.title, "The Voyage of the Dawn Treader")
+        XCTAssertEqual(state.active?.depth, 1)
     }
 }

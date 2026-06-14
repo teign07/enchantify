@@ -1415,6 +1415,21 @@ enum NarrativeEventResolver {
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 1
             createdHint = "A living relationship milestone can echo as future gossip, letters, or story scenes."
+        case .todaysSky:
+            entityDeltas["the-book", default: 0] += 1
+            threadDeltas["ordinary-magic", default: 0] += 1
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+            createdHint = "A kept sky reading ties the reader to the turning overhead; the next phase or shower can call it back."
+        case .bookJump:
+            entityDeltas["the-book", default: 0] += 2
+            threadDeltas["ordinary-magic", default: 0] += 2
+            threadDeltas["book-jumping", default: 0] += 3
+            relationshipDeltas["book-authors-reader", default: 0] += 2
+            if tags.contains("book-jump:return") {
+                createdHint = "A returned Book Jump can echo later as a borrowed rule, a character letter, or a constellation with the source book."
+            } else {
+                createdHint = "An open Book Jump can call back until the reader finds the Spine."
+            }
         case .location, .lore, .patreon, .bookOfYou, .packPage, .calendar, .helpTips, .welcome:
             break
         }

@@ -1070,6 +1070,7 @@ struct SurfaceCard: View {
             }
             .foregroundStyle(visualStyle.accent)
         }
+        .textSelection(.enabled)
         .padding(16)
         .frame(minHeight: isReadingCard ? 330 : 212, alignment: .topLeading)
         .parchmentSurface(style: visualStyle, isActive: true)
@@ -2443,6 +2444,26 @@ struct PageVisualStyle {
                 scrapWidth: 94,
                 scrapHeight: 34
             )
+        case .bookJump:
+            return PageVisualStyle(
+                accent: Color(red: 0.28, green: 0.22, blue: 0.48),
+                symbolColor: Color(red: 0.28, green: 0.22, blue: 0.48),
+                paperTop: Color(red: 0.95, green: 0.89, blue: 0.76),
+                paperMiddle: Color(red: 0.84, green: 0.76, blue: 0.64),
+                paperBottom: Color(red: 0.60, green: 0.52, blue: 0.52),
+                scrapColor: Color(red: 0.90, green: 0.80, blue: 0.66),
+                sideMarginalia: "MarginaliaCompass",
+                cornerMarginalia: "MarginaliaSeal",
+                smallMarginalia: "MarginaliaStar",
+                watermarkMarginalia: "MarginaliaCompass",
+                sideMarginaliaWidth: 72,
+                cornerMarginaliaWidth: 82,
+                sideMarginaliaOpacity: 0.42,
+                cornerMarginaliaOpacity: 0.36,
+                watermarkOpacity: 0.12,
+                scrapWidth: 92,
+                scrapHeight: 34
+            )
         case .elective:
             // Folded-note warmth: wine accent, feather marginalia, the feel
             // of a favor tucked into the binding.
@@ -2980,6 +3001,24 @@ struct PageVisualStyle {
                 watermarkOpacity: 0.14,
                 scrapWidth: 92,
                 scrapHeight: 34
+            )
+        case .todaysSky:
+            return PageVisualStyle(
+                accent: Color(red: 0.40, green: 0.44, blue: 0.66),
+                symbolColor: Color(red: 0.62, green: 0.58, blue: 0.34),
+                paperTop: Color(red: 0.93, green: 0.91, blue: 0.80),
+                paperMiddle: Color(red: 0.74, green: 0.74, blue: 0.70),
+                paperBottom: Color(red: 0.34, green: 0.36, blue: 0.50),
+                scrapColor: Color(red: 0.80, green: 0.79, blue: 0.70),
+                sideMarginalia: "IlluminationScrapS02_08",
+                cornerMarginalia: "IlluminationScrapS03_24",
+                smallMarginalia: "MarginaliaStar",
+                watermarkMarginalia: "MarginaliaCompass",
+                sideMarginaliaWidth: 70,
+                cornerMarginaliaWidth: 86,
+                sideMarginaliaOpacity: 0.42,
+                watermarkOpacity: 0.14,
+                scrapWidth: 92
             )
         }
     }

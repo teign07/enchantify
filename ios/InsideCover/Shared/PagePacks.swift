@@ -468,6 +468,8 @@ struct PlayerVaultData: Codable, Equatable {
     var fae: FaePlayerState?
     var pactWar: PactWarState?
     var relationshipField: [String: RelationshipTie]?
+    var beliefEconomy: BeliefEconomyState?
+    var bookJump: BookJumpState?
 }
 
 // MARK: - The BookShop
