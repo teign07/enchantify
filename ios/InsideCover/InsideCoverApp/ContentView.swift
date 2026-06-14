@@ -184,9 +184,21 @@ struct ContentView: View {
     @State var localBrainTelemetry = LocalBrainTelemetryState()
     @State var localBrainQuipIndex = 0
     @State var isOpeningMovieVisible = true
+    @State var activeGreeting: BookGreeting?
+    @State var didShowGreetingThisLaunch = false
+    // Cached literary-continuity digest + motif clusters. Recomputing these over
+    // the whole archive on every `sourceInputs` access (including from rendered
+    // views) caused main-thread freezes as history grew; they are now refreshed
+    // only when the underlying data changes (see refreshContinuityCache).
+    @State var cachedContinuityDigest: LiteraryContinuityDigest = .empty
+    @State var cachedMotifClusters: [BookMotifCluster] = []
+    @State var continuityCacheSignature = ""
     @State var isGlowMenuPresented = false
     @State var isStacksSearchPresented = false
     @State var isBookShopPresented = false
+    @State var isMarginPresented = false
+    @State var isGoblinMarketPresented = false
+    @State var isPactMapPresented = false
     @State var busySealID: String?
     @State var bannerSeed = Int.random(in: 0..<10_000)
     @State var lastKnockAt: Date?
@@ -269,6 +281,7 @@ struct ContentView: View {
 
     var sourceInputs: BookSourceInputs {
         var inputs = BookSourceInputs.from(insideCover: InsideCoverStore.load())
+        inputs.days = days
         inputs.body = bodySignal
         if let weatherPageSignal {
             inputs.weather = weatherPageSignal
@@ -278,31 +291,29 @@ struct ContentView: View {
         inputs.nearbyAnchor = nearbyAnchor
         inputs.electives = electives
         inputs.entityBeliefOffsets = entityBeliefLedger
+        inputs.relationshipField = vault.data.relationshipField ?? [:]
+        inputs.faeState = vault.data.fae ?? FaePlayerState()
+        inputs.pactWar = vault.data.pactWar ?? PactWarState()
+        inputs.hemisphere = Hemisphere.from(latitude: lastAnchorReadingLatitude)
         inputs.surfaceHistory = vault.data.surfaceHistory ?? [:]
         inputs.calendarEvents = calendarEvents
         inputs.nearbyPlaces = nearbyPlaces
         inputs.resurfacingCandidates = resurfacedPages
-        inputs.quietDays = NothingTide.quietDays(in: days, today: today.id)
+        var quietDays = NothingTide.quietDays(in: days, today: today.id)
+        // A warm (active, not-cold) Quieting gift literally holds the Nothing back.
+        if (vault.data.fae?.activeGifts.contains { $0.effect == .quieting }) == true {
+            quietDays = max(0, quietDays - 2)
+        }
+        inputs.quietDays = quietDays
         inputs.currentArc = vault.data.currentArc
         inputs.recentNarrativeEvents = narrativeEvents
-        let continuityDigest = LiteraryContinuityProjector.digest(
-            days: days,
-            events: narrativeEvents,
-            entityMemories: entityMemories,
-            entityBelief: entityBeliefLedger,
-            pageBelief: pageBeliefLedger,
-            now: surfaceRefreshDate
-        )
-        inputs.continuity = continuityDigest
+        // Read the cached digest/clusters (refreshed on data change), not a fresh
+        // whole-archive recompute on every access.
+        inputs.continuity = cachedContinuityDigest
         inputs.constellations = vault.data.constellations ?? []
         inputs.wagers = vault.data.wagers ?? []
         inputs.themes = vault.data.themes ?? []
-        inputs.clusters = BookMotifClusterEngine.clusters(
-            from: continuityDigest,
-            constellations: inputs.constellations,
-            themes: inputs.themes,
-            now: surfaceRefreshDate
-        )
+        inputs.clusters = cachedMotifClusters
         inputs.bleedIssueNumber = days.flatMap(\.pages).filter { $0.type == .theBleed }.count + 1
         inputs.preparedBleedEditionSurface = generation.preparedBleedEditionSurface
         inputs.preparedAnchorSurface = preparedAnchorSurface
@@ -314,6 +325,7 @@ struct ContentView: View {
         inputs.preparedFacultyResearchSurface = generation.preparedFacultyResearchSurface
         inputs.preparedLetterSurface = generation.preparedLetterSurface
         inputs.userPhotoIlluminationFallbackAllowed = userPhotoIlluminationFallbackAllowed
+        inputs.localBrainIsReady = modelReport.state == .ready
         inputs.selfFacts = selfFacts
         inputs.facultyEntries = facultyEntries
         inputs.customCastMembers = customCastMembers.map { member in
@@ -339,18 +351,30 @@ struct ContentView: View {
     }
 
     func buildCuratorSurfaces(now: Date) -> [SurfacePage] {
-        BookCurator.surfacedPages(
+        let inputs = sourceInputs
+        let preferences = CuratorSurfacePreferences(
+            dismissedSurfaceIDs: dismissedSurfaceIDs(for: today.id, now: now),
+            disabledSourceIDs: disabledSourceIDs(),
+            pageBeliefProfiles: Dictionary(
+                uniqueKeysWithValues: pageBeliefProfiles.map { ($0.sourceID, $0) }
+            )
+        )
+
+        if let firstRunSurfaces = FirstRunPageSequence.surfaces(
             for: today,
-            inputs: sourceInputs,
+            context: CuratorContext.make(for: today),
+            inputs: inputs,
+            now: now
+        ) {
+            return firstRunSurfaces.filter { preferences.allows($0) }
+        }
+
+        return BookCurator.surfacedPages(
+            for: today,
+            inputs: inputs,
             now: now,
             limit: 3,
-            preferences: CuratorSurfacePreferences(
-                dismissedSurfaceIDs: dismissedSurfaceIDs(for: today.id, now: now),
-                disabledSourceIDs: disabledSourceIDs(),
-                pageBeliefProfiles: Dictionary(
-                    uniqueKeysWithValues: pageBeliefProfiles.map { ($0.sourceID, $0) }
-                )
-            )
+            preferences: preferences
         )
     }
 
@@ -512,6 +536,7 @@ struct ContentView: View {
                             withAnimation(.easeInOut(duration: 0.28)) {
                                 isOpeningMovieVisible = false
                             }
+                            presentReturningGreetingIfNeeded()
                         }
                     }
                     .task {
@@ -519,6 +544,13 @@ struct ContentView: View {
                     }
                     .transition(.opacity)
                     .zIndex(20)
+                }
+
+                if let activeGreeting {
+                    BookGreetingOverlay(greeting: activeGreeting) {
+                        withAnimation(.easeOut(duration: 0.4)) { self.activeGreeting = nil }
+                    }
+                    .zIndex(19)
                 }
 
                 if isGlowMenuPresented {
@@ -655,6 +687,12 @@ struct ContentView: View {
                     activeElectives: electives.filter(\.isActive),
                     onCompleteElective: { electiveID, proof in
                         completeElective(id: electiveID, proof: proof)
+                    },
+                    onPayFaeBargain: { bargainID, report, faeResponse in
+                        payFaeBargain(bargainID: bargainID, report: report, faeResponse: faeResponse)
+                    },
+                    onTwoReadingsSided: { chosenID, chosenName, otherID, otherName in
+                        applyTwoReadingsSiding(chosenID: chosenID, chosenName: chosenName, otherID: otherID, otherName: otherName)
                     }
                 ) { savedSurface, input, tags in
                     savePage(surface: savedSurface, input: input, tags: tags)
@@ -686,6 +724,42 @@ struct ContentView: View {
                 BookShopSheet { packID in
                     unlockPack(packID)
                 }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $isMarginPresented) {
+                TheMarginSheet(
+                    fae: vault.data.fae ?? FaePlayerState(),
+                    now: Date(),
+                    canEnterMarket: FaeEconomy.canEnterMarket(state: vault.data.fae ?? FaePlayerState()),
+                    onEnterMarket: {
+                        isMarginPresented = false
+                        isGoblinMarketPresented = true
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $isGoblinMarketPresented) {
+                GoblinMarketSheet(
+                    fae: vault.data.fae ?? FaePlayerState(),
+                    now: Date(),
+                    onBuy: { offerID in buyFaeGift(offerID: offerID) },
+                    onMarkNextMarket: { Task { await addNextMarketToCalendar() } }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $isPactMapPresented) {
+                PactMapSheet(
+                    pactWar: vault.data.pactWar ?? PactWarState(),
+                    boundTalismanID: boundTalismanID,
+                    onPressClaim: { territoryID in
+                        if let talismanID = boundTalismanID {
+                            pressPactClaim(talismanID: talismanID, territoryID: territoryID)
+                        }
+                    }
+                )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
@@ -795,6 +869,7 @@ struct ContentView: View {
         facultyEntries = payload.facultyEntries
         modelReport = payload.modelReport
         didHydrateLaunchState = true
+        refreshContinuityCache(force: true)
     }
 
     @MainActor
@@ -820,7 +895,7 @@ struct ContentView: View {
         }
         loadAnchorLedger()
         if didCompleteStoryOnboarding {
-            BookWhispers.refreshSchedule(enabled: bookWhispersEnabled, electives: electives)
+            BookWhispers.refreshSchedule(enabled: bookWhispersEnabled, electives: electives, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisperToday)
         }
         if bookCalendarEnabled {
             calendarEvents = await CalendarDoorway.upcomingEvents()
@@ -828,6 +903,9 @@ struct ContentView: View {
         }
         PackEntitlements.ownedPackIDs = Set(vault.data.ownedPacks ?? [])
         tendArc()
+        tendAlmanac()
+        tendFae()
+        tendPact()
         tendConstellations()
         nearbyPlaces = LocalPlacesScout.cachedPlaces()
         if didRequestAnchorLocation || didRequestWeatherLocation {
@@ -848,15 +926,61 @@ struct ContentView: View {
             surfacedPages = []
             return
         }
+        refreshContinuityCache()
         surfacedPages = buildCuratorSurfaces(now: surfaceRefreshDate)
         recordServedSurfaces(surfacedPages)
+    }
+
+    /// Recompute the continuity digest + motif clusters over the whole archive,
+    /// but only when the underlying data actually changed. This is the single
+    /// place that pays for the projection; everything else reads the cache.
+    func refreshContinuityCache(force: Bool = false) {
+        let signature = [
+            "\(days.count)",
+            "\(days.last?.pages.count ?? 0)",
+            "\(narrativeEvents.count)",
+            "\(entityMemories.count)",
+            "\(entityBeliefLedger.count)",
+            "\(pageBeliefLedger.count)",
+            "\(vault.data.constellations?.count ?? 0)",
+            "\(vault.data.themes?.count ?? 0)"
+        ].joined(separator: "-")
+        guard force || signature != continuityCacheSignature else { return }
+        continuityCacheSignature = signature
+
+        let started = Date()
+        defer {
+            let ms = Date().timeIntervalSince(started) * 1000
+            appLog.info("Continuity cache refreshed in \(ms, format: .fixed(precision: 1))ms; days: \(days.count, privacy: .public); events: \(narrativeEvents.count, privacy: .public)")
+        }
+
+        let digest = LiteraryContinuityProjector.digest(
+            days: days,
+            events: narrativeEvents,
+            entityMemories: entityMemories,
+            entityBelief: entityBeliefLedger,
+            pageBelief: pageBeliefLedger,
+            now: surfaceRefreshDate
+        )
+        cachedContinuityDigest = digest
+        cachedMotifClusters = BookMotifClusterEngine.clusters(
+            from: digest,
+            constellations: vault.data.constellations ?? [],
+            themes: vault.data.themes ?? [],
+            now: surfaceRefreshDate
+        )
     }
 
     /// The curator remembers what it put on the desk, so it stops repeating
     /// itself. Only newly-shown content keys are written (30-minute grace).
     func recordServedSurfaces(_ pages: [SurfacePage], now: Date = Date()) {
         let history = vault.data.surfaceHistory ?? [:]
-        let newKeys = pages.map(\.varietyKey).filter { key in
+        let servedKeys = pages.flatMap { page -> [String] in
+            page.type == .twoReadings
+                ? [page.varietyKey, "source:\(page.sourceID)"]
+                : [page.varietyKey]
+        }
+        let newKeys = servedKeys.filter { key in
             guard let record = history[key] else { return true }
             return now.timeIntervalSince(record.lastShownAt) > 30 * 60
         }
@@ -916,6 +1040,12 @@ struct ContentView: View {
             closeGlowMenu()
         case .openBookShop:
             isBookShopPresented = true
+            closeGlowMenu()
+        case .openMargin:
+            isMarginPresented = true
+            closeGlowMenu()
+        case .openPactMap:
+            isPactMapPresented = true
             closeGlowMenu()
         case let .openBookSection(sectionID):
             selectedSurface = readingSurface(forWonderCompassSectionID: sectionID)
@@ -1099,7 +1229,7 @@ struct ContentView: View {
             beliefs: draft.beliefs,
             goals: draft.goals,
             tags: inferredTags,
-            baseBelief: 25,
+            baseBelief: min(100, max(0, draft.startingGlow ?? 25)),
             narrativeWeight: 22,
             createdAt: now,
             updatedAt: now,
@@ -2098,11 +2228,23 @@ struct ContentView: View {
                     .tint(BookPalette.teal)
                     .onChange(of: bookWhispersEnabled) { _, enabled in
                         BookFeedback.play(enabled ? .sourceRefresh : .dismissPage)
-                        BookWhispers.refreshSchedule(enabled: enabled, electives: electives)
+                        BookWhispers.refreshSchedule(enabled: enabled, electives: electives, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisperToday)
                         statusMessage = enabled
                             ? "The Book may whisper now: bells, the evening braid, and waiting favors."
                             : "The Book will keep its voice inside the covers."
                     }
+
+                    Button {
+                        BookFeedback.play(.knock)
+                        BookWhispers.sendTestWhisper()
+                        statusMessage = "A test whisper is on its way — it should arrive in about ten seconds."
+                    } label: {
+                        Label("Send a test whisper", systemImage: "bell.badge")
+                            .font(.caption.weight(.bold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(BookPalette.teal)
+                    .accessibilityLabel("Send a test notification in ten seconds")
 
                     Toggle(isOn: $bookCalendarEnabled) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -2142,6 +2284,7 @@ struct ContentView: View {
                             .textFieldStyle(.roundedBorder)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
+                            .dictationInput(text: $usdaKey)
                         Text("Fuel pages get rough calorie and macro estimates, penciled in moments after you keep them. Entries never leave the device except as anonymous food-name lookups.")
                             .font(.caption2)
                             .foregroundStyle(BookPalette.nightText.opacity(0.55))
@@ -2291,7 +2434,7 @@ struct ContentView: View {
                     }
 
                     WeatherSourceCard(
-                        weatherSignal: sourceInputs.weather,
+                        weatherSignal: weatherPageSignal,
                         message: weatherMessage,
                         isRequesting: isRequestingWeather || !workBlockingState.canRequestWeather,
                         hasRequested: didRequestWeatherLocation,
@@ -2367,6 +2510,8 @@ struct ContentView: View {
         )
         day.pages.append(page)
         recordNarrativeEvent(for: page)
+        weaveRelationshipField(for: page)
+        applyGossipRelationshipMoves(from: surface)
         saveSelfFactIfNeeded(surface: surface, answer: input)
         saveFacultyEntryIfNeeded(surface: surface, page: page, answer: input, tags: tags, dayID: day.id)
         awardBelief(for: surface)
@@ -2425,6 +2570,9 @@ struct ContentView: View {
             statusMessage = "The page is kept, but one hidden margin note slipped: \(error.localizedDescription)"
         }
         tendArc()
+        tendAlmanac()
+        tendFae()
+        tendPact()
         tendConstellations()
     }
 
@@ -2451,6 +2599,309 @@ struct ContentView: View {
             statusMessage = announcement
             BookFeedback.play(.sourceRefresh)
         }
+    }
+
+    /// The Fae give first. This sweeps lapsed debts (colding their fronted gifts
+    /// and closing that market) and, when eligible, fronts a fresh bargain.
+    func tendFae(now: Date = Date()) {
+        guard scenePhase == .active else { return }
+        var state = vault.data.fae ?? FaePlayerState()
+        var changed = false
+        if !FaeEconomy.sweepLapses(into: &state, now: now).isEmpty {
+            changed = true
+        }
+        if FaeEconomy.canOfferBargain(state: state, now: now) {
+            let slot = BookDay.id(for: now)
+            let kind = FaeEconomy.chooseFae(state: state, slot: slot)
+            FaeEconomy.offerBargain(into: &state, kind: kind, slot: slot, now: now)
+            changed = true
+        }
+        if changed {
+            vault.data.fae = state
+            vault.save()
+            surfaceRefreshDate = now
+        }
+    }
+
+    /// The Talisman that holds the Whisper Channel (Controlled+), if any — it
+    /// recolors the Book's notifications.
+    var whisperController: String? {
+        let war = vault.data.pactWar ?? PactWarState()
+        return war.tier(of: "integ-notifications") >= .controlled
+            ? war.controller(of: "integ-notifications")
+            : nil
+    }
+
+    /// True when a Talisman reigns Sovereign over the Whisper Channel — it earns
+    /// an extra unprompted whisper.
+    var whisperSovereign: Bool {
+        (vault.data.pactWar ?? PactWarState()).tier(of: "integ-notifications") == .sovereign
+    }
+
+    /// Tonight's festival, phrased as a whisper, if the Wheel is keeping a feast.
+    var festivalWhisperToday: (title: String, body: String)? {
+        guard let celebration = Almanac.active(on: Date(), hemisphere: Hemisphere.from(latitude: lastAnchorReadingLatitude)) else { return nil }
+        return (title: "Tonight: \(celebration.academyTitle)", body: celebration.invitation)
+    }
+
+    /// The Talisman of the Chapter the reader is Bound to, if any — gets a
+    /// home-field bonus in the Pact War.
+    var boundTalismanID: String? {
+        guard let fact = selfFacts.first(where: { $0.questionID == "chapter-binding" }) else { return nil }
+        let chapter = AcademyChapterRegistry.chapter(named: fact.answer)
+            ?? AcademyChapterRegistry.chapters.first { fact.tags.contains($0.id) }
+        return chapter?.talismanID
+    }
+
+    /// Stir the Pact War one tick (daily, distress-gated). Pure local sim — no
+    /// model call, runs alongside tendArc/tendFae.
+    func tendPact(now: Date = Date()) {
+        guard scenePhase == .active else { return }
+        var state = vault.data.pactWar ?? PactWarState()
+        let dispatchesBefore = Set(state.pendingDispatches.map(\.id))
+        let records = PactWarEngine.tick(
+            into: &state,
+            entityBeliefOffsets: entityBeliefLedger,
+            boundTalismanID: boundTalismanID,
+            now: now,
+            distressActive: DistressSignals.evaluate(day: today).isActive
+        )
+        guard !records.isEmpty else { return }
+        vault.data.pactWar = state
+
+        // A Talisman reaching Sovereign is "something significant" — the rare
+        // moment the Marginalia Clans appear. Front a goblin bargain if the
+        // reader has no open one. Pure local; no model call.
+        let newSovereign = state.pendingDispatches.contains {
+            $0.kind == .sovereign && !dispatchesBefore.contains($0.id)
+        }
+        if newSovereign {
+            var fae = vault.data.fae ?? FaePlayerState()
+            if FaeEconomy.canOfferBargain(state: fae, now: now) {
+                FaeEconomy.offerBargain(into: &fae, kind: .goblin, slot: "sovereign-\(BookDay.id(for: now))", now: now)
+                vault.data.fae = fae
+            }
+        }
+
+        vault.save()
+        surfaceRefreshDate = now
+    }
+
+    /// Greet a returning reader by name with a rotating opener and one dynamic
+    /// line about what's alive right now. Only for returning opens — never the
+    /// first run (onboarding handles that), and once per launch.
+    func presentReturningGreetingIfNeeded() {
+        guard didCompleteStoryOnboarding, !didShowGreetingThisLaunch else { return }
+        didShowGreetingThisLaunch = true
+
+        let inputs = sourceInputs
+        let hemisphere = Hemisphere.from(latitude: lastAnchorReadingLatitude)
+        let yesterdayID = BookDay.id(for: Date().addingTimeInterval(-86_400))
+        let keptYesterday = days.first { $0.id == yesterdayID }?.capturedPages.count ?? 0
+        let grey = NothingTide.greyLevel(
+            quietDays: inputs.quietDays,
+            narrativeHeat: narrativeEvents.prefix(24).count,
+            distressActive: DistressSignals.evaluate(day: today).isActive,
+            celebrationGreyShift: Almanac.greyShift(on: Date(), hemisphere: hemisphere)
+        )
+        let context = BookGreetingContext(
+            name: CharacterLetterPageGenerator.preferredPlayerName(inputs: inputs),
+            celebrationTitle: Almanac.active(on: Date(), hemisphere: hemisphere)?.academyTitle,
+            openBargainFae: vault.data.fae?.openBargains.first?.faeKind.name,
+            pactLine: (vault.data.pactWar?.pendingDispatches.last).map { $0.line },
+            keptYesterday: keptYesterday,
+            greyLevel: grey,
+            seed: Int(Date().timeIntervalSince1970 / 60)
+        )
+        let greeting = BookGreetingComposer.compose(context)
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.82)) {
+            activeGreeting = greeting
+        }
+        BookFeedback.play(.openPage)
+        Task {
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled, activeGreeting == greeting else { return }
+            withAnimation(.easeOut(duration: 0.5)) { activeGreeting = nil }
+        }
+    }
+
+    /// The Wheel stirs the Fae: Samhain opens the door for a Marginalia Clan
+    /// (goblin) bargain; the full moon opens a window for any fae. Pure local;
+    /// no model call. `canOfferBargain` keeps it to one at a time.
+    func tendAlmanac(now: Date = Date()) {
+        guard scenePhase == .active else { return }
+        var fae = vault.data.fae ?? FaePlayerState()
+        guard FaeEconomy.canOfferBargain(state: fae, now: now) else { return }
+        let hemisphere = Hemisphere.from(latitude: lastAnchorReadingLatitude)
+        let active = Almanac.celebrations(on: now, hemisphere: hemisphere)
+        let slotDay = BookDay.id(for: now)
+        if active.contains(where: { $0.id == "sabbat-samhain" }) {
+            FaeEconomy.offerBargain(into: &fae, kind: .goblin, slot: "samhain-\(slotDay)", now: now)
+        } else if active.contains(where: { $0.id == "esbat-full" }) {
+            let kind = FaeEconomy.chooseFae(state: fae, slot: "fullmoon-\(slotDay)")
+            FaeEconomy.offerBargain(into: &fae, kind: kind, slot: "fullmoon-\(slotDay)", now: now)
+        } else {
+            return
+        }
+        vault.data.fae = fae
+        vault.save()
+        surfaceRefreshDate = now
+    }
+
+    /// Invest Belief to press a Talisman's claim on a territory (player as
+    /// combatant). Adds Control Belief directly and warms the Talisman.
+    func pressPactClaim(talismanID: String, territoryID: String, now: Date = Date()) {
+        var state = vault.data.pactWar ?? PactWarState()
+        let key = PactWarState.key(talismanID, territoryID)
+        state.control[key] = max(0, min(100, (state.control[key] ?? 0) + 4))
+        vault.data.pactWar = state
+        vault.save()
+        if let chapter = AcademyChapterRegistry.chapter(forTalismanID: talismanID) {
+            let talisman = GlowEntityMenuItem(id: talismanID, name: chapter.talismanName, kind: "talisman", glow: 0, line: chapter.philosophy)
+            adjustEntityBelief(talisman, delta: 1, kind: .beliefInvested)
+        }
+        surfaceRefreshDate = now
+        BookFeedback.play(.select)
+    }
+
+    /// Pay (or repair) a Fae Bargain: closes the debt, thaws the fronted gift,
+    /// and pays warmth and attention. The fae's spoken reply is the reward.
+    func payFaeBargain(bargainID: String, report: String, faeResponse: String, now: Date = Date()) {
+        var state = vault.data.fae ?? FaePlayerState()
+        FaeEconomy.deliver(
+            bargainID: bargainID,
+            report: report,
+            faeResponse: faeResponse,
+            reward: faeResponse,
+            into: &state,
+            now: now
+        )
+        vault.data.fae = state
+        vault.save()
+        surfaceRefreshDate = now
+        BookFeedback.play(.braidComplete)
+    }
+
+    /// Write the next new-moon Goblin Market window into the real Calendar.
+    /// User-initiated; no model call.
+    @MainActor
+    func addNextMarketToCalendar() async {
+        let newMoon = MoonPhaseCalendar.nextNewMoon(after: Date())
+        let start = Calendar.current.date(bySettingHour: 20, minute: 0, second: 0, of: newMoon) ?? newMoon
+        let end = start.addingTimeInterval(3_600)
+        let ok = await EventKitWriter.addEvent(
+            title: "The Goblin Market opens",
+            notes: "New moon. The Goblin Market is open in ReEnchanted — spend Attention on a Fae gift.",
+            start: start,
+            end: end
+        )
+        statusMessage = ok
+            ? "The next Goblin Market is marked on your calendar (new moon)."
+            : "The market could not be added (check Calendar permission in Settings)."
+        BookFeedback.play(ok ? .select : .error)
+    }
+
+    /// A kept page that holds two or more characters weaves them in the
+    /// relationship field. A story scene escalates whatever dynamic already
+    /// exists between a pair — two characters in conflict grow *more* tense, not
+    /// warmer — while gossip and co-occurrence build familiarity and warmth.
+    func weaveRelationshipField(for page: BookPage) {
+        let ids = RelationshipFieldEngine.entityIDs(fromTags: page.tags)
+        guard ids.count >= 2 else { return }
+        var field = vault.data.relationshipField ?? [:]
+        switch page.type {
+        case .narrativeOS:
+            // Per pair: deepen the dominant tone so a scene's conflicts bite.
+            let conflict = page.tags.contains { $0.hasPrefix("choice:") && ($0.contains("conflict") || $0.contains("progressarc") || $0.contains("surprise")) }
+            let sorted = Array(Set(ids)).sorted()
+            for i in sorted.indices {
+                for j in sorted.indices where j > i {
+                    let key = NarrativeGraphData.relationshipPairKey(sorted[i], sorted[j])
+                    let tie = field[key] ?? .zero
+                    if conflict || tie.tension > tie.warmth {
+                        RelationshipFieldEngine.weave(into: &field, entityIDs: [sorted[i], sorted[j]], tension: 1, familiarity: 1)
+                    } else {
+                        RelationshipFieldEngine.weave(into: &field, entityIDs: [sorted[i], sorted[j]], warmth: 1, familiarity: 1)
+                    }
+                }
+            }
+        case .gossip:
+            RelationshipFieldEngine.weave(into: &field, entityIDs: ids, warmth: 1, familiarity: 1)
+        default:
+            RelationshipFieldEngine.weave(into: &field, entityIDs: ids, familiarity: 1)
+        }
+        vault.data.relationshipField = field
+        vault.save()
+    }
+
+    /// Apply the character-to-character Belief moves a gossip page recorded:
+    /// invest warms the pair and lifts the target's Belief; attack tenses them
+    /// and chips it. Pure local; the structured tokens drive it, not the prose.
+    func applyGossipRelationshipMoves(from surface: SurfacePage) {
+        guard surface.type == .gossip,
+              let raw = surface.payload.metadata["relationshipMoves"]?.nonEmpty else { return }
+        var field = vault.data.relationshipField ?? [:]
+        for token in raw.split(separator: "|") {
+            // format: actorID>targetID:kind:amount
+            let halves = token.split(separator: ":")
+            guard halves.count == 3,
+                  let amount = Int(halves[2]) else { continue }
+            let pair = halves[0].split(separator: ">").map(String.init)
+            guard pair.count == 2 else { continue }
+            let (actorID, targetID) = (pair[0], pair[1])
+            let kind = String(halves[1])
+            let target = GlowEntityMenuItem(id: targetID, name: castName(for: targetID), kind: "character", glow: 0, line: "")
+            if kind == GossipRelationshipMoveKind.invest.rawValue {
+                adjustEntityBelief(target, delta: amount, kind: .beliefInvested)
+                RelationshipFieldEngine.weave(into: &field, entityIDs: [actorID, targetID], warmth: amount, familiarity: 1)
+            } else {
+                adjustEntityBelief(target, delta: -amount, kind: .beliefAttacked)
+                RelationshipFieldEngine.weave(into: &field, entityIDs: [actorID, targetID], tension: amount, familiarity: 1)
+            }
+        }
+        vault.data.relationshipField = field
+        vault.save()
+    }
+
+    /// Display name for a cast entity id (bundled or custom).
+    func castName(for id: String) -> String {
+        NarrativePackRegistry.entities.first { $0.id == id }?.name
+            ?? customCastMembers.first { $0.id == id }?.name
+            ?? id
+    }
+
+    /// The reader sided in The Two Readings: the chosen character gains Belief
+    /// (and the reader spends one to give it), the other cools a little, and the
+    /// disagreement is recorded so it echoes among the three.
+    func applyTwoReadingsSiding(chosenID: String, chosenName: String, otherID: String, otherName: String) {
+        let chosen = GlowEntityMenuItem(id: chosenID, name: chosenName, kind: "character", glow: 0, line: "")
+        adjustEntityBelief(chosen, delta: 2, kind: .beliefInvested, playerBeliefDelta: -1)
+        if !otherID.isEmpty {
+            let other = GlowEntityMenuItem(id: otherID, name: otherName, kind: "character", glow: 0, line: "")
+            adjustEntityBelief(other, delta: -1, kind: .beliefAttacked)
+            // Judging their disagreement tenses the thread between the two in the Loom.
+            var field = vault.data.relationshipField ?? [:]
+            RelationshipFieldEngine.weave(into: &field, entityIDs: [chosenID, otherID], tension: 3, familiarity: 1)
+            vault.data.relationshipField = field
+            vault.save()
+            surfaceRefreshDate = Date()
+        }
+        statusMessage = "You sided with \(chosenName). They warm by two; \(otherName) cools by one; you spent a point of Belief — and a thread tightens between them in the Loom."
+        BookFeedback.play(.braidComplete)
+    }
+
+    /// Spend Attention at the Goblin Market for a gift. Pure local economy — no
+    /// model call.
+    func buyFaeGift(offerID: String, now: Date = Date()) {
+        var state = vault.data.fae ?? FaePlayerState()
+        guard FaeEconomy.purchase(offerID: offerID, into: &state, now: now) != nil else {
+            BookFeedback.play(.error)
+            return
+        }
+        vault.data.fae = state
+        vault.save()
+        surfaceRefreshDate = now
+        BookFeedback.play(.select)
     }
 
     func saveSelfFactIfNeeded(surface: SurfacePage, answer: String) {
@@ -2548,8 +2999,10 @@ struct ContentView: View {
     }
 
     func awardBelief(for surface: SurfacePage) {
-        let delta: Int
-        if surface.type == .wonderCompass, surface.payload.metadata["runID"] != nil {
+        var delta: Int
+        if surface.type == .festival {
+            delta = Int(surface.payload.metadata["beliefBonus"] ?? "") ?? 3
+        } else if surface.type == .wonderCompass, surface.payload.metadata["runID"] != nil {
             delta = surface.payload.metadata["compassStep"] == "rest" ? 6 : 0
         } else if surface.type == .enchantment || surface.payload.metadata["source"] == "enchantment" {
             delta = Int(surface.payload.metadata["enchantmentBeliefReward"] ?? "") ?? 3
@@ -2557,6 +3010,12 @@ struct ContentView: View {
             delta = Int(surface.payload.metadata["beliefReward"] ?? "") ?? AnchorRegistry.checkInBeliefReward
         } else {
             delta = 1
+        }
+        // The full moon doubles Belief for feasts and Enchantments (the Luminous
+        // Gathering pours light into whatever is kept by it).
+        if Almanac.activeEsbat(on: Date())?.id == "esbat-full",
+           surface.type == .festival || surface.type == .enchantment || surface.payload.metadata["source"] == "enchantment" {
+            delta *= 2
         }
         guard delta != 0 else { return }
         let newScore = min(100, max(0, beliefScore + delta))
@@ -2736,6 +3195,14 @@ struct ContentView: View {
         case .supportGuild:
             statusMessage = "The Support Guild is convening over the charts..."
             selectedSurface = await supportGuildSurfaceWithProse(from: surface)
+            statusMessage = ""
+        case .twoReadings:
+            statusMessage = "\(surface.payload.metadata["entityAName"] ?? "Two readers") and \(surface.payload.metadata["entityBName"] ?? "another") are arguing it out..."
+            selectedSurface = await twoReadingsSurfaceWithProse(from: surface)
+            statusMessage = ""
+        case .castBond:
+            statusMessage = "The Loom is staging what changed between \(surface.payload.metadata["entityAName"] ?? "two figures") and \(surface.payload.metadata["entityBName"] ?? "another")..."
+            selectedSurface = await castBondSurfaceWithProse(from: surface)
             statusMessage = ""
         case .academyClass:
             statusMessage = "The classroom door is opening..."
@@ -3184,6 +3651,17 @@ struct ContentView: View {
         let now = Date()
         var ledger = decodedDismissalLedger()
         ledger.dismiss(surfaceID: surface.id, dayID: today.id, at: now)
+        if surface.type == .twoReadings {
+            ledger.dismiss(surfaceID: "source:\(surface.sourceID)", dayID: today.id, at: now)
+            var history = vault.data.surfaceHistory ?? [:]
+            history = CuratorVarietyGovernor.recordingServed(
+                keys: ["source:\(surface.sourceID)", surface.varietyKey],
+                into: history,
+                now: now
+            )
+            vault.data.surfaceHistory = history
+            vault.save()
+        }
         ledger.prune(now: now, ttl: surfaceDismissalTTL)
         dismissedSurfaceLedgerV2 = encodedDismissalLedger(ledger)
         surfaceRefreshDate = now
@@ -3375,7 +3853,8 @@ struct ContentView: View {
             statusMessage = "The Book is already writing one page. Let that ink dry first."
             return
         }
-        guard !today.capturedPages.isEmpty else {
+        let braidDay = today
+        guard !braidDay.capturedPages.isEmpty else {
             BookFeedback.play(.error)
             statusMessage = "The Book needs one true fragment before it can braid tonight."
             return
@@ -3394,9 +3873,9 @@ struct ContentView: View {
         }
 
         do {
-            var braid = try await braider.braid(day: today)
-            braid.mediaAssets = today.capturedPages.flatMap(\.mediaAssets)
-            let day = BraidRecoveryState.dayByMarkingCapturedPagesUsed(today, braid: braid)
+            var braid = try await braider.braid(day: braidDay)
+            braid.mediaAssets = braidDay.capturedPages.flatMap(\.mediaAssets)
+            let day = BraidRecoveryState.dayByMarkingCapturedPagesUsed(braidDay, braid: braid)
             if braid.tags.contains("local-model-missing") {
                 persist(day: day, message: "The Book kept today's page in its fallback hand. The local brain is still waking.")
             } else if braid.tags.contains("mlx-hook") {
@@ -3411,7 +3890,7 @@ struct ContentView: View {
         } catch {
             BookFeedback.play(.error)
             localBrainTelemetry.recordError("braid: \(error.localizedDescription)")
-            generation.braidRecovery.recordFailure(error.localizedDescription, day: today)
+            generation.braidRecovery.recordFailure(error.localizedDescription, day: braidDay)
             statusMessage = "The braid snagged, but nothing was lost. Let the page breathe, then try again. \(error.localizedDescription)"
         }
     }
@@ -3487,6 +3966,9 @@ struct ContentView: View {
                 statusMessage = "The page would not settle yet: \(error.localizedDescription)"
             }
         }
+        // The archive changed; refresh the continuity cache (signature-gated, so
+        // it only pays when the data actually moved).
+        refreshContinuityCache()
     }
 
     func refreshResurfacedPages() {
@@ -3864,6 +4346,9 @@ struct ContentView: View {
             appLog.info("Gemma install completed at \(directory.path, privacy: .private)")
             installProgress = 1
             installMessage = "\(model.label) is installed. The old local model was cleared if it was still on the shelf."
+            modelReport = LocalModelManager.report()
+            surfaceRefreshDate = Date()
+            rebuildSurfaceCache()
         } catch {
             appLog.error("Gemma install failed: \(error.localizedDescription, privacy: .public)")
             installProgress = nil

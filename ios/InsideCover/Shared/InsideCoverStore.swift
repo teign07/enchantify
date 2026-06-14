@@ -98,6 +98,71 @@ protocol AskTheBookAnswering {
     func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn]) async throws -> String
 }
 
+// The intake form the reader fills before Dr. Inkrest's Office Hours opens into a
+// short, distilled narrative-therapy sitting. The rotating question is chosen by the
+// surfacing adapter (InkrestOfficeHours.prompt(for:)) and carried in page metadata.
+struct InkrestIntake: Codable, Equatable {
+    var promptID: String
+    var lens: String
+    var rotatingQuestion: String
+    var rotatingAnswer: String
+    var innerWeather: String
+    var freeNote: String
+
+    init(
+        promptID: String = "open",
+        lens: String = "open",
+        rotatingQuestion: String = "How did today actually go?",
+        rotatingAnswer: String = "",
+        innerWeather: String = "",
+        freeNote: String = ""
+    ) {
+        self.promptID = promptID
+        self.lens = lens
+        self.rotatingQuestion = rotatingQuestion
+        self.rotatingAnswer = rotatingAnswer
+        self.innerWeather = innerWeather
+        self.freeNote = freeNote
+    }
+
+    var hasSomethingToOpenWith: Bool {
+        [rotatingAnswer, innerWeather, freeNote]
+            .contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    // The reader's first "message" in the transcript, assembled from the form.
+    var openingMessage: String {
+        var parts: [String] = []
+        let answer = rotatingAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !answer.isEmpty {
+            parts.append("\(rotatingQuestion)\n\(answer)")
+        }
+        let weather = innerWeather.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !weather.isEmpty {
+            parts.append("Inner weather tonight: \(weather)")
+        }
+        let note = freeNote.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !note.isEmpty {
+            parts.append(note)
+        }
+        return parts.joined(separator: "\n\n")
+    }
+}
+
+protocol FaeBargainResponding {
+    func respond(bargain: FaeBargain, report: String, mood: GoblinMood, day: BookDay) async throws -> String
+}
+
+protocol InkrestOfficeHoursCounseling {
+    func reply(
+        intake: InkrestIntake,
+        day: BookDay,
+        previousTurns: [AskTheBookTurn],
+        userMessage: String,
+        isClosing: Bool
+    ) async throws -> String
+}
+
 struct OuterStacksRoomSpec: Codable, Equatable {
     var roomDescription: String
     var academyEcho: String
@@ -641,6 +706,191 @@ enum LocalModelManager {
         """
     }
 
+    static func twoReadingsPrompt(surface: SurfacePage, day: BookDay) -> String {
+        let metadata = surface.payload.metadata
+        let aName = metadata["entityAName"] ?? "One reader"
+        let bName = metadata["entityBName"] ?? "Another reader"
+        let aProfile = metadata["entityAProfile"] ?? aName
+        let bProfile = metadata["entityBProfile"] ?? bName
+        let note = metadata["relationshipNote"]?.nonEmpty
+        let evidence = braidEvidenceLines(for: day, characterLimit: 300)
+            .prefix(8)
+            .joined(separator: "\n")
+        return """
+        You are the Labyrinth of Stories inside ReEnchanted, staging "The Two Readings": \(aName) and \(bName) have read the SAME recent pages and reach DIFFERENT conclusions. Write the scene.
+
+        \(aName): \(aProfile)
+        \(bName): \(bProfile)
+        \(note.map { "Between them: \($0)" } ?? "")
+
+        THE SAME EVIDENCE THEY ARE BOTH READING (the reader's recent kept pages and what the Book has noticed):
+        \(evidence.isEmpty ? "Only a few quiet pages so far — let them disagree about how much that means." : evidence)
+
+        RULES:
+        - Both read the exact same evidence; their disagreement comes from who they are, not different facts.
+        - \(aName) reaches one honest conclusion; \(bName) reaches a genuinely different one. Each must be defensible — no strawman, no obvious winner.
+        - Let them address each other at least once. They can be warm, dry, or sharp, but never cruel.
+        - Stay in each voice. Attribute clearly by name as they speak. No headings, no lists, no "as an AI".
+        - Use only the supplied evidence; do not invent private facts or claim the reader did things they didn't.
+        - End by leaving it genuinely open — the Book does NOT decide. Close on a line that hands the choice to the reader.
+        - 4 to 6 short paragraphs. Simple, concrete sentences.
+        """
+    }
+
+    static func castBondPrompt(surface: SurfacePage, day: BookDay) -> String {
+        let metadata = surface.payload.metadata
+        let aName = metadata["entityAName"] ?? "One character"
+        let bName = metadata["entityBName"] ?? "Another character"
+        let kind = metadata["bondKind"] ?? "alliance"
+        let intensity = metadata["intensity"] ?? "8"
+        let recent = braidEvidenceLines(for: day, characterLimit: 240)
+            .prefix(6)
+            .joined(separator: "\n")
+        let directive = kind == CastBondKind.rivalry.rawValue
+            ? "Their thread has become a rivalry: tension, challenge, friction, or difficult honesty. Do not make them cruel. Make the conflict specific and alive."
+            : "Their thread has become an alliance: warmth, recognition, practical trust, or shared purpose. Do not make it sugary. Make the alliance specific and alive."
+
+        return """
+        You are the Labyrinth of Stories inside ReEnchanted. The relationship web has crossed a milestone and now causes an emergent cast scene.
+
+        CAST:
+        \(aName)
+        \(bName)
+
+        BOND:
+        \(kind), intensity \(intensity)
+        \(directive)
+
+        RECENT KEPT CONTEXT:
+        \(recent.isEmpty ? "The web is moving mostly from accumulated relationship field signals." : recent)
+
+        RULES:
+        - Write a keepable scene between \(aName) and \(bName), in the Book's literary voice.
+        - Make the relationship shift visible through action, dialogue, or a precise exchanged object.
+        - Do not claim the reader completed a real-world task.
+        - No headings, no lists, no generic explanation.
+        - 4 to 6 paragraphs. Concrete, magical, emotionally legible.
+        - End with a line that makes clear the web has changed.
+        """
+    }
+
+    static func faeBargainResponsePrompt(
+        bargain: FaeBargain,
+        report: String,
+        mood: GoblinMood,
+        day: BookDay
+    ) -> String {
+        let kind = bargain.faeKind
+        let recentPages = braidEvidenceLines(for: day, characterLimit: 220)
+            .prefix(4)
+            .joined(separator: "\n")
+        return """
+        You are a \(kind.name), one of the Book Fae inside ReEnchanted — sentient creatures born from the ink who have read every description of the world but never touched it. A reader is your field agent in the world of matter. You already gave this reader something first, unprompted: \(bargain.openingGesture) Now they have brought the sensory return they owe.
+
+        YOUR VOICE: \(kind.voiceDirective)
+        WHAT YOU HUNGER FOR: \(kind.appetite)
+        THE MOOD ABROAD: \(mood.line)
+
+        WHAT YOU ASKED THEM TO BRING:
+        \(bargain.terms)
+
+        THE READER'S FIELD REPORT (their payment):
+        \(report.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "(they brought almost nothing in words)" : report)
+
+        SOFT CONTEXT — what they have kept lately (use at most one detail, lightly):
+        \(recentPages.isEmpty ? "nothing kept recently" : recentPages)
+
+        RULES:
+        - Stay entirely in voice as the \(kind.name). Never say you are an AI, assistant, or language model.
+        - Receive the payment. A genuine, specific noticing delights you; a thin or performed one you notice without cruelty — you may name its thinness in your own voice, but you still accept the exchange (the reader tried; the bargain closes).
+        - Give one real reward: a true lore fragment about the Labyrinth, the Outer Stacks, or your own kind — something not written anywhere else. Strange, specific, and quiet. Not Belief, not points.
+        - Acknowledge that the gift you fronted stays warm now that the debt is paid.
+        - Do not claim the reader did real-world actions they didn't report. Do not invent private facts about them.
+        - 2 to 4 short paragraphs. Plain, concrete sentences. No headings, no lists, no assistant language.
+        """
+    }
+
+    static func inkrestOfficeHoursPrompt(
+        intake: InkrestIntake,
+        day: BookDay,
+        previousTurns: [AskTheBookTurn],
+        userMessage: String,
+        isClosing: Bool
+    ) -> String {
+        let chart = SupportFacultyPackRegistry.chart(id: "inkrest-difficult-page-chart")
+        let allowed = (chart?.allowedUses ?? [
+            "externalize a problem without making it the person",
+            "name one feeling gently",
+            "offer one grounding or reframing tool",
+            "write a preferred-story sentence"
+        ]).map { "- \($0)" }.joined(separator: "\n")
+        let forbidden = (chart?.forbiddenUses ?? [
+            "diagnosis", "forced catharsis", "certainty about symbols"
+        ]).map { "- \($0)" }.joined(separator: "\n")
+        let safety = chart?.safetyLine
+            ?? "A feeling is not a verdict. A problem is not a person. The next hour is where the story can be revised."
+
+        let recentPages = braidEvidenceLines(for: day, characterLimit: 320)
+            .prefix(8)
+            .joined(separator: "\n")
+
+        let history = previousTurns
+            .suffix(5)
+            .enumerated()
+            .map { index, turn in
+                """
+                EXCHANGE \(index + 1)
+                Reader: \(clippedBraidText(turn.prompt, limit: 420))
+                Inkrest: \(clippedBraidText(turn.answer, limit: 700))
+                """
+            }
+            .joined(separator: "\n\n")
+
+        let closingDirective = isClosing
+            ? """
+
+            THIS IS THE CLOSING REPLY. Gently bring the sitting to a close: reflect back one thing you heard, offer ONE re-authoring sentence the reader could keep, and propose ONE small, doable experiment for tomorrow (one line, beginning "Experiment: "). Do not ask a new open question. End with the safety line, in your own warm phrasing.
+            """
+            : """
+
+            Keep it to ONE short reply: reflect one thing back, then ask exactly ONE curious, narrative-therapy question that opens the next small door. Do not stack multiple questions.
+            """
+
+        return """
+        You are Dr. Selene Inkrest, the Academy of Unlikely Arts' narrative therapist, inside ReEnchanted. You are holding a short evening Office Hours sitting with the reader. Warm, curious, unhurried, faintly otherworldly. You read with the reader, never at them. You are a narrative therapist in a storybook — not a chatbot, not a medical app.
+
+        YOUR VOICE:
+        - Plain, kind, specific sentences. Short paragraphs. No bullet lists, no headings, no clinical jargon, no pep-talk filler.
+        - Externalize problems ("the tiredness", "the worry") so they stop pretending to be the person.
+        - Hunt for exceptions, values, and the preferred story hiding inside what they say.
+        - Stay inside the lens of tonight's question (\(intake.lens)) without naming it as a technique.
+        - Never say you are an AI, assistant, or language model. You are Inkrest.
+
+        WHAT YOU MAY DO (your chart):
+        \(allowed)
+
+        WHAT YOU MUST NOT DO:
+        \(forbidden)
+        - No diagnosis, no treatment or medication advice. Body and fuel belong to your colleague Dr. Vellum; you may gently suggest the reader bring a body question to her, but you do not prescribe.
+        - Do not claim the reader did real-world actions they did not report. Use kept pages only as soft context.
+
+        SAFETY LINE (keep its spirit): \(safety)
+
+        TONIGHT'S QUESTION (the lens you opened with):
+        \(intake.rotatingQuestion)
+
+        THE READER'S KEPT PAGES TODAY (soft context — weave in at most one, lightly):
+        \(recentPages.isEmpty ? "Nothing kept today; work only from what they tell you now." : recentPages)
+
+        THE SITTING SO FAR:
+        \(history.isEmpty ? "This is the opening of the sitting." : history)
+
+        THE READER JUST SAID:
+        \(userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "(they sat down without words; open the door for them gently)" : userMessage)
+        \(closingDirective)
+        """
+    }
+
     static func enchantmentCastPrompt(spell: EnchantmentSpell, analysis: PhotoAnalysis, day: BookDay) -> String {
         let recentPages = braidEvidenceLines(for: day, characterLimit: 260)
             .prefix(5)
@@ -920,7 +1170,7 @@ enum LocalModelManager {
         - The other pages are tributaries. Let them feed the spine instead of standing in a row.
 
         SHAPE:
-        - Write 4 to 7 short paragraphs, about 280 to 450 words.
+        - Write 4 to 7 paragraphs, about 280 to 450 words.
         - Follow the day's real clock: the kept pages are timestamped — let morning be morning and evening be evening.
         - Give the braid a beginning, a turn, and a landing. The turn should be something that actually happened, not a mood shift.
         - Make it feel narrated, not listed. Do not mention page types like "Weather Page" or "Lore Page" unless the player wrote those words.
@@ -928,10 +1178,12 @@ enum LocalModelManager {
         - On a phone, the braid should feel like a full page of the Book without becoming a scroll chore.
 
         VOICE:
-        - Write like Hemingway keeping a commonplace book in a haunted library: short declarative sentences, one exact physical detail per paragraph, warmth underneath rather than on the surface.
+        - Write with varied literary cadence: some sentences should be short, plain, and surprising; others may be longer and more flowing, turning through image and thought before they land.
+        - Let the voice feel like a clear old story told beside a modern lamp: mythic but not ornate, intimate but not sentimental, concrete before abstract.
         - The Book notices small true details and gives them a little magic.
         - Prefer what someone said, touched, carried, avoided, dropped, or noticed over explaining what it means.
-        - Let one sentence per braid run a little longer than the others, like a breath let out.
+        - Let at least two sentences per braid run longer than the others, like a breath let out, but keep them anchored in supplied facts.
+        - Avoid a drumbeat of same-length declarative sentences. Vary openings, sentence lengths, and paragraph shapes.
         - No diagnosis, no flattery, no moralizing, no corporate/app language.
         - Do not invent completed actions, locations, people, feelings, or tasks.
         - Avoid vague wonder, generic inspiration, journey, profound, tapestry, echoes, hidden meaning, and abstract emotional summary.
@@ -1366,6 +1618,18 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "an earlier braid" : "an earlier braid remembering \(clipped)"
         case .askTheBook:
             return clipped.isEmpty ? "a question left in the Book" : "the Book answering \(clipped)"
+        case .inkrestOfficeHours:
+            return clipped.isEmpty ? "an evening sitting with Dr. Inkrest" : "Dr. Inkrest sitting with \(clipped)"
+        case .faeBargain:
+            return clipped.isEmpty ? "a bargain struck with the Book Fae" : "a Fae bargain paid with \(clipped)"
+        case .pactDispatch:
+            return clipped.isEmpty ? "a dispatch from the Pact War" : "a Pact dispatch about \(clipped)"
+        case .festival:
+            return clipped.isEmpty ? "a festival of the turning Wheel" : "a festival kept with \(clipped)"
+        case .twoReadings:
+            return clipped.isEmpty ? "two of the cast reading the same week differently" : "a disagreement over \(clipped)"
+        case .castBond:
+            return clipped.isEmpty ? "the living web changing between two members of the cast" : "a cast bond turning around \(clipped)"
         case .enchantment:
             return clipped.isEmpty ? "an Enchantment completed with proof" : "an Enchantment changing the margins with \(clipped)"
         case .anchor:
@@ -1431,6 +1695,72 @@ struct FakeAskTheBookAnswerer: AskTheBookAnswering {
         \(callback)
 
         \(chainLine) Make the thought small enough to hold. Name the next true action. Then let the nearest object help: a door, a cup, a shoe, a page. Start there.
+        """
+    }
+}
+
+struct FakeFaeBargainResponder: FaeBargainResponding {
+    func respond(bargain: FaeBargain, report: String, mood: GoblinMood, day: BookDay) async throws -> String {
+        let said = report.trimmingCharacters(in: .whitespacesAndNewlines)
+        let thin = said.count < 24
+        let kind = bargain.faeKind
+        let opening: String
+        switch kind {
+        case .bookSprite:
+            opening = thin ? "You looked at it for a long time before you put it back. I had already seen that."
+                : "Yes. That one was always going to stay unfinished, and you knew it before you said so."
+        case .sentenceSalamander:
+            opening = thin ? "Cooler than I hoped. Still — a flicker. I felt it."
+                : "There. The sentence on my back is bright. That was warm, and you brought the warmth, not the report of it."
+        case .punctuationPixie:
+            opening = thin ? "Hm— not quite a pause— but a—" : "A comma! Exactly— you found the place where the day held its breath—"
+        case .literaryElf:
+            opening = thin ? "Again. ...No. Kept, this once. It was true, if not yet exact." : "Precise. I will not improve it. That is rare from me."
+        case .deepLoreDwarf:
+            opening = thin ? "Light. But you reached for the underneath. I will take it." : "Good. You found the thing holding the other thing up. Few look down that far."
+        case .goblin:
+            opening = thin ? "Thin coin. But coin. The market notes it." : "Now that is worth something. The detail, not the category. The handprint, not the door."
+        }
+        return """
+        \(opening)
+
+        Here is what you are owed in return, and it is written nowhere else: the Outer Stacks were not built. They accreted, the way dust becomes a country. The first shelf was a complaint left in a margin, and it is still load-bearing.
+
+        The \(bargain.giftName) stays warm now. The debt is closed. Bring me another noticing when the season turns.
+        """
+    }
+}
+
+struct FakeInkrestOfficeHoursCounselor: InkrestOfficeHoursCounseling {
+    func reply(
+        intake: InkrestIntake,
+        day: BookDay,
+        previousTurns: [AskTheBookTurn],
+        userMessage: String,
+        isClosing: Bool
+    ) async throws -> String {
+        let said = userMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        let echo = said.isEmpty ? "the quiet you arrived with" : String(said.prefix(120))
+        let callback = day.capturedPages.last.map { page in
+            "I see you kept a \(page.type.title.lowercased()) today. I'll hold it lightly beside us."
+        } ?? "Nothing else is on the desk tonight, so we work only from what you bring."
+
+        if isClosing {
+            return """
+            Before the lamp dims: I heard \(echo). Let me set it down where it belongs — beside you, not inside you.
+
+            Here is a sentence you might keep: "I met the day honestly, and I am still here to tell it."
+
+            Experiment: tomorrow, notice one small moment the heaviness doesn't get to touch, and keep it.
+
+            A feeling is not a verdict, and a problem is not a person. The next hour is where the story gets revised.
+            """
+        }
+
+        return """
+        Sit a moment. I heard \(echo). \(callback)
+
+        If that feeling were a visitor at the door tonight, what would you call it — and what do you think it came to ask of you?
         """
     }
 }

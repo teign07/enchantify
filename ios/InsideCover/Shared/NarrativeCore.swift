@@ -225,6 +225,116 @@ struct NarrativeStoryFieldProjection: Equatable {
     }
 }
 
+/// One living tie between two entities in the relationship field. Accumulates
+/// from real events and is layered over authored base edges by the Loom.
+struct RelationshipTie: Codable, Equatable {
+    var warmth: Int = 0
+    var tension: Int = 0
+    var familiarity: Int = 0
+
+    static let zero = RelationshipTie()
+
+    mutating func add(warmth dw: Int = 0, tension dt: Int = 0, familiarity df: Int = 0, cap: Int = 40) {
+        warmth = max(-cap, min(cap, warmth + dw))
+        tension = max(0, min(cap, tension + dt))
+        familiarity = max(0, min(cap, familiarity + df))
+    }
+}
+
+/// Mutates the dynamic relationship field as the world happens — the engine of
+/// the relationship simulation. Pure; the app persists the field in the vault.
+enum RelationshipFieldEngine {
+    /// Weave every pair among these entities by the given deltas (e.g. sharing a
+    /// story scene warms them; being judged against each other tenses them).
+    static func weave(
+        into field: inout [String: RelationshipTie],
+        entityIDs: [String],
+        warmth: Int = 0,
+        tension: Int = 0,
+        familiarity: Int = 0
+    ) {
+        let ids = Array(Set(entityIDs.filter { !$0.isEmpty })).sorted()
+        guard ids.count >= 2 else { return }
+        for i in ids.indices {
+            for j in ids.indices where j > i {
+                let key = NarrativeGraphData.relationshipPairKey(ids[i], ids[j])
+                var tie = field[key] ?? .zero
+                tie.add(warmth: warmth, tension: tension, familiarity: familiarity)
+                field[key] = tie
+            }
+        }
+    }
+
+    /// Entity IDs carried by a kept page's tags (entity:<id>).
+    static func entityIDs(fromTags tags: [String]) -> [String] {
+        tags.compactMap { tag in
+            tag.hasPrefix("entity:") ? String(tag.dropFirst("entity:".count)) : nil
+        }
+    }
+}
+
+// MARK: - Emergent cast bonds
+//
+// The relationship field doesn't just record — it *acts*. When a pair's tension
+// or warmth crosses a milestone, a bond surfaces on its own: a rivalry erupts or
+// an alliance forms. The web you've been shaping starts telling its own stories.
+
+enum CastBondKind: String, Codable, Equatable {
+    case rivalry   // tension crossed a milestone
+    case alliance  // warmth crossed a milestone
+}
+
+struct CastBond: Codable, Equatable, Identifiable {
+    var id: String
+    var firedKey: String   // the milestone key (so it fires once)
+    var pairKey: String
+    var aID: String
+    var bID: String
+    var aName: String
+    var bName: String
+    var kind: CastBondKind
+    var intensity: Int
+    var at: Date
+}
+
+enum CastBondEngine {
+    static let milestone = 8
+
+    /// Bonds whose milestone the field has newly crossed (not already fired).
+    static func emergent(
+        field: [String: RelationshipTie],
+        names: [String: String],
+        firedKeys: Set<String>,
+        now: Date = Date()
+    ) -> [CastBond] {
+        var bonds: [CastBond] = []
+        func name(_ id: String) -> String { names[id] ?? id }
+        func consider(_ pairKey: String, _ ids: [String], kind: CastBondKind, value: Int) {
+            guard value >= milestone, ids.count == 2 else { return }
+            let level = value / milestone
+            let firedKey = "\(pairKey):\(kind.rawValue):\(level)"
+            guard !firedKeys.contains(firedKey) else { return }
+            bonds.append(CastBond(
+                id: "bond-\(firedKey)",
+                firedKey: firedKey,
+                pairKey: pairKey,
+                aID: ids[0], bID: ids[1],
+                aName: name(ids[0]), bName: name(ids[1]),
+                kind: kind, intensity: value, at: now
+            ))
+        }
+        for (pairKey, tie) in field {
+            let ids = pairKey.split(separator: "|").map(String.init)
+            if tie.tension > tie.warmth {
+                consider(pairKey, ids, kind: .rivalry, value: tie.tension)
+            } else if tie.warmth > tie.tension {
+                consider(pairKey, ids, kind: .alliance, value: tie.warmth)
+            }
+        }
+        return bonds.sorted { $0.intensity > $1.intensity }
+    }
+}
+
 enum NarrativeStoryFieldProjector {
     static func projection(events: [NarrativeEvent], baseBelief: Int = 30) -> NarrativeStoryFieldProjection {
         var entityWeights = Dictionary(uniqueKeysWithValues: NarrativePackRegistry.entities
@@ -1271,6 +1381,40 @@ enum NarrativeEventResolver {
         case .askTheBook:
             entityDeltas["the-book", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 2
+        case .inkrestOfficeHours:
+            entityDeltas["dr-inkrest", default: 0] += 3
+            threadDeltas["inkrest-difficult-pages", default: 0] += 2
+            relationshipDeltas["inkrest-holds-difficult-pages", default: 0] += 2
+            createdHint = "A kept Office Hours sitting can return as a reframe, an experiment, or a question for real therapy."
+        case .faeBargain:
+            entityDeltas["the-book", default: 0] += 1
+            threadDeltas["outer-stacks", default: 0] += 2
+            createdHint = "A paid bargain deepens the reader's standing with the Fae and may open stranger bargains later."
+        case .pactDispatch:
+            entityDeltas["the-book", default: 0] += 1
+            threadDeltas["ordinary-magic", default: 0] += 1
+            createdHint = "A kept dispatch marks a turn in the Talismans' long war over the reader's margins."
+        case .festival:
+            entityDeltas["the-book", default: 0] += 2
+            threadDeltas["ordinary-magic", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+            createdHint = "A kept festival ties the reader's year to the turning Wheel; the season can call it back."
+        case .twoReadings:
+            // Both characters who argued deepen by being heard.
+            for tag in tags where tag.hasPrefix("entity:") {
+                let entityID = tag.replacingOccurrences(of: "entity:", with: "")
+                if !entityID.isEmpty { entityDeltas[entityID, default: 0] += 2 }
+            }
+            threadDeltas["ordinary-magic", default: 0] += 1
+            createdHint = "A kept disagreement lets two voices keep arguing across letters and gossip."
+        case .castBond:
+            for tag in tags where tag.hasPrefix("entity:") {
+                let entityID = tag.replacingOccurrences(of: "entity:", with: "")
+                if !entityID.isEmpty { entityDeltas[entityID, default: 0] += 2 }
+            }
+            threadDeltas["ordinary-magic", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+            createdHint = "A living relationship milestone can echo as future gossip, letters, or story scenes."
         case .location, .lore, .patreon, .bookOfYou, .packPage, .calendar, .helpTips, .welcome:
             break
         }
@@ -1508,7 +1652,8 @@ enum NothingTide {
     static func greyLevel(
         quietDays: Int,
         narrativeHeat: Int,
-        distressActive: Bool
+        distressActive: Bool,
+        celebrationGreyShift: Int = 0
     ) -> Int {
         if distressActive {
             return 0
@@ -1524,7 +1669,10 @@ enum NothingTide {
         if narrativeHeat >= 6, level > 0 {
             level -= 1
         }
-        return level
+        // The Almanac bends the Nothing: light feasts (full moon, Litha) push it
+        // back; thinning-veil nights (Samhain, new moon) let it nearer.
+        level += celebrationGreyShift
+        return max(0, min(3, level))
     }
 
     /// Consecutive days before today with no kept pages.
@@ -1595,13 +1743,28 @@ struct NarrativeGraphData: Equatable {
 
     static let empty = NarrativeGraphData(nodes: [], edges: [])
 
-    /// The Loom: cast and the threads between them.
+    /// Order-independent key for a pair of entities.
+    static func relationshipPairKey(_ a: String, _ b: String) -> String {
+        "\(min(a, b))|\(max(a, b))"
+    }
+
+    /// The Loom: cast and the living threads between them. Authored base edges are
+    /// layered with the dynamic `relationshipField` — accumulated warmth, tension,
+    /// and familiarity that grow from what actually happens in the reader's Book
+    /// (shared story scenes and gossip warm a pair; siding in a disagreement
+    /// tenses it; co-occurrence makes strangers familiar). New threads emerge as
+    /// pairs interact, so the web is a simulation, not a fixed diagram.
     static func loom(
         entities: [NarrativeWorldEntity],
         relationships: [NarrativeRelationshipEdge],
-        beliefOffsets: [String: Int]
+        beliefOffsets: [String: Int],
+        relationshipField: [String: RelationshipTie] = [:]
     ) -> NarrativeGraphData {
-        let connectedIDs = Set(relationships.flatMap { [$0.sourceEntityID, $0.targetEntityID] })
+        var connectedIDs = Set(relationships.flatMap { [$0.sourceEntityID, $0.targetEntityID] })
+        // Pull in anyone the field now connects, even with no authored edge.
+        for key in relationshipField.keys {
+            for id in key.split(separator: "|").map(String.init) { connectedIDs.insert(id) }
+        }
         let nodes = entities
             .filter { connectedIDs.contains($0.id) }
             .map { entity in
@@ -1614,19 +1777,38 @@ struct NarrativeGraphData: Equatable {
                 )
             }
         let nodeIDs = Set(nodes.map(\.id))
-        let edges = relationships
+        var edges = relationships
             .filter { nodeIDs.contains($0.sourceEntityID) && nodeIDs.contains($0.targetEntityID) }
-            .map { edge in
-                let tone = Double(edge.warmth + edge.trust - edge.tension)
+            .map { edge -> GraphEdge in
+                let tie = relationshipField[relationshipPairKey(edge.sourceEntityID, edge.targetEntityID)] ?? .zero
+                let tone = Double(edge.warmth + edge.trust + tie.warmth - edge.tension - tie.tension)
                 return GraphEdge(
                     id: edge.id,
                     sourceID: edge.sourceEntityID,
                     targetID: edge.targetEntityID,
-                    strength: min(1, max(0.15, Double(edge.narrativeWeight) / 30)),
+                    strength: min(1, max(0.15, Double(edge.narrativeWeight + tie.familiarity + tie.tension) / 30)),
                     warmth: min(1, max(-1, tone / 30)),
-                    label: edge.kind.rawValue
+                    label: tie.tension > tie.warmth && tie.tension > 0 ? "disputed" : edge.kind.rawValue
                 )
             }
+
+        // Threads that emerged purely from the field, between pairs the authored
+        // graph never connected.
+        let existingPairs = Set(relationships.map { relationshipPairKey($0.sourceEntityID, $0.targetEntityID) })
+        for (pairKey, tie) in relationshipField where !existingPairs.contains(pairKey) {
+            guard tie.familiarity >= 2 || tie.tension > 0 || tie.warmth >= 2 else { continue }
+            let parts = pairKey.split(separator: "|").map(String.init)
+            guard parts.count == 2, nodeIDs.contains(parts[0]), nodeIDs.contains(parts[1]) else { continue }
+            let tone = Double(tie.warmth - tie.tension)
+            edges.append(GraphEdge(
+                id: "field-\(pairKey)",
+                sourceID: parts[0],
+                targetID: parts[1],
+                strength: min(1, max(0.2, Double(tie.familiarity + tie.tension + tie.warmth) / 14)),
+                warmth: min(1, max(-1, tone / 10)),
+                label: tie.tension > tie.warmth ? "disputed" : "woven"
+            ))
+        }
         return NarrativeGraphData(nodes: nodes, edges: edges)
     }
 
@@ -1767,5 +1949,94 @@ enum GraphLayoutEngine {
             result[node.id] = CodablePoint(x: x[node.id] ?? width / 2, y: y[node.id] ?? height / 2)
         }
         return result
+    }
+}
+
+// MARK: - The Two Readings (dynamic character disagreement)
+//
+// Two members of the cast read the same recent evidence differently and reach
+// different conclusions, then leave it to the reader. The pair is chosen
+// DYNAMICALLY from the cast — by any tension between them, contrast of Chapter
+// and domain, how well each fits the current evidence, Belief weight, and
+// rotation — never from a hardcoded table. The disagreement itself emerges from
+// each character's own beliefs, faults, and voice in the generated prose.
+
+struct DisagreementPair: Equatable {
+    let aID: String
+    let bID: String
+    let aName: String
+    let bName: String
+    let relationshipNote: String?
+    var pairKey: String { "\(min(aID, bID))-\(max(aID, bID))" }
+}
+
+enum DisagreementEngine {
+    /// Characters with enough internal shape to actually hold a position.
+    static func eligible(from entities: [NarrativeWorldEntity]) -> [NarrativeWorldEntity] {
+        entities.filter { $0.kind == .character && (!$0.beliefs.isEmpty || !$0.faults.isEmpty) }
+    }
+
+    private static func tension(
+        _ a: NarrativeWorldEntity, _ b: NarrativeWorldEntity,
+        _ relationships: [NarrativeRelationshipEdge]
+    ) -> (value: Int, note: String?) {
+        let edge = relationships.first {
+            ($0.sourceEntityID == a.id && $0.targetEntityID == b.id) ||
+            ($0.sourceEntityID == b.id && $0.targetEntityID == a.id)
+        }
+        return (edge?.tension ?? 0, edge?.note)
+    }
+
+    private static func chapterContrast(_ a: NarrativeWorldEntity, _ b: NarrativeWorldEntity) -> Int {
+        switch (a.chapter, b.chapter) {
+        case let (ca?, cb?): return ca == cb ? 0 : 3   // named, different Chapters argue hardest
+        case (nil, nil): return 1
+        default: return 2                               // one aligned, one free
+        }
+    }
+
+    private static func evidenceFit(_ entity: NarrativeWorldEntity, _ haystack: String) -> Int {
+        entity.tags.reduce(0) { $0 + (haystack.contains($1.lowercased()) ? 1 : 0) }
+    }
+
+    /// Pick the most interesting disagreeing pair for the current evidence.
+    static func select(
+        entities: [NarrativeWorldEntity],
+        relationships: [NarrativeRelationshipEdge],
+        evidenceText: String,
+        surfaceHistory: [String: SurfaceHistoryRecord] = [:],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> DisagreementPair? {
+        // Cap the pool to the most present voices so the pairing stays vivid.
+        let pool = Array(eligible(from: entities).sorted { $0.belief > $1.belief }.prefix(9))
+        guard pool.count >= 2 else { return nil }
+        let haystack = evidenceText.lowercased()
+        let slot = "\(calendar.dateComponents([.year, .month, .day], from: now).day ?? 0)"
+
+        var best: (pair: DisagreementPair, score: Int)?
+        for i in pool.indices {
+            for j in pool.indices where j > i {
+                let a = pool[i]
+                let b = pool[j]
+                let (tensionValue, note) = tension(a, b, relationships)
+                let fit = evidenceFit(a, haystack) + evidenceFit(b, haystack)
+                let contrast = chapterContrast(a, b)
+                let beliefPresence = (a.belief + b.belief) / 30
+                let key = "tworeadings:\(min(a.id, b.id))-\(max(a.id, b.id))"
+                let seenRecently = surfaceHistory[key]
+                    .map { now.timeIntervalSince($0.lastShownAt) < 3 * 86_400 } ?? false
+                let jitter = abs("\(a.id)-\(b.id)-\(slot)".stableHash) % 4
+                let score = tensionValue / 3 + contrast * 2 + fit * 3 + beliefPresence + jitter - (seenRecently ? 7 : 0)
+
+                if best == nil || score > best!.score {
+                    best = (
+                        DisagreementPair(aID: a.id, bID: b.id, aName: a.name, bName: b.name, relationshipNote: note),
+                        score
+                    )
+                }
+            }
+        }
+        return best?.pair
     }
 }

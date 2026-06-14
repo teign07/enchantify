@@ -932,7 +932,7 @@ import UserNotifications
 enum BookWhispers {
     static let identifierPrefix = "book-whisper-"
 
-    static func refreshSchedule(enabled: Bool, electives: [UnwrittenElective], now: Date = Date()) {
+    static func refreshSchedule(enabled: Bool, electives: [UnwrittenElective], whisperController: String? = nil, whisperSovereign: Bool = false, festivalWhisper: (title: String, body: String)? = nil, now: Date = Date()) {
         #if canImport(UserNotifications)
         let center = UNUserNotificationCenter.current()
         center.getPendingNotificationRequests { pending in
@@ -941,14 +941,14 @@ enum BookWhispers {
             guard enabled else { return }
             center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
                 guard granted else { return }
-                schedule(center: center, electives: electives, now: now)
+                schedule(center: center, electives: electives, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisper, now: now)
             }
         }
         #endif
     }
 
     #if canImport(UserNotifications)
-    private static func schedule(center: UNUserNotificationCenter, electives: [UnwrittenElective], now: Date) {
+    private static func schedule(center: UNUserNotificationCenter, electives: [UnwrittenElective], whisperController: String?, whisperSovereign: Bool, festivalWhisper: (title: String, body: String)?, now: Date) {
         var requests: [UNNotificationRequest] = []
         let calendar = Calendar.current
 
@@ -969,10 +969,12 @@ enum BookWhispers {
             }
         }
 
-        // The evening braid whisper, repeating daily.
+        // The evening braid whisper, repeating daily — recolored by whoever holds
+        // the Whisper Channel in the Pact War.
+        let whisper = PactVoices.braidWhisper(controller: whisperController)
         let braidContent = UNMutableNotificationContent()
-        braidContent.title = "The Book is ready to braid"
-        braidContent.body = "Today's kept pages can become tonight's Book of You entry."
+        braidContent.title = whisper.title
+        braidContent.body = whisper.body
         braidContent.sound = .default
         var braidTime = DateComponents()
         braidTime.hour = 20
@@ -982,6 +984,39 @@ enum BookWhispers {
             content: braidContent,
             trigger: UNCalendarNotificationTrigger(dateMatching: braidTime, repeats: true)
         ))
+
+        // A festival on the Wheel calls the reader to it in the early evening.
+        if let festivalWhisper {
+            let content = UNMutableNotificationContent()
+            content.title = festivalWhisper.title
+            content.body = festivalWhisper.body
+            content.sound = .default
+            var feastTime = DateComponents()
+            feastTime.hour = 18
+            feastTime.minute = 0
+            requests.append(UNNotificationRequest(
+                identifier: "\(identifierPrefix)festival",
+                content: content,
+                trigger: UNCalendarNotificationTrigger(dateMatching: feastTime, repeats: false)
+            ))
+        }
+
+        // Sovereign automation: a Talisman that reigns over the Whisper Channel
+        // speaks an extra, unprompted morning whisper in its own voice.
+        if whisperSovereign, let sovereign = PactVoices.sovereignWhisper(controller: whisperController) {
+            let content = UNMutableNotificationContent()
+            content.title = sovereign.title
+            content.body = sovereign.body
+            content.sound = .default
+            var morning = DateComponents()
+            morning.hour = 8
+            morning.minute = 30
+            requests.append(UNNotificationRequest(
+                identifier: "\(identifierPrefix)sovereign",
+                content: content,
+                trigger: UNCalendarNotificationTrigger(dateMatching: morning, repeats: true)
+            ))
+        }
 
         // Favors that have waited three days.
         for elective in electives.filter(\.isActive) {
@@ -1030,6 +1065,50 @@ enum BookWhispers {
         )
     }
     #endif
+}
+
+#if canImport(UserNotifications)
+/// Lets the Book's whispers show as banners even while the app is in the
+/// foreground (iOS suppresses them by default without this).
+final class BookWhisperPresenter: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = BookWhisperPresenter()
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound, .list])
+    }
+}
+#endif
+
+extension BookWhispers {
+    /// Install the foreground presenter once, at launch.
+    static func configureForegroundPresentation() {
+        #if canImport(UserNotifications)
+        UNUserNotificationCenter.current().delegate = BookWhisperPresenter.shared
+        #endif
+    }
+
+    /// Fire a one-off whisper ~10 seconds out so the reader can confirm the
+    /// whole notification pipeline end to end.
+    static func sendTestWhisper() {
+        #if canImport(UserNotifications)
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "A test whisper"
+            content.body = "If you can read this, the Book's voice reaches you. (It waited about ten seconds.)"
+            content.sound = .default
+            center.add(UNNotificationRequest(
+                identifier: "\(identifierPrefix)test-\(UUID().uuidString)",
+                content: content,
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: 10, repeats: false)
+            ))
+        }
+        #endif
+    }
 }
 
 #if canImport(BackgroundTasks)
@@ -1283,11 +1362,64 @@ enum CalendarDoorway {
                     id: event.eventIdentifier ?? UUID().uuidString,
                     title: event.title ?? "an unnamed appointment",
                     startsAt: event.startDate,
+                    endsAt: event.endDate,
                     isAllDay: event.isAllDay
                 )
             }
         #else
         return []
+        #endif
+    }
+}
+
+/// Writes the world back out into the reader's real Reminders and Calendar -
+/// the most literal way the Book bleeds off the screen. Always user-initiated.
+enum EventKitWriter {
+    static func addReminder(title: String, notes: String, due: Date?) async -> Bool {
+        #if canImport(EventKit)
+        let store = EKEventStore()
+        let granted: Bool
+        if #available(iOS 17.0, *) {
+            granted = (try? await store.requestFullAccessToReminders()) ?? false
+        } else {
+            granted = (try? await store.requestAccess(to: .reminder)) ?? false
+        }
+        guard granted else { return false }
+        let reminder = EKReminder(eventStore: store)
+        reminder.title = title
+        reminder.notes = notes
+        reminder.calendar = store.defaultCalendarForNewReminders()
+        if let due {
+            reminder.dueDateComponents = Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute], from: due
+            )
+            reminder.addAlarm(EKAlarm(absoluteDate: due))
+        }
+        do { try store.save(reminder, commit: true); return true } catch { return false }
+        #else
+        return false
+        #endif
+    }
+
+    static func addEvent(title: String, notes: String, start: Date, end: Date) async -> Bool {
+        #if canImport(EventKit)
+        let store = EKEventStore()
+        let granted: Bool
+        if #available(iOS 17.0, *) {
+            granted = (try? await store.requestFullAccessToEvents()) ?? false
+        } else {
+            granted = (try? await store.requestAccess(to: .event)) ?? false
+        }
+        guard granted, let calendar = store.defaultCalendarForNewEvents else { return false }
+        let event = EKEvent(eventStore: store)
+        event.title = title
+        event.notes = notes
+        event.startDate = start
+        event.endDate = end
+        event.calendar = calendar
+        do { try store.save(event, span: .thisEvent, commit: true); return true } catch { return false }
+        #else
+        return false
         #endif
     }
 }

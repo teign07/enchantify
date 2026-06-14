@@ -703,7 +703,22 @@ final class WorldSystemsTests: XCTestCase {
         inputs.surfaceHistory = ["cast:compassion": SurfaceHistoryRecord(lastShownAt: Date().addingTimeInterval(-3600), recentShowCount: 2)]
         let day = BookDay.today()
         let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: Date())
-        XCTAssertEqual(pages.first?.payload.metadata["entityID"], "quiet-shelf", "the favorite steps back after being seen")
+        // The recently-seen favorite steps back; someone else from the cast pool
+        // (custom or bundled) takes the page instead.
+        XCTAssertNotNil(pages.first?.payload.metadata["entityID"])
+        XCTAssertNotEqual(pages.first?.payload.metadata["entityID"], "compassion",
+                          "the favorite steps back after being seen")
+    }
+
+    func testCastPoolIncludesBundledCharacters() {
+        let adapter = CastMemberPageSourceAdapter()
+        var inputs = BookSourceInputs.empty
+        // No custom cast at all — a bundled character should still surface.
+        inputs.customCastMembers = []
+        let day = BookDay.today()
+        let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: Date())
+        XCTAssertEqual(pages.first?.type, .castMember)
+        XCTAssertFalse(pages.first?.payload.metadata["entityID"]?.isEmpty ?? true)
     }
 
     func testInkedHourSurfacesBeforeEvent() {
@@ -718,6 +733,48 @@ final class WorldSystemsTests: XCTestCase {
         let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
         XCTAssertTrue(pages.contains { $0.payload.metadata["eventTitle"] == "Dentist" })
         XCTAssertFalse(pages.contains { $0.payload.metadata["eventTitle"] == "Far away" })
+    }
+
+    func testHourPageBeforeEventCarriesQuestionAndSupport() {
+        let adapter = CalendarPageSourceAdapter()
+        var inputs = BookSourceInputs.empty
+        let now = Date()
+        inputs.calendarEvents = [
+            CalendarEventSignal(id: "e1", title: "Dentist", startsAt: now.addingTimeInterval(30 * 60), isAllDay: false)
+        ]
+        let day = BookDay.today()
+        let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
+        let page = pages.first { $0.payload.metadata["eventTitle"] == "Dentist" }
+
+        XCTAssertEqual(page?.payload.metadata["hourPhase"], "before")
+        XCTAssertEqual(page?.payload.metadata["hourPhaseTitle"], "Before the Hour")
+        XCTAssertFalse(page?.payload.metadata["hourQuestion"]?.isEmpty ?? true)
+        XCTAssertFalse(page?.payload.metadata["hourSupportTip"]?.isEmpty ?? true)
+        XCTAssertTrue(page?.payload.metadata["tags"]?.contains("hour-page") ?? false)
+    }
+
+    func testHourPageSurfacesAfterEventForSouvenir() {
+        let adapter = CalendarPageSourceAdapter()
+        var inputs = BookSourceInputs.empty
+        let now = Date()
+        let endedAt = now.addingTimeInterval(-35 * 60)
+        inputs.calendarEvents = [
+            CalendarEventSignal(
+                id: "e1",
+                title: "Therapy",
+                startsAt: endedAt.addingTimeInterval(-60 * 60),
+                endsAt: endedAt,
+                isAllDay: false
+            )
+        ]
+        let day = BookDay.today()
+        let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
+        let page = pages.first { $0.payload.metadata["eventTitle"] == "Therapy" }
+
+        XCTAssertEqual(page?.payload.metadata["hourPhase"], "after")
+        XCTAssertEqual(page?.payload.metadata["hourPhaseTitle"], "After the Hour")
+        XCTAssertTrue(page?.payload.metadata["tags"]?.contains("one-sentence-souvenir") ?? false)
+        XCTAssertTrue(page?.payload.metadata["placeholder"]?.contains("One sentence") ?? false)
     }
 
     func testCalendarPressureQuietsHeavyPages() {
@@ -811,7 +868,8 @@ final class WorldSystemsTests: XCTestCase {
 
     func testEveryChapterHasItsTalismanInThePack() {
         XCTAssertEqual(AcademyChapterRegistry.chapters.count, 5)
-        XCTAssertEqual(AcademyChapterRegistry.publicChapters.count, 4)
+        XCTAssertEqual(AcademyChapterRegistry.publicChapters.count, 5)
+        XCTAssertTrue(AcademyChapterRegistry.publicChapters.contains { $0.id == "duskthorn" })
         for chapter in AcademyChapterRegistry.chapters {
             let talisman = NarrativePackRegistry.entities.first { $0.id == chapter.talismanID }
             XCTAssertNotNil(talisman, "missing talisman \(chapter.talismanID)")
@@ -850,26 +908,97 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(flipped?.id, "moss-clasp", "player Belief can flip ascendancy")
     }
 
-    func testBindingPageSurfacesUntilBound() {
+    func testChapterBindingWaitsThenSurfacesChosenChapterUntilBound() {
         let adapter = AboutYouPageSourceAdapter()
-        let day = BookDay.today()
+        let calendar = Calendar.current
+        let now = date(2026, 6, 8, hour: 12, calendar: calendar)
+        let days = [
+            bindingDay(1, text: "Amanda and I walked by the harbor and the water made the whole day feel shared."),
+            bindingDay(2, text: "A letter from the margins made the room feel less lonely."),
+            bindingDay(3, text: "We talked about the small adventure and kept laughing about the coffee sign."),
+            bindingDay(4, text: "Together was the word that kept returning to the page."),
+            bindingDay(5, text: "The Book noticed companionship before it noticed courage.")
+        ]
+        let day = days.last!
         var inputs = BookSourceInputs.empty
-        func fact(_ questionID: String, tags: [String]) -> SelfFact {
-            SelfFact(
-                id: questionID, questionID: questionID, question: "q", answer: "a",
-                bookTranslation: "a", sensitivity: .delight, usePermission: .privateContext,
-                tags: tags, createdAt: Date(), updatedAt: Date()
-            )
-        }
+        inputs.days = days
         inputs.selfFacts = [fact("onboarding-name", tags: ["name"])]
-        let unbound = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: Date())
+        let unbound = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
         let binding = unbound.first { $0.payload.metadata["chapterBinding"] == "true" }
         XCTAssertNotNil(binding)
-        XCTAssertLessThan(binding?.score ?? 100, 60)
+        XCTAssertEqual(binding?.payload.metadata["chosenChapterID"], "riddlewind")
+        XCTAssertEqual(binding?.payload.metadata["chosenChapterName"], "Riddlewind")
+        XCTAssertTrue(binding?.payload.body.contains("No questionnaire") == true)
+        XCTAssertTrue(binding?.payload.body.contains("Chapter Riddlewind") == true)
 
         inputs.selfFacts.append(fact("chapter-binding", tags: ["chapter"]))
-        let bound = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: Date())
+        let bound = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
         XCTAssertFalse(bound.contains { $0.payload.metadata["chapterBinding"] == "true" })
+    }
+
+    func testChapterPrimerSurfacesBeforeBindingIsReady() {
+        let adapter = AboutYouPageSourceAdapter()
+        let now = date(2026, 6, 4, hour: 12, calendar: Calendar.current)
+        let days = [
+            bindingDay(1, text: "The rain made the morning quiet."),
+            bindingDay(2, text: "A small sentence stayed in the margins.")
+        ]
+        let day = days.last!
+        var inputs = BookSourceInputs.empty
+        inputs.days = days
+        inputs.selfFacts = [fact("onboarding-name", tags: ["name"])]
+
+        let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
+
+        XCTAssertNil(pages.first { $0.payload.metadata["chapterBinding"] == "true" })
+        let primer = pages.first { $0.payload.metadata["chapterPrimer"] == "true" }
+        XCTAssertNotNil(primer)
+        XCTAssertTrue(primer?.payload.body.contains("The Binding") == true)
+    }
+
+    func testChapterBindingOracleHonorsTalismanBeliefInvestment() {
+        let days = [
+            bindingDay(1, text: "A quiet page about rain."),
+            bindingDay(2, text: "A quiet page about moss."),
+            bindingDay(3, text: "A quiet page about rest.")
+        ]
+        let choice = ChapterBindingOracle.chooseChapter(
+            days: days,
+            selfFacts: [],
+            entityBeliefOffsets: ["ember-seal": 30]
+        )
+
+        XCTAssertEqual(choice.chapter.id, "emberheart")
+        XCTAssertTrue(choice.evidenceLines.contains { $0.contains("Ember Seal") })
+    }
+
+    func testChapterBindingOracleCanChooseDuskthorn() {
+        let days = [
+            bindingDay(1, text: "The honest hard truth was that I needed a boundary."),
+            bindingDay(2, text: "I protected the day by naming the difficult thing instead of avoiding it."),
+            bindingDay(3, text: "The page kept the conflict because smoothing it away would have made the story false."),
+            bindingDay(4, text: "A thorn can be protection, not cruelty."),
+            bindingDay(5, text: "The Nothing loses ground when the sentence is interesting enough to stay.")
+        ]
+        let selfFacts = [
+            SelfFact(
+                id: "dusk-self",
+                questionID: "belief-style",
+                question: "What kind of truth matters?",
+                answer: "Honest boundaries and difficult protection.",
+                bookTranslation: "Honest boundaries and difficult protection.",
+                sensitivity: .delight,
+                usePermission: .privateContext,
+                tags: ["honest", "boundary", "protection"],
+                createdAt: Date(),
+                updatedAt: Date()
+            )
+        ]
+
+        let choice = ChapterBindingOracle.chooseChapter(days: days, selfFacts: selfFacts)
+
+        XCTAssertEqual(choice.chapter.id, "duskthorn")
+        XCTAssertTrue(choice.evidenceLines.contains { $0.contains("difficult") || $0.contains("protection") })
     }
 
     func testWelcomePageGreetsNamedReaderBeforeChapterBinding() {
@@ -934,6 +1063,33 @@ final class WorldSystemsTests: XCTestCase {
         )
 
         XCTAssertTrue(pages.isEmpty)
+    }
+
+    private func fact(_ questionID: String, tags: [String]) -> SelfFact {
+        SelfFact(
+            id: questionID, questionID: questionID, question: "q", answer: "a",
+            bookTranslation: "a", sensitivity: .delight, usePermission: .privateContext,
+            tags: tags, createdAt: Date(), updatedAt: Date()
+        )
+    }
+
+    private func bindingDay(_ day: Int, text: String) -> BookDay {
+        let calendar = Calendar.current
+        let dayDate = date(2026, 6, day, hour: 0, calendar: calendar)
+        return BookDay(
+            id: String(format: "2026-06-%02d", day),
+            date: dayDate,
+            pages: [
+                BookPage(
+                    id: "binding-\(day)-souvenir",
+                    type: .souvenir,
+                    createdAt: date(2026, 6, day, hour: 12, calendar: calendar),
+                    promptText: "Keep one true thing.",
+                    userInput: text,
+                    tags: ["souvenir"]
+                )
+            ]
+        )
     }
 
     // MARK: Save file

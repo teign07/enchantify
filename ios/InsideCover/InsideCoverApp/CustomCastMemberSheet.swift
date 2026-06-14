@@ -16,6 +16,7 @@ struct CustomCastMemberDraft: Equatable {
     var goals: [String]
     var tags: [String]
     var imageData: Data?
+    var startingGlow: Int?
 }
 
 struct CustomCastMemberSheet: View {
@@ -111,7 +112,8 @@ struct CustomCastMemberSheet: View {
             beliefs: splitList(beliefs),
             goals: splitList(goals),
             tags: splitList(tags),
-            imageData: imageData
+            imageData: imageData,
+            startingGlow: nil
         )
     }
 
@@ -237,6 +239,7 @@ struct CustomCastMemberSheet: View {
             TextField(prompt, text: text, axis: .vertical)
                 .textFieldStyle(.plain)
                 .foregroundStyle(BookPalette.ink)
+                .dictationInput(text: text)
                 .padding(12)
                 .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
@@ -261,6 +264,7 @@ struct CustomCastMemberSheet: View {
                     .scrollContentBackground(.hidden)
                     .padding(8)
                     .frame(minHeight: minHeight)
+                    .dictationInput(text: text)
             }
             .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
@@ -285,4 +289,3 @@ struct CustomCastMemberSheet: View {
     }
     #endif
 }
-

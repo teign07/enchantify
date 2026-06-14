@@ -298,6 +298,9 @@ struct CapturePageSheet: View {
     var onBindChapter: (String) -> Void = { _ in }
     var activeElectives: [UnwrittenElective] = []
     var onCompleteElective: (String, String) -> Void = { _, _ in }
+    var onPayFaeBargain: (String, String, String) -> Void = { _, _, _ in }
+    /// (chosenID, chosenName, otherID, otherName) when the reader sides in The Two Readings.
+    var onTwoReadingsSided: (String, String, String, String) -> Void = { _, _, _, _ in }
     let onSave: (SurfacePage, String, [String]) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -321,6 +324,20 @@ struct CapturePageSheet: View {
     @State private var askTurns: [AskTheBookTurn] = []
     @State private var isAskingTheBook = false
     @State private var askTheBookMessage = ""
+    @State private var inkrestIntake = InkrestIntake()
+    @State private var inkrestSeeded = false
+    @State private var inkrestStarted = false
+    @State private var inkrestClosed = false
+    @State private var inkrestChatInput = ""
+    @State private var inkrestTurns: [AskTheBookTurn] = []
+    @State private var isInkrestSitting = false
+    @State private var inkrestMessage = ""
+    @State private var faeReport = ""
+    @State private var faeResponseText = ""
+    @State private var isFaePaying = false
+    @State private var faeMessage = ""
+    @State private var festivalMessage = ""
+    @State private var twoReadingsSide: String?
     @State private var selectedEnchantmentID: String?
     @State private var enchantmentResult: EnchantmentCastResult?
     @State private var enchantmentTurns: [AskTheBookTurn] = []
@@ -658,7 +675,7 @@ struct CapturePageSheet: View {
 
     private var sheetHasLocalBrainActions: Bool {
         switch surface.type {
-        case .illuminatedPhoto, .narrativeOS, .askTheBook, .enchantment:
+        case .illuminatedPhoto, .narrativeOS, .askTheBook, .enchantment, .inkrestOfficeHours, .faeBargain:
             return true
         default:
             return isEnchantmentPage
@@ -772,6 +789,8 @@ struct CapturePageSheet: View {
                                 markIlluminatedDraftKept()
                                 onSave(effectiveProofSurface, input, preparedTags)
                                 completeStoryMechanicIfNeeded(surface: effectiveProofSurface, outcome: input)
+                                completeFaeBargainIfNeeded()
+                                completeTwoReadingsIfNeeded()
                                 dismiss()
                             }
                         }
@@ -819,6 +838,7 @@ struct CapturePageSheet: View {
             }
             .onAppear {
                 tutorTouchForThisPage()
+                seedInkrestIntakeIfNeeded()
             }
             .overlay(alignment: .bottom) {
                 if let activeTutorNote {
@@ -843,11 +863,67 @@ struct CapturePageSheet: View {
     }
 
     @ViewBuilder
+    /// The character(s) whose face belongs on this page, in display order.
+    private var portraitNames: [String] {
+        let metadata = surface.payload.metadata
+        func nonEmpty(_ key: String) -> String? { metadata[key]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty }
+        switch surface.type {
+        case .letter:
+            return [nonEmpty("senderName")].compactMap { $0 }
+        case .castMember:
+            return [nonEmpty("entityName")].compactMap { $0 }
+        case .twoReadings, .castBond:
+            return [nonEmpty("entityAName"), nonEmpty("entityBName")].compactMap { $0 }
+        case .gossip:
+            let actors = (nonEmpty("actorNames") ?? "")
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            return Array(actors.prefix(3))
+        default:
+            return []
+        }
+    }
+
+    /// A custom cast member's attached photo for the Cast page, if present.
+    private func portraitCustomAsset(for name: String) -> BookPageMediaAsset? {
+        guard surface.type == .castMember,
+              surface.payload.metadata["entityName"] == name,
+              let kindRaw = surface.payload.metadata["imageAssetKind"],
+              let kind = BookPageMediaAsset.Kind(rawValue: kindRaw),
+              let reference = surface.payload.metadata["imageAssetReference"]?.nonEmpty else {
+            return nil
+        }
+        return BookPageMediaAsset(kind: kind, reference: reference, caption: name, sourceID: surface.sourceID, metadata: [:])
+    }
+
+    @ViewBuilder
+    private var characterPortraitHeader: some View {
+        let names = portraitNames
+        if !names.isEmpty {
+            HStack(spacing: 14) {
+                ForEach(Array(names.enumerated()), id: \.offset) { _, name in
+                    VStack(spacing: 5) {
+                        CharacterPortraitView(name: name, size: names.count > 2 ? 44 : 56, customAsset: portraitCustomAsset(for: name))
+                        Text(name)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(openPageSecondaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .frame(maxWidth: 92)
+                }
+            }
+        }
+    }
+
     private var pageSheetContent: some View {
         VStack(alignment: .leading, spacing: 18) {
             Label(surface.type.title, systemImage: surface.type.symbolName)
                 .font(.headline)
                 .foregroundStyle(openPagePrimaryText)
+
+            characterPortraitHeader
 
             Text(surface.prompt)
                 .font(.system(.title, design: .serif, weight: .semibold))
@@ -871,8 +947,24 @@ struct CapturePageSheet: View {
                 )
             }
 
+            if let framing = surface.payload.metadata["pactFraming"]?.nonEmpty {
+                pactFramingCard(framing, talisman: surface.payload.metadata["pactTalisman"])
+            }
+
+            if let epigraph = surface.payload.metadata["pactDoorEpigraph"]?.nonEmpty {
+                pactFramingCard(epigraph, talisman: surface.payload.metadata["pactDoorTalisman"])
+            }
+
             if isPreparedPage || isCompassPracticePage {
                 AnyView(preparedPageContent)
+            }
+
+            if isKeptReadbackPage,
+               let note = GoblinMarginalia.note(
+                forID: surface.payload.metadata["keptPageID"] ?? surface.id,
+                text: surface.payload.body
+               ) {
+                faeMarginaliaCard(note)
             }
 
             if isGeneratingCompassRun {
@@ -911,7 +1003,7 @@ struct CapturePageSheet: View {
             }
 
             if isChapterBindingPage {
-                ChapterBindingFormView(onBindChapter: onBindChapter)
+                ChapterBindingFormView(surface: surface, onBindChapter: onBindChapter)
             }
 
             if let externalURL {
@@ -926,6 +1018,22 @@ struct CapturePageSheet: View {
                 AnyView(askTheBookView)
             }
 
+            if surface.type == .inkrestOfficeHours {
+                AnyView(inkrestOfficeHoursView)
+            }
+
+            if surface.type == .faeBargain {
+                AnyView(faeBargainView)
+            }
+
+            if surface.type == .festival {
+                AnyView(festivalView)
+            }
+
+            if surface.type == .twoReadings {
+                AnyView(twoReadingsView)
+            }
+
             if isStandalonePlayfulMissionPage {
                 AnyView(playfulMissionGeneratorControl)
             }
@@ -938,11 +1046,103 @@ struct CapturePageSheet: View {
                 marginsAtlasView
             }
 
-            if surface.type != .narrativeOS && surface.type != .askTheBook {
+            if surface.type == .calendar {
+                hourPageView
+            }
+
+            if surface.type != .narrativeOS && surface.type != .askTheBook && surface.type != .calendar && surface.type != .inkrestOfficeHours && surface.type != .faeBargain {
                 marginNoteEditor(minHeight: isPreparedPage ? 92 : (surface.type == .souvenir ? 120 : 150))
             } else if surface.type == .narrativeOS && !isLocalBrainIssuePage {
                 storyMarginNoteField
             }
+        }
+    }
+
+    private var hourPageView: some View {
+        let metadata = surface.payload.metadata
+        let phase = metadata["hourPhase"] ?? "before"
+        let question = metadata["hourQuestion"] ?? "What does this hour mean for you?"
+        let support = metadata["hourSupportTip"] ?? "Take one breath before the next door opens."
+        let placeholder = metadata["placeholder"] ?? (phase == "after" ? "One sentence from this hour..." : "Before this hour, I want to remember...")
+        let eventTitle = metadata["eventTitle"] ?? surface.detail
+        let eventTime = metadata["eventTime"] ?? ""
+
+        return VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(metadata["hourPhaseTitle"] ?? (phase == "after" ? "After the Hour" : "Before the Hour"))
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.teal)
+                Text(eventTitle)
+                    .font(.system(.title3, design: .serif, weight: .semibold))
+                    .foregroundStyle(BookPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !eventTime.isEmpty {
+                    Label(eventTime, systemImage: "clock")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.58))
+                }
+                Text(surface.payload.body)
+                    .font(.system(.body, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.78))
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(14)
+            .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+            }
+
+            hourPageCallout(
+                title: phase == "after" ? "The Book asks" : "Before you go",
+                symbol: phase == "after" ? "quote.opening" : "sparkle.magnifyingglass",
+                body: question,
+                tint: BookPalette.lampGold
+            )
+
+            hourPageCallout(
+                title: "Small support spell",
+                symbol: "hands.sparkles",
+                body: support,
+                tint: BookPalette.teal
+            )
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(phase == "after" ? "One-sentence souvenir" : "Margin note for the hour")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(openPageSecondaryText)
+                TextField(placeholder, text: $text, axis: .vertical)
+                    .font(.callout)
+                    .foregroundStyle(BookPalette.ink)
+                    .lineLimit(3...6)
+                    .dictationInput(text: $text)
+                    .padding(12)
+                    .background(BookPalette.page.opacity(0.9), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+                    }
+            }
+        }
+    }
+
+    private func hourPageCallout(title: String, symbol: String, body: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(title, systemImage: symbol)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(tint)
+            Text(body)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(BookPalette.ink.opacity(0.78))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(tint.opacity(0.28), lineWidth: 1)
         }
     }
 
@@ -980,6 +1180,45 @@ struct CapturePageSheet: View {
                     .foregroundStyle(openPageSecondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    private func pactFramingCard(_ framing: String, talisman: String?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(talisman.map { "\($0) holds this shelf" } ?? "This shelf is held",
+                  systemImage: "seal")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(BookPalette.lampGold.opacity(0.9))
+            Text(framing)
+                .font(.system(.callout, design: .serif).italic())
+                .foregroundStyle(BookPalette.ink.opacity(0.82))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BookPalette.lampGold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.22), lineWidth: 1)
+        }
+    }
+
+    private func faeMarginaliaCard(_ note: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "tag")
+                .font(.caption)
+                .foregroundStyle(BookPalette.teal.opacity(0.8))
+            Text(note)
+                .font(.system(.caption, design: .serif).italic())
+                .foregroundStyle(BookPalette.ink.opacity(0.7))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BookPalette.teal.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.teal.opacity(0.2), lineWidth: 1)
         }
     }
 
@@ -1099,6 +1338,7 @@ struct CapturePageSheet: View {
                     .scrollContentBackground(.hidden)
                     .padding(10)
                     .frame(minHeight: 116)
+                    .dictationInput(text: $askPrompt)
                     .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -1143,6 +1383,425 @@ struct CapturePageSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
             Divider()
                 .overlay(BookPalette.ink.opacity(0.16))
+            Text(turn.answer)
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.86))
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+        }
+    }
+
+    private var festivalView: some View {
+        let metadata = surface.payload.metadata
+        let blurb = metadata["blurb"]?.nonEmpty ?? surface.payload.body
+        let invitation = metadata["invitation"] ?? surface.detail
+        return VStack(alignment: .leading, spacing: 14) {
+            hourPageCallout(
+                title: metadata["commonName"] ?? "A Festival of the Wheel",
+                symbol: surface.type.symbolName,
+                body: blurb,
+                tint: BookPalette.lampGold
+            )
+            hourPageCallout(
+                title: metadata["invitationTitle"] ?? "The invitation",
+                symbol: "sparkles",
+                body: invitation,
+                tint: BookPalette.teal
+            )
+            Button {
+                Task { await addFestivalToCalendar() }
+            } label: {
+                Label("Add this feast to my Calendar", systemImage: "calendar.badge.plus")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(BookPalette.teal)
+
+            if !festivalMessage.isEmpty {
+                Text(festivalMessage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(openPageSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func addFestivalToCalendar() async {
+        let metadata = surface.payload.metadata
+        let title = metadata["academyTitle"] ?? "A Festival of the Wheel"
+        let start = Calendar.current.date(bySettingHour: 20, minute: 0, second: 0, of: Date()) ?? Date()
+        let ok = await EventKitWriter.addEvent(
+            title: "\(title) (\(metadata["commonName"] ?? "the Wheel"))",
+            notes: metadata["invitation"] ?? "",
+            start: start,
+            end: start.addingTimeInterval(3_600)
+        )
+        festivalMessage = ok
+            ? "The feast is marked on your calendar."
+            : "It could not be added (check Calendar permission in Settings)."
+        BookFeedback.play(ok ? .select : .error)
+    }
+
+    private var twoReadingsView: some View {
+        let metadata = surface.payload.metadata
+        let aID = metadata["entityAID"] ?? "a"
+        let aName = metadata["entityAName"] ?? "One reader"
+        let bID = metadata["entityBID"] ?? "b"
+        let bName = metadata["entityBName"] ?? "Another reader"
+        return VStack(alignment: .leading, spacing: 14) {
+            Text(surface.payload.body)
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.nightText.opacity(0.92))
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(BookPalette.nightPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.lampGold.opacity(0.24), lineWidth: 1)
+                }
+
+            Text("The Book won't settle it. Whose reading do you keep closer? Your agreement gives them a point of Belief — and costs you one.")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(BookPalette.nightText.opacity(0.78))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 10) {
+                twoReadingsSideButton(name: aName, id: aID)
+                twoReadingsSideButton(name: bName, id: bID)
+            }
+
+            if let twoReadingsSide {
+                Label("You sided with \(twoReadingsSide == aID ? aName : bName). Keep the page to make it so.",
+                      systemImage: "checkmark.seal")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.lampGold)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func twoReadingsSideButton(name: String, id: String) -> some View {
+        let selected = twoReadingsSide == id
+        return Button {
+            BookFeedback.play(.select)
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                twoReadingsSide = id
+            }
+        } label: {
+            Label("Agree with \(name)", systemImage: selected ? "checkmark.circle.fill" : "circle")
+                .font(.subheadline.weight(.bold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background((selected ? BookPalette.teal : BookPalette.nightPanel).opacity(selected ? 0.28 : 0.88),
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke((selected ? BookPalette.teal : BookPalette.lampGold).opacity(selected ? 0.65 : 0.28), lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(selected ? BookPalette.nightText : BookPalette.nightText.opacity(0.86))
+    }
+
+    private func completeTwoReadingsIfNeeded() {
+        guard surface.type == .twoReadings, let side = twoReadingsSide else { return }
+        let metadata = surface.payload.metadata
+        let aID = metadata["entityAID"] ?? ""
+        let bID = metadata["entityBID"] ?? ""
+        let aName = metadata["entityAName"] ?? "One reader"
+        let bName = metadata["entityBName"] ?? "Another reader"
+        let chosenID = side
+        let chosenName = side == aID ? aName : bName
+        let otherID = side == aID ? bID : aID
+        let otherName = side == aID ? bName : aName
+        onTwoReadingsSided(chosenID, chosenName, otherID, otherName)
+    }
+
+    private var faeBargainView: some View {
+        let metadata = surface.payload.metadata
+        let isRepair = metadata["isRepair"] == "true"
+        let faeName = metadata["faeName"] ?? "A Book Fae"
+        let giftName = metadata["giftName"] ?? "a gift"
+        let giftLine = metadata["giftEffectLine"] ?? ""
+        let terms = metadata["terms"] ?? surface.detail
+        return VStack(alignment: .leading, spacing: 14) {
+            // The gift the fae already fronted — working now (or cold, if repairing).
+            hourPageCallout(
+                title: isRepair ? "\(giftName) — gone cold" : "\(faeName) gave first: \(giftName)",
+                symbol: isRepair ? "snowflake" : "gift",
+                body: isRepair
+                    ? "\(giftLine) It will not work again until the debt is paid."
+                    : giftLine,
+                tint: isRepair ? BookPalette.ink.opacity(0.5) : BookPalette.lampGold
+            )
+
+            hourPageCallout(
+                title: isRepair ? "What was owed" : "What is owed",
+                symbol: "hands.sparkles",
+                body: terms,
+                tint: BookPalette.teal
+            )
+
+            if !isRepair, faeResponseText.isEmpty, faeDeadline != nil {
+                Button {
+                    Task { await setFaeBargainReminder() }
+                } label: {
+                    Label("Remind me before it goes cold", systemImage: "bell.badge")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.teal)
+            }
+
+            if faeResponseText.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(isRepair ? "Pay late — bring a real noticing" : "Your field report")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(openPageSecondaryText)
+                    Text("Sensory and specific. Not the category — the detail. The fae can tell the difference.")
+                        .font(.caption)
+                        .foregroundStyle(BookPalette.ink.opacity(0.55))
+                        .fixedSize(horizontal: false, vertical: true)
+                    TextEditor(text: $faeReport)
+                        .font(.body)
+                        .foregroundStyle(BookPalette.ink)
+                        .scrollContentBackground(.hidden)
+                        .padding(10)
+                        .frame(minHeight: 120)
+                        .dictationInput(text: $faeReport)
+                        .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+                        }
+
+                    Button {
+                        Task { await payFaeBargainInSheet() }
+                    } label: {
+                        Label(isFaePaying ? "The Fae is considering..." : (isRepair ? "Repay the bargain" : "Pay the bargain"),
+                              systemImage: isFaePaying ? "circle.dotted" : "arrow.up.heart")
+                            .font(.subheadline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(BookPalette.lampGold.opacity(0.4), lineWidth: 1)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(BookPalette.lampGold)
+                    .disabled(isFaePaying || faeReport.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLocalBrainWorking)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label(faeName, systemImage: "sparkles")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(BookPalette.lampGold.opacity(0.9))
+                    Text(faeResponseText)
+                        .font(.system(.body, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.88))
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Label(isRepair
+                          ? "The debt is repaired. \(giftName) is warm again. Keep the page to remember it."
+                          : "The bargain is closed. Keep the page to remember it.",
+                          systemImage: "checkmark.seal")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.teal)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(14)
+                .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+                }
+            }
+
+            if !faeMessage.isEmpty {
+                Text(faeMessage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(openPageSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var inkrestOfficeHoursView: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            hourPageCallout(
+                title: "Tonight, Inkrest is curious about",
+                symbol: "lamp.desk",
+                body: inkrestIntake.rotatingQuestion,
+                tint: BookPalette.lampGold
+            )
+
+            if !inkrestTurns.isEmpty {
+                ForEach(Array(inkrestTurns.enumerated()), id: \.element.id) { index, turn in
+                    inkrestTurnCard(turn, index: index)
+                }
+            }
+
+            if !inkrestStarted {
+                inkrestIntakeForm
+            } else if !inkrestClosed {
+                inkrestChatComposer
+            } else {
+                Label("Dr. Inkrest closed the sitting. Keep it below to remember, or let it wait.", systemImage: "checkmark.seal")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.teal)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !inkrestMessage.isEmpty {
+                Text(inkrestMessage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(openPageSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var inkrestIntakeForm: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            inkrestFormField(
+                title: "Your answer to tonight's question",
+                placeholder: "However it actually was — small is fine.",
+                text: $inkrestIntake.rotatingAnswer,
+                minHeight: 92
+            )
+            inkrestFormField(
+                title: "Inner weather right now",
+                placeholder: "Foggy, bright, thunder behind the eyes...",
+                text: $inkrestIntake.innerWeather,
+                minHeight: 52
+            )
+            inkrestFormField(
+                title: "Anything else for the desk (optional)",
+                placeholder: "A worry, a small win, a thing you can't put down.",
+                text: $inkrestIntake.freeNote,
+                minHeight: 60
+            )
+
+            Button {
+                beginInkrestSitting()
+            } label: {
+                Label(isInkrestSitting ? "Knocking..." : "Knock on the door", systemImage: isInkrestSitting ? "circle.dotted" : "door.left.hand.open")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(BookPalette.lampGold.opacity(0.4), lineWidth: 1)
+                    }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(BookPalette.lampGold)
+            .disabled(isInkrestSitting || !inkrestIntake.hasSomethingToOpenWith || isLocalBrainWorking)
+        }
+    }
+
+    private var inkrestChatComposer: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Say more to Dr. Inkrest")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(openPageSecondaryText)
+            TextEditor(text: $inkrestChatInput)
+                .font(.body)
+                .foregroundStyle(BookPalette.ink)
+                .scrollContentBackground(.hidden)
+                .padding(10)
+                .frame(minHeight: 100)
+                .dictationInput(text: $inkrestChatInput)
+                .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+                }
+
+            Button {
+                continueInkrestSitting(forceClose: false)
+            } label: {
+                Label(isInkrestSitting ? "Dr. Inkrest is answering" : "Continue", systemImage: isInkrestSitting ? "circle.dotted" : "arrow.right.circle")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(BookPalette.teal.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(BookPalette.teal.opacity(0.36), lineWidth: 1)
+                    }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(BookPalette.teal)
+            .disabled(isInkrestSitting || inkrestChatInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLocalBrainWorking)
+
+            Button {
+                continueInkrestSitting(forceClose: true)
+            } label: {
+                Label("Let her close the sitting", systemImage: "checkmark.seal")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(openPageSecondaryText)
+            .disabled(isInkrestSitting || isLocalBrainWorking)
+        }
+    }
+
+    private func inkrestFormField(title: String, placeholder: String, text: Binding<String>, minHeight: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(openPageSecondaryText)
+            TextEditor(text: text)
+                .font(.body)
+                .foregroundStyle(BookPalette.ink)
+                .scrollContentBackground(.hidden)
+                .padding(10)
+                .frame(minHeight: minHeight)
+                .dictationInput(text: text)
+                .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+                }
+                .overlay(alignment: .topLeading) {
+                    if text.wrappedValue.isEmpty {
+                        Text(placeholder)
+                            .font(.body)
+                            .foregroundStyle(BookPalette.ink.opacity(0.3))
+                            .padding(.horizontal, 15)
+                            .padding(.vertical, 18)
+                            .allowsHitTesting(false)
+                    }
+                }
+        }
+    }
+
+    private func inkrestTurnCard(_ turn: AskTheBookTurn, index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(index == 0 ? "YOU BROUGHT" : "YOU SAID")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(BookPalette.teal.opacity(0.82))
+            Text(turn.prompt)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(BookPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Divider()
+                .overlay(BookPalette.ink.opacity(0.16))
+            Label("Dr. Inkrest", systemImage: "lamp.desk")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(BookPalette.lampGold.opacity(0.9))
             Text(turn.answer)
                 .font(.system(.body, design: .serif))
                 .foregroundStyle(BookPalette.ink.opacity(0.86))
@@ -1333,6 +1992,7 @@ struct CapturePageSheet: View {
                 .scrollContentBackground(.hidden)
                 .padding(10)
                 .frame(minHeight: 96)
+                .dictationInput(text: $enchantmentPrompt)
                 .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -1483,6 +2143,7 @@ struct CapturePageSheet: View {
                             .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
                     }
                     .accessibilityLabel(surface.payload.headline)
+                    .imagePreviewOnTap { ImagePreview.url(forAsset: illustrationAssetName) }
             }
 
             if let illuminatedDraft {
@@ -1501,6 +2162,7 @@ struct CapturePageSheet: View {
                             .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
                     }
                     .accessibilityLabel(surface.payload.headline)
+                    .imagePreviewOnTap { surface.payload.metadata["imageAssetReference"].flatMap { ImagePreview.url(forFilePath: $0) } }
             }
 
             if surface.type == .illuminatedPhoto {
@@ -1716,6 +2378,7 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.ink)
                 .textFieldStyle(.plain)
                 .lineLimit(1...3)
+                .dictationInput(text: text)
                 .padding(10)
                 .background(BookPalette.paper.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
@@ -1838,6 +2501,7 @@ struct CapturePageSheet: View {
             .scrollContentBackground(.hidden)
             .padding(10)
             .frame(minHeight: minHeight)
+            .dictationInput(text: $text)
             .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -1854,6 +2518,7 @@ struct CapturePageSheet: View {
                 .font(.callout)
                 .foregroundStyle(BookPalette.ink)
                 .lineLimit(2...4)
+                .dictationInput(text: $text)
                 .padding(12)
                 .background(BookPalette.page.opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
@@ -1941,6 +2606,7 @@ struct CapturePageSheet: View {
                         .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
                 }
                 .accessibilityLabel("Illuminated photo page draft")
+                .imagePreviewOnTap { renderedIlluminatedPageURL }
         } else if let renderedPath = surface.payload.metadata["renderedPreviewPath"],
            let image = UIImage(contentsOfFile: renderedPath) {
             Image(uiImage: image)
@@ -1954,6 +2620,7 @@ struct CapturePageSheet: View {
                         .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
                 }
                 .accessibilityLabel("Illuminated photo page draft")
+                .imagePreviewOnTap { surface.payload.metadata["renderedPreviewPath"].flatMap { ImagePreview.url(forFilePath: $0) } }
         } else {
             IlluminatedArtifactPreview(draft: draft, sourceImage: manualPhotoImage)
                 .frame(maxWidth: .infinity)
@@ -2778,6 +3445,15 @@ struct CapturePageSheet: View {
         if surface.type == .askTheBook {
             return !isAskingTheBook && !askTurns.isEmpty
         }
+        if surface.type == .inkrestOfficeHours {
+            return !isInkrestSitting && !inkrestTurns.isEmpty
+        }
+        if surface.type == .faeBargain {
+            return !isFaePaying && !faeResponseText.isEmpty
+        }
+        if surface.type == .twoReadings {
+            return twoReadingsSide != nil
+        }
         if isEnchantmentPage {
             return !isCastingEnchantment && enchantmentResult != nil
         }
@@ -2997,6 +3673,70 @@ struct CapturePageSheet: View {
                 ].joined(separator: "\n\n")
             }.joined(separator: "\n\n---\n\n")
         }
+        if surface.type == .twoReadings {
+            let metadata = surface.payload.metadata
+            var sections: [String] = [surface.payload.body]
+            if let side = twoReadingsSide {
+                let aID = metadata["entityAID"] ?? ""
+                let name = side == aID ? (metadata["entityAName"] ?? "") : (metadata["entityBName"] ?? "")
+                sections.append("You sided with \(name).")
+            }
+            let note = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !note.isEmpty { sections.append("Your note: \(note)") }
+            return sections.joined(separator: "\n\n")
+        }
+        if surface.type == .castBond {
+            let note = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if note.isEmpty {
+                return surface.payload.body
+            }
+            return "\(surface.payload.body)\n\nMargin note: \(note)"
+        }
+        if surface.type == .faeBargain {
+            let metadata = surface.payload.metadata
+            var sections: [String] = ["A Fae Bargain — \(metadata["faeName"] ?? "a Book Fae")"]
+            sections.append(metadata["openingGesture"] ?? surface.payload.body)
+            if let gift = metadata["giftName"], !gift.isEmpty {
+                sections.append("They fronted you \(gift): \(metadata["giftEffectLine"] ?? "")")
+            }
+            sections.append("What you owed: \(metadata["terms"] ?? surface.detail)")
+            let report = faeReport.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !report.isEmpty {
+                sections.append("Your field report: \(report)")
+            }
+            if !faeResponseText.isEmpty {
+                sections.append("\(metadata["faeName"] ?? "The Fae") answered:\n\(faeResponseText)")
+            }
+            return sections.joined(separator: "\n\n---\n\n")
+        }
+        if surface.type == .inkrestOfficeHours {
+            var sections: [String] = ["Dr. Inkrest's Office Hours"]
+            let lensQuestion = inkrestIntake.rotatingQuestion.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !lensQuestion.isEmpty {
+                sections.append("Tonight's question (\(inkrestIntake.lens)): \(lensQuestion)")
+            }
+            sections.append(contentsOf: inkrestTurns.map { turn in
+                [
+                    "You: \(turn.prompt)",
+                    "Dr. Inkrest: \(turn.answer)"
+                ].joined(separator: "\n\n")
+            })
+            return sections.joined(separator: "\n\n---\n\n")
+        }
+        if surface.type == .calendar {
+            let metadata = surface.payload.metadata
+            let eventTitle = metadata["eventTitle"] ?? surface.detail
+            let eventTime = metadata["eventTime"] ?? ""
+            let phase = metadata["hourPhaseTitle"] ?? "Hour Page"
+            let question = metadata["hourQuestion"] ?? surface.prompt
+            let response = trimmed.isEmpty ? metadata["placeholder"] ?? "" : trimmed
+            return [
+                phase,
+                eventTime.isEmpty ? eventTitle : "\(eventTitle) at \(eventTime)",
+                "Question: \(question)",
+                "Response: \(response)"
+            ].filter { !$0.isEmpty }.joined(separator: "\n\n")
+        }
         if isEnchantmentPage {
             let resultText = enchantmentResult.map { result in
                 [
@@ -3198,6 +3938,58 @@ struct CapturePageSheet: View {
         if preparedSurface.type == .askTheBook {
             tags.append("ask-chain")
             tags.append("turns:\(askTurns.count)")
+        }
+        if preparedSurface.type == .twoReadings {
+            tags.append("two-readings")
+            if let side = twoReadingsSide {
+                tags.append("sided:\(side)")
+            }
+        }
+        if preparedSurface.type == .castBond {
+            tags.append("cast-bond")
+            if let kind = preparedSurface.payload.metadata["bondKind"], !kind.isEmpty {
+                tags.append(kind)
+            }
+            if let firedKey = preparedSurface.payload.metadata["bondFiredKey"], !firedKey.isEmpty {
+                tags.append("cast-bond:\(firedKey)")
+            }
+            if let aID = preparedSurface.payload.metadata["entityAID"], !aID.isEmpty {
+                tags.append("entity:\(aID)")
+            }
+            if let bID = preparedSurface.payload.metadata["entityBID"], !bID.isEmpty {
+                tags.append("entity:\(bID)")
+            }
+        }
+        if preparedSurface.type == .faeBargain {
+            tags.append("fae-bargain")
+            tags.append("attention")
+            if let kind = preparedSurface.payload.metadata["faeKind"], !kind.isEmpty {
+                tags.append("fae:\(kind)")
+            }
+            if preparedSurface.payload.metadata["isRepair"] == "true" {
+                tags.append("fae-repair")
+            }
+        }
+        if preparedSurface.type == .inkrestOfficeHours {
+            tags.append("inkrest-office-hours")
+            tags.append("dr-inkrest")
+            tags.append("therapy-chart")
+            tags.append("narrative-therapy")
+            tags.append("faculty:dr-inkrest")
+            tags.append("lens:\(inkrestIntake.lens)")
+            tags.append("exchanges:\(inkrestTurns.count)")
+            if let slot = preparedSurface.payload.metadata["slot"], !slot.isEmpty {
+                tags.append("inkrest-office-hours:\(slot)")
+            }
+        }
+        if preparedSurface.type == .calendar {
+            tags.append("hour-page")
+            if let phase = preparedSurface.payload.metadata["hourPhase"], !phase.isEmpty {
+                tags.append("hour:\(phase)")
+            }
+            if let eventID = preparedSurface.payload.metadata["eventID"], !eventID.isEmpty {
+                tags.append("calendar-event:\(eventID)")
+            }
         }
         if preparedSurface.type == .wonderCompass, let runID = preparedSurface.payload.metadata["runID"] {
             tags.append("wonder-compass")
@@ -3456,6 +4248,162 @@ struct CapturePageSheet: View {
             BookFeedback.play(.error)
         }
         isAskingTheBook = false
+    }
+
+    private func seedInkrestIntakeIfNeeded() {
+        guard surface.type == .inkrestOfficeHours, !inkrestSeeded else { return }
+        inkrestSeeded = true
+        let metadata = surface.payload.metadata
+        inkrestIntake = InkrestIntake(
+            promptID: metadata["rotatingPromptID"] ?? "open",
+            lens: metadata["rotatingLens"] ?? "open",
+            rotatingQuestion: metadata["rotatingQuestion"] ?? "How did today actually go?"
+        )
+    }
+
+    private var inkrestReplyCap: Int { InkrestOfficeHours.replyCap }
+
+    private func beginInkrestSitting() {
+        guard !inkrestStarted, !isInkrestSitting else { return }
+        guard inkrestIntake.hasSomethingToOpenWith else { return }
+        inkrestStarted = true
+        Task { await sendInkrestMessage(inkrestIntake.openingMessage, forceClose: false) }
+    }
+
+    private func continueInkrestSitting(forceClose: Bool) {
+        guard inkrestStarted, !inkrestClosed, !isInkrestSitting else { return }
+        let message = inkrestChatInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !forceClose {
+            guard !message.isEmpty else { return }
+        }
+        Task { await sendInkrestMessage(message, forceClose: forceClose) }
+    }
+
+    private func sendInkrestMessage(_ message: String, forceClose: Bool) async {
+        guard !isInkrestSitting else { return }
+        isInkrestSitting = true
+        inkrestMessage = "Dr. Inkrest is reading with you."
+        // The opening intake counts as the first exchange, so the sitting closes once the
+        // next reply would reach the cap, or when the reader asks her to close.
+        let isClosing = forceClose || (inkrestTurns.count + 1 >= inkrestReplyCap)
+        do {
+            let reply: String
+            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
+            appLog.info("Inkrest Office Hours sending to Gemma; characters: \(message.count, privacy: .public); exchanges: \(inkrestTurns.count, privacy: .public); closing: \(isClosing, privacy: .public)")
+            reply = try await MLXInkrestOfficeHoursCounselor().reply(
+                intake: inkrestIntake,
+                day: day,
+                previousTurns: inkrestTurns,
+                userMessage: message,
+                isClosing: isClosing
+            )
+            #else
+            appLog.info("Inkrest Office Hours using preview fallback; native local brain is not available in this build.")
+            reply = try await FakeInkrestOfficeHoursCounselor().reply(
+                intake: inkrestIntake,
+                day: day,
+                previousTurns: inkrestTurns,
+                userMessage: message,
+                isClosing: isClosing
+            )
+            #endif
+            inkrestTurns.append(AskTheBookTurn(prompt: message, answer: reply))
+            inkrestChatInput = ""
+            if isClosing {
+                inkrestClosed = true
+                inkrestMessage = "Dr. Inkrest set the lamp down. Keep the sitting, or let it wait."
+            } else {
+                inkrestMessage = "Dr. Inkrest answered. Stay a while, or keep the sitting."
+            }
+            BookFeedback.play(.braidComplete)
+        } catch {
+            // The opening attempt failed: let the reader try again from the form.
+            if inkrestTurns.isEmpty {
+                inkrestStarted = false
+            }
+            inkrestMessage = "The sitting did not settle: \(error.localizedDescription)"
+            BookFeedback.play(.error)
+        }
+        isInkrestSitting = false
+    }
+
+    private var faeDeadline: Date? {
+        surface.payload.metadata["deadline"].flatMap { ISO8601DateFormatter().date(from: $0) }
+    }
+
+    /// Set a real Reminder a few hours before the gift goes cold. User-initiated.
+    private func setFaeBargainReminder() async {
+        guard let deadline = faeDeadline else { return }
+        let remindAt = max(Date().addingTimeInterval(60), deadline.addingTimeInterval(-3 * 3_600))
+        let metadata = surface.payload.metadata
+        let fae = metadata["faeName"] ?? "A Book Fae"
+        let gift = metadata["giftName"] ?? "the gift"
+        let ok = await EventKitWriter.addReminder(
+            title: "A Fae bargain comes due",
+            notes: "\(fae) is waiting. Pay before \(gift) goes cold:\n\(metadata["terms"] ?? "")",
+            due: remindAt
+        )
+        faeMessage = ok
+            ? "A Reminder is set for before the gift goes cold."
+            : "The Reminder could not be set (check Reminders permission in Settings)."
+        BookFeedback.play(ok ? .select : .error)
+    }
+
+    private func payFaeBargainInSheet() async {
+        guard surface.type == .faeBargain, !isFaePaying else { return }
+        let report = faeReport.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !report.isEmpty else { return }
+        let metadata = surface.payload.metadata
+        let bargain = faeBargainFromMetadata(metadata)
+        isFaePaying = true
+        faeMessage = "\(bargain.faeKind.name) turns the report over in its hands."
+        let mood = FaeEconomy.mood(for: Date())
+        do {
+            let reply: String
+            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
+            appLog.info("Fae Bargain payment to Gemma; fae: \(bargain.faeKind.rawValue, privacy: .public); report characters: \(report.count, privacy: .public)")
+            reply = try await MLXFaeBargainResponder().respond(bargain: bargain, report: report, mood: mood, day: day)
+            #else
+            appLog.info("Fae Bargain using preview fallback; native local brain is not available in this build.")
+            reply = try await FakeFaeBargainResponder().respond(bargain: bargain, report: report, mood: mood, day: day)
+            #endif
+            faeResponseText = reply
+            faeMessage = "The exchange is complete. Keep the page to remember it."
+            BookFeedback.play(.braidComplete)
+        } catch {
+            faeMessage = "The exchange did not settle: \(error.localizedDescription)"
+            BookFeedback.play(.error)
+        }
+        isFaePaying = false
+    }
+
+    /// Reconstructs the bargain from page metadata so the responder has full context.
+    private func faeBargainFromMetadata(_ metadata: [String: String]) -> FaeBargain {
+        let kind = FaeKind(rawValue: metadata["faeKind"] ?? "") ?? .goblin
+        return FaeBargain(
+            id: metadata["bargainID"] ?? "fae-bargain",
+            faeKind: kind,
+            slot: "",
+            giftID: "",
+            giftName: metadata["giftName"] ?? "a gift",
+            giftEffectLine: metadata["giftEffectLine"] ?? "",
+            openingGesture: metadata["openingGesture"] ?? surface.payload.body,
+            terms: metadata["terms"] ?? surface.detail,
+            offeredAt: Date(),
+            deadline: Date(),
+            status: (metadata["status"]).flatMap(FaeBargainStatus.init) ?? .owed,
+            fieldReport: nil,
+            faeResponse: nil,
+            rewardText: nil,
+            deliveredAt: nil
+        )
+    }
+
+    private func completeFaeBargainIfNeeded() {
+        guard surface.type == .faeBargain,
+              !faeResponseText.isEmpty,
+              let bargainID = surface.payload.metadata["bargainID"] else { return }
+        onPayFaeBargain(bargainID, faeReport.trimmingCharacters(in: .whitespacesAndNewlines), faeResponseText)
     }
 
     private func askEnchantedObject() async {

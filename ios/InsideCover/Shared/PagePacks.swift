@@ -465,6 +465,9 @@ struct PlayerVaultData: Codable, Equatable {
     var constellations: [Constellation]?
     var wagers: [BookWager]?
     var themes: [BookTheme]?
+    var fae: FaePlayerState?
+    var pactWar: PactWarState?
+    var relationshipField: [String: RelationshipTie]?
 }
 
 // MARK: - The BookShop

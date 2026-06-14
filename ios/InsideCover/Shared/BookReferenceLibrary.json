@@ -3258,6 +3258,37 @@
       ]
     },
     {
+      "id": "vesper-thorne",
+      "characterName": "Vesper Thorne",
+      "slug": "vesper-thorne",
+      "status": "canonical",
+      "chapter": "Duskthorn",
+      "core": "Duskthorn Enchantment Guardian; safeguards honesty, boundaries, and necessary friction; clear expressive eyes and a memorable silhouette",
+      "signature": "a blackthorn ward-pin",
+      "palette": "black violet, thorn green, tarnished silver",
+      "silhouette": "still posture; one hand near the ward-pin",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterVesperThorne",
+      "intendedAssetName": "LabyrinthCharacterVesperThorne",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, botanical or symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Vesper Thorne. Canon visual profile: Duskthorn Enchantment Guardian; safeguards honesty, boundaries, and necessary friction; clear expressive eyes and a memorable silhouette. Signature object: a blackthorn ward-pin. Palette: black violet, thorn green, tarnished silver. Silhouette and pose: still posture; one hand near the ward-pin. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Vesper Thorne; signature evidence: a blackthorn ward-pin; jewel-color swatches: black violet, thorn green, tarnished silver; chapter mark: Duskthorn; one short handwritten note from the canon profile: Duskthorn Enchantment Guardian; safeguards honesty, boundaries, and necessary friction; clear expressive eyes and a memorable silhouette. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+      "marginalia": [
+        "file tab labeled Vesper Thorne",
+        "signature evidence: a blackthorn ward-pin",
+        "jewel-color swatches: black violet, thorn green, tarnished silver",
+        "chapter mark: Duskthorn",
+        "one short handwritten note from the canon profile: Duskthorn Enchantment Guardian; safeguards honesty, boundaries, and necessary friction; clear expressive eyes and a memorable silhouette"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "duskthorn",
+        "illustration",
+        "vesper-thorne"
+      ]
+    },
+    {
       "id": "eleanor-whitewood",
       "characterName": "Eleanor Whitewood",
       "slug": "eleanor-whitewood",
@@ -3499,6 +3530,220 @@
         "illustration",
         "octavius-ode-quillenchant",
         "tidecrest"
+      ]
+    },
+    {
+      "id": "talisman-ember-seal",
+      "characterName": "The Ember Seal",
+      "slug": "talisman-ember-seal",
+      "status": "canonical",
+      "chapter": "Emberheart",
+      "core": "A wax-and-flame seal of self-authorship: a guttering ember held in red wax, pressed with the mark of a single unbroken line. It belongs to whoever insists on writing their own page.",
+      "signature": "a red wax seal with a living ember at its heart and one unbroken pressed line",
+      "palette": "ember red, gold leaf, ash black",
+      "silhouette": "the seal upright, the ember just catching, wax warm at the edges",
+      "continuity": "Preserve these identifiers across images; lighting, framing, and mood may vary with the scene.",
+      "avoid": "generic fantasy prop, glossy anime, polished digital render, character face, busy background, inconsistent signature object",
+      "assetName": "",
+      "intendedAssetName": "LabyrinthTalismanEmberSeal",
+      "prompt": "Create an Enchantify Academy artifact dossier illustration in the house style: sparse graphite and ink linework, watercolor washes, jewel-color accents, antique parchment with character-specific marginalia. The subject is a single sacred object (a talisman), centered, reverent and a little uncanny, not a character. Subject: The Ember Seal — A wax-and-flame seal of self-authorship: a guttering ember held in red wax, pressed with the mark of a single unbroken line. It belongs to whoever insists on writing their own page. Palette: ember red, gold leaf, ash black.",
+      "negativePrompt": "Avoid generic fantasy pinup, glossy anime, polished digital fantasy render, photorealistic product shot, busy background, and inconsistent signature details.",
+      "marginalia": [
+        "file tab labeled The Ember Seal",
+        "signature evidence: a living ember in red wax, one unbroken line",
+        "jewel-color swatches: ember red, gold leaf, ash black"
+      ],
+      "tags": [
+        "canonical",
+        "talisman",
+        "object",
+        "emberheart",
+        "illustration",
+        "ember-seal"
+      ]
+    },
+    {
+      "id": "talisman-moss-clasp",
+      "characterName": "The Moss Clasp",
+      "slug": "talisman-moss-clasp",
+      "status": "canonical",
+      "chapter": "Mossbloom",
+      "core": "A clasp of living moss and old silver that fastens a listener to the world: it only closes when its bearer goes quiet enough to hear.",
+      "signature": "a silver clasp threaded with living green moss, half-open",
+      "palette": "moss green, parchment cream, soft silver",
+      "silhouette": "the clasp resting open-palmed, moss still growing along its hinge",
+      "continuity": "Preserve these identifiers across images; lighting, framing, and mood may vary with the scene.",
+      "avoid": "generic fantasy prop, glossy anime, polished digital render, character face, busy background, inconsistent signature object",
+      "assetName": "",
+      "intendedAssetName": "LabyrinthTalismanMossClasp",
+      "prompt": "Create an Enchantify Academy artifact dossier illustration in the house style: sparse graphite and ink linework, watercolor washes, jewel-color accents, antique parchment with character-specific marginalia. The subject is a single sacred object (a talisman), centered, reverent and a little uncanny, not a character. Subject: The Moss Clasp — A clasp of living moss and old silver that fastens a listener to the world: it only closes when its bearer goes quiet enough to hear. Palette: moss green, parchment cream, soft silver.",
+      "negativePrompt": "Avoid generic fantasy pinup, glossy anime, polished digital fantasy render, photorealistic product shot, busy background, and inconsistent signature details.",
+      "marginalia": [
+        "file tab labeled The Moss Clasp",
+        "signature evidence: old silver clasp threaded with living moss",
+        "jewel-color swatches: moss green, parchment cream, soft silver"
+      ],
+      "tags": [
+        "canonical",
+        "talisman",
+        "object",
+        "mossbloom",
+        "illustration",
+        "moss-clasp"
+      ]
+    },
+    {
+      "id": "talisman-tide-glass",
+      "characterName": "The Tide Glass",
+      "slug": "talisman-tide-glass",
+      "status": "canonical",
+      "chapter": "Tidecrest",
+      "core": "An hourglass of seawater that never quite runs out, marking the narrow window of a feeling. Turn it and the moment is now or never.",
+      "signature": "an hourglass of moving seawater with a single bright bead of foam",
+      "palette": "sea blue, clear glass, foam white",
+      "silhouette": "the glass mid-turn, water and one bead of foam caught between bulbs",
+      "continuity": "Preserve these identifiers across images; lighting, framing, and mood may vary with the scene.",
+      "avoid": "generic fantasy prop, glossy anime, polished digital render, character face, busy background, inconsistent signature object",
+      "assetName": "",
+      "intendedAssetName": "LabyrinthTalismanTideGlass",
+      "prompt": "Create an Enchantify Academy artifact dossier illustration in the house style: sparse graphite and ink linework, watercolor washes, jewel-color accents, antique parchment with character-specific marginalia. The subject is a single sacred object (a talisman), centered, reverent and a little uncanny, not a character. Subject: The Tide Glass — An hourglass of seawater that never quite runs out, marking the narrow window of a feeling. Turn it and the moment is now or never. Palette: sea blue, clear glass, foam white.",
+      "negativePrompt": "Avoid generic fantasy pinup, glossy anime, polished digital fantasy render, photorealistic product shot, busy background, and inconsistent signature details.",
+      "marginalia": [
+        "file tab labeled The Tide Glass",
+        "signature evidence: seawater hourglass with a bead of foam",
+        "jewel-color swatches: sea blue, clear glass, foam white"
+      ],
+      "tags": [
+        "canonical",
+        "talisman",
+        "object",
+        "tidecrest",
+        "illustration",
+        "tide-glass"
+      ]
+    },
+    {
+      "id": "talisman-wind-cipher",
+      "characterName": "The Wind Cipher",
+      "slug": "talisman-wind-cipher",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "A brass-and-paper cipher wheel that only resolves when two hands turn it together: the talisman of co-authored story.",
+      "signature": "a brass cipher wheel layered with paper rings, needing two hands",
+      "palette": "sky grey, ink black, warm brass",
+      "silhouette": "the wheel half-aligned, paper rings catching a breeze",
+      "continuity": "Preserve these identifiers across images; lighting, framing, and mood may vary with the scene.",
+      "avoid": "generic fantasy prop, glossy anime, polished digital render, character face, busy background, inconsistent signature object",
+      "assetName": "",
+      "intendedAssetName": "LabyrinthTalismanWindCipher",
+      "prompt": "Create an Enchantify Academy artifact dossier illustration in the house style: sparse graphite and ink linework, watercolor washes, jewel-color accents, antique parchment with character-specific marginalia. The subject is a single sacred object (a talisman), centered, reverent and a little uncanny, not a character. Subject: The Wind Cipher — A brass-and-paper cipher wheel that only resolves when two hands turn it together: the talisman of co-authored story. Palette: sky grey, ink black, warm brass.",
+      "negativePrompt": "Avoid generic fantasy pinup, glossy anime, polished digital fantasy render, photorealistic product shot, busy background, and inconsistent signature details.",
+      "marginalia": [
+        "file tab labeled The Wind Cipher",
+        "signature evidence: brass cipher wheel with paper rings",
+        "jewel-color swatches: sky grey, ink black, warm brass"
+      ],
+      "tags": [
+        "canonical",
+        "talisman",
+        "object",
+        "riddlewind",
+        "illustration",
+        "wind-cipher"
+      ]
+    },
+    {
+      "id": "talisman-dusk-thorn",
+      "characterName": "The Dusk Thorn",
+      "slug": "talisman-dusk-thorn",
+      "status": "canonical",
+      "chapter": "Duskthorn",
+      "core": "A single blackthorn spine set in tarnished silver: the talisman of honest conflict and the friction that protects a story from the Nothing. Beautiful, and it draws a little blood.",
+      "signature": "a single blackthorn spine mounted in tarnished silver, one bead of dark at its tip",
+      "palette": "black violet, thorn green, tarnished silver",
+      "silhouette": "the thorn upright in its setting, one dark bead at the point",
+      "continuity": "Preserve these identifiers across images; lighting, framing, and mood may vary with the scene.",
+      "avoid": "generic fantasy prop, glossy anime, polished digital render, character face, busy background, inconsistent signature object",
+      "assetName": "",
+      "intendedAssetName": "LabyrinthTalismanDuskThorn",
+      "prompt": "Create an Enchantify Academy artifact dossier illustration in the house style: sparse graphite and ink linework, watercolor washes, jewel-color accents, antique parchment with character-specific marginalia. The subject is a single sacred object (a talisman), centered, reverent and a little uncanny, not a character. Subject: The Dusk Thorn — A single blackthorn spine set in tarnished silver: the talisman of honest conflict and the friction that protects a story from the Nothing. Beautiful, and it draws a little blood. Palette: black violet, thorn green, tarnished silver.",
+      "negativePrompt": "Avoid generic fantasy pinup, glossy anime, polished digital fantasy render, photorealistic product shot, busy background, and inconsistent signature details.",
+      "marginalia": [
+        "file tab labeled The Dusk Thorn",
+        "signature evidence: a blackthorn spine in tarnished silver, one dark bead",
+        "jewel-color swatches: black violet, thorn green, tarnished silver"
+      ],
+      "tags": [
+        "canonical",
+        "talisman",
+        "object",
+        "duskthorn",
+        "illustration",
+        "dusk-thorn"
+      ]
+    },
+    {
+      "id": "orion-blackthorn",
+      "characterName": "Orion Blackthorn",
+      "slug": "orion-blackthorn",
+      "status": "canonical",
+      "chapter": "Emberheart",
+      "core": "Academy Headmaster of Innovation; visionary architect-mage; tall, precise, a little stern; eyes that ask questions like tests because they are. Brilliant and restless; turns problems into towers and measures magic by what it can build.",
+      "signature": "an architect's brass compass over an open journal of impossible structures",
+      "palette": "slate grey, ember orange, drafting blue",
+      "silhouette": "upright, exacting stance; one hand resting on a drafting compass above a journal of towers",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "warm fuzzy mentor, cluttered workshop hero shot, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterOrionBlackthorn",
+      "intendedAssetName": "LabyrinthCharacterOrionBlackthorn",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the house style: sparse graphite and ink linework, watercolor washes, jewel-color accents, and character-specific parchment marginalia. A single character, centered, knowing and a little uncanny — not a generic portrait. Subject: Headmaster Orion Blackthorn — visionary architect-mage of the Emberheart Chapter, clipped and precise, brilliant and restless, who loves human innovation and ignores its cost. Signature: an architect's brass compass over a journal of impossible structures. Palette: slate grey, ember orange, drafting blue.",
+      "negativePrompt": "Avoid generic fantasy pinup, glossy anime, polished digital fantasy portrait, room-first composition, and inconsistent signature object.",
+      "marginalia": [
+        "file tab labeled Headmaster Orion Blackthorn",
+        "signature evidence: a brass architect's compass and a journal of towers",
+        "jewel-color swatches: slate grey, ember orange, drafting blue",
+        "margin note: \"measure the magic by what it can build\""
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "emberheart",
+        "architecture",
+        "innovation",
+        "illustration",
+        "orion-blackthorn"
+      ]
+    },
+    {
+      "id": "lydia-boggle",
+      "characterName": "Lydia Boggle",
+      "slug": "lydia-boggle",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Professor of The Art of the Glint — the noticing class. Humorous, witty, mid-laugh; an animist with a chaos streak who finds the glint in the garbage and pays the world the attention it's owed. Always a pun ready.",
+      "signature": "a small glint-lens held up to an ordinary found object (a misspelled sign, an odd vanity plate)",
+      "palette": "marigold gold, robin's-egg blue, warm ink",
+      "silhouette": "caught mid-delight, holding an ordinary object up to the light as if it were evidence",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "solemn sage, tidy academic portrait, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "",
+      "intendedAssetName": "LabyrinthCharacterLydiaBoggle",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the house style: sparse graphite and ink linework, watercolor washes, jewel-color accents, and character-specific parchment marginalia. A single character, centered, knowing and a little uncanny — not a generic portrait. Subject: Professor Lydia Boggle — playful Riddlewind professor of noticing, animist with a chaos sensibility, mid-laugh, holding an ordinary object up to the light like evidence. Signature: a small glint-lens and odd found objects (a misspelled sign, a vanity plate). Palette: marigold gold, robin's-egg blue, warm ink.",
+      "negativePrompt": "Avoid generic fantasy pinup, glossy anime, polished digital fantasy portrait, room-first composition, and inconsistent signature object.",
+      "marginalia": [
+        "file tab labeled Professor Lydia Boggle",
+        "signature evidence: a glint-lens and an ordinary object held to the light",
+        "jewel-color swatches: marigold gold, robin's-egg blue, warm ink",
+        "margin note: \"what does it know? — wait for it\""
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "riddlewind",
+        "noticing",
+        "glint",
+        "illustration",
+        "lydia-boggle"
       ]
     }
   ]

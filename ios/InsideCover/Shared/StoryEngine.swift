@@ -526,6 +526,23 @@ enum StoryScenePacketBuilder {
         var pressures = selectedRelationships.map { edge in
             "\(label(for: edge.sourceEntityID)) -> \(label(for: edge.targetEntityID)): \(edge.note)"
         }
+        // Read the living relationship field: any pair in this scene whose tie has
+        // shifted brings that history into the room.
+        let sceneIDs = entities.map(\.id)
+        for i in sceneIDs.indices {
+            for j in sceneIDs.indices where j > i {
+                let tie = inputs.relationshipField[NarrativeGraphData.relationshipPairKey(sceneIDs[i], sceneIDs[j])] ?? .zero
+                guard tie.warmth != 0 || tie.tension > 0 || tie.familiarity >= 2 else { continue }
+                let a = label(for: sceneIDs[i]); let b = label(for: sceneIDs[j])
+                if tie.tension > tie.warmth, tie.tension > 0 {
+                    pressures.append("\(a) and \(b) have grown tense lately — let that friction show.")
+                } else if tie.warmth > 0 {
+                    pressures.append("\(a) and \(b) have warmed to each other lately.")
+                } else {
+                    pressures.append("\(a) and \(b) keep ending up in the same chapter.")
+                }
+            }
+        }
         pressures.append(contentsOf: threads.prefix(2).map { "The reader and \($0.title) have a returning thread." })
         if entities.contains(where: { $0.id == "weather-page" }), inputs.weather != nil {
             pressures.append("The Weather Page is already tinting the day.")
@@ -640,6 +657,7 @@ enum GossipSimulationBuilder {
         let talismanDeltaTokens = talismanMoves.compactMap(\.ledgerToken)
         let simulationPacket = turns.enumerated().map { index, turn in
             let talismanMove = turn.chapterTalismanMove.map { "\nChapter talisman move: \($0.summaryLine)" } ?? ""
+            let relationshipMove = turn.relationshipMove.map { "\nBetween characters: \($0.promptLine)" } ?? ""
             return """
             TURN \(index + 1)
             Actor: \(turn.actorName) [\(turn.actorID)]
@@ -647,7 +665,7 @@ enum GossipSimulationBuilder {
             Simulation action: \(turn.actionKind.rawValue)
             Overheard line: \(turn.overheardLine)
             Visible trace: \(turn.visibleTrace)
-            \(talismanMove)
+            \(talismanMove)\(relationshipMove)
             Hidden effect to preserve: \(turn.hiddenEffect)
             Consequences:
             \(turn.consequenceLines.map { "- \($0)" }.joined(separator: "\n"))
@@ -688,6 +706,7 @@ enum GossipSimulationBuilder {
                     }.joined(separator: " | "),
                     "chapterTalismanMoves": talismanMoves.map(\.summaryLine).joined(separator: " | "),
                     "chapterTalismanDeltas": talismanDeltaTokens.joined(separator: ","),
+                    "relationshipMoves": turns.compactMap { $0.relationshipMove?.token }.joined(separator: "|"),
                     "hiddenEffect": turns.map(\.hiddenEffect).joined(separator: " | "),
                     "consequences": turns.flatMap(\.consequenceLines).joined(separator: " | "),
                     "simulationPacket": simulationPacket,
@@ -716,6 +735,7 @@ enum GossipSimulationBuilder {
         let witness = witnessActor(among: actors, excluding: actor, offset: offset)
         let actionKind = actionKind(for: actor, thread: thread, tags: tags, seed: seed)
         let combat = beliefCombat(actor: actor, thread: thread, actionKind: actionKind, seed: seed)
+        let relationshipMove = relationshipMove(actor: actor, witness: witness, inputs: inputs, seed: seed)
         let talismanMove = ChapterTalismanBeliefMoves.move(for: actor, actionKind: actionKind, seed: seed)
         let readerEcho = readerEchoSnippet(for: day, seed: seed)
         let constellationHook = constellationHook(for: actor, thread: thread, inputs: inputs)
@@ -727,6 +747,14 @@ enum GossipSimulationBuilder {
         }
         if let constellationHook {
             consequences.append(constellationHook)
+        }
+        if let relationshipMove {
+            switch relationshipMove.kind {
+            case .invest:
+                consequences.append("\(relationshipMove.actorName) invested \(relationshipMove.amount) Belief in \(relationshipMove.targetName); they grew warmer.")
+            case .attack:
+                consequences.append("\(relationshipMove.actorName) chipped \(relationshipMove.amount) Belief from \(relationshipMove.targetName); the air between them tightened.")
+            }
         }
         let turnTags = Array(Set(tags)
             .union(actor.tags)
@@ -756,7 +784,8 @@ enum GossipSimulationBuilder {
             consequenceLines: consequences,
             tags: turnTags,
             beliefCombat: combat,
-            chapterTalismanMove: talismanMove
+            chapterTalismanMove: talismanMove,
+            relationshipMove: relationshipMove
         )
     }
 
@@ -1044,6 +1073,45 @@ enum GossipSimulationBuilder {
         case .motif, .thread:
             return .entity
         }
+    }
+
+    /// A character-to-character Belief move, chosen by reading the relationship
+    /// field: an actor undermines someone they're tense with, or talks up someone
+    /// they're warm/familiar with. This is how gossip both reads and reshapes the
+    /// living graph.
+    private static func relationshipMove(
+        actor: NarrativeWorldEntity,
+        witness: NarrativeWorldEntity?,
+        inputs: BookSourceInputs,
+        seed: Int
+    ) -> GossipRelationshipMove? {
+        guard let witness, witness.id != actor.id else { return nil }
+        let tie = inputs.relationshipField[NarrativeGraphData.relationshipPairKey(actor.id, witness.id)] ?? .zero
+        let authored = NarrativePackRegistry.relationships.first {
+            ($0.sourceEntityID == actor.id && $0.targetEntityID == witness.id) ||
+            ($0.sourceEntityID == witness.id && $0.targetEntityID == actor.id)
+        }
+        let warmth = tie.warmth + (authored?.warmth ?? 0) + (authored?.trust ?? 0)
+        let tension = tie.tension + (authored?.tension ?? 0)
+        let familiarity = tie.familiarity + (authored?.narrativeWeight ?? 0) / 6
+
+        let kind: GossipRelationshipMoveKind?
+        if tension > warmth && tension > 0 {
+            kind = .attack
+        } else if warmth > 0 || familiarity >= 2 {
+            kind = .invest
+        } else if seed % 4 == 0 {
+            kind = .invest          // strangers occasionally strike up an alliance
+        } else {
+            kind = nil
+        }
+        guard let kind else { return nil }
+        let amount = max(1, min(3, (kind == .attack ? tension : max(warmth, familiarity)) / 6 + 1))
+        return GossipRelationshipMove(
+            actorID: actor.id, actorName: actor.name,
+            targetID: witness.id, targetName: witness.name,
+            kind: kind, amount: amount
+        )
     }
 
     private static func beliefCombat(
@@ -1460,6 +1528,7 @@ enum CharacterLetterPageGenerator {
         let talismanDeltaTokens = talismanMoves.compactMap(\.ledgerToken).joined(separator: ",")
         let query = researchQuery(for: interest, homeContext: homeContext)
         let occasion = letterOccasion(inputs: inputs)
+        let crossLetter = crossLetterMemory(for: entity, day: day, inputs: inputs, now: now)
         let body = """
         Sender: \(entity.name)
         Address the player as: \(playerName)
@@ -1469,6 +1538,9 @@ enum CharacterLetterPageGenerator {
 
         Letter occasion:
         \(occasion ?? "No special occasion. Write because the sender wanted to.")
+
+        Since your last letter (acknowledge naturally if present; do not force it):
+        \(crossLetter ?? "This may be your first letter to them, or the first in a long while.")
 
         Writing Voice:
         \(voice.promptDescription)
@@ -1502,6 +1574,7 @@ enum CharacterLetterPageGenerator {
                     "unwrittenInterest": interest,
                     "homeContext": homeContext,
                     "letterOccasion": occasion ?? "",
+                    "crossLetterMemory": crossLetter ?? "",
                     "researchQuery": query,
                     "writingVoice": voice.promptDescription,
                     "chapterTalismanMoves": talismanMoveLines,
@@ -1589,6 +1662,50 @@ enum CharacterLetterPageGenerator {
             .split(separator: " ")
             .prefix(18)
             .joined(separator: " ")
+    }
+
+    /// What's passed between the sender and the reader since the sender's last
+    /// letter: their previous letter, any Two Readings the reader took their side
+    /// (or their rival's), and how their Belief standing has moved. Lets a letter
+    /// remember itself and the relationship instead of starting cold each time.
+    static func crossLetterMemory(for entity: NarrativeWorldEntity, day: BookDay, inputs: BookSourceInputs, now: Date = Date(), calendar: Calendar = .current) -> String? {
+        let keptPages = (inputs.days + [day]).flatMap(\.pages)
+        var lines: [String] = []
+
+        let priorLetters = keptPages
+            .filter { $0.type == .letter && $0.tags.contains("sender:\(entity.id)") }
+            .sorted { $0.createdAt < $1.createdAt }
+        if let last = priorLetters.last {
+            let ageDays = max(0, calendar.dateComponents([.day], from: calendar.startOfDay(for: last.createdAt), to: calendar.startOfDay(for: now)).day ?? 0)
+            let excerpt = last.userInput
+                .replacingOccurrences(of: "\n", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .prefix(160)
+            let whenLine = ageDays == 0 ? "earlier today" : (ageDays == 1 ? "yesterday" : "about \(ageDays) days ago")
+            lines.append("You last wrote to them \(whenLine). Part of that letter: \"\(excerpt)…\" You may refer back to it, naturally.")
+        }
+
+        let sidings = keptPages
+            .filter { $0.type == .twoReadings && $0.tags.contains("entity:\(entity.id)") }
+            .sorted { $0.createdAt > $1.createdAt }
+        if let recent = sidings.first,
+           let sidedTag = recent.tags.first(where: { $0.hasPrefix("sided:") }) {
+            let sided = String(sidedTag.dropFirst("sided:".count))
+            if sided == entity.id {
+                lines.append("Recently, when two of you disagreed, the reader sided WITH you. You feel a little vindicated — and warmer toward them.")
+            } else {
+                lines.append("Recently, when two of you disagreed, the reader sided AGAINST you. It stung; be honest about it, without sulking.")
+            }
+        }
+
+        let standing = inputs.entityBeliefOffsets[entity.id] ?? 0
+        if standing >= 6 {
+            lines.append("The reader has been giving you Belief lately; you feel more present in their Book.")
+        } else if standing <= -4 {
+            lines.append("You've felt fainter in the Book lately; their attention has been elsewhere.")
+        }
+
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
     private static func memoryPacket(for entity: NarrativeWorldEntity, day: BookDay, inputs: BookSourceInputs) -> String {

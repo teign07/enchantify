@@ -6,81 +6,91 @@ import SwiftUI
 // the sheet-presentation segfault) and keeps the sheet's state surface small.
 
 struct ChapterBindingFormView: View {
+    let surface: SurfacePage
     let onBindChapter: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedBindingChapterID: String?
+
+    private var chosenChapter: AcademyChapter? {
+        AcademyChapterRegistry.chapter(id: surface.payload.metadata["chosenChapterID"] ?? "")
+    }
+
+    private var evidenceLines: [String] {
+        (surface.payload.metadata["bindingEvidence"] ?? "")
+            .components(separatedBy: " | ")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(AcademyChapterRegistry.publicChapters) { chapter in
-                Button {
-                    BookFeedback.play(.select)
-                    selectedBindingChapterID = chapter.id
-                } label: {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 8) {
-                            Image(systemName: chapter.symbolName)
-                                .font(.subheadline.weight(.bold))
-                                .foregroundStyle(BookPalette.teal)
-                            Text("Chapter \(chapter.name)")
-                                .font(.system(.headline, design: .serif, weight: .bold))
-                                .foregroundStyle(BookPalette.ink)
-                            Spacer()
-                            if selectedBindingChapterID == chapter.id {
-                                Image(systemName: "checkmark.seal.fill")
-                                    .foregroundStyle(BookPalette.lampGold)
-                            }
-                        }
-                        Text(chapter.philosophy)
-                            .font(.callout)
-                            .foregroundStyle(BookPalette.ink.opacity(0.8))
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(chapter.traits.joined(separator: " · "))
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(BookPalette.teal.opacity(0.85))
-                        Text("\u{201C}\(chapter.writeFraming)\u{201D}")
-                            .font(.system(.caption, design: .serif).italic())
-                            .foregroundStyle(BookPalette.ink.opacity(0.62))
-                            .fixedSize(horizontal: false, vertical: true)
+            if let chapter = chosenChapter {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: chapter.symbolName)
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(BookPalette.lampGold)
+                        Text("Chapter \(chapter.name)")
+                            .font(.system(.title3, design: .serif, weight: .bold))
+                            .foregroundStyle(BookPalette.ink)
+                        Spacer()
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundStyle(BookPalette.teal)
                     }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        selectedBindingChapterID == chapter.id
-                            ? BookPalette.lampGold.opacity(0.18)
-                            : BookPalette.page.opacity(0.85),
-                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(
-                                selectedBindingChapterID == chapter.id
-                                    ? BookPalette.lampGold.opacity(0.6)
-                                    : BookPalette.ink.opacity(0.12),
-                                lineWidth: selectedBindingChapterID == chapter.id ? 1.4 : 1
-                            )
+                    Text(chapter.philosophy)
+                        .font(.callout)
+                        .foregroundStyle(BookPalette.ink.opacity(0.8))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(chapter.traits.joined(separator: " · "))
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(BookPalette.teal.opacity(0.85))
+                    Text("\u{201C}\(chapter.writeFraming)\u{201D}")
+                        .font(.system(.caption, design: .serif).italic())
+                        .foregroundStyle(BookPalette.ink.opacity(0.62))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(BookPalette.page.opacity(0.9), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.lampGold.opacity(0.45), lineWidth: 1.2)
+                }
+            }
+
+            if !evidenceLines.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("What the Binding read")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.72))
+                    ForEach(evidenceLines, id: \.self) { line in
+                        HStack(alignment: .top, spacing: 6) {
+                            Text("•")
+                            Text(line)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(BookPalette.ink.opacity(0.68))
+                        .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .buttonStyle(.plain)
             }
 
             Button {
-                guard let chapterID = selectedBindingChapterID else { return }
+                guard let chapterID = chosenChapter?.id else { return }
                 BookFeedback.play(.braidStart)
                 onBindChapter(chapterID)
                 dismiss()
             } label: {
-                Label("Bind me", systemImage: "seal")
+                Label("Accept the Binding", systemImage: "seal")
                     .font(.headline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
             }
             .buttonStyle(.borderedProminent)
             .tint(BookPalette.teal)
-            .disabled(selectedBindingChapterID == nil)
+            .disabled(chosenChapter == nil)
 
-            Text("The binding is real: your Chapter tints how Story Pages meet you, and its talisman warms with your Belief. Headmistress Thorne does not offer re-sorts. (The Book, quietly: ask her anyway, someday.)")
+            Text("The binding is real: your Chapter tints how Story Pages meet you, and its talisman warms with your Belief. The Book chose from kept pages and invested Belief, not from a preference quiz.")
                 .font(.caption)
                 .foregroundStyle(BookPalette.ink.opacity(0.58))
                 .fixedSize(horizontal: false, vertical: true)
@@ -114,6 +124,7 @@ struct AnchorOfferFormView: View {
                 .foregroundStyle(BookPalette.ink)
                 .textFieldStyle(.plain)
                 .lineLimit(2...5)
+                .dictationInput(text: $anchorPlaceWords)
                 .padding(10)
                 .background(BookPalette.paper.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
@@ -178,6 +189,7 @@ struct AnchorOfferFormView: View {
                 .foregroundStyle(BookPalette.ink)
                 .textFieldStyle(.plain)
                 .lineLimit(1...3)
+                .dictationInput(text: text)
                 .padding(10)
                 .background(BookPalette.paper.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
@@ -228,6 +240,10 @@ struct ElectiveFlyleafListView: View {
                     .font(.callout)
                     .textFieldStyle(.plain)
                     .lineLimit(1...3)
+                    .dictationInput(text: Binding(
+                        get: { electiveProofDrafts[elective.id] ?? "" },
+                        set: { electiveProofDrafts[elective.id] = $0 }
+                    ))
                     .padding(8)
                     .background(BookPalette.paper.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 

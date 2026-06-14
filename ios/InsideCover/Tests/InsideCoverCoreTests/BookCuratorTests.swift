@@ -164,17 +164,26 @@ final class BookCuratorTests: XCTestCase {
         inputs.resurfacingCandidates = [remembered]
         let today = BookDay(id: BookDay.id(for: now), date: Calendar.current.startOfDay(for: now), pages: [])
 
-        let pages = BookCurator.surfacedPages(
+        let context = CuratorContext.make(for: today)
+        let pages = BookRememberedPageSourceAdapter().candidates(
             for: today,
+            context: context,
             inputs: inputs,
-            now: now,
-            limit: 3
+            now: now
         )
 
         let page = pages.first { $0.type == BookPageType.bookRemembered }
         XCTAssertEqual(page?.payload.metadata["rememberedPageID"], "fog-walk")
         XCTAssertEqual(page?.payload.metadata["tinyAction"], "Stand at the nearest threshold for ten seconds. Let the outside know you noticed.")
         XCTAssertTrue(page?.payload.body.contains("\"The fog on the walk made the window light look soft.\"") == true)
+
+        let topShelf = BookCurator.surfacedPages(
+            for: today,
+            inputs: inputs,
+            now: now,
+            limit: 3
+        )
+        XCTAssertLessThanOrEqual(topShelf.filter { $0.type == .bookRemembered }.count, 1)
     }
 
     func testBookRememberedDoesNotRepeatAfterTodayKeptAVisitation() {
@@ -330,11 +339,13 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testRepeatableReferenceCardsUseSnippetIdentity() throws {
+        // A fixed ordinary date (no sabbat, shower, or full/new-moon esbat) so the
+        // Almanac's festival page doesn't claim a slot and make this nondeterministic.
         let morning = BookCurator.surfacedPages(
             for: emptyDay(),
             inputs: richInputs(),
-            now: localDate(hour: 9),
-            limit: 8
+            now: localDate(year: 2026, month: 7, day: 7, hour: 9),
+            limit: 12
         )
         let lore = try XCTUnwrap(morning.first { $0.type == .lore })
         let wonder = try XCTUnwrap(morning.first { $0.type == .wonderCompass })
@@ -464,6 +475,16 @@ final class BookCuratorTests: XCTestCase {
         }
 
         XCTAssertTrue(missingChapters.isEmpty, "Missing chapters: \(missingChapters.map(\.characterName).joined(separator: ", "))")
+    }
+
+    func testDuskthornHasChapterPreviewProfile() {
+        let profile = BookReferenceCatalog.characterIllustrations.first {
+            $0.chapter == "Duskthorn" && $0.core.contains("Enchantment Guardian")
+        }
+
+        XCTAssertNotNil(profile)
+        XCTAssertEqual(profile?.characterName, "Vesper Thorne")
+        XCTAssertTrue(profile?.tags.contains("duskthorn") == true)
     }
 
     func testLabyrinthIllustrationsOnlyUseBundledCharacterAssets() {
@@ -799,14 +820,15 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testBraidPageOnlySurfacesAtNightWithCapturedFragments() {
+        let dayDate = localDate(year: 2026, month: 6, day: 1, hour: 0)
         let day = BookDay(
             id: "2026-06-01",
-            date: localDate(hour: 0),
+            date: dayDate,
             pages: [
                 BookPage(
                     id: "souvenir-1",
                     type: .souvenir,
-                    createdAt: localDate(hour: 12),
+                    createdAt: localDate(year: 2026, month: 6, day: 1, hour: 12),
                     promptText: "Catch one bright particular.",
                     userInput: "The coffee smelled like toasted sugar.",
                     tags: ["souvenir"]
@@ -832,14 +854,15 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testDistressBiasesGentleRestFirst() {
+        let dayDate = localDate(year: 2026, month: 6, day: 1, hour: 0)
         let day = BookDay(
             id: "2026-06-01",
-            date: localDate(hour: 0),
+            date: dayDate,
             pages: [
                 BookPage(
                     id: "hard-1",
                     type: .souvenir,
-                    createdAt: localDate(hour: 8),
+                    createdAt: localDate(year: 2026, month: 6, day: 1, hour: 8),
                     promptText: "One sentence.",
                     userInput: "A hard low morning.",
                     tags: ["low"]
@@ -942,16 +965,17 @@ final class BookCuratorTests: XCTestCase {
 
     func testCuratorLorePageRotatesAcrossSurfaceSlots() throws {
         let day = emptyDay()
+        // Fixed ordinary date so Almanac festival pages don't claim a slot.
         let morning = BookCurator.surfacedPages(
             for: day,
             inputs: richInputs(),
-            now: localDate(hour: 10, minute: 0),
+            now: localDate(year: 2026, month: 7, day: 7, hour: 10, minute: 0),
             limit: 12
         )
         let later = BookCurator.surfacedPages(
             for: day,
             inputs: richInputs(),
-            now: localDate(hour: 10, minute: 40),
+            now: localDate(year: 2026, month: 7, day: 7, hour: 10, minute: 40),
             limit: 12
         )
 
@@ -961,18 +985,18 @@ final class BookCuratorTests: XCTestCase {
     }
 
     private func emptyDay() -> BookDay {
-        BookDay(id: "2026-06-01", date: localDate(hour: 0), pages: [])
+        BookDay(id: "2026-06-01", date: localDate(year: 2026, month: 6, day: 1, hour: 0), pages: [])
     }
 
     private func dayWithMusicSouvenir() -> BookDay {
         BookDay(
             id: "2026-06-01",
-            date: localDate(hour: 0),
+            date: localDate(year: 2026, month: 6, day: 1, hour: 0),
             pages: [
                 BookPage(
                     id: "music-souvenir",
                     type: .souvenir,
-                    createdAt: localDate(hour: 12),
+                    createdAt: localDate(year: 2026, month: 6, day: 1, hour: 12),
                     promptText: "Catch one bright particular.",
                     userInput: "The sound of Spotify is bopping me along through the headphones.",
                     tags: ["souvenir", "music"]
@@ -1014,6 +1038,17 @@ final class BookCuratorTests: XCTestCase {
         components.minute = minute
         components.second = 0
         return Calendar.current.date(from: components) ?? Date()
+    }
+
+    private func localDate(year: Int, month: Int, day: Int, hour: Int, minute: Int = 0) -> Date {
+        Calendar.current.date(from: DateComponents(
+            year: year,
+            month: month,
+            day: day,
+            hour: hour,
+            minute: minute,
+            second: 0
+        )) ?? Date()
     }
 
     private func assertCheckInPrimary(

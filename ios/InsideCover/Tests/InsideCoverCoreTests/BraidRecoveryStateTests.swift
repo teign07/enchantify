@@ -57,12 +57,13 @@ final class BraidRecoveryStateTests: XCTestCase {
     }
 
     func testDayByMarkingCapturedPagesUsedMarksOnlyCapturedPagesAndAppendsBraid() throws {
+        let dayDate = date("2026-06-06T12:00:00Z")
         let originalDay = BookDay(
             id: "2026-06-06",
-            date: Date(),
+            date: dayDate,
             pages: [
-                page(id: "souvenir", type: .souvenir, usedInBookOfYou: false),
-                page(id: "already-braided", type: .mood, usedInBookOfYou: true),
+                page(id: "souvenir", type: .souvenir, createdAt: dayDate, usedInBookOfYou: false),
+                page(id: "already-braided", type: .mood, createdAt: dayDate, usedInBookOfYou: true),
                 bookOfYouPage()
             ]
         )
@@ -77,21 +78,42 @@ final class BraidRecoveryStateTests: XCTestCase {
         XCTAssertEqual(updatedDay.pages.last?.id, "fresh-braid")
     }
 
-    private func dayWithCapturedFragments() -> BookDay {
-        BookDay(
+    func testCapturedPagesIgnorePagesFromOtherCalendarDays() throws {
+        let dayDate = date("2026-06-06T12:00:00Z")
+        let previousDate = date("2026-06-05T23:00:00Z")
+        let originalDay = BookDay(
             id: "2026-06-06",
-            date: Date(),
+            date: dayDate,
             pages: [
-                page(id: "souvenir", type: .souvenir, usedInBookOfYou: false)
+                page(id: "yesterday", type: .souvenir, createdAt: previousDate, usedInBookOfYou: false),
+                page(id: "today", type: .mood, createdAt: dayDate, usedInBookOfYou: false)
+            ]
+        )
+
+        XCTAssertEqual(originalDay.capturedPages.map(\.id), ["today"])
+
+        let updatedDay = BraidRecoveryState.dayByMarkingCapturedPagesUsed(originalDay, braid: bookOfYouPage(id: "fresh-braid"))
+
+        XCTAssertFalse(try XCTUnwrap(updatedDay.pages.first { $0.id == "yesterday" }).usedInBookOfYou)
+        XCTAssertTrue(try XCTUnwrap(updatedDay.pages.first { $0.id == "today" }).usedInBookOfYou)
+    }
+
+    private func dayWithCapturedFragments() -> BookDay {
+        let dayDate = date("2026-06-06T12:00:00Z")
+        return BookDay(
+            id: "2026-06-06",
+            date: dayDate,
+            pages: [
+                page(id: "souvenir", type: .souvenir, createdAt: dayDate, usedInBookOfYou: false)
             ]
         )
     }
 
-    private func page(id: String, type: BookPageType, usedInBookOfYou: Bool) -> BookPage {
+    private func page(id: String, type: BookPageType, createdAt: Date = Date(), usedInBookOfYou: Bool) -> BookPage {
         BookPage(
             id: id,
             type: type,
-            createdAt: Date(),
+            createdAt: createdAt,
             promptText: "Prompt",
             userInput: "A true fragment.",
             tags: [],
@@ -101,5 +123,9 @@ final class BraidRecoveryStateTests: XCTestCase {
 
     private func bookOfYouPage(id: String = "book-of-you") -> BookPage {
         page(id: id, type: .bookOfYou, usedInBookOfYou: false)
+    }
+
+    private func date(_ value: String) -> Date {
+        ISO8601DateFormatter().date(from: value)!
     }
 }

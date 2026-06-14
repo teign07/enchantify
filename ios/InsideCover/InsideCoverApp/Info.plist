@@ -10,6 +10,12 @@
 	<string>ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ReEnchanted uses the microphone only when you tap a voice input button, so you can speak notes, answers, and page text into the Book.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>ReEnchanted can set a Reminder when you ask it to — like a Fae bargain's deadline — so the world can gently reach you outside the app.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>ReEnchanted uses speech recognition only when you tap a voice input button, turning your spoken words into local page text.</string>
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>

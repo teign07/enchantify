@@ -679,6 +679,8 @@ enum GlowMenuAction {
     case openPage(BookPageType)
     case openBookSection(String)
     case openBookShop
+    case openMargin
+    case openPactMap
 }
 
 private enum GlowMenuSection: String, CaseIterable, Identifiable {
@@ -1095,6 +1097,22 @@ struct GlowCommandMenu: View {
                 compact: compact
             ) {
                 onSelectAction(.openBookShop)
+            }
+            menuButton(
+                title: "The Margin",
+                detail: "Your standing with the Book Fae: warmth, attention, gifts, and any open bargains.",
+                systemImage: "hands.sparkles",
+                compact: compact
+            ) {
+                onSelectAction(.openMargin)
+            }
+            menuButton(
+                title: "The Pact Map",
+                detail: "Watch the Talismans contest the Book's shelves and your real-world doors.",
+                systemImage: "map",
+                compact: compact
+            ) {
+                onSelectAction(.openPactMap)
             }
         case .book:
             ForEach(bookSections) { section in
@@ -1640,5 +1658,423 @@ struct ModelStatusCard: View {
         }
         .padding(16)
         .parchmentSurface(accent: statusColor, isActive: report.state == .ready)
+    }
+}
+
+// MARK: - The Margin (the reader's standing with the Book Fae)
+
+struct TheMarginSheet: View {
+    let fae: FaePlayerState
+    let now: Date
+    let canEnterMarket: Bool
+    var onEnterMarket: () -> Void = {}
+    @Environment(\.dismiss) private var dismiss
+
+    private var mood: GoblinMood { FaeEconomy.mood(for: now) }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    walletRow
+                    if !fae.openBargains.isEmpty || fae.bargains.contains(where: { $0.status == .lapsed }) {
+                        bargainsSection
+                    }
+                    giftsSection
+                    warmthSection
+                    Text(mood.line)
+                        .font(.footnote.italic())
+                        .foregroundStyle(BookPalette.ink.opacity(0.6))
+                }
+                .padding(20)
+            }
+            .background(BookPalette.page.ignoresSafeArea())
+            .navigationTitle("The Margin")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private var walletRow: some View {
+        HStack(spacing: 14) {
+            marginStat(value: "\(fae.attention)", label: "Attention", symbol: "eye")
+            marginStat(value: "\(fae.activeGifts.count)", label: "Warm gifts", symbol: "gift")
+            if canEnterMarket {
+                Button(action: onEnterMarket) {
+                    Label("Goblin Market", systemImage: "tag")
+                        .font(.subheadline.weight(.bold))
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 12)
+                        .background(BookPalette.teal.opacity(0.16), in: RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.teal)
+            }
+        }
+    }
+
+    private func marginStat(value: String, label: String, symbol: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Label(value, systemImage: symbol)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(BookPalette.lampGold)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.6))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+        .overlay { RoundedRectangle(cornerRadius: 8).stroke(BookPalette.ink.opacity(0.12), lineWidth: 1) }
+    }
+
+    private var bargainsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("Open Debts")
+            ForEach(fae.bargains.filter { $0.status != .delivered }) { bargain in
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(bargain.faeKind.name, systemImage: bargain.faeKind.symbolName)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(bargain.status == .lapsed ? BookPalette.ink.opacity(0.5) : BookPalette.ink)
+                    Text(bargain.terms)
+                        .font(.callout)
+                        .foregroundStyle(BookPalette.ink.opacity(0.75))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(bargain.status == .lapsed
+                         ? "Lapsed — \(bargain.giftName) has gone cold; this market is closed until repaired."
+                         : "Owed: \(bargain.giftName) is warm while the debt stands.")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(bargain.status == .lapsed ? BookPalette.ink.opacity(0.5) : BookPalette.teal)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+                .overlay { RoundedRectangle(cornerRadius: 8).stroke(BookPalette.ink.opacity(0.12), lineWidth: 1) }
+            }
+        }
+    }
+
+    private var giftsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("Gifts")
+            if fae.gifts.isEmpty {
+                Text("No gifts yet. The Fae give first, unprompted — keep your pages and one will find you.")
+                    .font(.callout)
+                    .foregroundStyle(BookPalette.ink.opacity(0.6))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ForEach(fae.gifts) { gift in
+                    FaeGiftCard(gift: gift, now: now)
+                }
+            }
+        }
+    }
+
+    private var warmthSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("Warmth")
+            ForEach(FaeKind.allCases) { kind in
+                HStack {
+                    Label(kind.name, systemImage: kind.symbolName)
+                        .font(.callout)
+                        .foregroundStyle(BookPalette.ink.opacity(0.8))
+                    Spacer()
+                    Text("\(fae.warmth(for: kind))")
+                        .font(.callout.weight(.bold).monospacedDigit())
+                        .foregroundStyle(fae.warmth(for: kind) < 0 ? BookPalette.ink.opacity(0.45) : BookPalette.lampGold)
+                }
+            }
+        }
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.caption.weight(.bold))
+            .foregroundStyle(BookPalette.ink.opacity(0.5))
+    }
+}
+
+struct FaeGiftCard: View {
+    let gift: FaeGift
+    let now: Date
+    @State private var isReadingLoosePage = false
+    @State private var loosePageSalt = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Label(gift.name, systemImage: gift.isCold ? "snowflake" : "gift")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(gift.isCold ? BookPalette.ink.opacity(0.45) : BookPalette.lampGold)
+                Spacer()
+                Text(gift.isActive ? gift.effect.title : (gift.isCold ? "Cold" : "Spent"))
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background((gift.isActive ? BookPalette.teal : BookPalette.ink).opacity(0.14), in: Capsule())
+                    .foregroundStyle(gift.isActive ? BookPalette.teal : BookPalette.ink.opacity(0.5))
+            }
+            Text(gift.isCold ? "\(gift.effect.effectLine) — dormant until the debt is repaid." : gift.effect.effectLine)
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.65))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if gift.effect == .loosePage, gift.isActive {
+                Button {
+                    loosePageSalt += 1
+                    isReadingLoosePage.toggle()
+                } label: {
+                    Label(isReadingLoosePage ? "Turn the page" : "Read the loose page", systemImage: "book.pages")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.teal)
+                if isReadingLoosePage {
+                    Text(loosePageText)
+                        .font(.system(.callout, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.85))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(10)
+                        .background(BookPalette.page.opacity(0.7), in: RoundedRectangle(cornerRadius: 6))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+        .overlay { RoundedRectangle(cornerRadius: 8).stroke(BookPalette.ink.opacity(0.12), lineWidth: 1) }
+    }
+
+    private var loosePageText: String {
+        // Local salt lets "turn the page" reveal a different fragment immediately.
+        LoosePageReader.fragments.isEmpty
+            ? ""
+            : LoosePageReader.fragments[abs("\(gift.id)-\(loosePageSalt)".stableHash) % LoosePageReader.fragments.count]
+    }
+}
+
+struct GoblinMarketSheet: View {
+    let fae: FaePlayerState
+    let now: Date
+    var onBuy: (String) -> Void = { _ in }
+    var onMarkNextMarket: () -> Void = {}
+    @Environment(\.dismiss) private var dismiss
+
+    private var mood: GoblinMood { FaeEconomy.mood(for: now) }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        Label("\(fae.attention) Attention", systemImage: "eye")
+                            .font(.headline)
+                            .foregroundStyle(BookPalette.lampGold)
+                        Spacer()
+                    }
+                    Text(mood.line)
+                        .font(.footnote.italic())
+                        .foregroundStyle(BookPalette.ink.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    ForEach(FaeMarketCatalog.offers) { offer in
+                        let price = FaeMarketCatalog.cost(of: offer, mood: mood)
+                        let canAfford = fae.attention >= price
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Label(offer.name, systemImage: offer.faeKind.symbolName)
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(BookPalette.ink)
+                                Spacer()
+                                Text("\(price)")
+                                    .font(.subheadline.weight(.bold).monospacedDigit())
+                                    .foregroundStyle(BookPalette.lampGold)
+                            }
+                            Text(offer.descriptionText)
+                                .font(.caption)
+                                .foregroundStyle(BookPalette.ink.opacity(0.65))
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button {
+                                onBuy(offer.id)
+                            } label: {
+                                Text(canAfford ? "Trade attention for it" : "Not enough attention")
+                                    .font(.caption.weight(.bold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 9)
+                                    .background((canAfford ? BookPalette.teal : BookPalette.ink).opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(canAfford ? BookPalette.teal : BookPalette.ink.opacity(0.4))
+                            .disabled(!canAfford)
+                        }
+                        .padding(12)
+                        .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+                        .overlay { RoundedRectangle(cornerRadius: 8).stroke(BookPalette.ink.opacity(0.12), lineWidth: 1) }
+                    }
+
+                    Button {
+                        onMarkNextMarket()
+                    } label: {
+                        Label("Put the next market (new moon) on my calendar", systemImage: "calendar.badge.plus")
+                            .font(.caption.weight(.bold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(BookPalette.teal)
+
+                    Text("The goblins trade only in attention — the specific, genuine act of noticing. They have no use for Belief.")
+                        .font(.caption.italic())
+                        .foregroundStyle(BookPalette.ink.opacity(0.5))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(20)
+            }
+            .background(BookPalette.page.ignoresSafeArea())
+            .navigationTitle("The Goblin Market")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Leave") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - The Pact Map (the Talismans' territory war)
+
+struct PactMapSheet: View {
+    let pactWar: PactWarState
+    let boundTalismanID: String?
+    var onPressClaim: (String) -> Void = { _ in }   // territoryID
+    @Environment(\.dismiss) private var dismiss
+
+    private var boundChapterName: String? {
+        boundTalismanID.flatMap { AcademyChapterRegistry.chapter(forTalismanID: $0)?.name }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    if let boundChapterName {
+                        Text("You are Bound to \(boundChapterName). Pressing a claim invests Belief in its Talisman.")
+                            .font(.footnote)
+                            .foregroundStyle(BookPalette.ink.opacity(0.6))
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text("You are not yet Bound to a Chapter. The Talismans fight over your margins regardless.")
+                            .font(.footnote.italic())
+                            .foregroundStyle(BookPalette.ink.opacity(0.6))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    frontSection("The Book's Shelves", territories: PactTerritoryRegistry.shelves)
+                    frontSection("The Real-World Doors", territories: PactTerritoryRegistry.integrations)
+
+                    if !pactWar.log.isEmpty {
+                        sectionTitle("Recent Moves")
+                        ForEach(pactWar.log.prefix(6)) { record in
+                            Text("• \(record.line)")
+                                .font(.caption)
+                                .foregroundStyle(BookPalette.ink.opacity(0.6))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(BookPalette.page.ignoresSafeArea())
+            .navigationTitle("The Pact Map")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+        }
+    }
+
+    private func frontSection(_ title: String, territories: [PactTerritory]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionTitle(title)
+            ForEach(territories) { territory in
+                territoryCard(territory)
+            }
+        }
+    }
+
+    private func territoryCard(_ territory: PactTerritory) -> some View {
+        let controller = pactWar.controller(of: territory.id)
+        let controllerChapter = controller.flatMap { AcademyChapterRegistry.chapter(forTalismanID: $0) }
+        let tier = pactWar.tier(of: territory.id)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(territory.name)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(BookPalette.ink)
+                Spacer()
+                Text(tier.label)
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background((controller == nil ? BookPalette.ink : BookPalette.lampGold).opacity(0.14), in: Capsule())
+                    .foregroundStyle(controller == nil ? BookPalette.ink.opacity(0.5) : BookPalette.lampGold)
+            }
+            Text(territory.blurb)
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.6))
+                .fixedSize(horizontal: false, vertical: true)
+            if let controllerChapter {
+                HStack(spacing: 8) {
+                    CharacterPortraitView(name: controllerChapter.talismanName, size: 30)
+                    Text("Held by \(controllerChapter.talismanName)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.teal)
+                }
+            }
+            ForEach(AcademyChapterRegistry.chapters, id: \.id) { chapter in
+                let value = pactWar.control(chapter.talismanID, territory.id)
+                if value > 0 {
+                    HStack(spacing: 6) {
+                        Text(chapter.talismanName)
+                            .font(.caption2)
+                            .foregroundStyle(BookPalette.ink.opacity(0.7))
+                            .frame(width: 96, alignment: .leading)
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(BookPalette.ink.opacity(0.08))
+                                Capsule()
+                                    .fill((controller == chapter.talismanID ? BookPalette.lampGold : BookPalette.teal).opacity(0.5))
+                                    .frame(width: max(4, geo.size.width * CGFloat(min(100, value)) / 100))
+                            }
+                        }
+                        .frame(height: 8)
+                        Text("\(value)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(BookPalette.ink.opacity(0.55))
+                            .frame(width: 24, alignment: .trailing)
+                    }
+                }
+            }
+            if boundTalismanID != nil {
+                Button {
+                    onPressClaim(territory.id)
+                } label: {
+                    Label("Press your claim", systemImage: "hand.point.up.left")
+                        .font(.caption.weight(.bold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.teal)
+                .padding(.top, 2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+        .overlay { RoundedRectangle(cornerRadius: 8).stroke(BookPalette.ink.opacity(0.12), lineWidth: 1) }
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.caption.weight(.bold))
+            .foregroundStyle(BookPalette.ink.opacity(0.5))
     }
 }

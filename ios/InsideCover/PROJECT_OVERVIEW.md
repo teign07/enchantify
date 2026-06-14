@@ -23,7 +23,9 @@ durations, relationships, recurring Beliefs, and seasonal shape.
 - Shared SwiftPM package: `InsideCoverCore`
 - Supported runtime target: iOS 17+
 - Shared-core test target: `Tests/InsideCoverCoreTests`
-- Current verified shared suite: 176 tests
+- Current verified shared suite: 296 tests
+- Device builds: build/install to a physical device (the local brain only runs on
+  device; the iOS Simulator compiles but exercises only the fake fallbacks).
 - Widget status: removed from this project. The old widget source has been
   moved out to `../DetachedInsideCoverWidget/` and is intentionally not part of
   the app target.
@@ -135,9 +137,10 @@ Current page types:
 mood, diary, souvenir, rest, body, fuel, weather, location, quip,
 aboutYou, wonderCompass, lore, patreon, illustration, illuminatedPhoto,
 narrativeOS, gossip, facultyResearch, letter, supportGuild, castMember,
-bookOfYou, askTheBook, enchantment, anchor, academyClass, elective,
-packPage, calendar, helpTips, welcome, marginsAtlas, bookRemembered,
-bookNotices
+bookOfYou, askTheBook, inkrestOfficeHours, faeBargain, pactDispatch,
+festival, twoReadings, castBond, enchantment, anchor, academyClass, elective, packPage,
+calendar, helpTips, welcome, marginsAtlas, bookConnections, bookRemembered,
+bookNotices, theBleed
 ```
 
 Important model types:
@@ -166,17 +169,19 @@ It returns zero or more `SurfacePage` candidates. The active adapter order is:
 ```text
 Rest, Mood, Diary, Souvenir, Book of You, Book Remembered, Book Notices,
 Ask the Book, Body, Fuel, Faculty Research, Character Letter, Support Guild,
-Weather, Enchantment, Welcome, Academy Class, Elective, Pack Page, Calendar,
-Quip, About You, Wonder Compass, Lore, Help Tips, Patreon, Illustration,
-Illuminated Photo, Story Page, Margins Atlas, Gossip, Cast Member,
-Outer Stacks Anchor, Location
+Dr. Inkrest's Office Hours, Fae Bargain, Pact Dispatch, Festival, Two Readings,
+Cast Bond, Weather, Enchantment, Welcome,
+Academy Class, Elective, Pack Page, Calendar, Quip, About You, Wonder Compass,
+Lore, Help Tips, Patreon, Illustration, Illuminated Photo, Story Page,
+Margins Atlas, Gossip, Cast Member, Outer Stacks Anchor, Location
 ```
 
 `BookSourceInputs` is the central context bundle. It carries body/weather
 signals, enchanted weather, anchors, nearby places, self facts, faculty entries,
 custom cast members, electives, entity/page Belief offsets, surface history,
 calendar events, resurfacing candidates, quiet days, current arc, recent
-narrative events, and the current literary-continuity digest.
+narrative events, the current literary-continuity digest, the reader's Fae
+standing (`faeState`), and the Pact War control state (`pactWar`).
 
 ## Curation
 
@@ -201,6 +206,14 @@ Key pieces:
 
 Curation is intentionally not pure randomness. It blends authorial source
 scores with reader preference, memory, fatigue, time, and current context.
+
+**Performance note.** The literary-continuity digest and motif clusters are
+expensive over a large archive. They are computed once per data change and cached
+(`ContentView.refreshContinuityCache`, signature-gated; `cachedContinuityDigest`/
+`cachedMotifClusters`), and `sourceInputs` reads the cache. Never read
+`sourceInputs` from a rendered SwiftUI view — that reintroduced a main-thread
+freeze before the cache existed. Read dedicated `@State` (e.g. `weatherPageSignal`)
+in views instead.
 
 ## Major Page Families
 
@@ -422,8 +435,11 @@ carries:
 - a whisper about any named constellation the Book keeps, when one touches
   the actors or thread involved.
 
-Gossip can create narrative events and occasionally Chapter Talisman Belief
-moves. It is a way for the world to keep living between direct scenes.
+Gossip can create narrative events, occasionally Chapter Talisman Belief moves,
+and **character-to-character Belief moves** (`GossipRelationshipMove`): an actor
+invests in or attacks another character, chosen by reading the relationship field
+and applied on keep (see "The Living Relationship Field"). It is a way for the
+world to keep living — and the cast's web to keep shifting — between direct scenes.
 
 ### The Bleed (Pocket Edition)
 
@@ -483,12 +499,41 @@ Related pieces:
 - `FakeCharacterLetterWriter`
 - `CharacterLetterWriter`
 
+### Dr. Inkrest's Office Hours
+
+A short, distilled narrative-therapy sitting with Dr. Selene Inkrest that opens
+in an evening window (8:00-10:00 pm) when the reader has kept at least one page
+that day, or when a hard signal asks for gentle company.
+
+The flow is a button-gated conversation, not an automatic one:
+
+1. An intake form offers a rotating narrative-therapy question (externalizing,
+   unique outcome, preferred story, values, re-authoring, and so on - chosen
+   deterministically per day), plus "inner weather" and a free note.
+2. "Knock on the door" sends the intake to the local brain, which answers in
+   Inkrest's voice, grounded in her `SupportFacultyChart` (allowed/forbidden
+   uses, invitations, the safety line) and the day's kept pages.
+3. The sitting runs ~4-5 exchanges as one living page; Inkrest then closes with
+   a re-authoring sentence and one small experiment.
+
+Related pieces:
+
+- `InkrestOfficeHoursPageSourceAdapter`, `InkrestOfficeHours` (window + rotating
+  prompts, in `Shared/SourceAdapters.swift`)
+- `InkrestIntake`, `InkrestOfficeHoursCounseling`
+- `MLXInkrestOfficeHoursCounselor`, `FakeInkrestOfficeHoursCounselor`
+- `LocalModelManager.inkrestOfficeHoursPrompt(...)`
+
+The whole sitting keeps as one page; it feeds Inkrest's narrative threads.
+
 ### Margins Atlas
 
 The Margins Atlas is the relationship/constellation surface. It has two
 variants:
 
-- **The Loom** - threads, warmth, tension, and relationship crossings.
+- **The Loom** - threads, warmth, tension, and relationship crossings. The Loom
+  renders the **living relationship field** (see "The Living Relationship Field"),
+  so it evolves with play rather than showing a fixed diagram.
 - **The Constellation** - Belief stars and attention lines.
 
 It is the app's knowledge graph disguised as magic.
@@ -616,7 +661,8 @@ Important types:
 
 The Glow menu lets the reader give or take Belief from page sources and world
 entities. Those changes become ledgers and narrative events, not invisible
-settings.
+settings. The Glow menu is also the entry point to the BookShop, **The Margin**
+(Fae standing), and **The Pact Map** (the Talisman territory war).
 
 ## Chapters And Talismans
 
@@ -632,6 +678,302 @@ Behavior:
 
 This makes world politics and attention mechanically persistent without turning
 the app into a combat system.
+
+## The Book Fae And Bargains
+
+The Book Fae are creatures born from the ink who have read every description of
+the world but never touched it - so the reader is their field agent in the world
+of matter. The system models six species (`FaeKind`: Book Sprite, Sentence
+Salamander, Punctuation Pixie, Literary Elf, Deep Lore Dwarf, Marginalia
+Goblin), each hungry for a different kind of noticing and with its own voice.
+
+A **Fae Bargain** is not a quest: the fae gives first, unprompted, then the
+reader owes a sensory field report. Fae never trade in Belief - the stakes are a
+parallel economy:
+
+- **Warmth** - per-species reputation, earned by genuine deliveries, cooled by
+  lapses.
+- **Attention** - the goblins' currency, earned by paying bargains, spent at the
+  Goblin Market.
+- **Gifts** (`FaeGift`) - functional talismans the fae *fronts on credit*, each
+  with a real effect (`FaeGiftEffect`): Reshelving (lifts a rested page kind back
+  to the front), Quieting (holds the Nothing's grey back a shade), Long Memory
+  (pins a kept page to resurface), Calling Card (opens the Goblin Market), and
+  Loose Page (a static, regenerating collectible).
+
+**The stake:** if a bargain is not paid by its deadline it lapses - the fronted
+gift goes *cold* (stops working) and that species' market closes until the debt
+is repaired. No Belief loss, never under distress, always repairable - but a real
+loss of working tools and access.
+
+Lifecycle (the page): the fae fronts a bargain (`tendFae()`, local, no model
+call); the `FaeBargainPageSourceAdapter` surfaces the open debt (or a lapsed one
+to repair); the reader pays with a field report; the local brain answers in the
+fae's voice with a true lore fragment (the only model call, button-triggered);
+keeping the page records the delivery (warmth + attention).
+
+Supporting surfaces:
+
+- **The Margin** (Glow menu) - the hub: Attention wallet, per-species Warmth,
+  every gift (warm/cold/spent), and open/lapsed bargains.
+- **The Goblin Market** - spend Attention for gifts, mood-priced, gated by the
+  new-moon window or a Calling Card.
+- **Goblin Marginalia** - occasional static goblin annotations on kept pages.
+- **Seasonal goblin moods** - season maps to a `GoblinMood` that shifts market
+  prices and tone.
+
+Related pieces (all in `Shared/WorldSystems.swift` unless noted):
+
+- `FaeKind`, `FaeGift`, `FaeGiftEffect`, `FaeBargain`, `FaeBargainStatus`,
+  `FaePlayerState`
+- `FaeEconomy` (offer / lapse-sweep / deliver / repair / purchase), `GoblinMood`
+- `FaeBargainTemplate`, `FaeMarketCatalog`, `FaeGiftEffects`, `LoosePageReader`,
+  `GoblinMarginalia`
+- `FaeBargainPageSourceAdapter` (`Shared/SourceAdapters.swift`)
+- `FaeBargainResponding`, `MLXFaeBargainResponder`, `FakeFaeBargainResponder`,
+  `LocalModelManager.faeBargainResponsePrompt(...)`
+- `TheMarginSheet`, `GoblinMarketSheet`, `FaeGiftCard`
+  (`InsideCoverApp/BookStatusCards.swift`)
+- vault: `PlayerVaultData.fae`; orchestration: `ContentView.tendFae()`,
+  `payFaeBargain(...)`, `buyFaeGift(...)`
+
+## The Pact War
+
+Each Talisman has a philosophy it wants to spread, and the war is them contesting
+**territory** across two fronts:
+
+- **Shelves** - the Book's own page-kind domains (Reflection, Care, Story,
+  Connection, Field).
+- **Real-world doors** - the integrations the app touches (the Calendar Door,
+  the Whisper Channel/notifications, the Body Margin, the Illuminated Plate, the
+  Window Sky).
+
+Control is **Control Belief, per talisman, per territory** (separate from overall
+Belief), climbing the lore tiers: Contesting -> Influenced -> Controlled ->
+Dominated -> Sovereign. A territory has a controller only on a clear lead.
+
+The war is a pure local simulation - never a model call, silent under distress:
+
+- `PactWarEngine.tick(...)` runs once a day (`ContentView.tendPact()`, alongside
+  `tendArc`/`tendFae`). Each Talisman takes one pact action (Push / Challenge /
+  Raid / Consolidate), gated by its overall Belief exactly like the doctrine
+  (<30 push only, 30+ challenge, 50+ raid). Natural alignment makes aligned
+  pushes stronger.
+- The Chapter the reader is Bound to gives its Talisman a home-field bonus.
+- The reader is a combatant: investing Belief presses a Talisman's claim
+  (`pressPactClaim(...)`).
+
+**Real effects (the stakes are felt, not cosmetic):**
+
+- A shelf held at Controlled+ gives its page kinds a curator surfacing lift
+  (`PactWarEffects.shelfBoost`, wired into `CuratorMood`).
+- The controlling Chapter's `writeFraming` rewrites the writing prompt on that
+  shelf's capture pages (`PactWarEffects.framed`, shown on the capture sheet).
+- The real-world doors get voices: the Whisper Channel's controller recolors the
+  Book's actual notifications, the Calendar Door's controller recolors Hour Page
+  questions, and the Body Margin / Window Sky / Illuminated Plate controllers
+  speak an epigraph over Body / Weather / Photo pages (`PactVoices`,
+  `PactWarEffects.doorEpigraph`, applied in `BookWhispers`, the calendar adapter,
+  and `framed`).
+
+**Pact Dispatches.** When a tick seizes a territory or a Talisman crosses into
+Sovereign, the engine queues a `PactDispatch` (detected against a value-type
+snapshot in `tick`). `PactDispatchPageSourceAdapter` surfaces it as a keepable
+`pactDispatch` lore page (static prose, no model call); it stops surfacing once
+kept (tracked by a `pact-dispatch:<id>` tag) and the queue self-prunes after a
+few days. A Sovereign crossing also fronts a rare Marginalia Clan (goblin) Fae
+Bargain - the two systems feed each other (`ContentView.tendPact`).
+
+**Sovereign automation.** A Talisman that reigns Sovereign acts unprompted,
+within the user-initiated-model rule (scheduling/surfacing only, never silent
+generation): Sovereign over the Whisper Channel schedules an extra morning
+whisper in its voice (`PactVoices.sovereignWhisper`); Sovereign over a shelf is
+guaranteed a slot in the surfaced feed (`PactWarEffects.sovereignShelfPageTypes`,
+applied in `BookCurator.surfacedPages`).
+
+Surface: **The Pact Map** (Glow menu) shows every territory with its controller,
+tier, per-Talisman control bars, recent moves, and a "Press your claim" button.
+
+Related pieces (in `Shared/WorldSystems.swift`):
+
+- `PactFront`, `PactTerritory`, `PactTerritoryRegistry`, `PactTier`,
+  `PactActionRecord`, `PactDispatch`, `PactWarState`
+- `PactWarEngine` (alignment, overall-belief/home-field, tick, crossing
+  detection), `PactWarEffects`, `PactVoices`
+- `PactDispatchPageSourceAdapter` (`Shared/SourceAdapters.swift`)
+- vault: `PlayerVaultData.pactWar`; UI: `PactMapSheet`
+  (`InsideCoverApp/BookStatusCards.swift`)
+
+## Notifications And Real-World Writing
+
+Beyond reading the reader's world (calendar, Health, weather, location), the Book
+reaches *outward* through the system - the literal "bleed-out".
+
+**Whispers (`BookWhispers`, `AppSupport.swift`).** Scheduled local notifications:
+the evening braid whisper (daily, 20:45), class/club bells (next three days), and
+favor reminders for aging electives. The braid whisper's voice is recolored by
+whoever holds the Pact War's Whisper Channel, and a Sovereign holder adds an
+extra morning whisper. `BookWhisperPresenter` is installed at launch as the
+notification-center delegate so whispers also appear while the app is in the
+foreground. A "Send a test whisper" control fires one ~10 seconds out to verify
+the pipeline.
+
+**Real-world writing (`EventKitWriter`, `AppSupport.swift`).** Always
+user-initiated buttons, never automatic:
+
+- A Fae Bargain can set a real **Reminder** before its fronted gift goes cold.
+- The Goblin Market can write the next new-moon window to the **Calendar**
+  (`MoonPhaseCalendar.nextNewMoon`).
+
+Calendar/Reminders writes need `NSCalendarsFullAccessUsageDescription` and
+`NSRemindersFullAccessUsageDescription` (both in `Info.plist`).
+
+## The Almanac (Wheel of the Year + lunar esbats)
+
+`Almanac` (in `Shared/WorldSystems.swift`) makes the app breathe with the real
+sky and the pagan year. For any date and hemisphere it knows the active
+celebrations:
+
+- The eight **Sabbats** of the Wheel (Samhain, Yule, Imbolc, Ostara, Beltane,
+  Litha, Lughnasadh, Mabon), hemisphere-aware (southern readers get the opposite
+  point on the same date).
+- The lunar **esbats** — every **Full Moon** (*The Luminous Gathering*) and
+  **New Moon** (*The Quiet Hours*), read from `MoonPhaseCalendar`.
+- Meteor showers (Perseids, Geminids).
+
+Each `Celebration` carries an Academy name, prose, an **invitation** (a thing to
+notice/do), a Belief bonus, a Nothing effect, and a palette accent. The
+`festival` page type surfaces the day's headline celebration with its invitation
+(`FestivalPageSourceAdapter`); keeping it pays the bonus, and the **full moon
+doubles** Belief for festivals and Enchantments.
+
+The Wheel bends every system, all pure-local and distress-aware:
+
+- **The Nothing** — `Almanac.greyShift` feeds `NothingTide.greyLevel`: light
+  feasts (full moon, Litha) push the grey back; thinning-veil nights (Samhain,
+  new moon) let it nearer.
+- **Curation atmosphere** — `Almanac.surfaceBoosts` leans the feed toward
+  fitting page kinds (Samhain → Book Remembered; full moon → Souvenirs; Beltane
+  → Letters/Cast; etc.), wired into `CuratorMood`.
+- **The Fae** — `ContentView.tendAlmanac` opens a Marginalia-Clan bargain on
+  Samhain and a free Fae window on the full moon.
+- **Bleed-out** — a festival whisper at 6pm (`BookWhispers`) and an "add the
+  feast to my Calendar" button (`EventKitWriter`).
+
+Hemisphere comes from the reader's last known latitude (`Hemisphere.from`).
+
+## The Returning Greeting
+
+When a returning reader opens the app (after the opening movie, never the first
+run, once per launch), `presentReturningGreetingIfNeeded` shows an animated
+overlay (`BookGreetingOverlay`) that greets them by name and adds one dynamic
+line about what's alive right now. `BookGreetingComposer` (pure, tested) rotates
+the opener and picks the line by priority: a festival, then an open Fae bargain,
+then a fresh Pact dispatch, then yesterday's kept-page count, then a grey
+stretch, else a call to make magic. It bleeds in from the top and slips away on
+its own (or on tap).
+
+## The Two Readings (character disagreement)
+
+A page where two cast members read the reader's recent pages and reach
+**different conclusions**, and the reader decides. The pair is chosen
+**dynamically** by `DisagreementEngine.select` (`Shared/NarrativeCore.swift`) —
+scoring every character pair by relationship tension, Chapter contrast, how well
+each fits the current evidence, Belief weight, and rotation; never a hardcoded
+table. The disagreement itself emerges from each character's real beliefs,
+faults, and voice in the generated prose (`TwoReadingsPageSourceAdapter`,
+`LocalModelManager.twoReadingsPrompt`, written through `LocalBrainProse`).
+
+The reader **sides** with one (two buttons). On keep (`applyTwoReadingsSiding`):
+the chosen character gains Belief and the reader spends one to give it; the other
+cools; and the **relationship field** tenses the thread between the two arguers.
+The kept page records the prose, who was sided with, and `entity:`/`sided:` tags,
+so the choice echoes into cross-letter memory and gossip.
+
+## Cross-Letter Memory
+
+`CharacterLetterPageGenerator.crossLetterMemory` adds a "since your last letter"
+packet to each letter draft (which the letter prompt embeds): the sender's own
+previous letter and an excerpt, whether the reader recently sided **with** or
+**against** them in a Two Readings, and how their Belief standing has moved. So a
+letter remembers itself and reacts to the reader's choices, instead of starting
+cold. Soft ("acknowledge if present"), pure-local, no extra model call.
+
+## The Living Relationship Field
+
+The Loom (the cast-relationship graph) is no longer a static authored diagram —
+it is a **simulation**. A persistent `relationshipField` (`vault.data` →
+`BookSourceInputs.relationshipField`, keyed by entity pair) holds accumulating
+`RelationshipTie` values (warmth / tension / familiarity) that grow from what
+actually happens, layered over the authored base edges by `NarrativeGraphData.loom`:
+
+- Shared story scenes and gossip **warm and familiarize** the characters in them.
+- A story scene escalates the **dominant** tone of each pair — characters already
+  in conflict grow *more* tense, not warmer (`weaveRelationshipField`).
+- Siding in The Two Readings **tenses** the judged pair.
+- **Gossip Belief moves** (below) warm or tense the pairs they touch.
+
+The Loom **renders the field**: authored threads shift, and entirely new
+"woven"/"disputed" threads emerge between characters the authored graph never
+connected. `RelationshipFieldEngine` is the pure engine (`weave`, `entityIDs`);
+the app feeds it on every keep and siding.
+
+**Gossip Belief moves.** Gossip turns now carry a `GossipRelationshipMove`: an
+actor **invests** in or **attacks** another character, chosen by *reading the
+field* (tense pairs get attacked, warm/familiar pairs get invested in). It is a
+structured token (not parsed from prose) that, on keep
+(`applyGossipRelationshipMoves`), moves the target's Belief and the pair's tie —
+and it is fed into the gossip prompt so the rumor dramatizes it. Story generation
+also reads the field, surfacing live ties as scene pressures ("they have grown
+tense lately — let that friction show").
+
+This closes the loop: play → events reshape the field → the field feeds gossip,
+story, and the Loom → which shape the next events.
+
+### Emergent Cast Bonds
+
+The field doesn't just record — it acts. When a pair's tension or warmth crosses a
+milestone, `CastBondEngine` surfaces a `castBond` page on its own: **a rivalry
+erupts or an alliance forms**. `CastBondPageSourceAdapter` is stateless and
+dedupes via a `cast-bond:<firedKey>` kept-tag; tapping it generates a
+Gemma-narrated scene between the two (`castBondPrompt`, distress-gated, with a
+static fallback). Keeping deepens both characters and mints memories, so the bond
+echoes into letters and gossip without re-looping the field.
+
+## Character Portraits And Illustrations
+
+Every official cast member and Talisman can show real dossier art, and no one is
+ever faceless.
+
+- **`CharacterIllustrationProfile`** (in `BookReferenceLibrary.json`, ~60
+  profiles) carries each subject's `core`, `signature`, `palette`, `prompt`, and
+  `intendedAssetName`. The shipped app only renders art for subjects that are
+  *actual cast entities* (World Register) or the five Talismans; the broader
+  Enchantify roster waits for content packs.
+- **`CharacterPortrait`** (resolver) maps a display name → profile → asset.
+- **`CharacterPortraitView`** renders, in order: a custom cast member's own
+  attached photo → the official bundled art (auto-detected via `UIImage(named:)`
+  on the profile's `intendedAssetName`) → a medallion of initials over a gradient
+  built from the character's official `palette` → a name-hued fallback.
+- **Frictionless pipeline:** dropping a PNG into `Assets.xcassets` named exactly
+  the `intendedAssetName` lights the portrait up everywhere — no code change.
+  `ILLUSTRATIONS.md` is the generation manifest (subject → asset name → prompt).
+
+Portraits appear on Cast pages, Letters, Two Readings, Cast Bond, gossip, and the
+Pact Map (controlling Talisman). All ten official cast and all five Talismans
+have bundled art.
+
+## Per-Sabbat Palettes And Full-Screen Images
+
+- **Per-sabbat festival palettes:** `PageVisualStyle.festivalStyle(accent:)`
+  recolors the Festival card by the celebration's accent (Samhain amber, Beltane
+  green, Yule candlelit, full moon violet, new moon slate, Litha gold).
+- **Tap-to-fullscreen:** the official **Quick Look** viewer
+  (`.quickLookPreview`) via the reusable `ImagePreview` helper + `imagePreviewOnTap`
+  modifier — tap any real image (portraits, illustration/illuminated pages, cast
+  photos, archive and Book-of-You thumbnails) to open it full-screen with system
+  pinch-zoom, swipe-to-dismiss, Done, and Share. Medallions/gradients are
+  correctly non-previewable.
 
 ## Characters And World Entities
 
@@ -932,7 +1274,9 @@ The app has several kinds of memory, each with a different job:
 - `SurfaceHistoryRecord` - what surfaced recently.
 - `BookArchiveResurfacing` records - return history.
 - `PlayerVaultData` - anchors, electives, Belief ledgers, tutor progress, owned
-  packs, surface history, and current arc.
+  packs, surface history, current arc, constellations, wagers, themes, Fae
+  standing (`fae`), Pact War control (`pactWar`), and the living relationship
+  field (`relationshipField`).
 - `ReEnchantedSaveFile` - complete portable export/import container.
 
 Memory is intentionally typed. Generated prose should be an expression of these
@@ -1006,6 +1350,8 @@ Generation services include:
 
 - Book of You braiding,
 - Ask the Book,
+- Dr. Inkrest's Office Hours counseling,
+- Fae Bargain responses (in each fae's voice),
 - Wonder Compass choice and mission generation,
 - Weather enchantment,
 - Story Page prose and result prose,
@@ -1022,6 +1368,15 @@ Most generated features have fake or resilient fallbacks. The app should stay
 usable when the model is missing, busy, unavailable, or returns malformed JSON.
 `JSONSalvage` exists to recover small-model JSON output without exposing raw
 braces to the reader.
+
+**Model calls are always user-initiated.** Every inference runs from an explicit
+button press (Keep, Ask, Knock on the door, Pay the bargain, Continue the scene,
+Open the edition, etc.) and off the main actor, so the loading animation never
+stutters. Ambient/automatic systems - the curator, `tendArc`/`tendFae`/
+`tendPact`/`tendConstellations`, surfacing, Fae offers, marginalia, loose pages,
+and Pact voices - are pure local logic and never call the model. (The lone
+background exception is `OvernightScribe`, which can pre-write a Story Page draft
+while charging.)
 
 ## Media And Visual Design
 
@@ -1103,6 +1458,8 @@ Network-facing or external data paths are specific:
 
 - optional USDA FoodData lookup for fuel estimates,
 - optional web/API research paths in faculty/research helpers,
+- system EventKit writes (Reminders/Calendar) only on explicit user action,
+- local notification scheduling via UserNotifications,
 - package resolution/build tooling during development,
 - StoreKit or dev unlock paths for packs when implemented.
 
@@ -1122,12 +1479,14 @@ Important app files:
 - `InsideCoverApp/BookSurfaceViews.swift` - surface cards, page rendering,
   visual style, backgrounds, onboarding, archive cards, animation.
 - `InsideCoverApp/CapturePageSheet.swift` - page opening/capture/generation UI
-  for capture, story, gossip, Ask, Compass, mission, enchantment, and photo
-  flows.
+  for capture, story, gossip, Ask, Compass, mission, enchantment, photo,
+  Dr. Inkrest's Office Hours, and Fae Bargain flows (and the Pact War framing
+  card / goblin marginalia shown on pages).
 - `InsideCoverApp/CapturePageSections.swift` - extracted sheet sections such as
   Chapter Binding, Anchor offers, electives, and support guild.
 - `InsideCoverApp/BookStatusCards.swift` - status cards, Glow menu, Belief UI,
-  lab/status displays.
+  lab/status displays, and the Fae/Pact hub sheets (`TheMarginSheet`,
+  `GoblinMarketSheet`, `PactMapSheet`).
 - `InsideCoverApp/LocalBrainServices.swift` - MLX/Gemma services, prompt
   builders, photo/Vision helpers, web/research helpers, and fallbacks.
 - `InsideCoverApp/BookDatabase.swift` - app wrapper over the shared archive.
@@ -1135,7 +1494,11 @@ Important app files:
 - `InsideCoverApp/CustomCastMemberSheet.swift` - custom cast creation UI.
 - `InsideCoverApp/BookShopSheet.swift` - pack/shop UI.
 - `InsideCoverApp/AppSupport.swift` - haptics, quips, location/weather/body
-  readers, nutrition support, and cross-cutting helpers.
+  readers, nutrition support, the `GenerationCoordinator` and `PlayerVault`,
+  scheduled notifications (`BookWhispers`, recolored by the Pact War's Whisper
+  Channel controller; `BookWhisperPresenter` for foreground display), real-world
+  writing (`EventKitWriter` for Reminders/Calendar), the `OvernightScribe`, and
+  cross-cutting helpers.
 - `InsideCoverApp/MonthlyEditionPDF.swift` - PDF rendering for monthly editions.
 
 ## Shared Core Files
@@ -1148,11 +1511,18 @@ Important shared files:
 - `Shared/SurfaceAndCurator.swift` - curation, readiness, action routing,
   work-blocking, surface history, and recovery state.
 - `Shared/NarrativeCore.swift` - entities, threads, relationships, story field,
-  events, memories, talismans, arcs, story packets, letters, gossip.
+  events, memories, talismans, arcs, story packets, letters, gossip, the living
+  relationship field (`RelationshipTie`, `RelationshipFieldEngine`, the dynamic
+  Loom), and the dynamic disagreement engine (`DisagreementEngine`).
 - `Shared/StoryEngine.swift` - story-generation contracts, scene/result
-  packets, mission logic, writer protocols.
+  packets, mission logic, writer protocols, gossip simulation (incl. Belief
+  combat and `GossipRelationshipMove`), the letter generator and cross-letter
+  memory.
 - `Shared/WorldSystems.swift` - body/weather signals, moon phase, anchors,
-  location math, scheduling/world helpers.
+  location math, scheduling/world helpers, the Academy Chapters and Chapter
+  Binding oracle, the Book Fae economy (bargains, gifts, market, marginalia),
+  the Pact War (territories, engine, effects, voices), the Almanac (Wheel of the
+  Year + esbats), and the returning-greeting composer.
 - `Shared/InsideCoverState.swift` - remaining app state models and archive
   export structures.
 - `Shared/InsideCoverStore.swift` - store/load, local model management,
@@ -1189,7 +1559,18 @@ Coverage areas include:
 - margins atlas layout,
 - literary continuity and Book Notices,
 - packs, entitlements, welcome/help behavior,
-- weather, moon, body/fuel helpers, anchors, playful missions.
+- weather, moon, body/fuel helpers, anchors, playful missions,
+- Dr. Inkrest's Office Hours (window, rotating prompts, adapter),
+- the Fae economy (bargains, gifts, lapse/repair, market, marginalia),
+- the Pact War (tiers, controller, tick, alignment, shelf/door voice effects,
+  dispatches, Sovereign automation, next-new-moon),
+- the Almanac (sabbats, esbats, hemisphere flip, grey shift, surface boosts,
+  festival adapter),
+- the returning greeting composer,
+- The Two Readings (dynamic disagreement engine, adapter, siding effects),
+- cross-letter memory,
+- the living relationship field (weave, emergent/cooled Loom threads) and gossip
+  Belief moves.
 
 Common test command:
 
@@ -1239,16 +1620,31 @@ Practical rules:
 
 ## Current Direction
 
-The app has enough page families. The next high-value work is deepening:
+Recently shipped (and now load-bearing): the **Book Fae** and their bargains,
+the **Pact War** (both fronts, dispatches, Sovereign automation, door voices),
+the **Almanac** (Wheel of the Year + esbats, with Belief/Nothing/curation/Fae and
+real-world bleed effects), the **returning greeting**, the continuity **cache**
+(freeze fix), **The Two Readings** with reader-sided consequences, **cross-letter
+memory**, and the **living relationship field** (gossip Belief moves + an evolving
+Loom). Notifications are visible, and the world can write Reminders and Calendar
+events on request.
 
-- stronger Book Notices,
-- better Belief life-cycle pages,
-- richer Book Remembered returns,
-- character disagreement and cross-letter memory,
-- more useful Margins Atlas constellations,
-- monthly edition layout polish,
-- annual Volume I built from accumulated monthly/archive artifacts,
-- seasonal mythology over longer histories.
+The system spine is now a real **narrative simulation**: play creates events,
+events reshape Belief, the relationship field, the Pact War, and the Fae economy;
+those feed back into what surfaces and how the cast speaks; and the Almanac turns
+the whole thing with the real sky and seasons.
 
-The destination is a reader-held volume: a year of ordinary life bound into a
-fairy story that was not generated in one shot, but accumulated page by page.
+Open directions worth pursuing next:
+
+- **Two invariants to protect** in all new work: every local-model call stays
+  user-initiated, and nothing heavy runs on a rendered view (read cached state).
+- richer Book Remembered returns and Belief life-cycle pages,
+- per-sabbat festival palettes and bundled-character portraits on Cast pages,
+- the Wheel woven into monthly/annual editions as a recurring structure,
+- character portraits and relationship shifts surfaced inside letters,
+- an annual **Volume I** bound from accumulated monthly/archive artifacts,
+- eclipses and rarer astronomical events in the Almanac.
+
+The destination is a reader-held volume - a year of ordinary life bound into a
+fairy story accumulated page by page - and a living world whose Fae, Talismans,
+and turning Wheel reach gently off the screen into the reader's real days.

@@ -91,6 +91,7 @@ struct SearchTheStacksSheet: View {
                     .lineLimit(1...2)
                     .focused($searchFocused)
                     .submitLabel(.search)
+                    .dictationInput(text: $query)
                 if !query.isEmpty {
                     Button {
                         query = ""

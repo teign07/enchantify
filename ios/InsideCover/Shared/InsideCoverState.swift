@@ -329,6 +329,31 @@ enum GossipSimulationActionKind: String, Codable, Equatable, CaseIterable {
     }
 }
 
+enum GossipRelationshipMoveKind: String, Codable, Equatable {
+    case invest   // the actor talks the target up — warms the thread between them
+    case attack   // the actor undermines the target — tenses the thread between them
+}
+
+/// A character-to-character Belief move during gossip: one actor invests in or
+/// attacks another, shifting that target's Belief and the relationship field.
+struct GossipRelationshipMove: Codable, Equatable {
+    var actorID: String
+    var actorName: String
+    var targetID: String
+    var targetName: String
+    var kind: GossipRelationshipMoveKind
+    var amount: Int
+
+    var token: String { "\(actorID)>\(targetID):\(kind.rawValue):\(amount)" }
+
+    var promptLine: String {
+        switch kind {
+        case .invest: return "\(actorName) quietly talks up \(targetName) — investing Belief in them."
+        case .attack: return "\(actorName) undercuts \(targetName) — chipping at their Belief."
+        }
+    }
+}
+
 struct GossipSimulationTurn: Codable, Equatable {
     var id: String
     var actorID: String
@@ -343,6 +368,7 @@ struct GossipSimulationTurn: Codable, Equatable {
     var tags: [String]
     var beliefCombat: BeliefCombatResult?
     var chapterTalismanMove: ChapterTalismanBeliefMove?
+    var relationshipMove: GossipRelationshipMove?
 }
 
 enum ContentPackAvailability: String, Codable, Equatable {
@@ -1506,7 +1532,10 @@ struct CuratorSurfacePreferences: Equatable {
     }
 
     func allows(_ page: SurfacePage) -> Bool {
-        !dismissedSurfaceIDs.contains(page.id) && !disabledSourceIDs.contains(page.sourceID)
+        !dismissedSurfaceIDs.contains(page.id)
+            && !dismissedSurfaceIDs.contains(page.varietyKey)
+            && !dismissedSurfaceIDs.contains("source:\(page.sourceID)")
+            && !disabledSourceIDs.contains(page.sourceID)
     }
 
     func adjustedScore(for page: SurfacePage) -> Int {

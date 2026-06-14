@@ -199,7 +199,6 @@ enum SelfKnowledgePackRegistry {
     }
 
     private static let coreQuestions: [AboutYouQuestion] = [
-        question("called", "What do you like to be called?", "The Book would rather learn your name than guess at you.", "A name, nickname, or whatever feels like yours.", .identity, .quoteAllowed, ["name", "identity"], 100),
         question("home-place", "Where do you call home?", "A place can be true without being precise.", "A town, coast, room, region, or kind of place.", .comfort, .privateContext, ["home", "place"], 88),
         question("home-meaning", "What does home mean to you?", "Not the address. The feeling the Book should recognize.", "Safety, noise, chosen people, a porch light...", .comfort, .storyOnly, ["home", "meaning"], 84),
         question("favorite-color", "What color keeps finding you?", "The Book can tint future pages with a little more you in them.", "Blue, moss green, marigold, storm gray...", .delight, .privateContext, ["color", "delight"], 78),
@@ -402,6 +401,15 @@ enum BookReferenceCatalog {
     }
 
     static let bundledCharacterIllustrationAssetNames: Set<String> = [
+        "LabyrinthCharacterDrElowenVellum",
+        "LabyrinthCharacterGwendolynMythwright",
+        "LabyrinthCharacterSorenNg",
+        "LabyrinthCharacterLydiaBoggle",
+        "LabyrinthTalismanEmberSeal",
+        "LabyrinthTalismanMossClasp",
+        "LabyrinthTalismanTideGlass",
+        "LabyrinthTalismanWindCipher",
+        "LabyrinthTalismanDuskThorn",
         "LabyrinthCharacterDrSeleneInkrest",
         "LabyrinthCharacterHeadmistressSeraphinaThorne",
         "LabyrinthCharacterOrionBlackthorn",
@@ -452,6 +460,30 @@ enum BookReferenceCatalog {
                 "jewel-color swatches: ink black, old silver, star-gold"
             ],
             tags: ["canonical", "character", "duskthorn", "illustration"]
+        ),
+        CharacterIllustrationProfile(
+            id: "vesper-thorne",
+            characterName: "Vesper Thorne",
+            slug: "vesper-thorne",
+            status: "canonical",
+            chapter: "Duskthorn",
+            core: "Duskthorn Enchantment Guardian; safeguards honesty, boundaries, and necessary friction; clear expressive eyes and a memorable silhouette",
+            signature: "a blackthorn ward-pin",
+            palette: "black violet, thorn green, tarnished silver",
+            silhouette: "still posture; one hand near the ward-pin",
+            continuity: "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+            avoid: "generic anime face, room-first composition, inconsistent signature object, polished digital fantasy portrait",
+            assetName: "LabyrinthCharacterVesperThorne",
+            intendedAssetName: "LabyrinthCharacterVesperThorne",
+            prompt: "Create an Enchantify Academy character dossier illustration in sparse graphite and ink, watercolor washes, black-violet jewel accents, and Duskthorn parchment marginalia.",
+            negativePrompt: "Avoid generic fantasy pinup, glossy anime, polished digital fantasy portrait, and inconsistent signature object.",
+            marginalia: [
+                "file tab labeled Vesper Thorne",
+                "signature evidence: a blackthorn ward-pin",
+                "jewel-color swatches: black violet, thorn green, tarnished silver",
+                "chapter mark: Duskthorn"
+            ],
+            tags: ["canonical", "character", "duskthorn", "illustration", "vesper-thorne"]
         )
     ]
 
@@ -1014,5 +1046,49 @@ struct QuipPageSourceAdapter: BookPageSourceAdapter {
                 ]
             )
         )
+    }
+}
+
+/// Resolves a character (by display name) to its official illustration profile —
+/// the bundled portrait asset when one exists, and always the described palette,
+/// signature, and core so a themed medallion can stand in where art doesn't yet.
+enum CharacterPortrait {
+    static func profile(forName name: String) -> CharacterIllustrationProfile? {
+        let target = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !target.isEmpty else { return nil }
+        return BookReferenceCatalog.characterIllustrations.first {
+            $0.characterName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == target
+        }
+    }
+
+    /// The asset name this character's art *would* use. The view checks whether
+    /// that image actually exists in the catalog — so dropping a generated PNG in
+    /// is the only step needed to light up a portrait, no Swift edits.
+    static func intendedAssetName(forName name: String) -> String? {
+        guard let profile = profile(forName: name) else { return nil }
+        return profile.assetName?.nonEmpty ?? profile.intendedAssetName.nonEmpty
+    }
+
+    /// The bundled image asset for this character, or nil if only a description
+    /// exists (use the medallion fallback then).
+    static func bundledAssetName(forName name: String) -> String? {
+        guard let profile = profile(forName: name) else { return nil }
+        let asset = profile.assetName?.nonEmpty ?? profile.intendedAssetName
+        return BookReferenceCatalog.bundledCharacterIllustrationAssetNames.contains(asset) ? asset : nil
+    }
+
+    /// The character's official palette words (e.g. "ink black, old silver"),
+    /// for tinting a fallback medallion.
+    static func paletteWords(forName name: String) -> [String] {
+        (profile(forName: name)?.palette ?? "")
+            .split(whereSeparator: { $0 == "," || $0 == ";" })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+    }
+
+    static func initials(forName name: String) -> String {
+        let parts = name.split(separator: " ").filter { !$0.isEmpty }
+        let letters = parts.prefix(2).compactMap { $0.first }
+        return String(letters).uppercased()
     }
 }

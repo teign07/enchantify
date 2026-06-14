@@ -219,8 +219,7 @@ struct MLXBookBraider: Braider {
         let prompt: String
         switch mode {
         case .bookOfYou:
-            let recentBraids = await MainActor.run { Self.recentBraidTexts(excludingDayID: day.id) }
-            prompt = LocalModelManager.bookOfYouBraidPrompt(for: day, recentBraids: recentBraids)
+            prompt = LocalModelManager.bookOfYouBraidPrompt(for: day, recentBraids: [])
         case .task:
             prompt = LocalModelManager.taskPrompt(for: day)
         }
@@ -282,11 +281,11 @@ struct MLXBookBraider: Braider {
     You are The Book inside ReEnchanted. You braid kept private real-life pages into a grounded, literary Book of You entry.
     Use only the supplied kept pages. Do not diagnose, moralize, invent completed actions, or speak as a generic assistant.
     Write a small narrative with a beginning, a turn, and a landing. Do not list. Do not copy long phrases back verbatim.
-    Keep the braid to 4 to 7 short paragraphs, about 280 to 450 words. It should feel like a full page of the Book without becoming a scroll chore.
+    Keep the braid to 4 to 7 paragraphs, about 280 to 450 words. It should feel like a full page of the Book without becoming a scroll chore.
     Mention each motif, image, sentence idea, or emotional beat only once.
     Do not restate the same idea in consecutive paragraphs with swapped words.
     Keep it warm, vivid, playful, and true.
-    Prose standard: simple concrete sentences, specific nouns and verbs, one exact physical detail per paragraph. No vague wonder, generic inspiration, journey, profound, tapestry, echoes, or abstract emotional summary.
+    Prose standard: varied literary cadence. Mix short, surprising, concrete sentences with longer, flowing sentences that turn once or twice before landing. Use specific nouns and verbs, one exact physical detail per paragraph, and a voice that feels mythic, intimate, lucid, and plainspoken rather than clipped. No vague wonder, generic inspiration, journey, profound, tapestry, echoes, or abstract emotional summary.
     """
 
     static let weatherInstructions = """
@@ -411,6 +410,107 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
                         maxTokens: maxTokens,
                         maxKVSize: 2_048,
                         temperature: 0.72,
+                        topP: 0.92,
+                        prefillStepSize: 256
+                    )
+                )
+                return try await session.respond(to: taskPrompt)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        guard !response.isEmpty else {
+            throw LocalModelError.missingModel(LocalModelManager.report())
+        }
+        return response
+    }
+}
+
+struct MLXFaeBargainResponder: FaeBargainResponding {
+    var maxTokens = 420
+
+    func respond(bargain: FaeBargain, report: String, mood: GoblinMood, day: BookDay) async throws -> String {
+        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
+            throw LocalModelError.missingModel(LocalModelManager.report())
+        }
+
+        let taskPrompt = LocalModelManager.faeBargainResponsePrompt(
+            bargain: bargain,
+            report: report,
+            mood: mood,
+            day: day
+        )
+
+        let response = try await LocalBrainInferenceGate.shared.run(
+            label: "fae-bargain-\(bargain.faeKind.rawValue)",
+            promptCharacters: taskPrompt.count,
+            presentation: .live
+        ) {
+            try await Device.withDefaultDevice(.gpu) {
+                let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
+                let session = ChatSession(
+                    container,
+                    instructions: """
+                    You are a Book Fae inside ReEnchanted — born from the ink, starving for the world of matter. Speak only in voice as the named fae. Receive the reader's field report and give a true, strange lore fragment in return. Never speak as a generic assistant.
+                    """,
+                    generateParameters: GenerateParameters(
+                        maxTokens: maxTokens,
+                        maxKVSize: 2_048,
+                        temperature: 0.82,
+                        topP: 0.93,
+                        prefillStepSize: 256
+                    )
+                )
+                return try await session.respond(to: taskPrompt)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        guard !response.isEmpty else {
+            throw LocalModelError.missingModel(LocalModelManager.report())
+        }
+        return response
+    }
+}
+
+struct MLXInkrestOfficeHoursCounselor: InkrestOfficeHoursCounseling {
+    var maxTokens = 460
+
+    func reply(
+        intake: InkrestIntake,
+        day: BookDay,
+        previousTurns: [AskTheBookTurn],
+        userMessage: String,
+        isClosing: Bool
+    ) async throws -> String {
+        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
+            throw LocalModelError.missingModel(LocalModelManager.report())
+        }
+
+        let taskPrompt = LocalModelManager.inkrestOfficeHoursPrompt(
+            intake: intake,
+            day: day,
+            previousTurns: previousTurns,
+            userMessage: userMessage,
+            isClosing: isClosing
+        )
+
+        let response = try await LocalBrainInferenceGate.shared.run(
+            label: "inkrest-office-hours",
+            promptCharacters: taskPrompt.count,
+            presentation: .live
+        ) {
+            try await Device.withDefaultDevice(.gpu) {
+                let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
+                let session = ChatSession(
+                    container,
+                    instructions: """
+                    You are Dr. Selene Inkrest, the Academy's narrative therapist inside ReEnchanted. Warm, curious, unhurried, faintly otherworldly. Reply in plain kind sentences, no lists or headings, never as a generic assistant.
+                    """,
+                    generateParameters: GenerateParameters(
+                        maxTokens: maxTokens,
+                        maxKVSize: 2_048,
+                        temperature: 0.7,
                         topP: 0.92,
                         prefillStepSize: 256
                     )

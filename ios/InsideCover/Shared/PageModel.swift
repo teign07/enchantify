@@ -25,6 +25,12 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case castMember
     case bookOfYou
     case askTheBook
+    case inkrestOfficeHours
+    case faeBargain
+    case pactDispatch
+    case festival
+    case twoReadings
+    case castBond
     case enchantment
     case anchor
     case academyClass
@@ -89,6 +95,18 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Book of You"
         case .askTheBook:
             return "Ask the Book"
+        case .inkrestOfficeHours:
+            return "Dr. Inkrest's Office Hours"
+        case .faeBargain:
+            return "A Fae Bargain"
+        case .pactDispatch:
+            return "A Pact Dispatch"
+        case .festival:
+            return "A Festival of the Wheel"
+        case .twoReadings:
+            return "The Two Readings"
+        case .castBond:
+            return "A Turn in the Cast"
         case .enchantment:
             return "Cast an Enchantment"
         case .anchor:
@@ -100,7 +118,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .packPage:
             return "Pack Page"
         case .calendar:
-            return "The Inked Hour"
+            return "Hour Page"
         case .helpTips:
             return "Help and Tips"
         case .welcome:
@@ -166,6 +184,18 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Braid"
         case .askTheBook:
             return "Ask"
+        case .inkrestOfficeHours:
+            return "Office Hours"
+        case .faeBargain:
+            return "Bargain"
+        case .pactDispatch:
+            return "Dispatch"
+        case .festival:
+            return "Festival"
+        case .twoReadings:
+            return "Readings"
+        case .castBond:
+            return "Cast"
         case .enchantment:
             return "Spell"
         case .anchor:
@@ -243,6 +273,18 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "book.closed"
         case .askTheBook:
             return "text.bubble"
+        case .inkrestOfficeHours:
+            return "lamp.desk"
+        case .faeBargain:
+            return "hands.sparkles"
+        case .pactDispatch:
+            return "flag.2.crossed"
+        case .festival:
+            return "moon.stars.fill"
+        case .twoReadings:
+            return "person.2.fill"
+        case .castBond:
+            return "person.2.wave.2"
         case .enchantment:
             return "wand.and.sparkles"
         case .anchor:
@@ -551,6 +593,78 @@ enum BookPageSourceRegistry {
             note: "Vellum and Inkrest compare charts."
         ),
         BookPageSource(
+            id: "inkrest-office-hours",
+            type: .inkrestOfficeHours,
+            title: "Dr. Inkrest's Office Hours",
+            shortTitle: "Office Hours",
+            symbolName: "lamp.desk",
+            origin: .generated,
+            privacy: .localSensitive,
+            isActive: true,
+            cadence: "evening",
+            note: "A short, distilled narrative-therapy sitting with Dr. Inkrest."
+        ),
+        BookPageSource(
+            id: "fae-bargain",
+            type: .faeBargain,
+            title: "A Fae Bargain",
+            shortTitle: "Bargain",
+            symbolName: "hands.sparkles",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "fae",
+            note: "A Book Fae gave first. Now a sensory return is owed."
+        ),
+        BookPageSource(
+            id: "pact-dispatch",
+            type: .pactDispatch,
+            title: "A Pact Dispatch",
+            shortTitle: "Dispatch",
+            symbolName: "flag.2.crossed",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "pact",
+            note: "Word from the Pact War: a shelf or door has changed hands."
+        ),
+        BookPageSource(
+            id: "festival",
+            type: .festival,
+            title: "A Festival of the Wheel",
+            shortTitle: "Festival",
+            symbolName: "moon.stars.fill",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "almanac",
+            note: "A sabbat, a full moon, or a falling-star night — the world is keeping a feast."
+        ),
+        BookPageSource(
+            id: "two-readings",
+            type: .twoReadings,
+            title: "The Two Readings",
+            shortTitle: "Readings",
+            symbolName: "person.2.fill",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "responsive",
+            note: "Two of the cast read your recent pages differently. You decide."
+        ),
+        BookPageSource(
+            id: "cast-bond",
+            type: .castBond,
+            title: "A Turn in the Cast",
+            shortTitle: "Cast",
+            symbolName: "person.2.wave.2",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "emergent",
+            note: "The web shifted on its own: a rivalry erupted, or an alliance formed."
+        ),
+        BookPageSource(
             id: "faculty-research",
             type: .facultyResearch,
             title: "Faculty Research Notes",
@@ -755,6 +869,18 @@ enum BookPageSourceRegistry {
             note: "The Labyrinth of Stories introduces itself and the daily loop."
         ),
         BookPageSource(
+            id: "local-brain-awake",
+            type: .welcome,
+            title: "The Book Thinks Again",
+            shortTitle: "Awake",
+            symbolName: "brain.head.profile",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "after local brain install",
+            note: "The Book notices when its local brain is installed and speaks with relief."
+        ),
+        BookPageSource(
             id: "pack-page",
             type: .packPage,
             title: "Installed Page Packs",
@@ -804,12 +930,22 @@ enum BookPageSourceRegistry {
         switch source.type {
         case .mood, .fuel:
             return 36
-        case .body, .supportGuild, .bookOfYou:
+        case .body, .supportGuild, .bookOfYou, .inkrestOfficeHours:
             return 32
-        case .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .wonderCompass, .anchor, .welcome:
+        case .narrativeOS, .wonderCompass, .anchor, .welcome:
             return 30
-        case .diary, .souvenir, .askTheBook, .enchantment:
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices:
+            return 22
+        case .diary, .souvenir, .askTheBook, .enchantment, .faeBargain:
             return 28
+        case .pactDispatch:
+            return 26
+        case .festival:
+            return 34
+        case .twoReadings:
+            return 30
+        case .castBond:
+            return 30
         case .weather, .gossip, .facultyResearch, .letter, .academyClass, .elective:
             return 26
         case .theBleed:
@@ -829,16 +965,26 @@ enum BookPageSourceRegistry {
 
     static func narrativeWeight(for source: BookPageSource) -> Int {
         switch source.type {
-        case .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices:
+        case .narrativeOS:
             return 34
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices:
+            return 18
         case .mood, .fuel:
             return 30
         case .wonderCompass, .bookOfYou, .anchor, .welcome:
             return 28
-        case .body, .supportGuild:
+        case .body, .supportGuild, .inkrestOfficeHours:
             return 26
-        case .diary, .souvenir:
+        case .diary, .souvenir, .faeBargain:
             return 24
+        case .pactDispatch:
+            return 22
+        case .festival:
+            return 30
+        case .twoReadings:
+            return 26
+        case .castBond:
+            return 28
         case .weather, .gossip, .facultyResearch, .letter, .castMember, .askTheBook, .enchantment, .academyClass, .elective:
             return 22
         case .theBleed:
@@ -1020,7 +1166,14 @@ struct BookDay: Codable, Identifiable, Equatable {
     }
 
     var capturedPages: [BookPage] {
-        pages.filter { $0.type != .bookOfYou }
+        let calendar = Calendar.current
+        let start = Self.startDate(for: id, fallback: date, calendar: calendar)
+        let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400)
+        return pages.filter { page in
+            page.type != .bookOfYou
+                && page.createdAt >= start
+                && page.createdAt < end
+        }
     }
 
     static func today(calendar: Calendar = .current) -> BookDay {
@@ -1035,5 +1188,14 @@ struct BookDay: Codable, Identifiable, Equatable {
     static func id(for date: Date, calendar: Calendar = .current) -> String {
         let comps = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", comps.year ?? 0, comps.month ?? 0, comps.day ?? 0)
+    }
+
+    private static func startDate(for id: String, fallback date: Date, calendar: Calendar = .current) -> Date {
+        let parts = id.split(separator: "-").compactMap { Int($0) }
+        if parts.count == 3,
+           let start = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])) {
+            return start
+        }
+        return calendar.startOfDay(for: date)
     }
 }

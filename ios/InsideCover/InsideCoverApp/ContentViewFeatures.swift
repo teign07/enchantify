@@ -167,6 +167,14 @@ extension ContentView {
             answer: result.belief,
             tags: ["belief", "core", "onboarding"]
         )
+        if !result.firstSouvenir.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-first-souvenir",
+                question: "What was the first true sentence you kept?",
+                answer: result.firstSouvenir,
+                tags: ["souvenir", "first-page", "onboarding"]
+            )
+        }
         if result.investedBelief, !result.belief.isEmpty {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
                 beliefScore = max(0, beliefScore - 3)
@@ -179,8 +187,9 @@ extension ContentView {
                 traits: ["planted", "core"],
                 beliefs: [result.belief],
                 goals: ["shape what finds the player here"],
-                tags: ["core-belief", "onboarding"],
-                imageData: nil
+                tags: ["core-belief", "onboarding", "belief-invested", "glow-bright"],
+                imageData: nil,
+                startingGlow: 34
             ))
         }
         statusMessage = result.name.isEmpty
@@ -229,7 +238,7 @@ extension ContentView {
         electiveLedgerData = encoded
         surfaceRefreshDate = Date()
         rebuildSurfaceCache()
-        BookWhispers.refreshSchedule(enabled: bookWhispersEnabled, electives: list)
+        BookWhispers.refreshSchedule(enabled: bookWhispersEnabled, electives: list, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisperToday)
     }
 
 
@@ -792,7 +801,7 @@ extension ContentView {
         guard let chapter = AcademyChapterRegistry.chapter(id: chapterID) else { return }
         saveOnboardingFact(
             questionID: "chapter-binding",
-            question: "Which Chapter holds your way of believing?",
+            question: "Which Chapter did the Binding recognize?",
             answer: chapter.name,
             tags: ["chapter", "identity", "binding", chapter.id]
         )
@@ -857,6 +866,85 @@ extension ContentView {
     }
 
     @MainActor
+    func twoReadingsSurfaceWithProse(from base: SurfacePage) async -> SurfacePage {
+        let metadata = base.payload.metadata
+        let aName = metadata["entityAName"] ?? "One reader"
+        let bName = metadata["entityBName"] ?? "Another reader"
+        let fallback = Self.twoReadingsFallbackBody(metadata: metadata, aName: aName, bName: bName)
+        return await generatedProseSurface(
+            from: base,
+            proseKey: "twoReadingsProse",
+            prompt: LocalModelManager.twoReadingsPrompt(surface: base, day: today),
+            instructions: """
+            You are the Labyrinth staging a disagreement between two cast members inside ReEnchanted. Prose only, no headings. Both positions must be fair; end by leaving the choice to the reader.
+            """,
+            maxTokens: 620,
+            sourceID: "two-readings",
+            tags: ["two-readings", "entity:\(metadata["entityAID"] ?? "")", "entity:\(metadata["entityBID"] ?? "")"],
+            fallbackBody: fallback
+        )
+    }
+
+    static func twoReadingsFallbackBody(metadata: [String: String], aName: String, bName: String) -> String {
+        let aProfile = metadata["entityAProfile"]?.nonEmpty ?? aName
+        let bProfile = metadata["entityBProfile"]?.nonEmpty ?? bName
+        let note = metadata["relationshipNote"]?.nonEmpty
+
+        let aStance = stanceLine(for: aProfile, name: aName, fallback: "the pages are asking for care before interpretation")
+        let bStance = stanceLine(for: bProfile, name: bName, fallback: "the pages are asking for movement before certainty")
+        let bridge = note.map { "\n\nBetween them, the old thread hums: \($0)" } ?? ""
+
+        return """
+        \(aName) and \(bName) read the same recent pages and did not come back with the same weather in their hands.
+
+        \(aName) says \(aStance). Not as a verdict. As a lantern held close to the ink.
+
+        \(bName) says \(bStance). Not because \(aName) is wrong, exactly, but because another truth is standing at the edge of the same sentence.\(bridge)
+
+        The Book will not settle this. It only places both readings in the margin and waits to see which one you keep closer.
+        """
+    }
+
+    private static func stanceLine(for profile: String, name: String, fallback: String) -> String {
+        let lower = profile.lowercased()
+        if lower.contains("rest") || lower.contains("body") || lower.contains("care") || lower.contains("sleep") {
+            return "the body is not background; it is part of the story, and it may be speaking first"
+        }
+        if lower.contains("pattern") || lower.contains("evidence") || lower.contains("notice") || lower.contains("record") {
+            return "the pattern matters; one page is a moment, but repeated ink is beginning to behave like a map"
+        }
+        if lower.contains("wonder") || lower.contains("play") || lower.contains("curiosity") || lower.contains("adventure") {
+            return "the important thing may be the little door that opened, not the reason it opened"
+        }
+        if lower.contains("protect") || lower.contains("boundary") || lower.contains("truth") || lower.contains("honest") {
+            return "the honest edge of the page should not be softened until it disappears"
+        }
+        if lower.contains("chapter") || lower.contains("belief") {
+            return "this belongs to the larger chapter, and the larger chapter is asking to be named"
+        }
+        return "\(fallback), at least as \(name) reads it"
+    }
+
+    @MainActor
+    func castBondSurfaceWithProse(from base: SurfacePage) async -> SurfacePage {
+        let metadata = base.payload.metadata
+        let aName = metadata["entityAName"] ?? "One character"
+        let bName = metadata["entityBName"] ?? "Another character"
+        let kind = metadata["bondKind"] ?? "alliance"
+        return await generatedProseSurface(
+            from: base,
+            proseKey: "castBondProse",
+            prompt: LocalModelManager.castBondPrompt(surface: base, day: today),
+            instructions: """
+            You are the Labyrinth staging an emergent relationship beat inside ReEnchanted. Prose only, no headings. The relationship milestone must become visible as a scene.
+            """,
+            maxTokens: 620,
+            sourceID: "cast-bond",
+            tags: ["cast-bond", kind, "entity:\(metadata["entityAID"] ?? "")", "entity:\(metadata["entityBID"] ?? "")"],
+            fallbackBody: "\(aName) and \(bName) crossed a \(kind) threshold in the Loom. The Book saw the thread change color, and from then on the web no longer treated them as strangers."
+        )
+    }
+
     func supportGuildSurfaceWithProse(from base: SurfacePage) async -> SurfacePage {
         await generatedProseSurface(
             from: base,

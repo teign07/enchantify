@@ -30,9 +30,10 @@ struct BraidRecoveryState: Codable, Equatable {
 
     static func dayByMarkingCapturedPagesUsed(_ day: BookDay, braid: BookPage) -> BookDay {
         var updatedDay = day
+        let capturedIDs = Set(day.capturedPages.map(\.id))
         updatedDay.pages = updatedDay.pages.map { page in
             var updated = page
-            if updated.type != .bookOfYou {
+            if capturedIDs.contains(updated.id) {
                 updated.usedInBookOfYou = true
             }
             return updated
@@ -349,8 +350,18 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .rest
         case .bookOfYou:
             return .braid
-        case .askTheBook, .anchor:
+        case .askTheBook, .anchor, .inkrestOfficeHours:
             return .reflect
+        case .faeBargain:
+            return .capture
+        case .pactDispatch:
+            return .importReference
+        case .festival:
+            return .capture
+        case .twoReadings:
+            return .reflect
+        case .castBond:
+            return .importReference
         case .body, .fuel, .facultyResearch, .supportGuild, .weather, .letter, .academyClass, .bookConnections, .bookNotices, .theBleed:
             return .reflect
         case .elective:
@@ -570,13 +581,32 @@ enum BookCurator {
         let candidates = BookPageSourceAdapters.active.flatMap { adapter in
             adapter.candidates(for: day, context: context, inputs: inputs, now: now)
         }
-        return rankedPages(
+        var picked = rankedPages(
             from: candidates,
             limit: limit,
             preferences: preferences,
             mood: CuratorMood.make(inputs: inputs, distressActive: context.distress.isActive, now: now),
             now: now
         ).map(\.page)
+
+        // Sovereign automation: a Talisman that reigns over a shelf acts unasked
+        // — guarantee one of its pages a slot if the feed didn't already pick one
+        // and the day isn't hard. Pure surfacing; no model call.
+        let sovereignTypes = PactWarEffects.sovereignShelfPageTypes(state: inputs.pactWar)
+        if !sovereignTypes.isEmpty,
+           !context.distress.isActive,
+           !picked.contains(where: { sovereignTypes.contains($0.type) }),
+           let inject = candidates.first(where: { candidate in
+               sovereignTypes.contains(candidate.type) && !picked.contains(where: { $0.id == candidate.id })
+           }) {
+            if picked.isEmpty {
+                picked = [inject]
+            } else {
+                picked[picked.count - 1] = inject
+            }
+        }
+
+        return picked.map { PactWarEffects.framed($0, state: inputs.pactWar) }
     }
 
     static func rankedPages(
@@ -639,6 +669,7 @@ struct CalendarEventSignal: Codable, Equatable, Identifiable {
     var id: String
     var title: String
     var startsAt: Date
+    var endsAt: Date? = nil
     var isAllDay: Bool
 }
 
@@ -646,6 +677,7 @@ extension SurfacePage {
     /// What "the same page again" means to a reader: the content identity,
     /// not the surface id (which changes every slot).
     var varietyKey: String {
+        if let id = payload.metadata["pairID"]?.nonEmpty { return "tworeadings:\(id)" }
         if let id = payload.metadata["entityID"]?.nonEmpty { return "cast:\(id)" }
         if let id = payload.metadata["snippetID"]?.nonEmpty { return "snippet:\(id)" }
         if let id = payload.metadata["quipID"]?.nonEmpty { return "quip:\(id)" }
@@ -801,6 +833,9 @@ struct CuratorMood {
     var minutesToNextCalendarEvent: Int?
     var distressActive: Bool = false
     var greyLevel: Int = 0
+    var reshelvedSourceIDs: Set<String> = []
+    var pactWar: PactWarState = PactWarState()
+    var almanacBoosts: [BookPageType: Int] = [:]
 
     static let neutral = CuratorMood()
 
@@ -822,8 +857,16 @@ struct CuratorMood {
             greyLevel: NothingTide.greyLevel(
                 quietDays: inputs.quietDays,
                 narrativeHeat: recentEvents,
-                distressActive: distressActive
-            )
+                distressActive: distressActive,
+                celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: inputs.hemisphere)
+            ),
+            reshelvedSourceIDs: FaeGiftEffects.reshelvedSourceIDs(
+                state: inputs.faeState,
+                surfaceHistory: inputs.surfaceHistory,
+                now: now
+            ),
+            pactWar: inputs.pactWar,
+            almanacBoosts: Almanac.surfaceBoosts(on: now, hemisphere: inputs.hemisphere)
         )
     }
 
@@ -835,10 +878,22 @@ struct CuratorMood {
         }
         var delta = CuratorTimeAffinity.boost(for: page.type, at: now)
         delta -= CuratorVarietyGovernor.fatiguePenalty(forKey: page.varietyKey, history: surfaceHistory, now: now)
+        delta -= quietReflectionPenalty(for: page, now: now)
+
+        // A warm Reshelving gift pulls one resting kind of page back to the front.
+        if reshelvedSourceIDs.contains(page.sourceID) {
+            delta += 16
+        }
+
+        // A Talisman that holds a shelf (Controlled+) shapes its timing.
+        delta += PactWarEffects.shelfBoost(for: page.type, state: pactWar)
+
+        // The Almanac leans the feast's themes forward.
+        delta += almanacBoosts[page.type] ?? 0
 
         // Narrative heat: a field full of fresh events favors story-bearing
         // pages; a cold field favors pages that gather new material.
-        let storyBearing: Set<BookPageType> = [.narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .gossip, .letter, .castMember, .supportGuild]
+        let storyBearing: Set<BookPageType> = [.narrativeOS, .gossip, .letter, .castMember, .supportGuild]
         let materialGathering: Set<BookPageType> = [.diary, .mood, .aboutYou, .souvenir]
         if narrativeHeat >= 6, storyBearing.contains(page.type) {
             delta += min(8, narrativeHeat / 2)
@@ -874,5 +929,26 @@ struct CuratorMood {
             }
         }
         return delta
+    }
+
+    private func quietReflectionPenalty(for page: SurfacePage, now: Date) -> Int {
+        let quietTypes: Set<BookPageType> = [.marginsAtlas, .bookConnections, .bookRemembered, .bookNotices]
+        guard quietTypes.contains(page.type) else { return 0 }
+
+        var penalty = 4
+        let sourceKeys = ["source:\(page.sourceID)", page.varietyKey]
+        let recentRecords = sourceKeys.compactMap { surfaceHistory[$0] }
+        let recentHours = recentRecords.map { now.timeIntervalSince($0.lastShownAt) / 3600 }
+        if recentHours.contains(where: { $0 < 24 }) {
+            penalty += 24
+        } else if recentHours.contains(where: { $0 < 72 }) {
+            penalty += 14
+        } else if recentHours.contains(where: { $0 < 168 }) {
+            penalty += 6
+        }
+        if recentRecords.contains(where: { $0.recentShowCount >= 2 }) {
+            penalty += 8
+        }
+        return penalty
     }
 }

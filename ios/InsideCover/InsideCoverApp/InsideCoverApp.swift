@@ -6,6 +6,7 @@ struct InsideCoverApp: App {
 
     init() {
         OvernightScribe.register()
+        BookWhispers.configureForegroundPresentation()
     }
 
     var body: some Scene {
