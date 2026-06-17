@@ -78,93 +78,93 @@ enum RadioStationRegistry {
 
     static let coreStations: [RadioStation] = [
         RadioStation(
-            id: "scriptorium-desk",
-            title: "The Scriptorium Desk",
-            frequency: 94.1,
-            subtitle: "Focus, archives, lamps, pencils, and the sound of work becoming possible.",
-            hostEntityID: "penny-blackletter",
-            packID: nil,
-            unlockRule: "core",
-            moodTags: ["focus", "archive", "writing", "desk", "memory"],
-            signalLine: "The signal smells faintly of cedar drawers and warm paper.",
-            tracks: [
-                RadioTrack(
-                    id: "scriptorium-lamp-hour",
-                    title: "Lamp Hour",
-                    artist: "The Scriptorium Desk",
-                    assetName: "RadioScriptoriumLampHour",
-                    durationSeconds: nil,
-                    moodTags: ["focus", "archive"]
-                )
-            ],
-            interludeTitles: [
-                "Penny reads the index of lost useful things.",
-                "A page turns somewhere behind the wall."
-            ],
-            effects: [
-                RadioStationEffect(pageType: .diary, boost: 8, reason: "The Scriptorium Desk favors pages that gather the day."),
-                RadioStationEffect(pageType: .souvenir, boost: 8, reason: "The Scriptorium Desk sharpens one true sentence."),
-                RadioStationEffect(pageType: .bookRemembered, boost: 6, reason: "The archives hum louder while this station plays.")
-            ]
-        ),
-        RadioStation(
-            id: "inkrest-office",
-            title: "Dr. Inkrest's Office",
-            frequency: 101.5,
-            subtitle: "Low chairs, careful questions, rain on the tall windows, no hurry.",
-            hostEntityID: "dr-inkrest",
-            packID: nil,
-            unlockRule: "core",
-            moodTags: ["rest", "repair", "inner-weather", "office-hours"],
-            signalLine: "The static lowers its voice as if entering a room with someone asleep.",
-            tracks: [
-                RadioTrack(
-                    id: "inkrest-chair-by-rain",
-                    title: "Chair by Rain",
-                    artist: "Dr. Inkrest's Office",
-                    assetName: "RadioInkrestChairByRain",
-                    durationSeconds: nil,
-                    moodTags: ["rest", "repair"]
-                )
-            ],
-            interludeTitles: [
-                "A cup is set down on a saucer.",
-                "Someone writes the kinder version of a hard sentence."
-            ],
-            effects: [
-                RadioStationEffect(pageType: .rest, boost: 10, reason: "Inkrest's Office steadies the Book toward gentler pages."),
-                RadioStationEffect(pageType: .mood, boost: 7, reason: "Inkrest's Office listens for inner weather."),
-                RadioStationEffect(pageType: .inkrestOfficeHours, boost: 8, reason: "The office door is already half open.")
-            ]
-        ),
-        RadioStation(
-            id: "casement-static",
-            title: "The Casement Static",
-            frequency: 107.9,
-            subtitle: "Weather through the window, moon through the glass, far Academy bells under the hiss.",
+            id: "fae-fi",
+            title: "Fae-Fi",
+            frequency: 88.3,
+            subtitle: "Sun-dappled beats and dandelion synths from faeries who have plainly had too much nectar.",
             hostEntityID: nil,
             packID: nil,
             unlockRule: "core",
-            moodTags: ["weather", "moon", "threshold", "outside", "almanac"],
-            signalLine: "The station is mostly weather, but the weather appears to be listening back.",
+            moodTags: ["fae", "lo-fi", "bright", "playful", "daydream"],
+            signalLine: "The signal arrives giggling, tasting of clover honey and warm afternoons.",
             tracks: [
                 RadioTrack(
-                    id: "casement-rain-map",
-                    title: "Rain Map",
-                    artist: "The Casement Static",
-                    assetName: "RadioCasementRainMap",
+                    id: "fae-fi-dandelion-hours",
+                    title: "Dandelion Hours",
+                    artist: "Fae-Fi",
+                    assetName: "RadioFaeFiDandelionHours",
                     durationSeconds: nil,
-                    moodTags: ["weather", "threshold"]
+                    moodTags: ["bright", "playful"]
                 )
             ],
             interludeTitles: [
-                "A window latch clicks in a room you have not visited.",
-                "Static arranges itself briefly into moonlight."
+                "A pixie remixes a birdsong without asking the bird.",
+                "Someone trades a perfect afternoon for one more loop."
             ],
             effects: [
-                RadioStationEffect(pageType: .weather, boost: 10, reason: "The Casement Static pulls the outside world nearer."),
-                RadioStationEffect(pageType: .todaysSky, boost: 8, reason: "The station listens upward."),
-                RadioStationEffect(pageType: .wonderCompass, boost: 5, reason: "Threshold music makes small adventures easier to notice.")
+                RadioStationEffect(pageType: .wonderCompass, boost: 8, reason: "Fae-Fi makes small adventures easier to notice."),
+                RadioStationEffect(pageType: .souvenir, boost: 8, reason: "Bright loops help catch one true particular."),
+                RadioStationEffect(pageType: .festival, boost: 6, reason: "The station is always a little in a feasting mood.")
+            ]
+        ),
+        RadioStation(
+            id: "mothlight-beats",
+            title: "Mothlight Beats",
+            frequency: 90.9,
+            subtitle: "Dusk-soft loops for the ache of lovely things ending, lit by wings against the lamp.",
+            hostEntityID: nil,
+            packID: nil,
+            unlockRule: "core",
+            moodTags: ["fae", "lo-fi", "wistful", "bittersweet", "memory", "dusk"],
+            signalLine: "The static flutters at the glass like it remembers being a summer you lost.",
+            tracks: [
+                RadioTrack(
+                    id: "mothlight-porchlight-fading",
+                    title: "Porchlight, Fading",
+                    artist: "Mothlight Beats",
+                    assetName: "RadioMothlightPorchlightFading",
+                    durationSeconds: nil,
+                    moodTags: ["wistful", "memory"]
+                )
+            ],
+            interludeTitles: [
+                "A moth circles a light that went out an hour ago.",
+                "Something hums the long way home."
+            ],
+            effects: [
+                RadioStationEffect(pageType: .bookRemembered, boost: 10, reason: "Mothlight Beats coaxes old pages back into the light."),
+                RadioStationEffect(pageType: .mood, boost: 7, reason: "The station listens for the bittersweet inner weather."),
+                RadioStationEffect(pageType: .diary, boost: 6, reason: "Wistful loops draw the day's quieter pages out.")
+            ]
+        ),
+        RadioStation(
+            id: "thornwave",
+            title: "Thornwave",
+            frequency: 103.7,
+            subtitle: "Bramble bass, broken-glass garage, and bargains struck in the low end after midnight.",
+            hostEntityID: nil,
+            packID: nil,
+            unlockRule: "core",
+            moodTags: ["fae", "trip-hop", "future-garage", "dark", "night", "thorn"],
+            signalLine: "The bass moves like something with antlers stepping between the trees.",
+            tracks: [
+                RadioTrack(
+                    id: "thornwave-bramble-bass",
+                    title: "Bramble Bass",
+                    artist: "Thornwave",
+                    assetName: "RadioThornwaveBrambleBass",
+                    durationSeconds: nil,
+                    moodTags: ["dark", "night"]
+                )
+            ],
+            interludeTitles: [
+                "A thorn taps the rhythm against the window from outside.",
+                "The drop sounds like a door you should not open, opening."
+            ],
+            effects: [
+                RadioStationEffect(pageType: .bookFae, boost: 10, reason: "Thornwave is the dark fae's own frequency."),
+                RadioStationEffect(pageType: .narrativeOS, boost: 8, reason: "The low end pulls story-bearing pages forward after dark."),
+                RadioStationEffect(pageType: .gossip, boost: 6, reason: "Rumor travels well under a bassline this deep.")
             ]
         )
     ]
@@ -212,7 +212,7 @@ enum RadioStationRegistry {
                 RadioStation(
                     id: "goblin-market-jazz",
                     title: "Goblin Market Jazz",
-                    frequency: 103.7,
+                    frequency: 105.1,
                     subtitle: "Bent brass, laughing ledgers, and bargains with too many teeth in the margins.",
                     hostEntityID: "marginalia-goblin",
                     packID: "academy-night-band",

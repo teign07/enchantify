@@ -760,9 +760,12 @@ metadata, mood tags, and explicit page-type boosts.
 
 Core stations ship in `RadioStationRegistry`:
 
-- The Scriptorium Desk - focus, archive, diary, souvenirs, and remembered pages.
-- Dr. Inkrest's Office - rest, inner weather, and office-hours pages.
-- The Casement Static - weather, Today's Sky, and threshold/wonder pages.
+- Fae-Fi (88.3) - bright/playful faerie lo-fi; leans toward Wonder Compass,
+  souvenirs, and festivals.
+- Mothlight Beats (90.9) - bittersweet wistful fae-fi; leans toward remembered
+  pages, inner weather, and diary.
+- Thornwave (103.7) - dark faerie lo-fi / trip-hop / future garage; leans toward
+  Book Fae, story, and gossip.
 
 Radio can also load user or pack stations from `.reenchantedradio.json` files.
 `RadioPlaybackState` persists the active station and tuning state in the vault,

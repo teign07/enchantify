@@ -536,7 +536,7 @@ final class BookRadioManager {
             do {
                 let audioPlayer = try AVAudioPlayer(contentsOf: url)
                 audioPlayer.numberOfLoops = -1
-                audioPlayer.volume = station.id == "casement-static" ? 0.48 : 0.42
+                audioPlayer.volume = station.id == "thornwave" ? 0.48 : 0.42
                 audioPlayer.prepareToPlay()
                 audioPlayer.play()
                 filePlayer = audioPlayer
@@ -669,7 +669,7 @@ final class BookRadioManager {
                 return
             }
         }
-        player.volume = station.id == "casement-static" ? 0.38 : 0.32
+        player.volume = station.id == "thornwave" ? 0.38 : 0.32
         player.play()
         sourceLine = track.map { "Procedural fallback for \($0.title). Drop \($0.assetName ?? $0.id).m4a into Radio to replace it." }
             ?? "Procedural fallback broadcast."
@@ -709,11 +709,11 @@ final class BookRadioManager {
 
     private func recipe(for stationID: String) -> (baseHz: Double, overtoneHz: Double, shimmerHz: Double, slowHz: Double, pulseHz: Double, baseGain: Double, overtoneGain: Double, shimmerGain: Double, staticAmount: Double) {
         switch stationID {
-        case "inkrest-office":
+        case "mothlight-beats":
             return (146.83, 220.0, 1.4, 0.05, 0.11, 0.055, 0.030, 0.010, 0.010)
-        case "casement-static":
-            return (98.0, 196.0, 2.2, 0.033, 0.07, 0.035, 0.020, 0.008, 0.060)
-        default:
+        case "thornwave":
+            return (73.42, 146.83, 2.2, 0.033, 0.07, 0.060, 0.026, 0.008, 0.040)
+        default: // fae-fi: bright and playful
             return (130.81, 261.63, 1.8, 0.041, 0.09, 0.050, 0.028, 0.010, 0.018)
         }
     }

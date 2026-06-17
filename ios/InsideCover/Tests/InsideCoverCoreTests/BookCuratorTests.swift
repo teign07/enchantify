@@ -94,9 +94,10 @@ final class BookCuratorTests: XCTestCase {
     func testCoreRadioStationsAreAvailableWithoutPacks() throws {
         let stations = RadioStationRegistry.stations()
 
-        XCTAssertEqual(stations.map(\.id), ["scriptorium-desk", "inkrest-office", "casement-static"])
+        XCTAssertEqual(stations.map(\.id), ["fae-fi", "mothlight-beats", "thornwave"])
         XCTAssertTrue(stations.allSatisfy(\.isCore))
-        XCTAssertEqual(try XCTUnwrap(RadioStationRegistry.station(id: "inkrest-office")).displayFrequency, "101.5")
+        XCTAssertEqual(try XCTUnwrap(RadioStationRegistry.station(id: "fae-fi")).displayFrequency, "88.3")
+        XCTAssertEqual(try XCTUnwrap(RadioStationRegistry.station(id: "thornwave")).displayFrequency, "103.7")
     }
 
     func testUnlockedRadioSoundPackAddsStationsToDial() throws {
@@ -106,12 +107,12 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertFalse(lockedStations.contains { $0.id == "goblin-market-jazz" })
         XCTAssertTrue(unlockedStations.contains { $0.id == "midnight-bindery" })
         XCTAssertTrue(unlockedStations.contains { $0.id == "goblin-market-jazz" })
-        XCTAssertEqual(try XCTUnwrap(RadioStationRegistry.station(id: "goblin-market-jazz", unlockedPackIDs: ["academy-night-band"])).displayFrequency, "103.7")
+        XCTAssertEqual(try XCTUnwrap(RadioStationRegistry.station(id: "goblin-market-jazz", unlockedPackIDs: ["academy-night-band"])).displayFrequency, "105.1")
     }
 
     func testManualRadioPageCarriesStationMetadata() {
         var inputs = richInputs()
-        inputs.radio = RadioPlaybackState(activeStationID: "casement-static")
+        inputs.radio = RadioPlaybackState(activeStationID: "thornwave")
 
         let surface = BookPageSourceAdapters.manualSurface(
             for: .radio,
@@ -123,19 +124,20 @@ final class BookCuratorTests: XCTestCase {
 
         XCTAssertEqual(surface.type, .radio)
         XCTAssertEqual(surface.sourceID, "reenchanted-radio")
-        XCTAssertEqual(surface.payload.metadata["radioStationID"], "casement-static")
-        XCTAssertEqual(surface.payload.metadata["radioFrequency"], "107.9")
-        XCTAssertTrue(surface.payload.metadata["radioEffects"]?.contains("Weather +10") == true)
+        XCTAssertEqual(surface.payload.metadata["radioStationID"], "thornwave")
+        XCTAssertEqual(surface.payload.metadata["radioFrequency"], "103.7")
+        XCTAssertEqual(surface.payload.metadata["radioStationTitle"], "Thornwave")
+        XCTAssertTrue(surface.payload.metadata["radioEffects"]?.contains("+10") == true)
     }
 
     func testTunedRadioStationBoostsCuratorMood() {
         var inputs = richInputs()
-        inputs.radio = RadioPlaybackState(activeStationID: "inkrest-office")
+        inputs.radio = RadioPlaybackState(activeStationID: "mothlight-beats")
         let mood = CuratorMood.make(inputs: inputs, now: localDate(hour: 11))
-        let restPage = SurfacePage(type: .rest, sourceID: "center-page", prompt: "Center", detail: "Breathe.")
+        let moodPage = SurfacePage(type: .mood, sourceID: "mood-page", prompt: "Inner weather", detail: "Name it.")
         let weatherPage = SurfacePage(type: .weather, sourceID: "weather-page", prompt: "Weather", detail: "Outside.")
 
-        XCTAssertGreaterThan(mood.adjustment(for: restPage, now: localDate(hour: 11)), mood.adjustment(for: weatherPage, now: localDate(hour: 11)))
+        XCTAssertGreaterThan(mood.adjustment(for: moodPage, now: localDate(hour: 11)), mood.adjustment(for: weatherPage, now: localDate(hour: 11)))
     }
 
     func testSurfacePageSourceMetadataResolvesFromSourceID() {
