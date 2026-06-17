@@ -635,7 +635,12 @@ final class BookRadioManager {
             return nil
         }
         let extensions = ["m4a", "mp3", "wav", "aac", "caf", "aiff"]
+        // Bundled radio audio lives in the RadioAudio folder reference; fall back
+        // to the bundle root for any loose resources.
         for ext in extensions {
+            if let url = Bundle.main.url(forResource: assetName, withExtension: ext, subdirectory: "RadioAudio") {
+                return url
+            }
             if let url = Bundle.main.url(forResource: assetName, withExtension: ext) {
                 return url
             }

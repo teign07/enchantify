@@ -24,6 +24,7 @@
 		01000000000000000000001C /* CustomCastMemberSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000114 /* CustomCastMemberSheet.swift */; };
 		01000000000000000000001D /* ContentViewFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000115 /* ContentViewFeatures.swift */; };
 		01000000000000000000001E /* BookSounds in Resources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000116 /* BookSounds */; };
+		0100000000000000000002A1 /* RadioAudio in Resources */ = {isa = PBXBuildFile; fileRef = 0100000000000000000002A2 /* RadioAudio */; };
 		01000000000000000000001F /* CapturePageSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000117 /* CapturePageSections.swift */; };
 		010000000000000000000020 /* SentenceBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000118 /* SentenceBuilder.swift */; };
 		010000000000000000000021 /* LivingTextInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000119 /* LivingTextInput.swift */; };
@@ -73,6 +74,7 @@
 		010000000000000000000114 /* CustomCastMemberSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomCastMemberSheet.swift; sourceTree = "<group>"; };
 		010000000000000000000115 /* ContentViewFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewFeatures.swift; sourceTree = "<group>"; };
 		010000000000000000000116 /* BookSounds */ = {isa = PBXFileReference; lastKnownFileType = folder; path = BookSounds; sourceTree = "<group>"; };
+		0100000000000000000002A2 /* RadioAudio */ = {isa = PBXFileReference; lastKnownFileType = folder; path = RadioAudio; sourceTree = "<group>"; };
 		010000000000000000000117 /* CapturePageSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePageSections.swift; sourceTree = "<group>"; };
 		010000000000000000000118 /* SentenceBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentenceBuilder.swift; sourceTree = "<group>"; };
 		010000000000000000000119 /* LivingTextInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivingTextInput.swift; sourceTree = "<group>"; };
@@ -138,6 +140,7 @@
 				010000000000000000000114 /* CustomCastMemberSheet.swift */,
 				010000000000000000000115 /* ContentViewFeatures.swift */,
 				010000000000000000000116 /* BookSounds */,
+				0100000000000000000002A2 /* RadioAudio */,
 				010000000000000000000117 /* CapturePageSections.swift */,
 				030000000000000000000101 /* SearchTheStacksSheet.swift */,
 				030000000000000000000102 /* BookShopSheet.swift */,
@@ -271,6 +274,7 @@
 				010000000000000000000012 /* BookReferenceLibrary.json in Resources */,
 				010000000000000000000014 /* Assets.xcassets in Resources */,
 				01000000000000000000001E /* BookSounds in Resources */,
+				0100000000000000000002A1 /* RadioAudio in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -143,11 +143,11 @@ enum RadioStationRegistry {
             signalLine: "The signal arrives giggling, tasting of clover honey and warm afternoons.",
             tracks: [
                 RadioTrack(
-                    id: "fae-fi-dandelion-hours",
-                    title: "Dandelion Hours",
+                    id: "fae-fi-mossy-footsteps",
+                    title: "Mossy Footsteps",
                     artist: "Fae-Fi",
-                    assetName: "RadioFaeFiDandelionHours",
-                    durationSeconds: nil,
+                    assetName: "RadioFaeFiMossyFootsteps",
+                    durationSeconds: 121,
                     moodTags: ["bright", "playful"]
                 )
             ],
