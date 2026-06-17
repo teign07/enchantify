@@ -3418,17 +3418,20 @@ struct OnboardingFlowView: View {
 
             GeometryReader { proxy in
                 let isPortrait = proxy.size.height >= proxy.size.width
-                let portraitHeaderOverlap: CGFloat = isPortrait ? 24 : 0
-                let portraitHeaderLift: CGFloat = isPortrait ? -8 : 0
-                let pageTopPadding: CGFloat = isPortrait ? 68 : 22
+                // The header is inset into the top of the parchment, so reserve
+                // room for it (plus the page-edge strip above it) before the
+                // scrolling content begins.
+                let headerInset: CGFloat = 14
+                let pageTopPadding: CGFloat = isPortrait ? 96 : 92
+                // Let the reading card claim most of the height instead of a tight
+                // fixed cap, and ride just below the top of the page. Reserves room
+                // for the step dots and spacers; adapts to small devices.
+                let scrollMaxHeight: CGFloat = isPortrait
+                    ? min(640, max(420, proxy.size.height - 116))
+                    : min(540, max(360, proxy.size.height - 120))
 
                 VStack(spacing: 0) {
-                    Spacer(minLength: 18)
-
-                    onboardingHeader
-                        .padding(.horizontal, 22)
-                        .offset(y: portraitHeaderLift)
-                        .zIndex(1)
+                    Spacer(minLength: isPortrait ? 12 : 18)
 
                     ScrollViewReader { scrollProxy in
                         ScrollView {
@@ -3460,7 +3463,7 @@ struct OnboardingFlowView: View {
                         }
                         .scrollDismissesKeyboard(.interactively)
                     }
-                    .frame(maxHeight: isPortrait ? 486 : 520)
+                    .frame(maxHeight: scrollMaxHeight)
                     .background {
                         ZStack {
                             Image("ParchmentTexture")
@@ -3484,8 +3487,14 @@ struct OnboardingFlowView: View {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .stroke(BookPalette.lampGold.opacity(shimmer ? 0.62 : 0.34), lineWidth: 1)
                     }
+                    .overlay(alignment: .top) {
+                        onboardingHeader
+                            .padding(.horizontal, headerInset)
+                            .padding(.top, headerInset)
+                            .zIndex(1)
+                    }
                     .rotation3DEffect(.degrees(reduceMotion ? 0 : (pageTilt ? 0.8 : -0.8)), axis: (x: 0, y: 1, z: 0))
-                    .padding(.top, isPortrait ? -portraitHeaderOverlap : 44)
+                    .padding(.top, isPortrait ? 8 : 12)
                     .padding(.horizontal, 22)
                     .shadow(color: BookPalette.lampGold.opacity(shimmer ? 0.18 : 0.08), radius: 22, x: 0, y: 8)
                     .shadow(color: .black.opacity(0.32), radius: 12, x: 0, y: 18)
