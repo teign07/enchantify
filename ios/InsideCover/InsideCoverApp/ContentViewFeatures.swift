@@ -34,9 +34,27 @@ extension ContentView {
                 isBusy: busySealID == "location" || isAnchoringPlace,
                 action: { Task { await pressLocationSeal() } }
             )
+            MarginaliaSealButton(
+                title: radioManager.isPlaying ? "On Air" : "Radio",
+                systemImage: radioManager.isPlaying ? "dot.radiowaves.left.and.right" : "radio",
+                wax: radioManager.isPlaying ? BookPalette.teal : Color(red: 0.74, green: 0.52, blue: 0.16),
+                seed: 17,
+                isBusy: busySealID == "radio",
+                action: { Task { await pressRadioSeal() } }
+            )
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
+    }
+
+    @MainActor
+    func pressRadioSeal() async {
+        guard busySealID == nil else { return }
+        busySealID = "radio"
+        defer { busySealID = nil }
+        BookFeedback.play(.sourceRefresh)
+        tutorTouch("seal-radio")
+        selectedSurface = freshManualSurface(for: .radio)
     }
 
     @MainActor
