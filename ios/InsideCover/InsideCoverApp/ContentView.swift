@@ -931,9 +931,11 @@ struct ContentView: View {
 
     @MainActor
     var canOpenGlowMenu: Bool {
+        // The menu opens once onboarding is done and the Book Brain is ready.
+        // It is deliberately NOT gated on a regular page currently being
+        // surfaced — a quiet desk must never lock the reader out of the menu.
         didCompleteStoryOnboarding
             && modelReport.state == .ready
-            && surfaces.contains { $0.payload.metadata["firstRunStep"] == nil }
     }
 
     @MainActor
@@ -1177,11 +1179,7 @@ struct ContentView: View {
             return "Your Glow is awake, but the menu opens after the Academy finishes showing you the first pages."
         }
 
-        if modelReport.state != .ready {
-            return "Your Glow is awake. The menu opens after the Book Brain is downloaded and ready."
-        }
-
-        return "Your Glow is awake. The menu opens after the Book begins surfacing regular pages."
+        return "Your Glow is awake. The menu opens after the Book Brain is downloaded and ready."
     }
 
     /// First-touch margin notes: the exploratory tutorial that follows the

@@ -625,10 +625,17 @@ enum BookCurator {
         mood: CuratorMood = .neutral,
         now: Date = Date()
     ) -> [RankedSurfacePage] {
-        let sortedPages = candidates
+        // Hard filters: a reader's disabled sources and first-hours hidden types
+        // are never overridden.
+        let allowed = candidates
             .filter { preferences.allows($0) }
             .filter { mood.allows($0) }
-            .filter { mood.allowsTypeRefresh(for: $0, now: now) }
+        // The type-refresh cooldown only adds variety — it must never starve the
+        // desk. Prefer pages that are off cooldown, but if that would leave the
+        // homescreen empty, fall back to the full allowed pool.
+        let offCooldown = allowed.filter { mood.allowsTypeRefresh(for: $0, now: now) }
+        let pool = offCooldown.isEmpty ? allowed : offCooldown
+        let sortedPages = pool
             .enumerated()
             .sorted { left, right in
                 let leftScore = preferences.adjustedScore(for: left.element) + mood.adjustment(for: left.element, now: now)
@@ -1016,7 +1023,7 @@ struct CuratorMood {
     }
 
     private static let firstHoursDuration: TimeInterval = 6 * 3600
-    private static let typeRefreshCooldown: TimeInterval = 90 * 60
+    private static let typeRefreshCooldown: TimeInterval = 30 * 60
 
     private static let firstHoursHiddenTypes: Set<BookPageType> = [
         .faeBargain,

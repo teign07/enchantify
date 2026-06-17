@@ -295,6 +295,39 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(pages.first?.type, .fuel)
     }
 
+    func testCooldownNeverStarvesTheDesk() {
+        // The type-refresh cooldown adds variety; it must never leave the
+        // homescreen empty. When every candidate type is still on cooldown,
+        // the curator falls back to the full allowed pool so the reader is
+        // never stranded with no pages (which previously soft-locked the menu).
+        let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
+        var mood = CuratorMood.neutral
+        mood.surfaceHistory = [
+            CuratorVarietyGovernor.typeKey(for: .fuel): SurfaceHistoryRecord(
+                lastShownAt: now.addingTimeInterval(-5 * 60),
+                recentShowCount: 1
+            ),
+            CuratorVarietyGovernor.typeKey(for: .weather): SurfaceHistoryRecord(
+                lastShownAt: now.addingTimeInterval(-5 * 60),
+                recentShowCount: 1
+            )
+        ]
+        let candidates = [
+            rankedCandidate(.fuel, score: 100),
+            rankedCandidate(.weather, score: 40)
+        ]
+
+        let pages = BookCurator.rankedPages(
+            from: candidates,
+            limit: 3,
+            mood: mood,
+            now: now
+        ).map(\.page)
+
+        XCTAssertFalse(pages.isEmpty, "Cooldown must never leave the desk empty")
+        XCTAssertEqual(pages.first?.type, .fuel)
+    }
+
     func testSouvenirCanReturnInSeparateCheckInWindows() {
         let adapter = SouvenirPageSourceAdapter()
         let day = BookDay(
