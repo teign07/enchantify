@@ -717,4 +717,61 @@ final class BookThemeTests: XCTestCase {
         XCTAssertEqual(edition.theme?.name, "Secrets and Harbors")
         XCTAssertEqual(edition.subtitle, "Secrets and Harbors")
     }
+
+    // MARK: - Listening constellations
+
+    func testRecordListeningAccumulatesDistinctDays() {
+        var state = RadioPlaybackState.off
+        state.recordListening(stationID: "thornwave", now: date(2026, 6, 1), calendar: calendar)
+        state.recordListening(stationID: "thornwave", now: date(2026, 6, 1, hour: 20), calendar: calendar)
+        state.recordListening(stationID: "thornwave", now: date(2026, 6, 2), calendar: calendar)
+
+        XCTAssertEqual(state.daysHeard(stationID: "thornwave"), 2)
+        XCTAssertEqual(state.listening?["thornwave"]?.sessions, 3)
+    }
+
+    func testListeningSignalsRespectNoticeThreshold() {
+        var state = RadioPlaybackState.off
+        state.recordListening(stationID: "thornwave", now: date(2026, 6, 1), calendar: calendar)
+        state.recordListening(stationID: "thornwave", now: date(2026, 6, 2), calendar: calendar)
+        // Only two days — below the notice threshold.
+        XCTAssertTrue(RadioStationRegistry.listeningSignals(state: state, now: date(2026, 6, 2)).isEmpty)
+
+        state.recordListening(stationID: "thornwave", now: date(2026, 6, 3), calendar: calendar)
+        let signals = RadioStationRegistry.listeningSignals(state: state, now: date(2026, 6, 3))
+        XCTAssertEqual(signals.count, 1)
+        let signal = signals[0]
+        XCTAssertEqual(signal.kind, .listening)
+        XCTAssertEqual(signal.subjectID, "radio:thornwave")
+        XCTAssertEqual(signal.subjectName, "Thornwave")
+        XCTAssertGreaterThanOrEqual(signal.strength, ConstellationKeeper.noticeThreshold)
+    }
+
+    func testListeningConstellationCanBeNamedOverTime() {
+        var state = RadioPlaybackState.off
+        var constellations: [Constellation] = []
+        // The companion arc is a slow burn: founding needs 3 days of listening,
+        // then five sightings and two weeks of age before the Book names it.
+        let days = [1, 3, 5, 8, 12, 16, 20]
+        for day in days {
+            let now = date(2026, 6, day)
+            state.recordListening(stationID: "thornwave", now: now, calendar: calendar)
+            var digest = LiteraryContinuityDigest(signals: [], beliefLifecycles: [])
+            digest.signals = RadioStationRegistry.listeningSignals(state: state, now: now)
+            constellations = ConstellationKeeper.advanced(constellations, observing: digest, now: now, calendar: calendar)
+        }
+
+        let radio = constellations.first { $0.subjectID == "radio:thornwave" }
+        XCTAssertNotNil(radio)
+        XCTAssertEqual(radio?.phase, .named)
+        XCTAssertEqual(radio?.name, ConstellationKeeper.constellationName(kind: .listening, subjectName: "Thornwave", seed: radio!.id))
+    }
+
+    func testListeningConstellationNamesAreCompanionable() {
+        let name = ConstellationKeeper.constellationName(kind: .listening, subjectName: "Mothlight Beats", seed: "constellation-radio-listening-mothlight-beats")
+        XCTAssertTrue(
+            ["Frequency", "You and", "After Midnight", "Tuned to"].contains { name.contains($0) },
+            "Unexpected listening name: \(name)"
+        )
+    }
 }

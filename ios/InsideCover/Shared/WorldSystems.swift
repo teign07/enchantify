@@ -37,6 +37,26 @@ struct RadioStation: Codable, Equatable, Identifiable {
     var isCore: Bool {
         packID == nil
     }
+
+    /// A one-line "what's playing" descriptor for generation atmosphere.
+    var atmosphereLine: String {
+        "\(title) (\(displayFrequency)) — \(subtitle)"
+    }
+}
+
+/// Shared prompt fragment so any generated narrative page can be faintly
+/// colored by the tuned station without naming it. Pure-local; no model call.
+enum RadioAtmosphere {
+    static func promptSection(_ line: String?) -> String {
+        guard let line, !line.isEmpty else { return "" }
+        return """
+
+
+        WHAT'S PLAYING:
+        \(line)
+        Let the station faintly color the tone, imagery, and rhythm of this page — never as a thesis. Do not name the station or mention a radio unless a kept page already did.
+        """
+    }
 }
 
 struct RadioStationPack: Codable, Equatable, Identifiable {
@@ -45,12 +65,26 @@ struct RadioStationPack: Codable, Equatable, Identifiable {
     var stations: [RadioStation]
 }
 
+/// Accumulated listening for one station — the substrate that lets a station
+/// become a remembered companion (a listening constellation) and earn
+/// held-station effects.
+struct StationListening: Codable, Equatable {
+    var dayKeys: [String] = []
+    var sessions: Int = 0
+    var firstHeardAt: Date?
+    var lastHeardAt: Date?
+
+    var daysHeard: Int { dayKeys.count }
+}
+
 struct RadioPlaybackState: Codable, Equatable {
     var activeStationID: String?
     var startedAt: Date?
     var lastTunedAt: Date?
     var lastTrackID: String?
     var tuningNoise: Double
+    // Optional so older saved states (without this key) still decode.
+    var listening: [String: StationListening]?
 
     static let off = RadioPlaybackState()
 
@@ -59,13 +93,33 @@ struct RadioPlaybackState: Codable, Equatable {
         startedAt: Date? = nil,
         lastTunedAt: Date? = nil,
         lastTrackID: String? = nil,
-        tuningNoise: Double = 0
+        tuningNoise: Double = 0,
+        listening: [String: StationListening]? = nil
     ) {
         self.activeStationID = activeStationID
         self.startedAt = startedAt
         self.lastTunedAt = lastTunedAt
         self.lastTrackID = lastTrackID
         self.tuningNoise = max(0, min(1, tuningNoise))
+        self.listening = listening
+    }
+
+    /// Record that the reader is listening to a station today (idempotent per day).
+    mutating func recordListening(stationID: String, now: Date = Date(), calendar: Calendar = .current) {
+        let key = BookDay.id(for: now, calendar: calendar)
+        var map = listening ?? [:]
+        var entry = map[stationID] ?? StationListening()
+        entry.sessions += 1
+        if entry.firstHeardAt == nil { entry.firstHeardAt = now }
+        entry.lastHeardAt = now
+        if !entry.dayKeys.contains(key) { entry.dayKeys.append(key) }
+        map[stationID] = entry
+        listening = map
+    }
+
+    /// Distinct days a station has been heard.
+    func daysHeard(stationID: String) -> Int {
+        listening?[stationID]?.daysHeard ?? 0
     }
 
     var isTuned: Bool {
@@ -285,6 +339,79 @@ enum RadioStationRegistry {
     static func nearestStation(to frequency: Double, unlockedPackIDs: Set<String> = []) -> RadioStation? {
         stations(unlockedPackIDs: unlockedPackIDs)
             .min { abs($0.frequency - frequency) < abs($1.frequency - frequency) }
+    }
+
+    /// The tuned station's atmosphere line, for coloring generated prose.
+    static func atmosphereLine(state: RadioPlaybackState, unlockedPackIDs: Set<String> = []) -> String? {
+        station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs)?.atmosphereLine
+    }
+
+    /// Days of distinct listening before a station can begin forming a
+    /// constellation. The companion-style "you and X keep meeting" thread.
+    static let listeningNoticeDays = 3
+
+    /// Continuity signals for stations the reader keeps returning to. Fed into
+    /// the constellation keeper so a beloved station becomes a named companion.
+    static func listeningSignals(
+        state: RadioPlaybackState,
+        unlockedPackIDs: Set<String> = [],
+        now: Date = Date()
+    ) -> [LiteraryContinuitySignal] {
+        (state.listening ?? [:]).compactMap { stationID, entry -> LiteraryContinuitySignal? in
+            guard entry.daysHeard >= listeningNoticeDays,
+                  let station = station(id: stationID, unlockedPackIDs: unlockedPackIDs) else {
+                return nil
+            }
+            let strength = min(96, 42 + entry.daysHeard * 6 + min(entry.sessions, 8))
+            return LiteraryContinuitySignal(
+                id: "radio-listening-\(stationID)",
+                kind: .listening,
+                subjectID: "radio:\(stationID)",
+                subjectName: station.title,
+                line: "You and \(station.title) keep meeting — \(entry.daysHeard) days on the dial now.",
+                evidencePageIDs: [],
+                relatedEntityIDs: station.hostEntityID.map { [$0] } ?? [],
+                tags: ["radio", "listening", "station:\(stationID)"],
+                firstSeenAt: entry.firstHeardAt ?? now,
+                lastSeenAt: entry.lastHeardAt ?? now,
+                strength: strength
+            )
+        }
+        .sorted { $0.strength > $1.strength }
+    }
+
+    /// Distinct days a station must be heard — while it stays the tuned station —
+    /// before it grants its signature held effect (real stakes beyond curation).
+    static let heldEffectDays = 4
+
+    /// The station currently tuned AND heard enough distinct days to have earned
+    /// its held effect. Nil otherwise.
+    static func heldStationID(state: RadioPlaybackState) -> String? {
+        guard let id = state.activeStationID, state.isTuned,
+              state.daysHeard(stationID: id) >= heldEffectDays else {
+            return nil
+        }
+        return id
+    }
+
+    /// Held-station effect on the Nothing's tide: Thornwave lets the grey lean
+    /// nearer (a dark-fae bargain), Fae-Fi's brightness pushes it back. Always
+    /// distress-safe because NothingTide forces grey to 0 under distress.
+    static func greyShift(state: RadioPlaybackState, now: Date = Date()) -> Int {
+        switch heldStationID(state: state) {
+        case "thornwave": return 1
+        case "fae-fi": return -1
+        default: return 0
+        }
+    }
+
+    /// Held-station effect on curation beyond the base station boosts: Mothlight
+    /// Beats, held, becomes a long memory — old pages return more readily.
+    static func heldSurfaceBoosts(state: RadioPlaybackState) -> [BookPageType: Int] {
+        switch heldStationID(state: state) {
+        case "mothlight-beats": return [.bookRemembered: 8]
+        default: return [:]
+        }
     }
 
     static func surfaceBoosts(state: RadioPlaybackState, unlockedPackIDs: Set<String> = []) -> [BookPageType: Int] {

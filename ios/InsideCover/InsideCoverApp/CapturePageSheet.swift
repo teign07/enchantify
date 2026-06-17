@@ -5866,7 +5866,7 @@ enum GossipPagePromptBuilder {
     Prose standard: simple concrete sentences; one exact object, gesture, or spoken line per entry; no vague wonder, hidden meaning, tapestry of, echoes of, quiet magic, profound, journey, or generic inspiration.
     """
 
-    static func prompt(for surface: SurfacePage) -> String {
+    static func prompt(for surface: SurfacePage, nowPlaying: String? = nil) -> String {
         let metadata = surface.payload.metadata
         return """
         Rewrite the following deterministic Gossip Page simulation output as a finished page for the user.
@@ -5905,7 +5905,7 @@ enum GossipPagePromptBuilder {
         \(metadata["realInterestClippings"] ?? "none")
 
         Real-world sources, for grounding only:
-        \(metadata["realInterestSources"] ?? "none")
+        \(metadata["realInterestSources"] ?? "none")\(RadioAtmosphere.promptSection(nowPlaying))
 
         Return only the finished Gossip Page text.
         """
@@ -6025,7 +6025,7 @@ enum StoryPagePromptBuilder {
     Ban filler: no generic inspiration, no vague wonder, no abstract emotional summary, no tapestry, echoes, journey, profound, quiet magic, hidden meaning, or "as if the world itself".
     """
 
-    static func prompt(for draft: StoryPageSceneDraft) -> String {
+    static func prompt(for draft: StoryPageSceneDraft, nowPlaying: String? = nil) -> String {
         if draft.surface.type == .academyClass {
             return academyLessonPrompt(for: draft)
         }
@@ -6092,7 +6092,7 @@ enum StoryPagePromptBuilder {
         \(memories)
 
         CHAPTER TALISMAN MOVES:
-        \(talismanMoves)\(faeDirective)
+        \(talismanMoves)\(faeDirective)\(RadioAtmosphere.promptSection(nowPlaying))
         \(continuation)
 
         OUTPUT FORMAT, EXACTLY:

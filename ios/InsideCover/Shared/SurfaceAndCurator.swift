@@ -930,6 +930,7 @@ struct CuratorMood {
                 distressActive: distressActive,
                 celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: inputs.hemisphere)
                     + BookJumpEngine.greyShift(state: inputs.bookJump, now: now)
+                    + RadioStationRegistry.greyShift(state: inputs.radio, now: now)
             ),
             reshelvedSourceIDs: FaeGiftEffects.reshelvedSourceIDs(
                 state: inputs.faeState,
@@ -939,7 +940,8 @@ struct CuratorMood {
             pactWar: inputs.pactWar,
             almanacBoosts: Almanac.surfaceBoosts(on: now, hemisphere: inputs.hemisphere)
                 .merging(BookJumpEngine.surfaceBoosts(state: inputs.bookJump, now: now)) { $0 + $1 }
-                .merging(RadioStationRegistry.surfaceBoosts(state: inputs.radio, unlockedPackIDs: inputs.ownedPackIDs)) { $0 + $1 },
+                .merging(RadioStationRegistry.surfaceBoosts(state: inputs.radio, unlockedPackIDs: inputs.ownedPackIDs)) { $0 + $1 }
+                .merging(RadioStationRegistry.heldSurfaceBoosts(state: inputs.radio)) { $0 + $1 },
             isFirstHours: firstHoursActive(inputs: inputs, now: now)
         )
     }

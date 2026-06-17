@@ -218,7 +218,14 @@ struct MLXBookBraider: Braider {
             let days = await MainActor.run {
                 BookDatabase.loadDays(migratingFrom: BookStore.loadDays())
             }
-            context = LocalModelManager.braidContext(for: day, days: days)
+            context = LocalModelManager.braidContext(
+                for: day,
+                days: days,
+                nowPlaying: RadioStationRegistry.atmosphereLine(
+                    state: PlayerVault.shared.data.radio ?? .off,
+                    unlockedPackIDs: Set(PlayerVault.shared.data.ownedPacks ?? [])
+                )
+            )
         case .task:
             context = .empty
         }
@@ -443,7 +450,8 @@ struct MLXFaeBargainResponder: FaeBargainResponding {
             bargain: bargain,
             report: report,
             mood: mood,
-            day: day
+            day: day,
+            nowPlaying: RadioAtmosphereContext.current
         )
 
         let response = try await LocalBrainInferenceGate.shared.run(
@@ -789,7 +797,7 @@ struct MLXWeatherEnchanter: WeatherEnchanting {
 struct MLXStoryPageWriter: StoryPageWriting {
     func write(surface: SurfacePage) async throws -> StoryPageProse {
         let draft = StoryPageSceneDraft(surface: surface)
-        let prompt = StoryPagePromptBuilder.prompt(for: draft)
+        let prompt = StoryPagePromptBuilder.prompt(for: draft, nowPlaying: RadioAtmosphereContext.current)
         let response = try await MLXBraidTaskRunner.run(
             prompt: prompt,
             instructions: StoryPagePromptBuilder.instructions,
@@ -837,7 +845,7 @@ protocol GossipPageWriting {
 
 struct MLXGossipPageWriter: GossipPageWriting {
     func write(surface: SurfacePage) async throws -> String {
-        let prompt = GossipPagePromptBuilder.prompt(for: surface)
+        let prompt = GossipPagePromptBuilder.prompt(for: surface, nowPlaying: RadioAtmosphereContext.current)
         let response = try await MLXBraidTaskRunner.run(
             prompt: prompt,
             instructions: GossipPagePromptBuilder.instructions,
@@ -949,7 +957,7 @@ struct CharacterLetterPromptBuilder {
     Format as a real letter: greeting, 3-6 short paragraphs, signoff from the sender, optional P.S. if it fits the voice.
     """
 
-    static func prompt(for surface: SurfacePage) -> String {
+    static func prompt(for surface: SurfacePage, nowPlaying: String? = nil) -> String {
         let sender = surface.payload.metadata["senderName"] ?? "A character"
         let playerName = surface.payload.metadata["playerName"]?.nonEmpty ?? "friend"
         let interest = surface.payload.metadata["unwrittenInterest"] ?? "ordinary wonder"
@@ -984,7 +992,7 @@ struct CharacterLetterPromptBuilder {
         \(clippings)
 
         Research source URLs:
-        \(sources)
+        \(sources)\(RadioAtmosphere.promptSection(nowPlaying))
 
         Write the finished letter. It should feel researched, personal, and specific to the sender. Blend real-world facts with the sender's voice and relationship to the player. For an introduction-stage letter, introduce before escalating: no callbacks, no assumed intimacy, no urgent plot demand. Start with a greeting that uses "\(playerName)" exactly. Never write "[Player Name]". If a chapter talisman move is supplied, make it a real small action or confession in the letter; the app will apply its talisman Belief delta when the letter is kept. If no move is supplied, do not invent one.
         """
@@ -1010,7 +1018,7 @@ struct CharacterLetterPromptBuilder {
 #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
 struct MLXCharacterLetterWriter: CharacterLetterWriting {
     func write(surface: SurfacePage) async throws -> String {
-        let prompt = CharacterLetterPromptBuilder.prompt(for: surface)
+        let prompt = CharacterLetterPromptBuilder.prompt(for: surface, nowPlaying: RadioAtmosphereContext.current)
         let response = try await MLXBraidTaskRunner.run(
             prompt: prompt,
             instructions: CharacterLetterPromptBuilder.instructions,
@@ -2591,6 +2599,17 @@ enum BraidInstructions {
     Prose standard: varied literary cadence. Mix short, surprising, concrete sentences with longer, flowing sentences that turn once or twice before landing. Use specific nouns and verbs, one exact physical detail per paragraph, and a voice that feels intimate, lucid, playful, and plainspoken rather than clipped. No vague wonder, generic inspiration, journey, profound, tapestry, echoes, or abstract emotional summary.
     Style compass: contemporary literary fantasy with dark playfulness, lucid sentences, concrete ordinary objects made strange, a storyteller's sideways humor, and endings that land softly but sharply.
     """
+}
+
+/// The currently-tuned station's atmosphere line, read from the live vault, for
+/// coloring any generated narrative page. Nil when the radio is off.
+enum RadioAtmosphereContext {
+    static var current: String? {
+        RadioStationRegistry.atmosphereLine(
+            state: PlayerVault.shared.data.radio ?? .off,
+            unlockedPackIDs: Set(PlayerVault.shared.data.ownedPacks ?? [])
+        )
+    }
 }
 
 enum LocalBrainProse {

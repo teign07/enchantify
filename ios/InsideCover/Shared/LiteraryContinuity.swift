@@ -5,6 +5,7 @@ enum LiterarySignalKind: String, Codable, Equatable, CaseIterable {
     case beliefLifecycle
     case absence
     case duration
+    case listening
 }
 
 // MARK: - Book of You Braid Prompting
@@ -15,6 +16,7 @@ enum BraidPromptBuilder {
         var theme: BookTheme?
         var chapter: AcademyChapter?
         var learnedGuidance: BraidLearningGuidance?
+        var nowPlaying: String?
 
         static let empty = Context()
     }
@@ -25,6 +27,7 @@ enum BraidPromptBuilder {
         themes: [BookTheme] = [],
         entityBeliefOffsets: [String: Int] = [:],
         learnedNotes: [String] = [],
+        nowPlaying: String? = nil,
         calendar: Calendar = .current
     ) -> Context {
         let recentBraids = recentBraidTexts(excludingDayID: day.id, days: days)
@@ -47,7 +50,8 @@ enum BraidPromptBuilder {
             recentBraids: recentBraids,
             theme: theme,
             chapter: chapter,
-            learnedGuidance: merged.signals.isEmpty ? nil : merged
+            learnedGuidance: merged.signals.isEmpty ? nil : merged,
+            nowPlaying: nowPlaying
         )
     }
 
@@ -188,7 +192,7 @@ enum BraidPromptBuilder {
         - Prefer one fresh concrete detail over a second sentence explaining the same mood, object, weather, relationship, or threshold.
 
         KEPT PAGES FROM TODAY:
-        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(themeSection)\(chapterSection)\(learnedSection)\(continuity)
+        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(themeSection)\(chapterSection)\(learnedSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(continuity)
         """
     }
 

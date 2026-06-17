@@ -720,7 +720,8 @@ enum LocalModelManager {
         bargain: FaeBargain,
         report: String,
         mood: GoblinMood,
-        day: BookDay
+        day: BookDay,
+        nowPlaying: String? = nil
     ) -> String {
         let kind = bargain.faeKind
         let court = kind == .literaryElf
@@ -749,7 +750,7 @@ enum LocalModelManager {
         \(report.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "(they brought almost nothing in words)" : report)
 
         SOFT CONTEXT — what they have kept lately (use at most one detail, lightly):
-        \(recentPages.isEmpty ? "nothing kept recently" : recentPages)
+        \(recentPages.isEmpty ? "nothing kept recently" : recentPages)\(RadioAtmosphere.promptSection(nowPlaying))
 
         RULES:
         - Stay entirely in voice as the \(kind.name). Never say you are an AI, assistant, or language model.
@@ -1170,6 +1171,7 @@ enum LocalModelManager {
         themes: [BookTheme] = [],
         entityBeliefOffsets: [String: Int] = [:],
         learnedNotes: [String] = [],
+        nowPlaying: String? = nil,
         calendar: Calendar = .current
     ) -> BraidContext {
         BraidPromptBuilder.context(
@@ -1178,6 +1180,7 @@ enum LocalModelManager {
             themes: themes,
             entityBeliefOffsets: entityBeliefOffsets,
             learnedNotes: learnedNotes,
+            nowPlaying: nowPlaying,
             calendar: calendar
         )
     }

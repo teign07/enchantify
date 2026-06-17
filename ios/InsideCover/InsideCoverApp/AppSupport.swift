@@ -558,8 +558,14 @@ final class BookRadioManager {
             startedAt: playback.activeStationID == station.id ? playback.startedAt ?? Date() : Date(),
             lastTunedAt: Date(),
             lastTrackID: track?.id,
-            tuningNoise: 0
+            tuningNoise: 0,
+            listening: playback.listening
         )
+        // A real tune (not a silent restore) counts as listening today — the
+        // substrate for listening constellations and held-station effects.
+        if persist {
+            playback.recordListening(stationID: station.id)
+        }
         if let interlude = RadioStationRegistry.currentInterlude(state: playback, unlockedPackIDs: unlockedPackIDs) {
             statusLine = "\(station.displayFrequency) \(station.title): \(interlude)"
         } else {

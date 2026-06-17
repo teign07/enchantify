@@ -774,6 +774,29 @@ Radio can also load user or pack stations from `.reenchantedradio.json` files.
 `RadioStationRegistry.surfaceBoosts(...)` so the active station has mechanical
 weight rather than being only ambience.
 
+### The Living Radio (the station leaves marks)
+
+Beyond curation, the tuned station reaches into the rest of the Book — like Book
+Jump, it leaves marks. All pure-local; no extra model calls.
+
+- **Atmosphere in the prose.** `RadioStationRegistry.atmosphereLine(...)` feeds a
+  soft `RadioAtmosphere.promptSection(...)` ("WHAT'S PLAYING — let it color tone,
+  never name it") into the braid (via `BraidPromptBuilder.Context.nowPlaying`),
+  Story Pages, Book Fae encounters, gossip, and character letters. Thornwave
+  darkens a fae parley; Mothlight makes a letter wistful.
+- **Listening constellations.** Each real tune records into
+  `RadioPlaybackState.listening` (distinct days + sessions). After three days,
+  `RadioStationRegistry.listeningSignals(...)` emits a `.listening` continuity
+  signal that flows through `ConstellationKeeper` exactly like other signals:
+  noticed → watched → named ("You and Thornwave", "The Midnight Frequency") →
+  woven. It then appears in The Book Notices and the monthly edition for free.
+- **Held-station effects (real stakes).** A station kept tuned for
+  `heldEffectDays` distinct days grants a signature reward: Thornwave lets the
+  Nothing's grey lean one shade nearer (`greyShift`, distress-safe), Fae-Fi's
+  brightness pushes it back, and Mothlight Beats deepens remembering
+  (`heldSurfaceBoosts` → Book Remembered). Wired into the same `NothingTide`
+  greyShift sum and `CuratorMood` boost merge the Almanac and Book Jump use.
+
 ## Book Jumping (stepping into public-domain books)
 
 `BookJumpEngine` (`Shared/StoryEngine.swift`) lets the reader step through the

@@ -518,6 +518,43 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertTrue(notes.contains { $0.contains("generic") || $0.contains("ordinary enchanted objects") || $0.contains("memorable sentence") })
     }
 
+    // MARK: - Radio atmosphere
+
+    func testRadioAtmosphereSectionIsEmptyWhenSilent() {
+        XCTAssertEqual(RadioAtmosphere.promptSection(nil), "")
+        XCTAssertEqual(RadioAtmosphere.promptSection(""), "")
+    }
+
+    func testRadioAtmosphereSectionCarriesStationAndSoftRule() {
+        let section = RadioAtmosphere.promptSection("Thornwave (103.7) — dark faerie lo-fi")
+        XCTAssertTrue(section.contains("WHAT'S PLAYING"))
+        XCTAssertTrue(section.contains("Thornwave (103.7)"))
+        XCTAssertTrue(section.contains("faintly color"))
+        XCTAssertTrue(section.contains("never as a thesis") || section.contains("Do not name the station"))
+    }
+
+    func testTunedStationProducesAtmosphereLine() {
+        let line = RadioStationRegistry.atmosphereLine(state: RadioPlaybackState(activeStationID: "thornwave"))
+        XCTAssertEqual(line, "Thornwave (103.7) — Bramble bass, broken-glass garage, and bargains struck in the low end after midnight.")
+        XCTAssertNil(RadioStationRegistry.atmosphereLine(state: .off))
+    }
+
+    func testBraidPromptCarriesNowPlaying() {
+        let day = BookDay(id: "2026-06-16", date: date("2026-06-16T20:30:00Z"), pages: [])
+        let context = BraidPromptBuilder.Context(nowPlaying: "Mothlight Beats (90.9) — wistful fae-fi")
+
+        let prompt = BraidPromptBuilder.prompt(for: day, context: context)
+
+        XCTAssertTrue(prompt.contains("WHAT'S PLAYING"))
+        XCTAssertTrue(prompt.contains("Mothlight Beats (90.9)"))
+    }
+
+    func testBraidPromptOmitsAtmosphereWhenSilent() {
+        let day = BookDay(id: "2026-06-16", date: date("2026-06-16T20:30:00Z"), pages: [])
+        let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
+        XCTAssertFalse(prompt.contains("WHAT'S PLAYING"))
+    }
+
     private func date(_ value: String) -> Date {
         ISO8601DateFormatter().date(from: value)!
     }

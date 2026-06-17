@@ -1678,4 +1678,40 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(state.active?.title, "The Voyage of the Dawn Treader")
         XCTAssertEqual(state.active?.depth, 1)
     }
+
+    // MARK: Radio held-station effects
+
+    private func heldRadio(stationID: String, days: Int, calendar: Calendar) -> RadioPlaybackState {
+        var state = RadioPlaybackState(activeStationID: stationID)
+        for day in 1...days {
+            state.recordListening(stationID: stationID, now: date(2026, 6, day, hour: 12, calendar: calendar), calendar: calendar)
+        }
+        return state
+    }
+
+    func testHeldStationRequiresEnoughDaysAndBeingTuned() {
+        let cal = utcCalendar
+        XCTAssertNil(RadioStationRegistry.heldStationID(state: heldRadio(stationID: "thornwave", days: 3, calendar: cal)))
+        XCTAssertEqual(RadioStationRegistry.heldStationID(state: heldRadio(stationID: "thornwave", days: 4, calendar: cal)), "thornwave")
+
+        // Heard enough, but no longer the tuned station → no held effect.
+        var untuned = heldRadio(stationID: "thornwave", days: 4, calendar: cal)
+        untuned.activeStationID = nil
+        XCTAssertNil(RadioStationRegistry.heldStationID(state: untuned))
+    }
+
+    func testHeldThornwavePullsGreyNearerAndFaeFiPushesItBack() {
+        let cal = utcCalendar
+        XCTAssertEqual(RadioStationRegistry.greyShift(state: heldRadio(stationID: "thornwave", days: 4, calendar: cal)), 1)
+        XCTAssertEqual(RadioStationRegistry.greyShift(state: heldRadio(stationID: "fae-fi", days: 4, calendar: cal)), -1)
+        XCTAssertEqual(RadioStationRegistry.greyShift(state: heldRadio(stationID: "thornwave", days: 2, calendar: cal)), 0)
+        XCTAssertEqual(RadioStationRegistry.greyShift(state: .off), 0)
+    }
+
+    func testHeldMothlightDeepensRemembering() {
+        let cal = utcCalendar
+        XCTAssertEqual(RadioStationRegistry.heldSurfaceBoosts(state: heldRadio(stationID: "mothlight-beats", days: 4, calendar: cal)), [.bookRemembered: 8])
+        XCTAssertTrue(RadioStationRegistry.heldSurfaceBoosts(state: heldRadio(stationID: "mothlight-beats", days: 3, calendar: cal)).isEmpty)
+        XCTAssertTrue(RadioStationRegistry.heldSurfaceBoosts(state: heldRadio(stationID: "thornwave", days: 4, calendar: cal)).isEmpty)
+    }
 }

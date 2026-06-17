@@ -502,12 +502,19 @@ extension ContentView {
     @MainActor
     func tendConstellations(now: Date = Date()) {
         let previousConstellations = vault.data.constellations ?? []
-        let digest = LiteraryContinuityProjector.digest(
+        var digest = LiteraryContinuityProjector.digest(
             days: days,
             events: narrativeEvents,
             entityMemories: entityMemories,
             entityBelief: entityBeliefLedger,
             pageBelief: pageBeliefLedger,
+            now: now
+        )
+        // A station the reader keeps returning to becomes a companion
+        // constellation ("You and Thornwave keep meeting…").
+        digest.signals += RadioStationRegistry.listeningSignals(
+            state: vault.data.radio ?? .off,
+            unlockedPackIDs: Set(vault.data.ownedPacks ?? []),
             now: now
         )
         let advanced = ConstellationKeeper.advanced(

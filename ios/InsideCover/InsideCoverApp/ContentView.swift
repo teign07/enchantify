@@ -1128,12 +1128,19 @@ struct ContentView: View {
             appLog.info("Continuity cache refreshed in \(ms, format: .fixed(precision: 1))ms; days: \(days.count, privacy: .public); events: \(narrativeEvents.count, privacy: .public)")
         }
 
-        let digest = LiteraryContinuityProjector.digest(
+        var digest = LiteraryContinuityProjector.digest(
             days: days,
             events: narrativeEvents,
             entityMemories: entityMemories,
             entityBelief: entityBeliefLedger,
             pageBelief: pageBeliefLedger,
+            now: surfaceRefreshDate
+        )
+        // Stations the reader keeps returning to surface as continuity signals,
+        // so The Book Notices can voice them and they can grow into companions.
+        digest.signals += RadioStationRegistry.listeningSignals(
+            state: vault.data.radio ?? .off,
+            unlockedPackIDs: Set(vault.data.ownedPacks ?? []),
             now: surfaceRefreshDate
         )
         cachedContinuityDigest = digest
@@ -4876,7 +4883,11 @@ struct ContentView: View {
                 days: days,
                 themes: vault.data.themes ?? [],
                 entityBeliefOffsets: entityBeliefLedger,
-                learnedNotes: vault.data.learnedBraidNotes ?? []
+                learnedNotes: vault.data.learnedBraidNotes ?? [],
+                nowPlaying: RadioStationRegistry.atmosphereLine(
+                    state: vault.data.radio ?? .off,
+                    unlockedPackIDs: Set(vault.data.ownedPacks ?? [])
+                )
             )
             var braid = try await braider.braid(day: braidDay, context: braidContext)
             braid = BraidPageDetails.annotated(braid, context: braidContext)

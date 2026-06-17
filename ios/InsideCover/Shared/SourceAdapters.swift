@@ -771,6 +771,8 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
             return "\(signal.subjectName) is interesting because it has gone quiet. \(signal.line)"
         case .duration:
             return "Time has started to matter around \(signal.subjectName). \(signal.line)"
+        case .listening:
+            return "You keep tuning to \(signal.subjectName). \(signal.line)"
         }
     }
 }
