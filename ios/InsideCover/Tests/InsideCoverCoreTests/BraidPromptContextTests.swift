@@ -1,0 +1,425 @@
+import XCTest
+@testable import InsideCoverCore
+
+final class BraidPromptContextTests: XCTestCase {
+    func testBraidPromptCarriesTitleStoryShapeThemeChapterAndEarlierBraid() {
+        let day = BookDay(
+            id: "2026-06-16",
+            date: date("2026-06-16T20:30:00Z"),
+            pages: [
+                BookPage(
+                    type: .souvenir,
+                    createdAt: date("2026-06-16T08:00:00Z"),
+                    promptText: "One true thing",
+                    userInput: "The coffee cup sat beside the laptop while rain tapped the window.",
+                    tags: ["morning"]
+                )
+            ]
+        )
+        let theme = BookTheme(
+            id: "theme-2026-06",
+            monthKey: "2026-06",
+            name: "Rain and Lamps",
+            motifs: ["rain", "lamps"],
+            line: "Rain and Lamps ran under the month like a watermark.",
+            strength: 42,
+            evidencePageIDs: [],
+            excerptLines: [],
+            discoveredAt: day.date
+        )
+        let context = BraidPromptBuilder.Context(
+            recentBraids: ["Yesterday's braid left a brass key cooling on the sill."],
+            theme: theme,
+            chapter: AcademyChapterRegistry.chapter(id: "mossbloom")
+        )
+
+        let prompt = BraidPromptBuilder.prompt(for: day, context: context)
+
+        XCTAssertTrue(prompt.contains("Silently choose a short title for the day"))
+        XCTAssertTrue(prompt.contains("Once, Because, Until, And so, Kept"))
+        XCTAssertTrue(prompt.contains("MONTHLY THEME THREAD"))
+        XCTAssertTrue(prompt.contains(theme.promptLine))
+        XCTAssertTrue(prompt.contains("CHAPTER WEATHER"))
+        XCTAssertTrue(prompt.contains("Chapter Mossbloom"))
+        XCTAssertTrue(prompt.contains("EARLIER PAGES OF THE BOOK OF YOU"))
+        XCTAssertTrue(prompt.contains("brass key cooling on the sill"))
+        XCTAssertTrue(prompt.contains("At most one image or motif from an earlier braid may return today"))
+    }
+
+    func testRecentBraidTextsSelectNewestAndOlderEchoWithoutCurrentDay() {
+        let currentDay = BookDay(id: "2026-06-16", date: date("2026-06-16T12:00:00Z"), pages: [])
+        let days = (1...6).map { index in
+            BookDay(
+                id: "2026-06-\(String(format: "%02d", index))",
+                date: date("2026-06-\(String(format: "%02d", index))T12:00:00Z"),
+                pages: [
+                    BookPage(
+                        id: "braid-\(index)",
+                        type: .bookOfYou,
+                        promptText: "Braid",
+                        userInput: "Braid \(index) carried a distinct image.",
+                        tags: ["braid"]
+                    )
+                ]
+            )
+        } + [
+            BookDay(
+                id: currentDay.id,
+                date: currentDay.date,
+                pages: [
+                    BookPage(type: .bookOfYou, promptText: "Braid", userInput: "Current day should not return.")
+                ]
+            )
+        ]
+
+        let recent = BraidPromptBuilder.recentBraidTexts(excludingDayID: currentDay.id, days: days)
+
+        XCTAssertEqual(recent.count, 2)
+        XCTAssertTrue(recent[0].contains("Braid 6"))
+        XCTAssertTrue(recent[1].contains("Braid 2"))
+        XCTAssertFalse(recent.joined().contains("Current day"))
+    }
+
+    func testAnnotatedBraidKeepsTitleAndContextTags() {
+        let page = BookPage(
+            type: .bookOfYou,
+            promptText: "The Book braided today.",
+            userInput: """
+            Rain At The Window
+
+            The cup waited beside the laptop while the room listened.
+
+            The Book kept the page: rain made the ordinary visible.
+            """,
+            tags: ["braid"]
+        )
+        let theme = BookTheme(
+            id: "theme-2026-06",
+            monthKey: "2026-06",
+            name: "Rain and Lamps",
+            motifs: ["rain", "lamps"],
+            line: "Rain and Lamps ran under the month like a watermark.",
+            strength: 42,
+            evidencePageIDs: [],
+            excerptLines: [],
+            discoveredAt: date("2026-06-16T12:00:00Z")
+        )
+        let context = BraidPromptBuilder.Context(
+            recentBraids: ["Yesterday had a brass key."],
+            theme: theme,
+            chapter: AcademyChapterRegistry.chapter(id: "mossbloom")
+        )
+
+        let annotated = BraidPageDetails.annotated(page, context: context)
+        let details = BraidPageDetails.details(for: annotated)
+
+        XCTAssertEqual(details.title, "Rain At The Window")
+        XCTAssertFalse(details.body.contains("Rain At The Window"))
+        XCTAssertEqual(annotated.promptText, "Book of You: Rain At The Window")
+        XCTAssertEqual(annotated.promptVersion, BraidPageDetails.promptVersion)
+        XCTAssertTrue(annotated.tags.contains("braid-v2"))
+        XCTAssertTrue(annotated.tags.contains("theme:Rain and Lamps"))
+        XCTAssertTrue(annotated.tags.contains("chapter:Mossbloom"))
+        XCTAssertTrue(annotated.tags.contains("yesterday-echo"))
+    }
+
+    func testBraidContextFindsThemeAndAscendantChapter() {
+        let day = BookDay(id: "2026-06-16", date: date("2026-06-16T12:00:00Z"), pages: [])
+        let prior = BookDay(
+            id: "2026-06-15",
+            date: date("2026-06-15T12:00:00Z"),
+            pages: [
+                BookPage(type: .bookOfYou, promptText: "Braid", userInput: "A prior braid carried a window.")
+            ]
+        )
+        let theme = BookTheme(
+            id: "theme-2026-06",
+            monthKey: "2026-06",
+            name: "Windows and Keys",
+            motifs: ["windows", "keys"],
+            line: "Windows and Keys stood in the running head.",
+            strength: 33,
+            evidencePageIDs: [],
+            excerptLines: [],
+            discoveredAt: day.date
+        )
+
+        let context = BraidPromptBuilder.context(
+            for: day,
+            days: [prior, day],
+            themes: [theme],
+            entityBeliefOffsets: ["moss-clasp": 90]
+        )
+
+        XCTAssertEqual(context.recentBraids.count, 1)
+        XCTAssertEqual(context.theme?.name, "Windows and Keys")
+        XCTAssertEqual(context.chapter?.id, "mossbloom")
+    }
+
+    func testBraidTastingRoomRanksStrongerVariantFirst() {
+        let theme = BookTheme(
+            id: "theme-2026-06",
+            monthKey: "2026-06",
+            name: "Rain and Lamps",
+            motifs: ["rain", "lamps"],
+            line: "Rain and Lamps stood at the edge of the month.",
+            strength: 42,
+            evidencePageIDs: [],
+            excerptLines: [],
+            discoveredAt: date("2026-06-16T12:00:00Z")
+        )
+        let context = BraidPromptBuilder.Context(
+            recentBraids: ["Yesterday left a brass key cooling on the sill."],
+            theme: theme,
+            chapter: AcademyChapterRegistry.chapter(id: "mossbloom")
+        )
+        let strong = BookPage(
+            id: "strong",
+            type: .bookOfYou,
+            promptText: "Book of You",
+            userInput: """
+            Rain At The Window
+
+            Once, the coffee cup waited beside the laptop while rain tapped the window and made the room small enough to hold.
+
+            Because the day wanted a gentler door, the charger, the lamp, and the old brass key on the sill became a little parliament of ordinary things.
+
+            Until evening, the window kept returning the same answer in different light: carry one task, not the whole storm.
+
+            And so the page did not crown the day or explain it. It let the small moss-bright patience remain where the hand could find it.
+
+            The Book kept the page: a cup, a key, and rain taught the room to wait.
+            """,
+            tags: ["braid"]
+        )
+        let weak = BookPage(
+            id: "weak",
+            type: .bookOfYou,
+            promptText: "Book of You",
+            userInput: """
+            Today's Journey
+
+            Today was a profound journey full of hidden meaning and magic.
+
+            The day was meaningful and inspiring.
+
+            The Book kept the page: everything mattered.
+            """,
+            tags: ["braid"]
+        )
+
+        let result = BraidTastingRoom.taste([weak, strong], context: context)
+
+        XCTAssertEqual(result.winner?.page.id, "strong")
+        XCTAssertGreaterThan(
+            result.samples.first { $0.page.id == "strong" }!.score.total,
+            result.samples.first { $0.page.id == "weak" }!.score.total
+        )
+    }
+
+    func testBraidTastingRoomRewardsSubtleThemeAndChapterInfluence() {
+        let theme = BookTheme(
+            id: "theme-2026-06",
+            monthKey: "2026-06",
+            name: "Rain and Lamps",
+            motifs: ["rain", "lamps"],
+            line: "Rain and Lamps stood at the edge of the month.",
+            strength: 42,
+            evidencePageIDs: [],
+            excerptLines: [],
+            discoveredAt: date("2026-06-16T12:00:00Z")
+        )
+        let context = BraidPromptBuilder.Context(
+            theme: theme,
+            chapter: AcademyChapterRegistry.chapter(id: "mossbloom")
+        )
+        let subtle = BookPage(
+            type: .bookOfYou,
+            promptText: "Book of You",
+            userInput: """
+            The Patient Lamp
+
+            Once, the lamp stayed on by the cup while the window kept its weather to itself.
+
+            Because the day asked for a slower hand, the page noticed what could grow without being hurried.
+
+            Until the last task moved, the room held its little threshold.
+
+            And so the night left patience on the table.
+
+            The Book kept the page: the lamp waited, and the hand did not rush.
+            """
+        )
+        let explicit = BookPage(
+            type: .bookOfYou,
+            promptText: "Book of You",
+            userInput: """
+            Rain And Lamps Lesson
+
+            Chapter Mossbloom and the monthly theme Rain and Lamps influenced this braid.
+
+            Because Rain and Lamps was the theme, rain and lamps were important.
+
+            The Book kept the page: the chapter and theme were present.
+            """
+        )
+
+        let subtleScore = BraidTastingRoom.score(page: subtle, context: context)
+        let explicitScore = BraidTastingRoom.score(page: explicit, context: context)
+
+        XCTAssertGreaterThan(subtleScore.themeAndChapter, explicitScore.themeAndChapter)
+    }
+
+    func testBraidLearningLoopTurnsWeakTastingIntoPromptGuidance() {
+        let weak = BookPage(
+            id: "weak",
+            type: .bookOfYou,
+            promptText: "Book of You",
+            userInput: """
+            Today's Journey
+
+            Today was a profound journey full of hidden meaning.
+
+            The day mattered.
+            """,
+            tags: ["braid"]
+        )
+        let sample = BraidTastingRoom.taste([weak]).winner!
+        let observation = BraidLearningLoop.Observation(
+            selected: sample,
+            acceptedByReader: false,
+            editedText: """
+            Cup Beside The Window
+
+            Once, the cup waited by the window.
+
+            Because the room needed one small thing to hold, the lamp stayed on.
+
+            Until the rain stopped, the page kept its hand on the ordinary.
+
+            The Book kept the page: a cup and window taught the room to wait.
+            """
+        )
+
+        let guidance = BraidLearningLoop.guidance(from: [observation])
+        let notes = guidance.promptLines.joined(separator: "\n")
+
+        XCTAssertTrue(notes.contains("The Book kept the page"))
+        XCTAssertTrue(notes.contains("old-tale turn"))
+        XCTAssertTrue(notes.contains("ordinary enchanted objects"))
+        XCTAssertTrue(notes.contains("Avoid generic reflection words"))
+    }
+
+    func testBraidPromptCarriesLearnedGuidance() {
+        let day = BookDay(
+            id: "2026-06-16",
+            date: date("2026-06-16T20:30:00Z"),
+            pages: [
+                BookPage(
+                    type: .souvenir,
+                    createdAt: date("2026-06-16T08:00:00Z"),
+                    promptText: "One true thing",
+                    userInput: "The coffee cup sat beside the laptop while rain tapped the window."
+                )
+            ]
+        )
+        let guidance = BraidLearningGuidance(signals: [
+            .init(
+                dimension: "keeperSentence",
+                weight: 12,
+                note: "End with exactly one memorable sentence beginning 'The Book kept the page:'."
+            )
+        ])
+        let context = BraidPromptBuilder.Context(learnedGuidance: guidance)
+
+        let prompt = BraidPromptBuilder.prompt(for: day, context: context)
+
+        XCTAssertTrue(prompt.contains("LEARNED BRAID TASTE"))
+        XCTAssertTrue(prompt.contains("End with exactly one memorable sentence"))
+        XCTAssertTrue(prompt.contains("Treat these as local taste notes"))
+    }
+
+    func testBraidContextLearnsFromMissedMePriorPages() {
+        let day = BookDay(id: "2026-06-16", date: date("2026-06-16T12:00:00Z"), pages: [])
+        let prior = BookDay(
+            id: "2026-06-15",
+            date: date("2026-06-15T12:00:00Z"),
+            pages: [
+                BookPage(
+                    type: .bookOfYou,
+                    promptText: "Book of You",
+                    userInput: """
+                    Today's Journey
+
+                    Today was a profound journey full of hidden meaning.
+
+                    The day mattered.
+                    """,
+                    tags: ["braid", BraidLearningLoop.missedMeTag]
+                )
+            ]
+        )
+
+        let context = BraidPromptBuilder.context(for: day, days: [prior, day])
+        let prompt = BraidPromptBuilder.prompt(for: day, context: context)
+
+        XCTAssertNotNil(context.learnedGuidance)
+        XCTAssertTrue(prompt.contains("LEARNED BRAID TASTE"))
+        XCTAssertTrue(prompt.contains("Avoid generic reflection words"))
+    }
+
+    func testBraidContextDoesNotLearnPressureFromLovedPriorPages() {
+        let day = BookDay(id: "2026-06-16", date: date("2026-06-16T12:00:00Z"), pages: [])
+        let prior = BookDay(
+            id: "2026-06-15",
+            date: date("2026-06-15T12:00:00Z"),
+            pages: [
+                BookPage(
+                    type: .bookOfYou,
+                    promptText: "Book of You",
+                    userInput: """
+                    Cup Beside The Window
+
+                    Once, the cup waited by the window.
+
+                    The Book kept the page: a cup and window taught the room to wait.
+                    """,
+                    tags: ["braid", BraidLearningLoop.lovedItTag]
+                )
+            ]
+        )
+
+        let context = BraidPromptBuilder.context(for: day, days: [prior, day])
+
+        XCTAssertNil(context.learnedGuidance)
+    }
+
+    func testBraidLearningPublicLessonNamesWhatChanged() {
+        let page = BookPage(
+            type: .bookOfYou,
+            promptText: "Book of You",
+            userInput: """
+            Today's Journey
+
+            Today was a profound journey full of hidden meaning.
+
+            The day mattered.
+            """,
+            tags: ["braid", BraidLearningLoop.missedMeTag]
+        )
+
+        let lesson = BraidLearningLoop.publicLesson(for: page)
+
+        XCTAssertFalse(lesson.contains("score"))
+        XCTAssertTrue(lesson.contains("Book learned"))
+        XCTAssertTrue(
+            lesson.contains("truer details") ||
+                lesson.contains("stronger final line") ||
+                lesson.contains("clearer turn")
+        )
+    }
+
+    private func date(_ value: String) -> Date {
+        ISO8601DateFormatter().date(from: value)!
+    }
+}

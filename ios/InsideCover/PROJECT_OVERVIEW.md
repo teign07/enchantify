@@ -23,7 +23,7 @@ durations, relationships, recurring Beliefs, and seasonal shape.
 - Shared SwiftPM package: `InsideCoverCore`
 - Supported runtime target: iOS 17+
 - Shared-core test target: `Tests/InsideCoverCoreTests`
-- Current verified shared suite: 325 tests
+- Current verified shared suite: 397 tests, 1 skipped
 - Device builds: build/install to a physical device (the local brain only runs on
   device; the iOS Simulator compiles but exercises only the fake fallbacks).
 - Widget status: removed from this project. The old widget source has been
@@ -137,10 +137,11 @@ Current page types:
 mood, diary, souvenir, rest, body, fuel, weather, location, quip,
 aboutYou, wonderCompass, lore, patreon, illustration, illuminatedPhoto,
 narrativeOS, gossip, facultyResearch, letter, supportGuild, castMember,
-bookOfYou, askTheBook, inkrestOfficeHours, faeBargain, pactDispatch,
-festival, twoReadings, castBond, enchantment, anchor, academyClass, elective, packPage,
+bookOfYou, askTheBook, inkrestOfficeHours, faeBargain, bookFae,
+pactDispatch, festival, twoReadings, castBond, todaysSky, radio,
+bookJump, enchantment, anchor, academyClass, elective, packPage,
 calendar, helpTips, welcome, marginsAtlas, bookConnections, bookRemembered,
-bookNotices, theBleed
+bookNotices, theBleed, inventory
 ```
 
 Important model types:
@@ -167,13 +168,15 @@ The feed is produced by `BookPageSourceAdapters.active` in
 It returns zero or more `SurfacePage` candidates. The active adapter order is:
 
 ```text
-Rest, Mood, Diary, Souvenir, Book of You, Book Remembered, Book Notices,
+Inventory, BookShop Preview, World Event, Rest, Mood, Diary, Souvenir,
+Book of You, Book Remembered, Book Connections, Book Notices, The Bleed,
 Ask the Book, Body, Fuel, Faculty Research, Character Letter, Support Guild,
-Dr. Inkrest's Office Hours, Fae Bargain, Pact Dispatch, Festival, Two Readings,
-Cast Bond, Weather, Enchantment, Welcome,
-Academy Class, Elective, Pack Page, Calendar, Quip, About You, Wonder Compass,
-Lore, Help Tips, Patreon, Illustration, Illuminated Photo, Story Page,
-Margins Atlas, Gossip, Cast Member, Outer Stacks Anchor, Location
+Dr. Inkrest's Office Hours, Fae Bargain, Book Fae, Pact Dispatch, Festival,
+Today's Sky, Radio, Book Jump, Two Readings, Cast Bond, Weather, Enchantment,
+Welcome, Local Brain Awake, Academy Class, Elective, Pack Page, Calendar, Quip,
+About You, Wonder Compass, Lore, Help Tips, Patreon, Illustration,
+Illuminated Photo, Story Page, Margins Atlas, Gossip, Cast Member,
+Outer Stacks Anchor, Location
 ```
 
 `BookSourceInputs` is the central context bundle. It carries body/weather
@@ -181,7 +184,9 @@ signals, enchanted weather, anchors, nearby places, self facts, faculty entries,
 custom cast members, electives, entity/page Belief offsets, surface history,
 calendar events, resurfacing candidates, quiet days, current arc, recent
 narrative events, the current literary-continuity digest, the reader's Fae
-standing (`faeState`), and the Pact War control state (`pactWar`).
+standing (`faeState`), the Pact War control state (`pactWar`), world-event
+influence, Book Jump state, radio playback, owned packs, and live
+relationship-field inputs.
 
 ## Curation
 
@@ -226,6 +231,25 @@ These are the low-friction material that later becomes the Book's archive.
 Faculty-flavored capture windows, such as Dr. Inkrest for inner weather and Dr.
 Vellum for fuel/body notes, use structured `FacultyEntry` records so the app
 can tell whether a window has already been logged.
+
+### Sentence Builder
+
+`Shared/SentenceBuilder.swift` is the craft helper behind the Book's "make one
+true sentence" habit. It is local, deterministic, and deliberately concrete: it
+nudges the reader toward an anchor, a sensory detail, a living verb, and one
+small crossed-sense image rather than vague magical phrasing.
+
+Core pieces:
+
+- `SentenceBuilderPack` - a configurable ritual pack (`core.faerie-real`) with
+  an overlay for Souvenir sentences.
+- `SentenceBuilderEngine` - returns the next nudge, analyzes the text, scores
+  memory strength, emits craft marks, diagnostics, chips, and alchemy levels.
+- `SentenceBuilderStepKind` - anchor, sense, motion, crossing, cutMist, and
+  groundGlow.
+
+This system supports the product thesis directly: the Book helps the reader
+write a better kept page before any model has to embellish it.
 
 ### Book Of You
 
@@ -704,6 +728,49 @@ settings. The Glow menu is also the entry point to the BookShop, **The Margin**
 - **Legibility.** Each tick records `recentMovements`; the app surfaces a one-line
   **overnight digest** ("Overnight: your Glow settled by 3, Zara Finch cooled 2.").
 
+## The Inventory
+
+The `inventory` page type gathers the reader's working magical objects in one
+place. It is not a generic settings screen; it is a clasped flyleaf showing what
+the Book can actually use.
+
+It currently surfaces:
+
+- warm, cold, spent, and repairable Fae gifts,
+- installed BookShop folios / owned content packs,
+- story objects and custom cast artifacts with their current Glow,
+- gift actions such as Quieting, Reshelving, Long Memory, Calling Card, and Loose
+  Page turns.
+
+Related pieces:
+
+- `InventoryPageSourceAdapter`
+- `CapturePageSheet.inventoryPageView`
+- `FaeGiftEffects`, `LoosePageReader`, `PackEntitlements`
+- vault fields for Fae state, owned packs, custom cast, and object Belief
+
+The Inventory is where Fae economy, content packs, and durable story objects
+become visible as usable tools.
+
+## ReEnchanted Radio
+
+The `radio` page type is an Academy radio dial that can tint the feed while a
+station is tuned. Stations carry frequency, host, signal line, interludes, track
+metadata, mood tags, and explicit page-type boosts.
+
+Core stations ship in `RadioStationRegistry`:
+
+- The Scriptorium Desk - focus, archive, diary, souvenirs, and remembered pages.
+- Dr. Inkrest's Office - rest, inner weather, and office-hours pages.
+- The Casement Static - weather, Today's Sky, and threshold/wonder pages.
+
+Radio can also load user or pack stations from `.reenchantedradio.json` files.
+`RadioPlaybackState` persists the active station and tuning state in the vault,
+`BookRadioManager` handles local playback/Haptics in the app, and
+`RadioPageSourceAdapter` turns the dial into a keepable surface. Curation reads
+`RadioStationRegistry.surfaceBoosts(...)` so the active station has mechanical
+weight rather than being only ambience.
+
 ## Book Jumping (stepping into public-domain books)
 
 `BookJumpEngine` (`Shared/StoryEngine.swift`) lets the reader step through the
@@ -794,6 +861,13 @@ call); the `FaeBargainPageSourceAdapter` surfaces the open debt (or a lapsed one
 to repair); the reader pays with a field report; the local brain answers in the
 fae's voice with a true lore fragment (the only model call, button-triggered);
 keeping the page records the delivery (warmth + attention).
+
+The separate `bookFae` page type is an interactive old-law encounter with the
+Fae themselves. It follows the strongest active omen when one exists, presents
+structured choices, and can create or alter omens and Fae economy state without
+pretending a real-world field report happened. It uses local-brain prose when
+available, with a static fallback, and is covered by `FaeBargainTests` and
+`SurfaceReadinessStateTests`.
 
 Supporting surfaces:
 
@@ -910,6 +984,31 @@ user-initiated buttons, never automatic:
 
 Calendar/Reminders writes need `NSCalendarsFullAccessUsageDescription` and
 `NSRemindersFullAccessUsageDescription` (both in `Info.plist`).
+
+## World Event Packs
+
+`Shared/WorldEvents.swift` defines temporary world physics supplied by bundled
+or imported event packs. Unlike ordinary content packs, a world event can
+influence nearly every surface: curation, story packets, class flavor, letters,
+notifications, visual treatment, and monthly binding.
+
+The model is structured:
+
+- `WorldEventPack` contains enabled events from bundled packs or user-imported
+  `.reenchantedevents.json` files.
+- `WorldEvent` defines title, calendar window, phases, triggers, outcomes,
+  effects, and an `EventInfluencePacket`.
+- `WorldEventResolver` resolves the active phase, player touch count, outcome,
+  and effect list for the current date.
+- `WorldEventPageSourceAdapter` surfaces active fieldwork prompts as keepable
+  pages.
+
+The bundled pack is **The Living Almanac**, currently including **The Dictionary
+Rebellion**, a September event where words peel away from their definitions.
+Touches from related kept pages, class answers, letters, Compass Runs,
+Enchantments, and other triggers can move the event toward an outcome. Monthly
+editions bind world-event traces from kept tags, so temporary physics become
+part of the archive rather than disappearing after the event window.
 
 ## The Almanac (Wheel of the Year + lunar esbats)
 
@@ -1383,8 +1482,9 @@ The app has several kinds of memory, each with a different job:
 - `BookArchiveResurfacing` records - return history.
 - `PlayerVaultData` - anchors, electives, Belief ledgers, tutor progress, owned
   packs, surface history, current arc, constellations, wagers, themes, Fae
-  standing (`fae`), Pact War control (`pactWar`), and the living relationship
-  field (`relationshipField`).
+  standing (`fae`), Pact War control (`pactWar`), Book Jump state (`bookJump`),
+  radio playback (`radio`), and the living relationship field
+  (`relationshipField`).
 - `ReEnchantedSaveFile` - complete portable export/import container.
 
 Memory is intentionally typed. Generated prose should be an expression of these
@@ -1460,6 +1560,8 @@ Generation services include:
 - Ask the Book,
 - Dr. Inkrest's Office Hours counseling,
 - Fae Bargain responses (in each fae's voice),
+- Book Fae interactive scenes,
+- Book Jump prose,
 - Wonder Compass choice and mission generation,
 - Weather enchantment,
 - Story Page prose and result prose,
@@ -1598,8 +1700,9 @@ Important app files:
   visual style, backgrounds, onboarding, archive cards, animation.
 - `InsideCoverApp/CapturePageSheet.swift` - page opening/capture/generation UI
   for capture, story, gossip, Ask, Compass, mission, enchantment, photo,
-  Dr. Inkrest's Office Hours, and Fae Bargain flows (and the Pact War framing
-  card / goblin marginalia shown on pages).
+  Dr. Inkrest's Office Hours, Fae Bargain, Book Fae, Radio, Inventory, Today's
+  Sky, and Book Jump flows (and the Pact War framing card / goblin marginalia
+  shown on pages).
 - `InsideCoverApp/CapturePageSections.swift` - extracted sheet sections such as
   Chapter Binding, Anchor offers, electives, and support guild.
 - `InsideCoverApp/BookStatusCards.swift` - status cards, Glow menu, Belief UI,
@@ -1611,8 +1714,9 @@ Important app files:
 - `InsideCoverApp/SearchTheStacksSheet.swift` - local archive search UI.
 - `InsideCoverApp/CustomCastMemberSheet.swift` - custom cast creation UI.
 - `InsideCoverApp/BookShopSheet.swift` - pack/shop UI.
-- `InsideCoverApp/AppSupport.swift` - haptics, quips, location/weather/body
-  readers, nutrition support, the `GenerationCoordinator` and `PlayerVault`,
+- `InsideCoverApp/AppSupport.swift` - haptics, quips, radio playback,
+  location/weather/body readers, nutrition support, the `GenerationCoordinator`
+  and `PlayerVault`,
   scheduled notifications (`BookWhispers`, recolored by the Pact War's Whisper
   Channel controller; `BookWhisperPresenter` for foreground display), real-world
   writing (`EventKitWriter` for Reminders/Calendar), the `OvernightScribe`, and
@@ -1633,14 +1737,17 @@ Important shared files:
   relationship field (`RelationshipTie`, `RelationshipFieldEngine`, the dynamic
   Loom), and the dynamic disagreement engine (`DisagreementEngine`).
 - `Shared/StoryEngine.swift` - story-generation contracts, scene/result
-  packets, mission logic, writer protocols, gossip simulation (incl. Belief
-  combat and `GossipRelationshipMove`), the letter generator and cross-letter
-  memory.
+  packets, mission logic, writer protocols, Book Jump engine/state, gossip
+  simulation (incl. Belief combat and `GossipRelationshipMove`), the letter
+  generator and cross-letter memory.
 - `Shared/WorldSystems.swift` - body/weather signals, moon phase, anchors,
-  location math, scheduling/world helpers, the Academy Chapters and Chapter
-  Binding oracle, the Book Fae economy (bargains, gifts, market, marginalia),
-  the Pact War (territories, engine, effects, voices), the Almanac (Wheel of the
-  Year + esbats), and the returning-greeting composer.
+  location math, scheduling/world helpers, radio stations/playback, the Academy
+  Chapters and Chapter Binding oracle, the Book Fae economy (bargains, gifts,
+  market, marginalia), the Pact War (territories, engine, effects, voices), the
+  Almanac (Wheel of the Year + esbats), Today's Sky, and the returning-greeting
+  composer.
+- `Shared/WorldEvents.swift` - event packs, active event resolution, phases,
+  triggers, outcomes, influence packets, and event effects.
 - `Shared/InsideCoverState.swift` - remaining app state models and archive
   export structures.
 - `Shared/InsideCoverStore.swift` - store/load, local model management,
@@ -1650,6 +1757,8 @@ Important shared files:
   self-knowledge packs, illustration profiles.
 - `Shared/PagePacks.swift` - page archetypes, save file, vault data, BookShop,
   margin tutor, JSON salvage.
+- `Shared/SentenceBuilder.swift` - concrete sentence-craft nudges, diagnostics,
+  chips, and alchemy levels.
 - `Shared/Illumination.swift` - photo illumination templates, packs, composer,
   queue/source adapter.
 - `Shared/StacksSearch.swift` - local search engine.
@@ -1677,7 +1786,12 @@ Coverage areas include:
 - margins atlas layout,
 - literary continuity and Book Notices,
 - packs, entitlements, welcome/help behavior,
+- Inventory, BookShop listings, owned packs, radio stations, and manual radio
+  surfaces,
 - weather, moon, body/fuel helpers, anchors, playful missions,
+- world event packs, active event influence, Dictionary Rebellion outcomes, and
+  monthly-event traces,
+- Sentence Builder nudges, diagnostics, chips, and alchemy levels,
 - Dr. Inkrest's Office Hours (window, rotating prompts, adapter),
 - the Fae economy (bargains, gifts, lapse/repair, market, marginalia),
 - the Pact War (tiers, controller, tick, alignment, shelf/door voice effects,
@@ -1747,13 +1861,14 @@ Practical rules:
 ## Current Direction
 
 Recently shipped (and now load-bearing): the **Book Fae** and their bargains,
+the **Inventory**, **ReEnchanted Radio**, **World Event Packs**, **Book Jumping**,
 the **Pact War** (both fronts, dispatches, Sovereign automation, door voices),
 the **Almanac** (Wheel of the Year + esbats, with Belief/Nothing/curation/Fae and
-real-world bleed effects), the **returning greeting**, the continuity **cache**
-(freeze fix), **The Two Readings** with reader-sided consequences, **cross-letter
-memory**, and the **living relationship field** (gossip Belief moves + an evolving
-Loom). Notifications are visible, and the world can write Reminders and Calendar
-events on request.
+real-world bleed effects), **Today's Sky**, the **returning greeting**, the
+continuity **cache** (freeze fix), **The Two Readings** with reader-sided
+consequences, **cross-letter memory**, **Sentence Builder**, and the **living
+relationship field** (gossip Belief moves + an evolving Loom). Notifications are
+visible, and the world can write Reminders and Calendar events on request.
 
 The system spine is now a real **narrative simulation**: play creates events,
 events reshape Belief, the relationship field, the Pact War, and the Fae economy;

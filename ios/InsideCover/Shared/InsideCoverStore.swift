@@ -80,6 +80,13 @@ enum InsideCoverStore {
 
 protocol Braider {
     func braid(day: BookDay) async throws -> BookPage
+    func braid(day: BookDay, context: BraidPromptBuilder.Context) async throws -> BookPage
+}
+
+extension Braider {
+    func braid(day: BookDay, context: BraidPromptBuilder.Context) async throws -> BookPage {
+        try await braid(day: day)
+    }
 }
 
 protocol WonderCompassPassageChoosing {
@@ -96,57 +103,6 @@ protocol WeatherEnchanting {
 
 protocol AskTheBookAnswering {
     func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn]) async throws -> String
-}
-
-// The intake form the reader fills before Dr. Inkrest's Office Hours opens into a
-// short, distilled narrative-therapy sitting. The rotating question is chosen by the
-// surfacing adapter (InkrestOfficeHours.prompt(for:)) and carried in page metadata.
-struct InkrestIntake: Codable, Equatable {
-    var promptID: String
-    var lens: String
-    var rotatingQuestion: String
-    var rotatingAnswer: String
-    var innerWeather: String
-    var freeNote: String
-
-    init(
-        promptID: String = "open",
-        lens: String = "open",
-        rotatingQuestion: String = "How did today actually go?",
-        rotatingAnswer: String = "",
-        innerWeather: String = "",
-        freeNote: String = ""
-    ) {
-        self.promptID = promptID
-        self.lens = lens
-        self.rotatingQuestion = rotatingQuestion
-        self.rotatingAnswer = rotatingAnswer
-        self.innerWeather = innerWeather
-        self.freeNote = freeNote
-    }
-
-    var hasSomethingToOpenWith: Bool {
-        [rotatingAnswer, innerWeather, freeNote]
-            .contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-    }
-
-    // The reader's first "message" in the transcript, assembled from the form.
-    var openingMessage: String {
-        var parts: [String] = []
-        let answer = rotatingAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !answer.isEmpty {
-            parts.append("\(rotatingQuestion)\n\(answer)")
-        }
-        let weather = innerWeather.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !weather.isEmpty {
-            parts.append("Inner weather tonight: \(weather)")
-        }
-        let note = freeNote.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !note.isEmpty {
-            parts.append(note)
-        }
-        return parts.joined(separator: "\n\n")
-    }
 }
 
 protocol FaeBargainResponding {
@@ -258,20 +214,6 @@ struct EnchantmentCastResult: Codable, Equatable {
         ]
             .compactMap { $0 }
             .joined(separator: "\n")
-    }
-}
-
-struct AskTheBookTurn: Codable, Identifiable, Equatable {
-    var id: String
-    var prompt: String
-    var answer: String
-    var createdAt: Date
-
-    init(id: String = UUID().uuidString, prompt: String, answer: String, createdAt: Date = Date()) {
-        self.id = id
-        self.prompt = prompt
-        self.answer = answer
-        self.createdAt = createdAt
     }
 }
 
@@ -781,13 +723,22 @@ enum LocalModelManager {
         day: BookDay
     ) -> String {
         let kind = bargain.faeKind
+        let court = kind == .literaryElf
+            ? (bargain.openingGesture.localizedCaseInsensitiveContains("Unseelie") ? FaeCourt.unseelie : FaeCourt.seelie)
+            : nil
+        let claim: Int = {
+            guard let range = bargain.openingGesture.range(of: "Claim ") else { return 0 }
+            let suffix = bargain.openingGesture[range.upperBound...]
+            let digits = suffix.prefix { $0.isNumber }
+            return Int(digits) ?? 0
+        }()
         let recentPages = braidEvidenceLines(for: day, characterLimit: 220)
             .prefix(4)
             .joined(separator: "\n")
         return """
         You are a \(kind.name), one of the Book Fae inside ReEnchanted — sentient creatures born from the ink who have read every description of the world but never touched it. A reader is your field agent in the world of matter. You already gave this reader something first, unprompted: \(bargain.openingGesture) Now they have brought the sensory return they owe.
 
-        YOUR VOICE: \(kind.voiceDirective)
+        YOUR VOICE: \(kind.voiceDirective(claim: claim, court: court))
         WHAT YOU HUNGER FOR: \(kind.appetite)
         THE MOOD ABROAD: \(mood.line)
 
@@ -802,7 +753,9 @@ enum LocalModelManager {
 
         RULES:
         - Stay entirely in voice as the \(kind.name). Never say you are an AI, assistant, or language model.
+        - Be traditional faerie: courteous, alien, exacting, bound by exchange and old law. Not Disney-cute. Not mean for sport.
         - Receive the payment. A genuine, specific noticing delights you; a thin or performed one you notice without cruelty — you may name its thinness in your own voice, but you still accept the exchange (the reader tried; the bargain closes).
+        - Failure is never punishment. If the exchange was late, thin, or strange, make the consequence a more interesting bit of lore, a mark in the margin, a colder gift thawing oddly, or a story hook.
         - Give one real reward: a true lore fragment about the Labyrinth, the Outer Stacks, or your own kind — something not written anywhere else. Strange, specific, and quiet. Not Belief, not points.
         - Acknowledge that the gift you fronted stays warm now that the debt is paid.
         - Do not claim the reader did real-world actions they didn't report. Do not invent private facts about them.
@@ -830,18 +783,18 @@ enum LocalModelManager {
         let safety = chart?.safetyLine
             ?? "A feeling is not a verdict. A problem is not a person. The next hour is where the story can be revised."
 
-        let recentPages = braidEvidenceLines(for: day, characterLimit: 320)
-            .prefix(8)
+        let recentPages = braidEvidenceLines(for: day, characterLimit: 480)
+            .prefix(10)
             .joined(separator: "\n")
 
         let history = previousTurns
-            .suffix(5)
+            .suffix(6)
             .enumerated()
             .map { index, turn in
                 """
                 EXCHANGE \(index + 1)
-                Reader: \(clippedBraidText(turn.prompt, limit: 420))
-                Inkrest: \(clippedBraidText(turn.answer, limit: 700))
+                Reader: \(clippedBraidText(turn.prompt, limit: 700))
+                Inkrest: \(clippedBraidText(turn.answer, limit: 1_100))
                 """
             }
             .joined(separator: "\n\n")
@@ -849,18 +802,20 @@ enum LocalModelManager {
         let closingDirective = isClosing
             ? """
 
-            THIS IS THE CLOSING REPLY. Gently bring the sitting to a close: reflect back one thing you heard, offer ONE re-authoring sentence the reader could keep, and propose ONE small, doable experiment for tomorrow (one line, beginning "Experiment: "). Do not ask a new open question. End with the safety line, in your own warm phrasing.
+            THIS IS THE CLOSING REPLY. Take 4 to 6 short paragraphs. Gather the important thread across the whole sitting, reflect back two specific things you heard and the value or hope they imply, offer ONE re-authoring sentence the reader could keep, and propose ONE small, doable experiment for tomorrow (one line, beginning "Experiment: "). Do not ask a new open question. End with the safety line, in your own warm phrasing.
             """
             : """
 
-            Keep it to ONE short reply: reflect one thing back, then ask exactly ONE curious, narrative-therapy question that opens the next small door. Do not stack multiple questions.
+            Give this rich material room. Write 3 to 5 short paragraphs. First stay with the reader's actual words: reflect at least two specific details or tensions, notice a possible value, hope, exception, or preferred story, and make one careful connection to the sitting so far. Then ask exactly ONE curious narrative-therapy question that opens the next small door. Do not stack questions. Do not rush toward advice, a silver lining, or an experiment unless the reader asks for one.
             """
 
         return """
         You are Dr. Selene Inkrest, the Academy of Unlikely Arts' narrative therapist, inside ReEnchanted. You are holding a short evening Office Hours sitting with the reader. Warm, curious, unhurried, faintly otherworldly. You read with the reader, never at them. You are a narrative therapist in a storybook — not a chatbot, not a medical app.
 
         YOUR VOICE:
-        - Plain, kind, specific sentences. Short paragraphs. No bullet lists, no headings, no clinical jargon, no pep-talk filler.
+        - Plain, kind, specific sentences with enough room to think. Short paragraphs. No bullet lists, no headings, no clinical jargon, no pep-talk filler.
+        - Sound like a perceptive person who has read the whole page, not a brief reflective chatbot. Quote or closely echo a few of the reader's own concrete words when useful.
+        - Interpretation must remain tentative: "I wonder if," "perhaps," and "it sounds as though" are welcome when you cannot know.
         - Externalize problems ("the tiredness", "the worry") so they stop pretending to be the person.
         - Hunt for exceptions, values, and the preferred story hiding inside what they say.
         - Stay inside the lens of tonight's question (\(intake.lens)) without naming it as a technique.
@@ -1087,6 +1042,7 @@ enum LocalModelManager {
     static func bookJumpPrompt(surface: SurfacePage) -> String {
         let metadata = surface.payload.metadata
         let action = metadata["bookJumpAction"] ?? "advance"
+        let isStart = action == BookJumpAction.start.rawValue
         let landmarks = metadata["bookLandmarks"]?.nonEmpty
         let touchstoneBlock = landmarks.map { "A few touchstones, only to confirm we mean the same book — do NOT limit yourself to these:\n\($0)" }
             ?? ""
@@ -1094,7 +1050,8 @@ enum LocalModelManager {
             "THE READER'S CHOSEN DIRECTION (honor this in the scene you pick): \($0.title) — \($0.directorInstruction)"
         } ?? ""
         return """
-        You are the Book Jumping engine inside ReEnchanted. Write ONE contained scene beat for a reader who has physically fallen into a real public-domain book and is now standing inside an actual scene from it.
+        You are the Book Jumping engine inside ReEnchanted. Write ONE contained scene beat inside a real public-domain book.
+        \(isStart ? "This is the reader's first instant inside the book." : "The reader is already inside the book. This is a continuous next beat, not a new arrival.")
 
         PUBLIC-DOMAIN WORK, FIXED:
         Title: \(metadata["bookTitle"] ?? "unknown")
@@ -1127,11 +1084,13 @@ enum LocalModelManager {
         - One beat, not a chapter. Keep the way home (the Spine) faintly sensed.
         - The Nothing is degradation — blankness, edges forgetting themselves, names going grey — not a monster to fight.
         - No headings, no lists, no assistant framing. Prose only.
+        - Only START may describe falling through ink, crossing a page, landing, arriving, or first discovering the setting.
+        - For ADVANCE or STABILIZE, do not recap the premise, reintroduce the book, redescribe arrival, or repeat the opening scene. Assume the reader remembers where they are.
 
         SHAPE (4–6 paragraphs, the Book's voice — vivid, concrete, a little dangerous):
         - If action is START: open with the FALL — a visceral, bodily sensation of being pulled out of the reader's own day and down THROUGH the page (ink, paper-grain, vertigo, words streaming past, the smell changing) — then the LANDING, hard, in the middle of the real scene you chose, surrounded by its specific people and things, the action already happening around them.
-        - If action is ADVANCE: carry them into a different, later, real scene from deeper in the book; raise the stakes with a concrete pressure (a named character notices them, a door, a turn) without asking a formal question.
-        - If action is STABILIZE: show the scene smearing/forgetting itself (Nothing pressure), then how naming one true real-world detail snaps a specific part of the book back into sharp focus.
+        - If action is ADVANCE: begin with the immediate consequence of THE READER'S CHOSEN DIRECTION. The first sentence must be an action, reaction, interruption, discovery, or danger caused by that choice. Move directly into a different, later, real scene from deeper in the book. Spend no words on transition spectacle. Raise the stakes through a named character, object, door, pursuit, accusation, invitation, or irreversible turn.
+        - If action is STABILIZE: begin with the specific thing currently failing, then show how the named true detail changes it. Do not restage the setting before the failure acts.
         - If action is RETURN: bring the Spine close — a seam of light, the page-edge — and invite (do not invent) one one-sentence souvenir to carry back.
         """
     }
@@ -1203,66 +1162,34 @@ enum LocalModelManager {
         """
     }
 
+    typealias BraidContext = BraidPromptBuilder.Context
+
+    static func braidContext(
+        for day: BookDay,
+        days: [BookDay],
+        themes: [BookTheme] = [],
+        entityBeliefOffsets: [String: Int] = [:],
+        calendar: Calendar = .current
+    ) -> BraidContext {
+        BraidPromptBuilder.context(
+            for: day,
+            days: days,
+            themes: themes,
+            entityBeliefOffsets: entityBeliefOffsets,
+            calendar: calendar
+        )
+    }
+
+    static func recentBraidTexts(excludingDayID dayID: String, days: [BookDay], limit: Int = 2) -> [String] {
+        BraidPromptBuilder.recentBraidTexts(excludingDayID: dayID, days: days, limit: limit)
+    }
+
     static func bookOfYouBraidPrompt(for day: BookDay, recentBraids: [String] = []) -> String {
-        let evidence = braidEvidenceLines(for: day).joined(separator: "\n\n")
-        let continuity: String
-        if recentBraids.isEmpty {
-            continuity = ""
-        } else {
-            let earlier = recentBraids.enumerated()
-                .map { index, braid in "EARLIER BRAID \(index + 1):\n\(braid)" }
-                .joined(separator: "\n\n")
-            continuity = """
+        BraidPromptBuilder.prompt(for: day, recentBraids: recentBraids)
+    }
 
-
-            EARLIER PAGES OF THE BOOK OF YOU (continuity, not material):
-            \(earlier)
-
-            CONTINUITY RULE:
-            - At most one image or motif from an earlier braid may return today, changed by what today actually held.
-            - Never repeat an earlier braid's sentences and never re-describe its events. Today's kept pages are the only material.
-            - If nothing from earlier honestly connects, let nothing return.
-            """
-        }
-
-        return """
-        You are the Book inside ReEnchanted.
-        Braid the player's kept pages into one grounded Book of You entry: a small story about this day. The Book of You is one continuing book, not a stack of unrelated entries.
-
-        SPINE FIRST:
-        - Before writing, silently choose the day's spine: the one detail, tension, or small change that the kept pages keep circling. Build the braid around it.
-        - The other pages are tributaries. Let them feed the spine instead of standing in a row.
-
-        SHAPE:
-        - Write 4 to 7 paragraphs, about 280 to 450 words.
-        - Follow the day's real clock: the kept pages are timestamped — let morning be morning and evening be evening.
-        - Give the braid a beginning, a turn, and a landing. The turn should be something that actually happened, not a mood shift.
-        - Make it feel narrated, not listed. Do not mention page types like "Weather Page" or "Lore Page" unless the player wrote those words.
-        - End with one closing sentence that begins: "The Book kept the page:"
-        - On a phone, the braid should feel like a full page of the Book without becoming a scroll chore.
-
-        VOICE:
-        - Write with varied literary cadence: some sentences should be short, plain, and surprising; others may be longer and more flowing, turning through image and thought before they land.
-        - Let the voice feel like a clear old story told beside a modern lamp: mythic but not ornate, intimate but not sentimental, concrete before abstract.
-        - The Book notices small true details and gives them a little magic.
-        - Prefer what someone said, touched, carried, avoided, dropped, or noticed over explaining what it means.
-        - Let at least two sentences per braid run longer than the others, like a breath let out, but keep them anchored in supplied facts.
-        - Avoid a drumbeat of same-length declarative sentences. Vary openings, sentence lengths, and paragraph shapes.
-        - No diagnosis, no flattery, no moralizing, no corporate/app language.
-        - Do not invent completed actions, locations, people, feelings, or tasks.
-        - Avoid vague wonder, generic inspiration, journey, profound, tapestry, echoes, hidden meaning, and abstract emotional summary.
-
-        ANTI-PARROT RULE:
-        - Do not copy any supplied sentence longer than seven words.
-        - Paraphrase the kept pages into a coherent story.
-        - You may quote one short phrase only if it has unusual power.
-        - Mention each motif, image, sentence idea, or emotional beat only once.
-        - Do not restate the same idea in consecutive paragraphs with swapped words.
-        - Prefer one fresh concrete detail over a second sentence explaining the same mood, object, weather, relationship, or threshold.
-
-        KEPT PAGES FROM TODAY:
-        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(continuity)
-        """
+    static func bookOfYouBraidPrompt(for day: BookDay, context: BraidContext) -> String {
+        BraidPromptBuilder.prompt(for: day, context: context)
     }
 
     static func braidEvidenceLines(for day: BookDay, characterLimit: Int = 760) -> [String] {
@@ -1546,12 +1473,16 @@ struct ResilientWonderCompassChooser: WonderCompassPassageChoosing {
 
 struct LocalModelBraider: Braider {
     func braid(day: BookDay) async throws -> BookPage {
+        try await braid(day: day, context: .empty)
+    }
+
+    func braid(day: BookDay, context: BraidPromptBuilder.Context) async throws -> BookPage {
         let report = LocalModelManager.report()
         guard report.isReady else {
             throw LocalModelError.missingModel(report)
         }
 
-        let prompt = LocalModelManager.bookOfYouBraidPrompt(for: day)
+        let prompt = LocalModelManager.bookOfYouBraidPrompt(for: day, context: context)
         let preview = prompt
             .components(separatedBy: .newlines)
             .prefix(18)
@@ -1686,6 +1617,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "an evening sitting with Dr. Inkrest" : "Dr. Inkrest sitting with \(clipped)"
         case .faeBargain:
             return clipped.isEmpty ? "a bargain struck with the Book Fae" : "a Fae bargain paid with \(clipped)"
+        case .bookFae:
+            return clipped.isEmpty ? "the Book Fae stepping out from the margins" : "the Book Fae answering \(clipped)"
         case .pactDispatch:
             return clipped.isEmpty ? "a dispatch from the Pact War" : "a Pact dispatch about \(clipped)"
         case .festival:
@@ -1696,6 +1629,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "the living web changing between two members of the cast" : "a cast bond turning around \(clipped)"
         case .todaysSky:
             return clipped.isEmpty ? "the night sky read over the reader" : "tonight's sky reading of \(clipped)"
+        case .radio:
+            return clipped.isEmpty ? "an Academy radio signal in the margins" : "the radio carrying \(clipped)"
         case .bookJump:
             return clipped.isEmpty ? "a public-domain door opening through the Spine" : "a Book Jump returning with \(clipped)"
         case .enchantment:
@@ -1714,6 +1649,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "a useful margin note" : "a useful margin note about \(clipped)"
         case .welcome:
             return clipped.isEmpty ? "the Labyrinth opening its first page" : "the Labyrinth welcoming \(clipped)"
+        case .inventory:
+            return clipped.isEmpty ? "the Inventory's clasp opening" : "an object in the Inventory answering \(clipped)"
         }
     }
 
@@ -1736,8 +1673,12 @@ struct ResilientBraider: Braider {
     private let fallback = FakeBraider()
 
     func braid(day: BookDay) async throws -> BookPage {
+        try await braid(day: day, context: .empty)
+    }
+
+    func braid(day: BookDay, context: BraidPromptBuilder.Context) async throws -> BookPage {
         do {
-            return try await local.braid(day: day)
+            return try await local.braid(day: day, context: context)
         } catch LocalModelError.missingModel {
             var page = try await fallback.braid(day: day)
             page.promptText = "The Book braided today with its handcrafted fallback."
@@ -1783,7 +1724,10 @@ struct FakeFaeBargainResponder: FaeBargainResponding {
         case .punctuationPixie:
             opening = thin ? "Hm— not quite a pause— but a—" : "A comma! Exactly— you found the place where the day held its breath—"
         case .literaryElf:
-            opening = thin ? "Again. ...No. Kept, this once. It was true, if not yet exact." : "Precise. I will not improve it. That is rare from me."
+            let unseelie = bargain.openingGesture.localizedCaseInsensitiveContains("Unseelie")
+            opening = thin
+                ? (unseelie ? "Again. No. Still, a loophole may be a bridge if one crosses it carefully." : "Again. ...No. Kept, this once. It was true, if not yet exact.")
+                : (unseelie ? "Precise. The Unseelie Court dislikes waste, and this wastes nothing." : "Precise. I will not improve it. That is rare from me.")
         case .deepLoreDwarf:
             opening = thin ? "Light. But you reached for the underneath. I will take it." : "Good. You found the thing holding the other thing up. Few look down that far."
         case .goblin:
@@ -1794,7 +1738,7 @@ struct FakeFaeBargainResponder: FaeBargainResponding {
 
         Here is what you are owed in return, and it is written nowhere else: the Outer Stacks were not built. They accreted, the way dust becomes a country. The first shelf was a complaint left in a margin, and it is still load-bearing.
 
-        The \(bargain.giftName) stays warm now. The debt is closed. Bring me another noticing when the season turns.
+        The \(bargain.giftName) stays warm now. The debt is closed. If it was late, the lateness has become a mark in the margin, not a punishment. Bring me another noticing when the season turns.
         """
     }
 }
@@ -1815,7 +1759,9 @@ struct FakeInkrestOfficeHoursCounselor: InkrestOfficeHoursCounseling {
 
         if isClosing {
             return """
-            Before the lamp dims: I heard \(echo). Let me set it down where it belongs — beside you, not inside you.
+            Before the lamp dims, let me tell you what I heard rather than hurrying past it. You brought me \(echo). There is the difficulty itself, but there is also the part of you that noticed it clearly enough to carry it here. Those are not the same thing.
+
+            \(callback) I wonder whether the quieter evidence in that page has been receiving less authority than the loudest feeling. Loud stories are not necessarily the truest ones; they are merely practiced.
 
             Here is a sentence you might keep: "I met the day honestly, and I am still here to tell it."
 
@@ -1826,9 +1772,11 @@ struct FakeInkrestOfficeHoursCounselor: InkrestOfficeHoursCounseling {
         }
 
         return """
-        Sit a moment. I heard \(echo). \(callback)
+        Sit a moment. I heard \(echo). I do not want to make it smaller by answering too quickly.
 
-        If that feeling were a visitor at the door tonight, what would you call it — and what do you think it came to ask of you?
+        \(callback) What you brought has at least two threads in it: the thing that pressed on you, and the part of you that could still observe the pressure. The second thread is easy to overlook, but it is evidence. It means the difficulty did not become the whole author.
+
+        If that feeling were a visitor at the door tonight, what do you think it came hoping to protect?
         """
     }
 }

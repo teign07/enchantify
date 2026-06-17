@@ -4,6 +4,10 @@ import XCTest
 final class FaeBargainTests: XCTestCase {
     private let slot = "2026-06-13-fae"
 
+    private func fixedDate(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        Calendar(identifier: .gregorian).date(from: DateComponents(year: year, month: month, day: day)) ?? Date()
+    }
+
     func testOfferFrontsAWorkingGiftAndOwedDebt() {
         var state = FaePlayerState()
         let now = Date()
@@ -15,6 +19,7 @@ final class FaeBargainTests: XCTestCase {
         XCTAssertEqual(gift?.isCold, false)
         XCTAssertEqual(gift?.isActive, true, "a fronted gift works immediately")
         XCTAssertNotNil(state.lastBargainOfferedAt)
+        XCTAssertEqual(state.claim(for: .sentenceSalamander), FaeEconomy.claimPerOffer)
         XCTAssertEqual(bargain.deadline.timeIntervalSince(now),
                        Double(FaeEconomy.paymentWindowHours) * 3_600,
                        accuracy: 1)
@@ -37,6 +42,8 @@ final class FaeBargainTests: XCTestCase {
         XCTAssertFalse(state.gifts.first?.isActive ?? true, "a cold gift stops working — real stakes")
         XCTAssertTrue(state.marketIsClosed(for: .punctuationPixie))
         XCTAssertEqual(state.warmth(for: .punctuationPixie), -FaeEconomy.warmthPerLapse)
+        XCTAssertEqual(state.claim(for: .punctuationPixie), FaeEconomy.claimPerOffer + FaeEconomy.claimPerLapse)
+        XCTAssertEqual(FaeEconomy.claimBand(for: state.claim(for: .punctuationPixie)), "quiet")
     }
 
     func testDeliveryPaysWarmthAndAttention() {
@@ -51,6 +58,7 @@ final class FaeBargainTests: XCTestCase {
         )
         XCTAssertEqual(state.bargains.first?.status, .delivered)
         XCTAssertEqual(state.warmth(for: .literaryElf), FaeEconomy.warmthPerDelivery)
+        XCTAssertEqual(state.claim(for: .literaryElf), 0, "clean delivery relieves the small claim created by the offer")
         XCTAssertGreaterThan(state.attention, 0)
         XCTAssertEqual(state.openBargains.count, 0)
     }
@@ -72,6 +80,36 @@ final class FaeBargainTests: XCTestCase {
         XCTAssertEqual(state.bargains.first?.status, .delivered)
         XCTAssertEqual(state.gifts.first?.isCold, false, "repair thaws the cold gift")
         XCTAssertFalse(state.marketIsClosed(for: .deepLoreDwarf), "repaired debt reopens the market")
+        XCTAssertEqual(
+            state.claim(for: .deepLoreDwarf),
+            FaeEconomy.claimPerOffer + FaeEconomy.claimPerLapse - FaeEconomy.claimReliefPerRepair,
+            "repair lowers Claim but keeps the story of the lapse visible"
+        )
+    }
+
+    func testLiteraryElfCourtTiltsUnseelieWhenClaimIsHigh() {
+        var state = FaePlayerState()
+        XCTAssertEqual(state.literaryElfCourt(), .seelie)
+
+        FaeEconomy.adjustClaim(.literaryElf, by: FaeEconomy.unseelieClaimThreshold, into: &state)
+        XCTAssertEqual(state.literaryElfCourt(), .unseelie)
+        XCTAssertTrue(FaeKind.literaryElf.voiceDirective(claim: state.claim(for: .literaryElf), court: state.literaryElfCourt()).contains("Unseelie"))
+    }
+
+    func testBookFaeInteractionChoicesMoveEconomy() {
+        var state = FaePlayerState()
+        FaeEconomy.applyInteractionChoice("sliceoflife", kind: .bookSprite, into: &state)
+        XCTAssertEqual(state.warmth(for: .bookSprite), 1)
+        XCTAssertEqual(state.claim(for: .bookSprite), 0)
+
+        FaeEconomy.applyInteractionChoice("progressarc", kind: .bookSprite, into: &state)
+        XCTAssertEqual(state.warmth(for: .bookSprite), 2)
+        XCTAssertEqual(state.attention, 1)
+        XCTAssertEqual(state.claim(for: .bookSprite), 2)
+
+        FaeEconomy.applyInteractionChoice("surprise", kind: .bookSprite, into: &state)
+        XCTAssertEqual(state.attention, 3)
+        XCTAssertEqual(state.claim(for: .bookSprite), 7)
     }
 
     func testChooseFaeAvoidsClosedMarkets() {
@@ -116,6 +154,7 @@ final class FaeBargainTests: XCTestCase {
         XCTAssertEqual(pages.first?.type, .faeBargain)
         XCTAssertEqual(pages.first?.payload.metadata["status"], "owed")
         XCTAssertEqual(pages.first?.payload.metadata["faeKind"], "bookSprite")
+        XCTAssertEqual(pages.first?.payload.metadata["claim"], "\(FaeEconomy.claimPerOffer)")
         XCTAssertFalse(pages.first?.payload.metadata["terms"]?.isEmpty ?? true)
     }
 
@@ -132,6 +171,93 @@ final class FaeBargainTests: XCTestCase {
         )
         XCTAssertEqual(pages.first?.payload.metadata["status"], "lapsed")
         XCTAssertEqual(pages.first?.payload.metadata["isRepair"], "true")
+        XCTAssertEqual(pages.first?.payload.headline, "The Bargain Went Wild")
+        XCTAssertEqual(pages.first?.payload.metadata["claimBand"], "quiet")
+    }
+
+    func testBookFaePageSurfacesAsOldLawStoryInteraction() {
+        var state = FaePlayerState()
+        FaeEconomy.adjustClaim(.literaryElf, by: FaeEconomy.unseelieClaimThreshold, into: &state)
+        var inputs = BookSourceInputs.empty
+        inputs.faeState = state
+        let day = BookDay(
+            id: "2026-06-13",
+            date: Date(),
+            pages: [
+                BookPage(type: .souvenir, promptText: "A brass key warmed in the pocket.", userInput: "A brass key warmed in the pocket.", tags: [])
+            ]
+        )
+        let pages = BookFaePageSourceAdapter().candidates(
+            for: day, context: CuratorContext.make(for: day), inputs: inputs, now: Date()
+        )
+        let page = pages.first
+        XCTAssertEqual(page?.type, .bookFae)
+        XCTAssertEqual(page?.payload.metadata["faeKind"], "literaryElf")
+        XCTAssertEqual(page?.payload.metadata["faeCourt"], "unseelie")
+        XCTAssertEqual(page?.payload.metadata["storyChoiceSliceOfLifeTitle"], "Offer Courtesy")
+        XCTAssertEqual(page?.payload.metadata["storyChoiceSurpriseTitle"], "Take the Thorn")
+        XCTAssertEqual(SurfaceReadinessState(surface: try XCTUnwrap(page)).needsLocalBrainToOpen, true)
+    }
+
+    func testBookFaeChoiceCreatesActiveOmen() {
+        var state = FaePlayerState()
+        let now = fixedDate(2026, 6, 14)
+
+        FaeEconomy.applyInteractionChoice("surprise", kind: .punctuationPixie, into: &state, now: now)
+
+        let omen = state.activeOmens(for: .punctuationPixie, on: now).first
+        XCTAssertEqual(omen?.title, "Thorn Mark")
+        XCTAssertEqual(omen?.intensity, 3)
+        XCTAssertEqual(state.attention, 2)
+        XCTAssertEqual(state.claim(for: .punctuationPixie), 5)
+    }
+
+    func testBookFaePageFollowsStrongestActiveOmen() {
+        var state = FaePlayerState()
+        let now = fixedDate(2026, 6, 14)
+        FaeEconomy.applyInteractionChoice("sliceoflife", kind: .bookSprite, into: &state, now: now)
+        FaeEconomy.applyInteractionChoice("surprise", kind: .deepLoreDwarf, into: &state, now: now)
+        var inputs = BookSourceInputs.empty
+        inputs.faeState = state
+        let day = BookDay(
+            id: "2026-06-14",
+            date: now,
+            pages: [
+                BookPage(type: .souvenir, promptText: "The kettle clicked like a lock.", userInput: "The kettle clicked like a lock.", tags: [])
+            ]
+        )
+
+        let page = BookFaePageSourceAdapter().candidates(
+            for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now
+        ).first
+
+        XCTAssertEqual(page?.payload.metadata["faeKind"], "deepLoreDwarf")
+        XCTAssertEqual(page?.payload.metadata["faeStrongestOmen"], "Thorn Mark")
+        XCTAssertTrue((page?.payload.metadata["faeOmens"] ?? "").contains("Thorn Mark"))
+        XCTAssertTrue((page?.payload.metadata["relationshipPressures"] ?? "").contains("Active omen"))
+    }
+
+    func testLapsedAndRepairedBargainsLeaveStoryOmens() {
+        var state = FaePlayerState()
+        let offered = fixedDate(2026, 6, 10)
+        let lapsedAt = offered.addingTimeInterval(Double(FaeEconomy.paymentWindowHours + 1) * 3_600)
+        let repairedAt = lapsedAt.addingTimeInterval(3_600)
+        let bargain = FaeEconomy.offerBargain(into: &state, kind: .sentenceSalamander, slot: slot, now: offered)
+
+        FaeEconomy.sweepLapses(into: &state, now: lapsedAt)
+        XCTAssertTrue(state.activeOmens(for: .sentenceSalamander, on: lapsedAt).contains { $0.title == "Cold Gift" })
+
+        FaeEconomy.deliver(
+            bargainID: bargain.id,
+            report: "The warmest moment was the cup held in both hands.",
+            faeResponse: "The coal remembers.",
+            reward: "The debt thaws.",
+            into: &state,
+            now: repairedAt
+        )
+
+        XCTAssertTrue(state.activeOmens(for: .sentenceSalamander, on: repairedAt).contains { $0.title == "Debt Repaired" })
+        XCTAssertEqual(state.bargains.first?.status, .delivered)
     }
 
     // MARK: Gift effects & market

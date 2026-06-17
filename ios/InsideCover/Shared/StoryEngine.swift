@@ -1202,10 +1202,12 @@ struct StoryScenePacket: Identifiable, Codable, Equatable {
     var storyGenreID: String?
     var storyGenreName: String?
     var storyGenreLens: String?
+    var activeWorldEvents: [ResolvedWorldEvent]
 }
 
 enum StoryScenePacketBuilder {
     static func packet(for day: BookDay, inputs: BookSourceInputs, now: Date = Date()) -> StoryScenePacket {
+        let inputs = inputs.resolvingWorldEvents(for: day, now: now)
         let tags = contextTags(for: day, inputs: inputs, now: now)
         let selectedEntities = rankedEntities(tags: tags, inputs: inputs, limit: 3)
         var selectedThreads = rankedThreads(tags: tags, inputs: inputs, limit: 2)
@@ -1249,6 +1251,9 @@ enum StoryScenePacketBuilder {
         if let chapterFact = inputs.selfFacts.first(where: { $0.questionID == "chapter-binding" }),
            let chapter = AcademyChapterRegistry.chapter(named: chapterFact.answer) {
             realSignals.append("The player is bound to Chapter \(chapter.name): \(chapter.philosophy) Let their chapter's way of seeing tint how the scene meets them.")
+        }
+        if !inputs.activeWorldEvents.isEmpty {
+            realSignals.append(inputs.activeWorldEvents.influencePacket)
         }
         let relationships = relationshipPressures(
             entities: selectedEntities,
@@ -1297,7 +1302,8 @@ enum StoryScenePacketBuilder {
             storyFormBeats: storyForm.beats,
             storyGenreID: storyGenre.id,
             storyGenreName: storyGenre.name,
-            storyGenreLens: storyGenre.lens
+            storyGenreLens: storyGenre.lens,
+            activeWorldEvents: inputs.activeWorldEvents
         )
     }
 
@@ -1314,7 +1320,8 @@ enum StoryScenePacketBuilder {
                 let overlap = tags.intersection(Set(entity.tags)).count
                 let narrativeBoost = entity.name == "The Book" ? 4 : 0
                 let eventBoost = inputs.narrative?.weightedEntityIDs.contains(entity.id) == true ? 18 : 0
-                return (entity, entity.narrativeWeight + entity.belief / 4 + overlap * 8 + narrativeBoost + eventBoost)
+                let worldEventBoost = inputs.activeWorldEvents.scoreBoost(forEntityID: entity.id)
+                return (entity, entity.narrativeWeight + entity.belief / 4 + overlap * 8 + narrativeBoost + eventBoost + worldEventBoost)
             }
             .sorted { left, right in
                 if left.1 == right.1 {
@@ -1373,7 +1380,8 @@ enum StoryScenePacketBuilder {
             .map { thread in
                 let overlap = tags.intersection(Set(thread.tags)).count
                 let eventBoost = inputs.narrative?.weightedThreadIDs.contains(thread.id) == true ? 18 : 0
-                return (thread, thread.narrativeWeight + thread.belief / 3 + overlap * 10 + eventBoost)
+                let worldEventBoost = inputs.activeWorldEvents.scoreBoost(forThreadID: thread.id)
+                return (thread, thread.narrativeWeight + thread.belief / 3 + overlap * 10 + eventBoost + worldEventBoost)
             }
             .sorted { left, right in
                 if left.1 == right.1 {
@@ -2577,6 +2585,7 @@ enum SupportGuildProseParser {
 
 enum CharacterLetterPageGenerator {
     static func draftCandidate(for day: BookDay, inputs: BookSourceInputs, now: Date = Date()) -> SurfacePage? {
+        let inputs = inputs.resolvingWorldEvents(for: day, now: now)
         let source = BookPageSourceRegistry.source(for: .letter)
         guard let entity = selectedEntity(for: day, inputs: inputs, now: now) else { return nil }
         return draftCandidate(for: entity, source: source, day: day, inputs: inputs, now: now)
@@ -2605,8 +2614,15 @@ enum CharacterLetterPageGenerator {
         let talismanMoveLines = talismanMoves.map(\.promptLine).joined(separator: "\n")
         let talismanDeltaTokens = talismanMoves.compactMap(\.ledgerToken).joined(separator: ",")
         let query = researchQuery(for: interest, homeContext: homeContext)
-        let occasion = letterOccasion(inputs: inputs)
+        let isFirstLetterFromSender = !hasPriorLetter(from: entity, day: day, inputs: inputs)
+        let occasion = isFirstLetterFromSender
+            ? introductoryLetterOccasion(for: entity, interest: interest, homeContext: homeContext)
+            : letterOccasion(inputs: inputs)
         let crossLetter = crossLetterMemory(for: entity, day: day, inputs: inputs, now: now)
+        let eventPacket = inputs.activeWorldEvents.influencePacket
+        let letterEventInstruction = inputs.activeWorldEvents
+            .map { $0.packet.letterInstruction }
+            .joined(separator: "\n")
         let body = """
         Sender: \(entity.name)
         Address the player as: \(playerName)
@@ -2617,8 +2633,8 @@ enum CharacterLetterPageGenerator {
         Letter occasion:
         \(occasion ?? "No special occasion. Write because the sender wanted to.")
 
-        Since your last letter (acknowledge naturally if present; do not force it):
-        \(crossLetter ?? "This may be your first letter to them, or the first in a long while.")
+        Relationship context:
+        \(isFirstLetterFromSender ? "This is your first letter to the player. Introduce yourself before asking anything of them. Let this letter establish who you are, what you notice, and why you are writing from the margins now." : (crossLetter ?? "This is not your first letter to them, but there is no urgent prior-letter memory to acknowledge. Build naturally from the established relationship."))
 
         Writing Voice:
         \(voice.promptDescription)
@@ -2629,8 +2645,36 @@ enum CharacterLetterPageGenerator {
         Chapter talisman move:
         \(talismanMoveLines.isEmpty ? "No chapter talisman move is being made in this letter." : talismanMoveLines)
 
-        Write a real letter to the player. If a letter occasion is given, it is the reason this letter exists - open from it and let it carry the letter, gently and without diagnosing. Use live web research if clippings are supplied. If no clippings are supplied, fall back to the model's own general knowledge without pretending it browsed.
+        Current world event:
+        \(eventPacket.isEmpty ? "No world event is currently pressing on this letter." : eventPacket)
+        \(letterEventInstruction)
+
+        Write a real letter to the player. If this is the first letter from this sender, make it an introduction letter first: the sender should name their relation to the margins, reveal their voice through one or two concrete self-details, and offer a small reason the player might want to hear from them again. Do not assume prior intimacy. If a letter occasion is given, it is the reason this letter exists - open from it and let it carry the letter, gently and without diagnosing. Use live web research if clippings are supplied. If no clippings are supplied, fall back to the model's own general knowledge without pretending it browsed.
         """
+        var metadata = [
+            "source": source.id,
+            "senderID": entity.id,
+            "senderName": entity.name,
+            "playerName": playerName,
+            "unwrittenInterest": interest,
+            "homeContext": homeContext,
+            "letterOccasion": occasion ?? "",
+            "letterRelationshipStage": isFirstLetterFromSender ? "introduction" : "continuing",
+            "crossLetterMemory": crossLetter ?? "",
+            "researchQuery": query,
+            "writingVoice": voice.promptDescription,
+            "chapterTalismanMoves": talismanMoveLines,
+            "chapterTalismanDeltas": talismanDeltaTokens,
+            "slotID": slot,
+            "placeholder": "A researched letter is being written through the Margin-Glass.",
+            "tags": "letter,letters,research,sender:\(entity.id),\(entity.tags.prefix(4).joined(separator: ","))"
+        ]
+        if !eventPacket.isEmpty {
+            metadata["worldEventPacket"] = eventPacket
+            metadata["worldEventLetterInstruction"] = letterEventInstruction
+            metadata["worldEventIDs"] = inputs.activeWorldEvents.map(\.id).joined(separator: ",")
+            metadata["worldEventTitles"] = inputs.activeWorldEvents.map(\.title).joined(separator: ", ")
+        }
         return SurfacePage(
             id: "\(source.id)-\(day.id)-\(slot)-\(entity.id)",
             type: .letter,
@@ -2644,23 +2688,7 @@ enum CharacterLetterPageGenerator {
             payload: BookPagePayload(
                 headline: "Letter from \(entity.name)",
                 body: body,
-                metadata: [
-                    "source": source.id,
-                    "senderID": entity.id,
-                    "senderName": entity.name,
-                    "playerName": playerName,
-                    "unwrittenInterest": interest,
-                    "homeContext": homeContext,
-                    "letterOccasion": occasion ?? "",
-                    "crossLetterMemory": crossLetter ?? "",
-                    "researchQuery": query,
-                    "writingVoice": voice.promptDescription,
-                    "chapterTalismanMoves": talismanMoveLines,
-                    "chapterTalismanDeltas": talismanDeltaTokens,
-                    "slotID": slot,
-                    "placeholder": "A researched letter is being written through the Margin-Glass.",
-                    "tags": "letter,letters,research,sender:\(entity.id),\(entity.tags.prefix(4).joined(separator: ","))"
-                ]
+                metadata: metadata
             )
         )
     }
@@ -2786,6 +2814,12 @@ enum CharacterLetterPageGenerator {
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
+    private static func hasPriorLetter(from entity: NarrativeWorldEntity, day: BookDay, inputs: BookSourceInputs) -> Bool {
+        (inputs.days + [day])
+            .flatMap(\.pages)
+            .contains { $0.type == .letter && $0.tags.contains("sender:\(entity.id)") }
+    }
+
     private static func memoryPacket(for entity: NarrativeWorldEntity, day: BookDay, inputs: BookSourceInputs) -> String {
         let pages = day.pages.suffix(6).map { "- \($0.promptText): \($0.userInput.bookPreviewSentenceLimit(1))" }.joined(separator: "\n")
         let memories = inputs.narrative?.entityMemories
@@ -2834,6 +2868,10 @@ enum CharacterLetterPageGenerator {
             return nil
         }
         return "\(absence.line) The sender writes because of this quiet: ask after \(absence.subjectName) the way a friend asks after someone who stopped coming to the cafe - warmly, without alarm, leaving room for the answer to be ordinary. Do not demand a reply; let the margin hold the question."
+    }
+
+    private static func introductoryLetterOccasion(for entity: NarrativeWorldEntity, interest: String, homeContext: String) -> String {
+        "\(entity.name) is writing their first letter to the player. This letter should introduce the sender as a person, not summarize a dossier: what they care about, how \(interest) draws their attention, and why \(homeContext) makes the player's ordinary world worth writing to. Keep the invitation small and open-ended; build trust before building plot."
     }
 
     private static func stableIndex(for key: String, count: Int) -> Int {

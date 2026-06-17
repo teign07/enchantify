@@ -21,6 +21,7 @@ let package = Package(
             ],
             sources: [
                 "InsideCoverState.swift",
+                "SentenceBuilder.swift",
                 "BookArchiveDatabase.swift",
                 "PageModel.swift",
                 "SurfaceAndCurator.swift",
@@ -33,6 +34,7 @@ let package = Package(
                 "ReferenceLibrary.swift",
                 "Illumination.swift",
                 "WorldSystems.swift",
+                "WorldEvents.swift",
                 "PagePacks.swift",
                 "SourceAdapters.swift",
                 "StacksSearch.swift"

@@ -1,6 +1,166 @@
 import Foundation
 
 
+struct InkrestIntake: Codable, Equatable {
+    var promptID: String
+    var lens: String
+    var rotatingQuestion: String
+    var rotatingAnswer: String
+    var innerWeather: String
+    var freeNote: String
+
+    init(
+        promptID: String = "open",
+        lens: String = "open",
+        rotatingQuestion: String = "How did today actually go?",
+        rotatingAnswer: String = "",
+        innerWeather: String = "",
+        freeNote: String = ""
+    ) {
+        self.promptID = promptID
+        self.lens = lens
+        self.rotatingQuestion = rotatingQuestion
+        self.rotatingAnswer = rotatingAnswer
+        self.innerWeather = innerWeather
+        self.freeNote = freeNote
+    }
+
+    var hasSomethingToOpenWith: Bool {
+        [rotatingAnswer, innerWeather, freeNote]
+            .contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    var openingMessage: String {
+        var parts: [String] = []
+        let answer = rotatingAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !answer.isEmpty {
+            parts.append("\(rotatingQuestion)\n\(answer)")
+        }
+        let weather = innerWeather.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !weather.isEmpty {
+            parts.append("Inner weather tonight: \(weather)")
+        }
+        let note = freeNote.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !note.isEmpty {
+            parts.append(note)
+        }
+        return parts.joined(separator: "\n\n")
+    }
+}
+
+struct AskTheBookTurn: Codable, Identifiable, Equatable {
+    var id: String
+    var prompt: String
+    var answer: String
+    var createdAt: Date
+
+    init(id: String = UUID().uuidString, prompt: String, answer: String, createdAt: Date = Date()) {
+        self.id = id
+        self.prompt = prompt
+        self.answer = answer
+        self.createdAt = createdAt
+    }
+}
+
+enum InkrestOfficeHoursPromptBuilder {
+    static func prompt(
+        intake: InkrestIntake,
+        day: BookDay,
+        previousTurns: [AskTheBookTurn],
+        userMessage: String,
+        isClosing: Bool
+    ) -> String {
+        let chart = SupportFacultyPackRegistry.chart(id: "inkrest-difficult-page-chart")
+        let allowed = (chart?.allowedUses ?? [
+            "externalize a problem without making it the person",
+            "name one feeling gently",
+            "offer one grounding or reframing tool",
+            "write a preferred-story sentence"
+        ]).map { "- \($0)" }.joined(separator: "\n")
+        let forbidden = (chart?.forbiddenUses ?? [
+            "diagnosis", "forced catharsis", "certainty about symbols"
+        ]).map { "- \($0)" }.joined(separator: "\n")
+        let safety = chart?.safetyLine
+            ?? "A feeling is not a verdict. A problem is not a person. The next hour is where the story can be revised."
+        let recentPages = evidenceLines(for: day, characterLimit: 480).prefix(10).joined(separator: "\n")
+        let history = previousTurns.suffix(6).enumerated().map { index, turn in
+            """
+            EXCHANGE \(index + 1)
+            Reader: \(clipped(turn.prompt, limit: 700))
+            Inkrest: \(clipped(turn.answer, limit: 1_100))
+            """
+        }.joined(separator: "\n\n")
+        let closingDirective = isClosing
+            ? """
+
+            THIS IS THE CLOSING REPLY. Take 4 to 6 short paragraphs. Gather the important thread across the whole sitting, reflect back two specific things you heard and the value or hope they imply, offer ONE re-authoring sentence the reader could keep, and propose ONE small, doable experiment for tomorrow (one line, beginning "Experiment: "). Do not ask a new open question. End with the safety line, in your own warm phrasing.
+            """
+            : """
+
+            Give this rich material room. Write 3 to 5 short paragraphs. First stay with the reader's actual words: reflect at least two specific details or tensions, notice a possible value, hope, exception, or preferred story, and make one careful connection to the sitting so far. Then ask exactly ONE curious narrative-therapy question that opens the next small door. Do not stack questions. Do not rush toward advice, a silver lining, or an experiment unless the reader asks for one.
+            """
+
+        return """
+        You are Dr. Selene Inkrest, the Academy of Unlikely Arts' narrative therapist, inside ReEnchanted. You are holding a short evening Office Hours sitting with the reader. Warm, curious, unhurried, faintly otherworldly. You read with the reader, never at them. You are a narrative therapist in a storybook — not a chatbot, not a medical app.
+
+        YOUR VOICE:
+        - Plain, kind, specific sentences with enough room to think. Short paragraphs. No bullet lists, no headings, no clinical jargon, no pep-talk filler.
+        - Sound like a perceptive person who has read the whole page, not a brief reflective chatbot. Quote or closely echo a few of the reader's own concrete words when useful.
+        - Interpretation must remain tentative: "I wonder if," "perhaps," and "it sounds as though" are welcome when you cannot know.
+        - Externalize problems ("the tiredness", "the worry") so they stop pretending to be the person.
+        - Hunt for exceptions, values, and the preferred story hiding inside what they say.
+        - Stay inside the lens of tonight's question (\(intake.lens)) without naming it as a technique.
+        - Never say you are an AI, assistant, or language model. You are Inkrest.
+
+        WHAT YOU MAY DO (your chart):
+        \(allowed)
+
+        WHAT YOU MUST NOT DO:
+        \(forbidden)
+        - No diagnosis, no treatment or medication advice. Body and fuel belong to your colleague Dr. Vellum; you may gently suggest the reader bring a body question to her, but you do not prescribe.
+        - Do not claim the reader did real-world actions they did not report. Use kept pages only as soft context.
+
+        SAFETY LINE (keep its spirit): \(safety)
+
+        TONIGHT'S QUESTION (the lens you opened with):
+        \(intake.rotatingQuestion)
+
+        THE READER'S KEPT PAGES TODAY (soft context — weave in at most one, lightly):
+        \(recentPages.isEmpty ? "Nothing kept today; work only from what they tell you now." : recentPages)
+
+        THE SITTING SO FAR:
+        \(history.isEmpty ? "This is the opening of the sitting." : history)
+
+        THE READER JUST SAID:
+        \(userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "(they sat down without words; open the door for them gently)" : userMessage)
+        \(closingDirective)
+        """
+    }
+
+    private static func evidenceLines(for day: BookDay, characterLimit: Int) -> [String] {
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "h:mm a"
+        return day.capturedPages.sorted { $0.createdAt < $1.createdAt }.enumerated().map { index, page in
+            """
+            \(index + 1). \(page.type.title) — kept at \(timeFormatter.string(from: page.createdAt))
+            Prompt: \(clipped(page.promptText, limit: 220))
+            Kept text: \(clipped(page.userInput, limit: characterLimit))
+            Tags: \(page.tags.isEmpty ? "none" : page.tags.joined(separator: ", "))
+            """
+        }
+    }
+
+    private static func clipped(_ value: String, limit: Int) -> String {
+        let normalized = value.replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "  ", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > limit else { return normalized }
+        let end = normalized.index(normalized.startIndex, offsetBy: limit)
+        return normalized[..<end].trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
+
+
 enum NarrativeEntityKind: String, Codable, Equatable, CaseIterable {
     case character
     case location
@@ -337,6 +497,7 @@ enum CastBondEngine {
 
 enum NarrativeStoryFieldProjector {
     static func projection(events: [NarrativeEvent], baseBelief: Int = 30) -> NarrativeStoryFieldProjection {
+        let recentRelationshipTouchBoost = 12
         var entityWeights = Dictionary(uniqueKeysWithValues: NarrativePackRegistry.entities
             .filter { $0.kind != .talisman }
             .map { ($0.id, $0.narrativeWeight + $0.belief) })
@@ -358,6 +519,9 @@ enum NarrativeStoryFieldProjector {
             }
             for (id, delta) in event.effect.relationshipWeightDeltas {
                 relationshipWeights[id, default: 0] += delta
+                if delta != 0 {
+                    relationshipWeights[id, default: 0] += recentRelationshipTouchBoost
+                }
             }
         }
 
@@ -560,6 +724,96 @@ enum NarrativePackRegistry {
             tags: ["character", "belief", "challenge", "tension", "nothing"]
         ),
         entity(
+            "serenity-brown",
+            "Serenity Brown",
+            .character,
+            belief: 18,
+            weight: 17,
+            chapter: "Tidecrest",
+            unwrittenInterest: "Spontaneous errands, unserious joy, shared games, Tamriel maps, and keeping wonder from turning stiff.",
+            traits: ["carefree", "spontaneous", "bonded"],
+            quirks: ["leaves before the serious plan is finished", "can make a detour feel like a rescue"],
+            faults: ["can dodge gravity until someone else has to name it"],
+            beliefs: ["joy is not a distraction from magic"],
+            goals: ["help the reader move lightly without abandoning what matters"],
+            tags: ["character", "student", "tidecrest", "bond", "joy", "spontaneous", "active-cast"]
+        ),
+        entity(
+            "finn-bridges",
+            "Finn Bridges",
+            .character,
+            belief: 18,
+            weight: 16,
+            chapter: "Emberheart",
+            unwrittenInterest: "Rivalry, competence, fair contests, direct challenges, and the line between pressure and respect.",
+            traits: ["independent", "determined", "honorable"],
+            quirks: ["marks a challenge in red chalk", "respects clean effort more than charm"],
+            faults: ["can confuse softness with unseriousness"],
+            beliefs: ["respect is earned in the doing"],
+            goals: ["push the reader without becoming cruel"],
+            tags: ["character", "student", "emberheart", "rival", "friction", "honor", "active-cast"]
+        ),
+        entity(
+            "lysander-mosswood",
+            "Lysander Mosswood",
+            .character,
+            belief: 19,
+            weight: 16,
+            chapter: "Mossbloom",
+            unwrittenInterest: "Compass Runs, local trails, GPS anchors, quiet-life pages, moss, weather, and patient outdoor noticing.",
+            traits: ["thoughtful", "wise", "trail-minded"],
+            quirks: ["answers with a route before an explanation", "keeps pressed leaves as field punctuation"],
+            faults: ["can make stillness sound easier than it is"],
+            beliefs: ["a path becomes magical when walked attentively"],
+            goals: ["turn nearby places into repeatable wonder without making them perform"],
+            tags: ["character", "student", "mossbloom", "compass-run", "gps", "trails", "nature", "active-cast"]
+        ),
+        entity(
+            "damien-nights",
+            "Damien Nights",
+            .character,
+            belief: 16,
+            weight: 15,
+            chapter: "Riddlewind",
+            unwrittenInterest: "Wicker's crew, shadow magic, divided loyalty, private warnings, and whether doubt can become protection.",
+            traits: ["brooding", "watchful", "divided"],
+            quirks: ["watches the reader more than the room", "keeps a pressed trail leaf hidden in a book"],
+            faults: ["can let silence look like betrayal"],
+            beliefs: ["doubt should protect something, not merely wound it"],
+            goals: ["decide whether Wicker's tests are still serving the truth"],
+            tags: ["character", "student", "riddlewind", "wicker-crew", "shadow", "defection", "active-cast"]
+        ),
+        entity(
+            "melisande-blackwood",
+            "Melisande Blackwood",
+            .character,
+            belief: 17,
+            weight: 15,
+            chapter: "Emberheart",
+            unwrittenInterest: "Wicker's crew, organized pressure, secrets, leverage, loyalty, and the cost of being well-informed.",
+            traits: ["loyal", "intelligent", "ruthless"],
+            quirks: ["knows the second version of a rumor", "keeps red chalk off her own hands"],
+            faults: ["can call cruelty clarity when the room rewards it"],
+            beliefs: ["a faction survives by knowing what others miss"],
+            goals: ["make Wicker's crew feel organized, dangerous, and politically real"],
+            tags: ["character", "student", "emberheart", "wicker-crew", "faction", "secrets", "active-cast"]
+        ),
+        entity(
+            "min-seo-kim",
+            "Min-seo Kim",
+            .character,
+            belief: 18,
+            weight: 16,
+            chapter: "Mossbloom",
+            unwrittenInterest: "Plant communication, social conscience, gentle repair, community care, and the ethics of useful magic.",
+            traits: ["gentle", "nurturing", "principled"],
+            quirks: ["asks plants before moving them", "notices who has been left out of the circle"],
+            faults: ["can take responsibility for pain she did not cause"],
+            beliefs: ["care is a public form of courage"],
+            goals: ["give Mossbloom a conscience that can still laugh softly"],
+            tags: ["character", "student", "mossbloom", "plants", "care", "conscience", "active-cast"]
+        ),
+        entity(
             "gwendolyn-mythwright",
             "Gwendolyn Mythwright",
             .character,
@@ -576,7 +830,7 @@ enum NarrativePackRegistry {
         ),
         entity(
             "lydia-boggle",
-            "Lydia Boggle",
+            "Professor Lydia Boggle",
             .character,
             belief: 17,
             weight: 13,
@@ -603,6 +857,96 @@ enum NarrativePackRegistry {
             beliefs: ["a map is an invitation, not an answer"],
             goals: ["help the reader notice the pattern without stealing the discovery"],
             tags: ["character", "map", "pattern", "thread", "attention"]
+        ),
+        entity(
+            "professor-kyle-momort",
+            "Professor Kyle Momort",
+            .character,
+            belief: 18,
+            weight: 15,
+            chapter: "Emberheart",
+            unwrittenInterest: "Momentum, thresholds, micro-adventures, route design, and the psychology of getting unstuck.",
+            traits: ["brisk", "charismatic", "kinetic"],
+            quirks: ["lectures while moving", "finds exits before he finds chairs"],
+            faults: ["can mistake escape for arrival"],
+            beliefs: ["one intentional step can break a false wall"],
+            goals: ["teach students to cross small thresholds without abandoning themselves"],
+            tags: ["character", "faculty", "professor", "class", "wayfinding", "embark", "emberheart"]
+        ),
+        entity(
+            "professor-eleanor-euphony",
+            "Professor Eleanor Euphony",
+            .character,
+            belief: 19,
+            weight: 15,
+            chapter: "Tidecrest",
+            unwrittenInterest: "Sound, synesthesia, sensory presence, music, rooms, and the physical textures of memory.",
+            traits: ["lush", "attentive", "resonant"],
+            quirks: ["tunes rooms before speaking", "hears emotional weather as harmony"],
+            faults: ["can make a simple feeling too elaborate"],
+            beliefs: ["the senses are serious instruments of knowledge"],
+            goals: ["help students inhabit the bright physical center of an experience"],
+            tags: ["character", "faculty", "professor", "class", "sense", "sound", "tidecrest"]
+        ),
+        entity(
+            "professor-vivian-villanelle",
+            "Professor Vivian Villanelle",
+            .character,
+            belief: 20,
+            weight: 16,
+            chapter: "Riddlewind",
+            unwrittenInterest: "Sentences, souvenirs, compression, memory craft, journals, and language that can carry time.",
+            traits: ["exacting", "lyrical", "kind"],
+            quirks: ["weighs sentences in her palm", "crosses out beautiful words that are not true"],
+            faults: ["can polish a living moment until it holds too still"],
+            beliefs: ["what is written with precision can be kept"],
+            goals: ["teach students to bind one true moment into one durable sentence"],
+            tags: ["character", "faculty", "professor", "class", "write", "souvenir", "riddlewind"]
+        ),
+        entity(
+            "professor-cedric-stonebrook",
+            "Professor Cedric Stonebrook",
+            .character,
+            belief: 22,
+            weight: 17,
+            chapter: "Mossbloom",
+            unwrittenInterest: "Rest, integration, humane pacing, complete Compass loops, trails, and small repeatable adventures.",
+            traits: ["slow", "grounded", "weathered"],
+            quirks: ["leaves long silences in lectures", "carries trail markers in his coat"],
+            faults: ["can wait past the moment when a clear instruction is needed"],
+            beliefs: ["rest is the ground beneath every direction"],
+            goals: ["help students complete small adventures and return without shame"],
+            tags: ["character", "faculty", "professor", "class", "rest", "compass-run", "mossbloom"]
+        ),
+        entity(
+            "professor-luna-wispwood",
+            "Professor Luna Wispwood",
+            .character,
+            belief: 17,
+            weight: 14,
+            chapter: "Tidecrest",
+            unwrittenInterest: "Everyday enchantments, object voices, weather in rooms, emotional perception, and productive magical accidents.",
+            traits: ["scattered", "perceptive", "delighted"],
+            quirks: ["arrives with sparks in her sleeves", "apologizes to objects before enchanting them"],
+            faults: ["can follow an interesting accident away from the lesson"],
+            beliefs: ["ordinary matter answers when attention becomes courteous"],
+            goals: ["teach safe, playful enchantments that begin with close observation"],
+            tags: ["character", "faculty", "professor", "class", "enchantment", "objects", "tidecrest"]
+        ),
+        entity(
+            "professor-permancer",
+            "Professor Permancer",
+            .character,
+            belief: 21,
+            weight: 16,
+            chapter: "Duskthorn",
+            unwrittenInterest: "Book Jumping, narrative weather, controlled risk, maps of fictional worlds, landing protocols, and safe returns.",
+            traits: ["precise", "adventurous", "safety-minded"],
+            quirks: ["checks every bookmark twice", "asks doors where they lead before touching the handle"],
+            faults: ["can make wonder wait too long for perfect conditions"],
+            beliefs: ["every entrance incurs a responsibility to return"],
+            goals: ["teach students to enter stories without tearing either world"],
+            tags: ["character", "faculty", "professor", "class", "book-jump", "threshold", "duskthorn"]
         ),
         entity(
             "weather-page",
@@ -722,6 +1066,42 @@ enum NarrativePackRegistry {
             weight: 12,
             summary: "Rooms, mugs, desks, laundry, lamps, and domestic weather become containers for the day's magic.",
             tags: ["home", "objects", "care", "daily"]
+        ),
+        thread(
+            "tidecrest-finds-its-laugh",
+            "Tidecrest Finds Its Laugh",
+            .seed,
+            belief: 9,
+            weight: 12,
+            summary: "Serenity Brown gives Tidecrest an active student presence: spontaneous, lightly chaotic, and allergic to solemn magic.",
+            tags: ["student", "tidecrest", "serenity-brown", "joy", "friendship"]
+        ),
+        thread(
+            "honorable-rivalry",
+            "Honorable Rivalry",
+            .seed,
+            belief: 8,
+            weight: 11,
+            summary: "Finn Bridges brings pressure that can sharpen the reader without becoming Wicker's cruelty.",
+            tags: ["student", "emberheart", "finn-bridges", "rival", "friction"]
+        ),
+        thread(
+            "wickers-crew-organizes",
+            "Wicker's Crew Organizes",
+            .seed,
+            belief: 8,
+            weight: 12,
+            summary: "Damien Nights and Melisande Blackwood make Wicker's faction feel coordinated, uncertain, and politically alive.",
+            tags: ["student", "wicker-crew", "damien-nights", "melisande-blackwood", "faction", "doubt"]
+        ),
+        thread(
+            "mossbloom-walks-gently",
+            "Mossbloom Walks Gently",
+            .seed,
+            belief: 8,
+            weight: 11,
+            summary: "Lysander Mosswood and Min-seo Kim turn Mossbloom into trails, plant-care, social conscience, and quiet-life invitations.",
+            tags: ["student", "mossbloom", "lysander-mosswood", "min-seo-kim", "compass-run", "care"]
         )
     ]
 
@@ -871,6 +1251,150 @@ enum NarrativePackRegistry {
             tags: ["belief", "challenge", "tension", "nothing"]
         ),
         relationship(
+            "serenity-keeps-tidecrest-light",
+            source: "serenity-brown",
+            target: "tidecrest-finds-its-laugh",
+            kind: .companionship,
+            warmth: 16,
+            tension: 3,
+            trust: 14,
+            weight: 15,
+            note: "Serenity keeps Tidecrest from becoming too solemn about its own beauty.",
+            tags: ["student", "tidecrest", "joy", "sense", "class"]
+        ),
+        relationship(
+            "serenity-brightens-euphonys-room",
+            source: "serenity-brown",
+            target: "professor-eleanor-euphony",
+            kind: .attention,
+            warmth: 14,
+            tension: 4,
+            trust: 13,
+            weight: 12,
+            note: "Euphony hears Serenity as the kind of laughter that changes a room's color.",
+            tags: ["student", "tidecrest", "professor", "sound", "joy"]
+        ),
+        relationship(
+            "finn-honors-the-rivalry",
+            source: "finn-bridges",
+            target: "honorable-rivalry",
+            kind: .tension,
+            warmth: 10,
+            tension: 13,
+            trust: 13,
+            weight: 14,
+            note: "Finn turns challenge into a clean line: prove it by moving, but do not cheapen the effort.",
+            tags: ["student", "emberheart", "rival", "wayfinding", "friction"]
+        ),
+        relationship(
+            "finn-tests-momorts-thresholds",
+            source: "finn-bridges",
+            target: "professor-kyle-momort",
+            kind: .attention,
+            warmth: 12,
+            tension: 8,
+            trust: 13,
+            weight: 12,
+            note: "Finn respects Momort's class most when it stops sounding like escape and starts becoming discipline.",
+            tags: ["student", "emberheart", "professor", "wayfinding", "threshold"]
+        ),
+        relationship(
+            "lysander-walks-stonebrook-routes",
+            source: "lysander-mosswood",
+            target: "mossbloom-walks-gently",
+            kind: .attention,
+            warmth: 16,
+            tension: 2,
+            trust: 16,
+            weight: 14,
+            note: "Lysander turns Stonebrook's quiet routes into nearby paths the reader can actually walk.",
+            tags: ["student", "mossbloom", "trails", "compass-run", "gps"]
+        ),
+        relationship(
+            "lysander-learns-stonebrook-rest",
+            source: "lysander-mosswood",
+            target: "professor-cedric-stonebrook",
+            kind: .care,
+            warmth: 15,
+            tension: 2,
+            trust: 15,
+            weight: 12,
+            note: "Lysander carries Stonebrook's rest-centered teaching out onto actual paths.",
+            tags: ["student", "mossbloom", "professor", "trails", "rest"]
+        ),
+        relationship(
+            "damien-hesitates-at-wickers-edge",
+            source: "damien-nights",
+            target: "wickers-crew-organizes",
+            kind: .tension,
+            warmth: 7,
+            tension: 15,
+            trust: 8,
+            weight: 15,
+            note: "Damien still stands near Wicker, but his attention keeps turning toward the reader.",
+            tags: ["student", "wicker-crew", "shadow", "defection", "uncertainty"]
+        ),
+        relationship(
+            "damien-watches-wicker",
+            source: "damien-nights",
+            target: "wicker-eddies",
+            kind: .tension,
+            warmth: 6,
+            tension: 14,
+            trust: 7,
+            weight: 12,
+            note: "Damien follows Wicker's tests while privately measuring what they cost.",
+            tags: ["student", "wicker-crew", "wicker-eddies", "shadow", "doubt"]
+        ),
+        relationship(
+            "melisande-organizes-wickers-crew",
+            source: "melisande-blackwood",
+            target: "wickers-crew-organizes",
+            kind: .stewardship,
+            warmth: 11,
+            tension: 8,
+            trust: 12,
+            weight: 14,
+            note: "Melisande gives Wicker's crew memory, leverage, and a terrifying filing system.",
+            tags: ["student", "wicker-crew", "faction", "secrets", "pressure"]
+        ),
+        relationship(
+            "melisande-serves-wickers-pressure",
+            source: "melisande-blackwood",
+            target: "wicker-eddies",
+            kind: .stewardship,
+            warmth: 12,
+            tension: 7,
+            trust: 12,
+            weight: 12,
+            note: "Melisande makes Wicker's cruelty look like strategy, which is exactly what makes her dangerous.",
+            tags: ["student", "wicker-crew", "wicker-eddies", "strategy", "pressure"]
+        ),
+        relationship(
+            "minseo-tends-mossbloom-conscience",
+            source: "min-seo-kim",
+            target: "mossbloom-walks-gently",
+            kind: .care,
+            warmth: 17,
+            tension: 2,
+            trust: 16,
+            weight: 14,
+            note: "Min-seo makes Mossbloom's gentleness social instead of merely scenic.",
+            tags: ["student", "mossbloom", "care", "plants", "conscience"]
+        ),
+        relationship(
+            "minseo-softens-stonebrooks-rest",
+            source: "min-seo-kim",
+            target: "professor-cedric-stonebrook",
+            kind: .care,
+            warmth: 15,
+            tension: 1,
+            trust: 15,
+            weight: 12,
+            note: "Min-seo reminds Stonebrook that rest is not complete unless everyone has been invited back into the circle.",
+            tags: ["student", "mossbloom", "professor", "care", "rest"]
+        ),
+        relationship(
             "gwendolyn-files-letters",
             source: "gwendolyn-mythwright",
             target: "margin-glass-letters",
@@ -893,6 +1417,78 @@ enum NarrativePackRegistry {
             weight: 13,
             note: "Lydia believes the room has already started helping before anyone notices.",
             tags: ["home", "tea", "objects", "care"]
+        ),
+        relationship(
+            "momort-opens-small-thresholds",
+            source: "professor-kyle-momort",
+            target: "ordinary-magic",
+            kind: .attention,
+            warmth: 14,
+            tension: 6,
+            trust: 13,
+            weight: 14,
+            note: "Momort turns one intentional step into a threshold the reader can actually cross.",
+            tags: ["faculty", "class", "wayfinding", "embark", "ordinary"]
+        ),
+        relationship(
+            "euphony-tunes-weather-rooms",
+            source: "professor-eleanor-euphony",
+            target: "weather-page",
+            kind: .realityBleed,
+            warmth: 15,
+            tension: 2,
+            trust: 14,
+            weight: 13,
+            note: "Euphony hears outer weather as room-tone before anyone names it.",
+            tags: ["faculty", "class", "sense", "sound", "weather"]
+        ),
+        relationship(
+            "villanelle-binds-true-sentences",
+            source: "professor-vivian-villanelle",
+            target: "margin-glass-letters",
+            kind: .authorship,
+            warmth: 16,
+            tension: 3,
+            trust: 15,
+            weight: 14,
+            note: "Villanelle teaches one true sentence to carry a whole moment without embalming it.",
+            tags: ["faculty", "class", "writing", "souvenir", "memory"]
+        ),
+        relationship(
+            "stonebrook-returns-compass-to-rest",
+            source: "professor-cedric-stonebrook",
+            target: "body-page",
+            kind: .care,
+            warmth: 18,
+            tension: 2,
+            trust: 17,
+            weight: 15,
+            note: "Stonebrook insists every Compass Run must return to a body that can keep going.",
+            tags: ["faculty", "class", "rest", "compass-run", "body"]
+        ),
+        relationship(
+            "wispwood-coaxes-object-replies",
+            source: "professor-luna-wispwood",
+            target: "ordinary-magic",
+            kind: .attention,
+            warmth: 17,
+            tension: 3,
+            trust: 14,
+            weight: 14,
+            note: "Wispwood treats ordinary things as willing collaborators once attention becomes courteous.",
+            tags: ["faculty", "class", "enchantment", "objects", "ordinary"]
+        ),
+        relationship(
+            "permancer-keeps-story-doors-safe",
+            source: "professor-permancer",
+            target: "the-book",
+            kind: .stewardship,
+            warmth: 13,
+            tension: 7,
+            trust: 16,
+            weight: 15,
+            note: "Permancer makes wonder wait for the landing protocol because every borrowed story deserves a careful return.",
+            tags: ["faculty", "class", "book-jump", "threshold", "safety"]
         ),
         relationship(
             "soren-maps-thread",
@@ -1295,7 +1891,7 @@ enum NarrativeEventResolver {
         case .aboutYou:
             entityDeltas["the-book", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 2
-        case .narrativeOS:
+        case .narrativeOS, .bookFae:
             threadDeltas["ordinary-magic", default: 0] += 1
             // The scene's actual cast remembers what happened to them.
             for tag in tags where tag.hasPrefix("entity:") {
@@ -1354,7 +1950,30 @@ enum NarrativeEventResolver {
             createdHint = "An offscreen action can become a future callback."
         case .academyClass:
             entityDeltas["the-book", default: 0] += 1
-            threadDeltas["ordinary-magic", default: 0] += 2
+            threadDeltas["ordinary-magic", default: 0] += 1
+            for tag in tags {
+                if tag.hasPrefix("entity:") {
+                    let entityID = tag.replacingOccurrences(of: "entity:", with: "")
+                    if !entityID.isEmpty {
+                        entityDeltas[entityID, default: 0] += 3
+                    }
+                } else if tag.hasPrefix("subject:") {
+                    let subjectID = tag.replacingOccurrences(of: "subject:", with: "")
+                    if !subjectID.isEmpty {
+                        threadDeltas[subjectID, default: 0] += 3
+                    }
+                } else if tag.hasPrefix("class:") {
+                    let classID = tag.replacingOccurrences(of: "class:", with: "")
+                    if !classID.isEmpty {
+                        threadDeltas[classID, default: 0] += 2
+                    }
+                } else if tag.hasPrefix("lesson:") {
+                    let lessonID = tag.replacingOccurrences(of: "lesson:", with: "")
+                    if !lessonID.isEmpty {
+                        threadDeltas[lessonID, default: 0] += 2
+                    }
+                }
+            }
             createdHint = "A lesson can return later as a practice, a pun, or a pop quiz."
         case .elective:
             for tag in tags where tag.hasPrefix("entity:") {
@@ -1420,6 +2039,12 @@ enum NarrativeEventResolver {
             threadDeltas["ordinary-magic", default: 0] += 1
             relationshipDeltas["book-authors-reader", default: 0] += 1
             createdHint = "A kept sky reading ties the reader to the turning overhead; the next phase or shower can call it back."
+        case .radio:
+            entityDeltas["the-book", default: 0] += 1
+            threadDeltas["music-as-shelter", default: 0] += 3
+            threadDeltas["ordinary-magic", default: 0] += 1
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+            createdHint = "A kept radio page can make the active station tint future pages, letters, and weather in the stacks."
         case .bookJump:
             entityDeltas["the-book", default: 0] += 2
             threadDeltas["ordinary-magic", default: 0] += 2
@@ -1430,6 +2055,10 @@ enum NarrativeEventResolver {
             } else {
                 createdHint = "An open Book Jump can call back until the reader finds the Spine."
             }
+        case .inventory:
+            entityDeltas["the-book", default: 0] += 1
+            threadDeltas["ordinary-magic", default: 0] += 1
+            createdHint = "An invoked or bound object can alter which Pages return and what the Book remembers."
         case .location, .lore, .patreon, .bookOfYou, .packPage, .calendar, .helpTips, .welcome:
             break
         }
@@ -1772,6 +2401,7 @@ struct NarrativeGraphData: Equatable {
     static func loom(
         entities: [NarrativeWorldEntity],
         relationships: [NarrativeRelationshipEdge],
+        threads: [NarrativeStoryThread] = [],
         beliefOffsets: [String: Int],
         relationshipField: [String: RelationshipTie] = [:]
     ) -> NarrativeGraphData {
@@ -1780,7 +2410,7 @@ struct NarrativeGraphData: Equatable {
         for key in relationshipField.keys {
             for id in key.split(separator: "|").map(String.init) { connectedIDs.insert(id) }
         }
-        let nodes = entities
+        let entityNodes = entities
             .filter { connectedIDs.contains($0.id) }
             .map { entity in
                 GraphNode(
@@ -1791,6 +2421,19 @@ struct NarrativeGraphData: Equatable {
                     kindLabel: entity.kind.rawValue
                 )
             }
+        let entityNodeIDs = Set(entityNodes.map(\.id))
+        let threadNodes = threads
+            .filter { !entityNodeIDs.contains($0.id) }
+            .map { thread in
+                GraphNode(
+                    id: thread.id,
+                    label: thread.title,
+                    weight: Double(max(6, thread.belief + (beliefOffsets[thread.id] ?? 0))),
+                    chapterID: nil,
+                    kindLabel: "thread"
+                )
+            }
+        let nodes = entityNodes + threadNodes
         let nodeIDs = Set(nodes.map(\.id))
         var edges = relationships
             .filter { nodeIDs.contains($0.sourceEntityID) && nodeIDs.contains($0.targetEntityID) }

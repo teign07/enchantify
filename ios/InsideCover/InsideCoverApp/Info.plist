@@ -2,27 +2,21 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSFaceIDUsageDescription</key>
+	<string>ReEnchanted uses Face ID to keep your private Book closed until you open it.</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.openclaw.enchantify.insidecover.overnight-scribe</string>
 	</array>
-	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.</string>
-	<key>NSCalendarsUsageDescription</key>
-	<string>ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>ReEnchanted uses the microphone only when you tap a voice input button, so you can speak notes, answers, and page text into the Book.</string>
-	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>ReEnchanted can set a Reminder when you ask it to — like a Fae bargain's deadline — so the world can gently reach you outside the app.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>ReEnchanted uses speech recognition only when you tap a voice input button, turning your spoken words into local page text.</string>
-	<key>UIFileSharingEnabled</key>
-	<true/>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
+		<string>audio</string>
 		<string>processing</string>
+		<string>location</string>
+		<string>remote-notification</string>
+		<string>fetch</string>
 	</array>
+	<key>UIFileSharingEnabled</key>
+	<true/>
 </dict>
 </plist>

@@ -19,6 +19,12 @@ final class SurfaceReadinessStateTests: XCTestCase {
         XCTAssertFalse(SurfaceReadinessState(type: .narrativeOS, metadata: ["storyScene": "The page has dried."]).needsLocalBrainToOpen)
     }
 
+    func testBookFaePageNeedsLocalBrainUntilBespokeSceneExists() {
+        XCTAssertTrue(SurfaceReadinessState(type: .bookFae).needsLocalBrainToOpen)
+        XCTAssertTrue(SurfaceReadinessState(type: .bookFae, metadata: ["storyScene": ""]).needsLocalBrainToOpen)
+        XCTAssertFalse(SurfaceReadinessState(type: .bookFae, metadata: ["storyScene": "A thorn taps twice against the margin."]).needsLocalBrainToOpen)
+    }
+
     func testFacultyResearchNeedsLocalBrainUntilResearchProseExists() {
         XCTAssertTrue(SurfaceReadinessState(type: .facultyResearch).needsLocalBrainToOpen)
         XCTAssertTrue(SurfaceReadinessState(type: .facultyResearch, metadata: ["researchProse": ""]).needsLocalBrainToOpen)

@@ -470,6 +470,7 @@ struct PlayerVaultData: Codable, Equatable {
     var relationshipField: [String: RelationshipTie]?
     var beliefEconomy: BeliefEconomyState?
     var bookJump: BookJumpState?
+    var radio: RadioPlaybackState?
 }
 
 // MARK: - The BookShop
@@ -541,6 +542,15 @@ enum BookShopCatalog {
             contents: "A full alternate marginalia set for Illuminated Photos: gilt frames, wax seals, pressed flowers.",
             productID: "com.openclaw.enchantify.insidecover.pack.gilded-margins",
             comingSoon: true
+        ),
+        BookShopListing(
+            id: "listing-academy-night-band",
+            packID: "academy-night-band",
+            family: .soundPack,
+            title: "Academy Night Band",
+            goblinPitch: "Two after-hours stations recorded on equipment the Goblins claim was never stolen from the Broadcast Stair.",
+            contents: "The Midnight Bindery and Goblin Market Jazz: two radio frequencies with local track slots, broadcast interludes, and live curation effects.",
+            productID: "com.openclaw.enchantify.insidecover.pack.academy-night-band"
         )
     ]
 

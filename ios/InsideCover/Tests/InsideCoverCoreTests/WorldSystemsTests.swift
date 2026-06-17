@@ -80,6 +80,57 @@ final class WorldSystemsTests: XCTestCase {
         }
     }
 
+    func testGlintClassCarriesLessonModuleAndProfessorIdentity() {
+        let session = AcademyScheduleRegistry.classes["art-of-the-glint"]
+
+        XCTAssertEqual(session?.leader, "Professor Lydia Boggle")
+        XCTAssertEqual(session?.leaderEntityID, "lydia-boggle")
+        XCTAssertEqual(session?.subjectThreadID, "notice-north")
+
+        let lesson = AcademyScheduleRegistry.lessonModules["art-of-the-glint"]
+        XCTAssertEqual(lesson?.sessionID, "art-of-the-glint")
+        XCTAssertEqual(lesson?.title, "Specificity Breaks the Rut")
+        XCTAssertFalse(lesson?.lectureBeats.isEmpty ?? true)
+        XCTAssertTrue(lesson?.realWorldPractice.contains("observable facts") ?? false)
+    }
+
+    func testEveryScheduledSessionHasALessonModule() {
+        let sessions = Array(AcademyScheduleRegistry.classes.values) + Array(AcademyScheduleRegistry.clubs.values)
+
+        for session in sessions {
+            let lesson = AcademyScheduleRegistry.lessonModules[session.id]
+            XCTAssertNotNil(lesson, "missing lesson module for \(session.id)")
+            XCTAssertEqual(lesson?.sessionID, session.id)
+            XCTAssertFalse(lesson?.title.isEmpty ?? true, "missing title for \(session.id)")
+            XCTAssertFalse(lesson?.realSubject.isEmpty ?? true, "missing real subject for \(session.id)")
+            XCTAssertFalse(lesson?.concept.isEmpty ?? true, "missing concept for \(session.id)")
+            XCTAssertGreaterThanOrEqual(lesson?.lectureBeats.count ?? 0, 3, "needs at least three lecture beats for \(session.id)")
+            XCTAssertFalse(lesson?.demonstration.isEmpty ?? true, "missing demonstration for \(session.id)")
+            XCTAssertFalse(lesson?.interactionPrompt.isEmpty ?? true, "missing interaction prompt for \(session.id)")
+            XCTAssertFalse(lesson?.realWorldPractice.isEmpty ?? true, "missing real-world practice for \(session.id)")
+        }
+    }
+
+    func testEveryScheduledClassProfessorIsInTheNarrativeCast() {
+        let professorNames = Set(AcademyScheduleRegistry.classes.values.map(\.leader))
+        let castNames = Set(NarrativePackRegistry.entities.filter { $0.kind == .character }.map(\.name))
+
+        XCTAssertTrue(
+            professorNames.isSubset(of: castNames),
+            "Missing scheduled professors: \(professorNames.subtracting(castNames).sorted().joined(separator: ", "))"
+        )
+    }
+
+    func testEveryScheduledClassProfessorHasAnIllustrationDossier() {
+        let professorNames = Set(AcademyScheduleRegistry.classes.values.map(\.leader))
+        let dossierNames = Set(BookReferenceCatalog.characterIllustrations.map(\.characterName))
+
+        XCTAssertTrue(
+            professorNames.isSubset(of: dossierNames),
+            "Missing professor dossiers: \(professorNames.subtracting(dossierNames).sorted().joined(separator: ", "))"
+        )
+    }
+
     // MARK: Page pack templates
 
     func testTemplateRendererSubstitutesSignals() {
@@ -1288,6 +1339,7 @@ final class WorldSystemsTests: XCTestCase {
         let graph = NarrativeGraphData.loom(
             entities: NarrativePackRegistry.entities,
             relationships: NarrativePackRegistry.relationships,
+            threads: NarrativePackRegistry.threads,
             beliefOffsets: [:]
         )
 

@@ -212,6 +212,20 @@ struct MLXBookBraider: Braider {
     var instructions = Self.bookOfYouInstructions
 
     func braid(day: BookDay) async throws -> BookPage {
+        let context: BraidPromptBuilder.Context
+        switch mode {
+        case .bookOfYou:
+            let days = await MainActor.run {
+                BookDatabase.loadDays(migratingFrom: BookStore.loadDays())
+            }
+            context = LocalModelManager.braidContext(for: day, days: days)
+        case .task:
+            context = .empty
+        }
+        return try await braid(day: day, context: context)
+    }
+
+    func braid(day: BookDay, context: BraidPromptBuilder.Context) async throws -> BookPage {
         guard let modelDirectory = LocalModelManager.activeModelDirectory else {
             throw LocalModelError.missingModel(LocalModelManager.report())
         }
@@ -219,7 +233,7 @@ struct MLXBookBraider: Braider {
         let prompt: String
         switch mode {
         case .bookOfYou:
-            prompt = LocalModelManager.bookOfYouBraidPrompt(for: day, recentBraids: [])
+            prompt = LocalModelManager.bookOfYouBraidPrompt(for: day, context: context)
         case .task:
             prompt = LocalModelManager.taskPrompt(for: day)
         }
@@ -285,7 +299,8 @@ struct MLXBookBraider: Braider {
     Mention each motif, image, sentence idea, or emotional beat only once.
     Do not restate the same idea in consecutive paragraphs with swapped words.
     Keep it warm, vivid, playful, and true.
-    Prose standard: varied literary cadence. Mix short, surprising, concrete sentences with longer, flowing sentences that turn once or twice before landing. Use specific nouns and verbs, one exact physical detail per paragraph, and a voice that feels mythic, intimate, lucid, and plainspoken rather than clipped. No vague wonder, generic inspiration, journey, profound, tapestry, echoes, or abstract emotional summary.
+    Prose standard: varied literary cadence. Mix short, surprising, concrete sentences with longer, flowing sentences that turn once or twice before landing. Use specific nouns and verbs, one exact physical detail per paragraph, and a voice that feels intimate, lucid, playful, and plainspoken rather than clipped. No vague wonder, generic inspiration, journey, profound, tapestry, echoes, or abstract emotional summary.
+    Style compass: contemporary literary fantasy with dark playfulness, lucid sentences, concrete ordinary objects made strange, a storyteller's sideways humor, and endings that land softly but sharply.
     """
 
     static let weatherInstructions = """
@@ -451,7 +466,7 @@ struct MLXFaeBargainResponder: FaeBargainResponding {
                 let session = ChatSession(
                     container,
                     instructions: """
-                    You are a Book Fae inside ReEnchanted — born from the ink, starving for the world of matter. Speak only in voice as the named fae. Receive the reader's field report and give a true, strange lore fragment in return. Never speak as a generic assistant.
+                    You are a Book Fae inside ReEnchanted — born from the ink, starving for the world of matter, bound by old faerie exchange. Speak only in voice as the named fae: courteous, alien, exacting, never cute for cuteness' sake. Receive the reader's field report and give a true, strange lore fragment in return. Failure becomes story, not punishment. Never speak as a generic assistant.
                     """,
                     generateParameters: GenerateParameters(
                         maxTokens: maxTokens,
@@ -474,7 +489,7 @@ struct MLXFaeBargainResponder: FaeBargainResponding {
 }
 
 struct MLXInkrestOfficeHoursCounselor: InkrestOfficeHoursCounseling {
-    var maxTokens = 460
+    var maxTokens = 780
 
     func reply(
         intake: InkrestIntake,
@@ -487,7 +502,7 @@ struct MLXInkrestOfficeHoursCounselor: InkrestOfficeHoursCounseling {
             throw LocalModelError.missingModel(LocalModelManager.report())
         }
 
-        let taskPrompt = LocalModelManager.inkrestOfficeHoursPrompt(
+        let taskPrompt = InkrestOfficeHoursPromptBuilder.prompt(
             intake: intake,
             day: day,
             previousTurns: previousTurns,
@@ -505,11 +520,11 @@ struct MLXInkrestOfficeHoursCounselor: InkrestOfficeHoursCounseling {
                 let session = ChatSession(
                     container,
                     instructions: """
-                    You are Dr. Selene Inkrest, the Academy's narrative therapist inside ReEnchanted. Warm, curious, unhurried, faintly otherworldly. Reply in plain kind sentences, no lists or headings, never as a generic assistant.
+                    You are Dr. Selene Inkrest, the Academy's narrative therapist inside ReEnchanted. Warm, curious, unhurried, faintly otherworldly. Read the player's rich material closely and answer with substantive, specific reflection. Reply in plain kind paragraphs, no lists or headings, never as a generic assistant.
                     """,
                     generateParameters: GenerateParameters(
                         maxTokens: maxTokens,
-                        maxKVSize: 2_048,
+                        maxKVSize: 4_096,
                         temperature: 0.7,
                         topP: 0.92,
                         prefillStepSize: 256
@@ -949,6 +964,11 @@ struct CharacterLetterPromptBuilder {
         let playerName = surface.payload.metadata["playerName"]?.nonEmpty ?? "friend"
         let interest = surface.payload.metadata["unwrittenInterest"] ?? "ordinary wonder"
         let homeContext = surface.payload.metadata["homeContext"] ?? "the player's home"
+        let relationshipStage = surface.payload.metadata["letterRelationshipStage"]?.nonEmpty ?? "continuing"
+        let occasion = surface.payload.metadata["letterOccasion"]?.nonEmpty ?? "No special occasion."
+        let relationshipInstruction = relationshipStage == "introduction"
+            ? "This is the sender's first letter to the player. Make it an introduction letter first: establish who the sender is, what they care about, and why they are writing now. Do not assume a prior friendship or shared history."
+            : "This sender has written before. Build from existing relationship context when it is present; do not reintroduce them as if they are new."
         let clippings = surface.payload.metadata["letterResearchClippings"]?.nonEmpty
             ?? surface.payload.metadata["realInterestClippings"]?.nonEmpty
             ?? "No live web clippings were available. Use model knowledge carefully and say things generally."
@@ -960,6 +980,9 @@ struct CharacterLetterPromptBuilder {
         Address the player as: \(playerName)
         Unwritten Interest: \(interest)
         Player home context: \(homeContext)
+        Letter relationship stage: \(relationshipStage)
+        Letter occasion: \(occasion)
+        Relationship instruction: \(relationshipInstruction)
 
         Chapter talisman move:
         \(talismanMoves)
@@ -973,7 +996,7 @@ struct CharacterLetterPromptBuilder {
         Research source URLs:
         \(sources)
 
-        Write the finished letter. It should feel researched, personal, and specific to the sender. Blend real-world facts with the sender's voice and relationship to the player. Start with a greeting that uses "\(playerName)" exactly. Never write "[Player Name]". If a chapter talisman move is supplied, make it a real small action or confession in the letter; the app will apply its talisman Belief delta when the letter is kept. If no move is supplied, do not invent one.
+        Write the finished letter. It should feel researched, personal, and specific to the sender. Blend real-world facts with the sender's voice and relationship to the player. For an introduction-stage letter, introduce before escalating: no callbacks, no assumed intimacy, no urgent plot demand. Start with a greeting that uses "\(playerName)" exactly. Never write "[Player Name]". If a chapter talisman move is supplied, make it a real small action or confession in the letter; the app will apply its talisman Belief delta when the letter is kept. If no move is supplied, do not invent one.
         """
     }
 
@@ -1022,6 +1045,20 @@ struct FakeCharacterLetterWriter: CharacterLetterWriting {
         let clippings = surface.payload.metadata["letterResearchClippings"]?.nonEmpty
         let researchLine = clippings.map { "I found this in the public stacks:\n\($0)" }
             ?? "The public stacks did not answer in time, so I am leaning on what I already know."
+        if surface.payload.metadata["letterRelationshipStage"] == "introduction" {
+            return """
+            Dear \(playerName),
+
+            I should introduce myself before I start leaving folded paper in your margins. I am \(sender), and I pay attention to \(interest) because it has a way of making ordinary places answer back.
+
+            I went looking for the shape of that interest near \(home). \(researchLine)
+
+            You do not owe me a dramatic reply. For a first letter, I only wanted you to know the kind of thing I notice, and why your corner of the world has begun to matter to me.
+
+            Yours from the margins,
+            \(sender)
+            """
+        }
         return """
         Dear \(playerName),
 
@@ -1721,12 +1758,37 @@ struct PhotoLibraryService: PhotoLibraryServicing {
 }
 
 protocol PhotoCandidateScoring {
-    func scoreAssets(_ assets: [PHAsset], history: IlluminatedPhotoHistory) -> [PhotoCandidate]
+    func scoreAssets(_ assets: [PHAsset], history: IlluminatedPhotoHistory, context: PhotoIlluminationContext) -> [PhotoCandidate]
+}
+
+struct PhotoIlluminationContext {
+    var now: Date
+    var weatherText: String
+    var themeTags: [String]
+
+    static func current(weatherText: String = "", themeTags: [String] = [], now: Date = Date()) -> Self {
+        Self(now: now, weatherText: weatherText, themeTags: themeTags)
+    }
+
+    var season: String { AnchorRegistry.currentSeason(for: now).lowercased() }
+
+    var timeOfDay: String {
+        switch Calendar.current.component(.hour, from: now) {
+        case 5..<11: return "morning"
+        case 11..<17: return "afternoon"
+        case 17..<22: return "evening"
+        default: return "night"
+        }
+    }
 }
 
 struct PhotoCandidateScorer: PhotoCandidateScoring {
-    func scoreAssets(_ assets: [PHAsset], history: IlluminatedPhotoHistory) -> [PhotoCandidate] {
-        let now = Date()
+    func scoreAssets(
+        _ assets: [PHAsset],
+        history: IlluminatedPhotoHistory,
+        context: PhotoIlluminationContext = .current()
+    ) -> [PhotoCandidate] {
+        let now = context.now
         return assets.map { asset in
             var score = 0.0
             var reasons: [String] = []
@@ -1757,6 +1819,25 @@ struct PhotoCandidateScorer: PhotoCandidateScoring {
             if asset.location != nil {
                 score += 1
                 reasons.append("has place")
+            }
+            if let creationDate = asset.creationDate {
+                let calendar = Calendar.current
+                let captureHour = calendar.component(.hour, from: creationDate)
+                let captureTime: String
+                switch captureHour {
+                case 5..<11: captureTime = "morning"
+                case 11..<17: captureTime = "afternoon"
+                case 17..<22: captureTime = "evening"
+                default: captureTime = "night"
+                }
+                if captureTime == context.timeOfDay {
+                    score += 1.5
+                    reasons.append("matches time of day")
+                }
+                if AnchorRegistry.currentSeason(for: creationDate).lowercased() == context.season {
+                    score += 1.5
+                    reasons.append("matches season")
+                }
             }
             if asset.mediaSubtypes.contains(.photoScreenshot) {
                 score -= 10
@@ -1811,7 +1892,7 @@ func preferredIlluminatedPhotoCandidate(
     now: Date = Date(),
     allowStaleFallback: Bool = false
 ) -> PhotoCandidate? {
-    let fresh = candidates.first { candidate in
+    let fresh = candidates.filter { candidate in
         if history.keptAssetIdentifiers.contains(candidate.assetLocalIdentifier) { return false }
         if history.dismissedAssetIdentifiers.contains(candidate.assetLocalIdentifier) { return false }
         if history.proposedAssetIdentifiers.contains(candidate.assetLocalIdentifier) { return false }
@@ -1821,12 +1902,57 @@ func preferredIlluminatedPhotoCandidate(
         }
         return true
     }
-    guard fresh == nil, allowStaleFallback else {
-        return fresh
+    if let bestScore = fresh.first?.score {
+        let contextualPool = fresh.filter { $0.score >= bestScore - 2.0 }
+        if !contextualPool.isEmpty {
+            return contextualPool.randomElement()
+        }
     }
+    guard allowStaleFallback else { return nil }
     return candidates.first { candidate in
         !history.keptAssetIdentifiers.contains(candidate.assetLocalIdentifier)
             && !history.dismissedAssetIdentifiers.contains(candidate.assetLocalIdentifier)
+    }
+}
+
+extension PhotoAnalysis {
+    static func contextualPreview(context: PhotoIlluminationContext) -> PhotoAnalysis {
+        let weather = context.weatherText.lowercased()
+        let tags = context.themeTags.map { $0.lowercased() }
+        let template: IlluminatedTemplateID
+        let stamp: String
+        if weather.contains("rain") || weather.contains("storm") || weather.contains("snow") {
+            template = .academyFieldStudy
+            stamp = "Weather Evidence"
+        } else if tags.contains(where: { $0.contains("compass") || $0.contains("adventure") }) {
+            template = .harborFieldNote
+            stamp = "Compass Record"
+        } else {
+            template = .academyFieldStudy
+            stamp = "Field Study"
+        }
+        return PhotoAnalysisValidator.validate(PhotoAnalysis(
+            scene: "A photograph from \(context.season) waits in the \(context.timeOfDay) margins.",
+            motifs: [context.season, context.timeOfDay, "memory", "detail"],
+            mood: "timely and kept",
+            suggestedTemplate: template,
+            marginalia: PhotoMarginalia(
+                fieldNote: "The present called this page forward.",
+                stampLabel: stamp,
+                observationList: [
+                    "Chosen for this hour",
+                    "Season answering season",
+                    "A place worth returning to",
+                    "The ordinary held still",
+                    "No oracle consulted"
+                ],
+                closingLine: "The Book opened a margin around this moment."
+            ),
+            souvenirCandidates: [
+                "This moment returned because the present recognized it.",
+                "The season found an earlier page still carrying its light."
+            ]
+        ))
     }
 }
 #endif
@@ -1836,8 +1962,12 @@ struct AppBraider: Braider {
     private let fallback = FakeBraider()
 
     func braid(day: BookDay) async throws -> BookPage {
+        try await braid(day: day, context: .empty)
+    }
+
+    func braid(day: BookDay, context: BraidPromptBuilder.Context) async throws -> BookPage {
         do {
-            return try await local.braid(day: day)
+            return try await local.braid(day: day, context: context)
         } catch {
             appLog.error("Local braid fell back: \(error.localizedDescription, privacy: .public)")
             var page = try await fallback.braid(day: day)
@@ -2507,6 +2637,11 @@ struct CharacterLetterWriter {
         let playerName = surface.payload.metadata["playerName"]?.nonEmpty ?? "friend"
         let interest = surface.payload.metadata["unwrittenInterest"] ?? "ordinary wonder"
         let homeContext = surface.payload.metadata["homeContext"] ?? "the player's home"
+        let relationshipStage = surface.payload.metadata["letterRelationshipStage"]?.nonEmpty ?? "continuing"
+        let occasion = surface.payload.metadata["letterOccasion"]?.nonEmpty ?? "No special occasion."
+        let relationshipInstruction = relationshipStage == "introduction"
+            ? "This is the sender's first letter to the player. Make it an introduction letter first: establish who the sender is, what they care about, and why they are writing now. Do not assume a prior friendship or shared history."
+            : "This sender has written before. Build from existing relationship context when it is present; do not reintroduce them as if they are new."
         let clippings = surface.payload.metadata["letterResearchClippings"]?.nonEmpty
             ?? surface.payload.metadata["realInterestClippings"]?.nonEmpty
             ?? "No live web clippings were available. Use model knowledge carefully and say things generally."
@@ -2516,6 +2651,9 @@ struct CharacterLetterWriter {
         Address the player as: \(playerName)
         Unwritten Interest: \(interest)
         Player home context: \(homeContext)
+        Letter relationship stage: \(relationshipStage)
+        Letter occasion: \(occasion)
+        Relationship instruction: \(relationshipInstruction)
 
         Draft packet:
         \(surface.payload.body)
@@ -2526,7 +2664,7 @@ struct CharacterLetterWriter {
         Research source URLs:
         \(sources)
 
-        Write the finished letter. It should feel researched, personal, and specific to the sender. Blend real-world facts with the sender's voice and relationship to the player. Start with a greeting that uses "\(playerName)" exactly. Never write "[Player Name]".
+        Write the finished letter. It should feel researched, personal, and specific to the sender. Blend real-world facts with the sender's voice and relationship to the player. For an introduction-stage letter, introduce before escalating: no callbacks, no assumed intimacy, no urgent plot demand. Start with a greeting that uses "\(playerName)" exactly. Never write "[Player Name]".
         """
     }
 
@@ -2538,6 +2676,20 @@ struct CharacterLetterWriter {
         let clippings = surface.payload.metadata["letterResearchClippings"]?.nonEmpty
         let researchLine = clippings.map { "I found this in the public stacks:\n\($0)" }
             ?? "The public stacks did not answer in time, so I am leaning on what I already know."
+        if surface.payload.metadata["letterRelationshipStage"] == "introduction" {
+            return """
+            Dear \(playerName),
+
+            I should introduce myself before I start leaving folded paper in your margins. I am \(sender), and I pay attention to \(interest) because it has a way of making ordinary places answer back.
+
+            I went looking for the shape of that interest near \(home). \(researchLine)
+
+            You do not owe me a dramatic reply. For a first letter, I only wanted you to know the kind of thing I notice, and why your corner of the world has begun to matter to me.
+
+            Yours from the margins,
+            \(sender)
+            """
+        }
         return """
         Dear \(playerName),
 

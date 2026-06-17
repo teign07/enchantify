@@ -784,7 +784,7 @@ struct GlowCommandMenu: View {
         GeometryReader { proxy in
             let panelWidth = min(430, max(294, proxy.size.width * 0.76))
             let panelTop = max(proxy.safeAreaInsets.top + 74, 98)
-            let panelHeight = min(proxy.size.height - panelTop - 30, selectedSection == nil ? 574 : 690)
+            let panelHeight = min(proxy.size.height - panelTop - 30, selectedSection == nil ? 500 : 690)
             let isCompact = proxy.size.width < 720
             let submenuWidth = isCompact ? panelWidth - 28 : min(280, max(232, panelWidth * 0.68))
             let submenuTop = panelTop + (selectedSection?.rowOffset ?? 0) + 44

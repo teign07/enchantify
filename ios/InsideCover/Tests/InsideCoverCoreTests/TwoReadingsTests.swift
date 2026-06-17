@@ -2,6 +2,82 @@ import XCTest
 @testable import InsideCoverCore
 
 final class TwoReadingsTests: XCTestCase {
+    func testClassProfessorsAreInCastAndRelationshipLoom() {
+        let professorIDs = Set([
+            "lydia-boggle",
+            "professor-kyle-momort",
+            "professor-eleanor-euphony",
+            "professor-vivian-villanelle",
+            "professor-cedric-stonebrook",
+            "professor-luna-wispwood",
+            "professor-permancer"
+        ])
+        let castIDs = Set(NarrativePackRegistry.entities.map(\.id))
+        XCTAssertTrue(professorIDs.isSubset(of: castIDs))
+
+        let graph = NarrativeGraphData.loom(
+            entities: NarrativePackRegistry.entities,
+            relationships: NarrativePackRegistry.relationships,
+            threads: NarrativePackRegistry.threads,
+            beliefOffsets: [:]
+        )
+        let graphNodeIDs = Set(graph.nodes.map(\.id))
+        let graphEdgeIDs = Set(graph.edges.flatMap { [$0.sourceID, $0.targetID] })
+
+        XCTAssertTrue(professorIDs.isSubset(of: graphNodeIDs))
+        XCTAssertTrue(professorIDs.isSubset(of: graphEdgeIDs))
+    }
+
+    func testStudentCastPackIsInCastAndRelationshipLoom() throws {
+        let studentIDs = Set([
+            "serenity-brown",
+            "finn-bridges",
+            "lysander-mosswood",
+            "damien-nights",
+            "melisande-blackwood",
+            "min-seo-kim"
+        ])
+        let cast = NarrativePackRegistry.entities
+        let castIDs = Set(cast.map(\.id))
+        XCTAssertTrue(studentIDs.isSubset(of: castIDs))
+
+        let serenity = try XCTUnwrap(cast.first { $0.id == "serenity-brown" })
+        XCTAssertLessThanOrEqual(serenity.belief, 20, "Serenity should start at normal active-student Belief, not prior Bond-tier investment.")
+        for id in studentIDs {
+            let student = try XCTUnwrap(cast.first { $0.id == id })
+            XCTAssertEqual(student.kind, .character)
+            XCTAssertNotNil(student.chapter)
+            XCTAssertFalse(student.unwrittenInterest?.isEmpty ?? true)
+            XCTAssertFalse(student.traits.isEmpty)
+            XCTAssertFalse(student.quirks.isEmpty)
+            XCTAssertFalse(student.faults.isEmpty)
+            XCTAssertFalse(student.beliefs.isEmpty)
+            XCTAssertFalse(student.goals.isEmpty)
+            XCTAssertTrue(student.tags.contains("student"))
+            XCTAssertTrue(student.tags.contains("active-cast"))
+        }
+
+        let threadIDs = Set(NarrativePackRegistry.threads.map(\.id))
+        XCTAssertTrue(Set([
+            "tidecrest-finds-its-laugh",
+            "honorable-rivalry",
+            "wickers-crew-organizes",
+            "mossbloom-walks-gently"
+        ]).isSubset(of: threadIDs))
+
+        let graph = NarrativeGraphData.loom(
+            entities: cast,
+            relationships: NarrativePackRegistry.relationships,
+            threads: NarrativePackRegistry.threads,
+            beliefOffsets: [:]
+        )
+        let graphNodeIDs = Set(graph.nodes.map(\.id))
+        let graphEdgeIDs = Set(graph.edges.flatMap { [$0.sourceID, $0.targetID] })
+
+        XCTAssertTrue(studentIDs.isSubset(of: graphNodeIDs))
+        XCTAssertTrue(studentIDs.isSubset(of: graphEdgeIDs))
+    }
+
     func testSelectsAPairFromTheBundledCast() {
         let pair = DisagreementEngine.select(
             entities: NarrativePackRegistry.entities,
@@ -141,13 +217,22 @@ final class TwoReadingsTests: XCTestCase {
         func vellumInkrest(_ graph: NarrativeGraphData) -> GraphEdge? {
             graph.edges.first { Set([$0.sourceID, $0.targetID]) == Set(["dr-vellum", "dr-inkrest"]) }
         }
-        guard let plain = vellumInkrest(NarrativeGraphData.loom(entities: entities, relationships: relationships, beliefOffsets: [:])) else {
+        guard let plain = vellumInkrest(NarrativeGraphData.loom(
+            entities: entities,
+            relationships: relationships,
+            threads: NarrativePackRegistry.threads,
+            beliefOffsets: [:]
+        )) else {
             return
         }
         var field: [String: RelationshipTie] = [:]
         RelationshipFieldEngine.weave(into: &field, entityIDs: ["dr-vellum", "dr-inkrest"], tension: 6)
         let judged = vellumInkrest(NarrativeGraphData.loom(
-            entities: entities, relationships: relationships, beliefOffsets: [:], relationshipField: field
+            entities: entities,
+            relationships: relationships,
+            threads: NarrativePackRegistry.threads,
+            beliefOffsets: [:],
+            relationshipField: field
         ))
         XCTAssertNotNil(judged)
         XCTAssertLessThan(judged!.warmth, plain.warmth, "tension cools the existing thread")

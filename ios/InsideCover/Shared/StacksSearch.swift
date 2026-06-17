@@ -257,10 +257,13 @@ enum StacksSearchEngine {
                 } else {
                     snippet = snippetAround(matchedTerm, in: page.userInput.isEmpty ? page.promptText : page.userInput)
                 }
+                let title = page.type == .bookOfYou
+                    ? BraidPageDetails.details(for: page).title
+                    : page.type.title
                 results.append(StacksSearchResult(
                     id: "page-\(page.id)",
                     kind: .keptPage,
-                    title: page.type == .bookOfYou ? "Book of You" : page.type.title,
+                    title: title,
                     snippet: snippet,
                     dateLabel: formatter.string(from: page.createdAt),
                     score: score,

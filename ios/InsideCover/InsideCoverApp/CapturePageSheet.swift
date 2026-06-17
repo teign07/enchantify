@@ -4,6 +4,19 @@ import Darwin.Mach
 #if canImport(AudioToolbox)
 import AudioToolbox
 #endif
+
+private extension View {
+    func inventoryObjectSurface(accent: Color) -> some View {
+        self
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(BookPalette.paper.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(accent.opacity(0.28), lineWidth: 1)
+            }
+    }
+}
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -284,6 +297,46 @@ private struct MarginsAtlasNodeCard: View {
     }
 }
 
+private struct RadioSignalMeter: View {
+    let stationID: String
+    let isPlaying: Bool
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 0.25, paused: !isPlaying)) { timeline in
+            let tick = Int(timeline.date.timeIntervalSince1970 * 4)
+            HStack(alignment: .center, spacing: 4) {
+                ForEach(0..<24, id: \.self) { index in
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(barColor(index: index))
+                        .frame(width: 5, height: barHeight(index: index, tick: tick))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(BookPalette.ink.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(BookPalette.ink.opacity(0.10), lineWidth: 1)
+            }
+        }
+    }
+
+    private func barHeight(index: Int, tick: Int) -> CGFloat {
+        guard isPlaying else { return CGFloat(8 + (index % 3) * 3) }
+        let seed = abs("\(stationID)-\(index)-\(tick / 2)".stableHash)
+        let wave = 8 + (seed % 28)
+        let centerBias = 10 - min(10, abs(index - 12))
+        return CGFloat(max(8, min(38, wave + centerBias / 2)))
+    }
+
+    private func barColor(index: Int) -> Color {
+        if !isPlaying {
+            return BookPalette.ink.opacity(0.22)
+        }
+        return index % 5 == 0 ? BookPalette.lampGold.opacity(0.82) : BookPalette.teal.opacity(0.78)
+    }
+}
+
 struct CapturePageSheet: View {
     let surface: SurfacePage
     let day: BookDay
@@ -301,6 +354,17 @@ struct CapturePageSheet: View {
     var onPayFaeBargain: (String, String, String) -> Void = { _, _, _ in }
     /// (chosenID, chosenName, otherID, otherName) when the reader sides in The Two Readings.
     var onTwoReadingsSided: (String, String, String, String) -> Void = { _, _, _, _ in }
+    var radioPlayback: RadioPlaybackState = .off
+    var onTuneRadio: (String) -> Void = { _ in }
+    var onStopRadio: () -> Void = {}
+    var inventoryKeptPages: [BookPage] = []
+    var inventoryStoryObjects: [CustomCastMember] = []
+    var inventoryObjectBeliefOffsets: [String: Int] = [:]
+    var onUseInventoryGift: (String, String?) -> Void = { _, _ in }
+    var onOpenInventoryMarket: () -> Void = {}
+    var onOpenInventoryBargain: (FaeBargain) -> Void = { _ in }
+    var onLoveBraid: (String) -> String = { _ in "" }
+    var onBraidMissedMe: (String) -> String = { _ in "" }
     let onSave: (SurfacePage, String, [String]) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -338,6 +402,9 @@ struct CapturePageSheet: View {
     @State private var faeMessage = ""
     @State private var festivalMessage = ""
     @State private var todaysSkyMessage = ""
+    @State private var radioDialFrequency = 94.1
+    @State private var selectedRadioStationID: String?
+    @State private var radioManager = BookRadioManager.shared
     @State private var twoReadingsSide: String?
     @State private var selectedEnchantmentID: String?
     @State private var enchantmentResult: EnchantmentCastResult?
@@ -365,6 +432,10 @@ struct CapturePageSheet: View {
     @State private var playfulMissionGenerationMessage = ""
     @State private var bleedPDFURL: URL?
     @State private var bleedExportMessage = ""
+    @State private var inventoryRevision = 0
+    @State private var inventoryMessage = ""
+    @State private var braidFeedbackMessage = ""
+    @State private var loosePageTurns: [String: Int] = [:]
     @AppStorage("illuminatedPhotoHistory") private var illuminatedPhotoHistoryData = "{}"
     #if canImport(PhotosUI)
     @State private var selectedPhotoItem: PhotosPickerItem?
@@ -391,6 +462,18 @@ struct CapturePageSheet: View {
 
     private var isKeptReadbackPage: Bool {
         surface.payload.metadata["keptPage"] == "true"
+    }
+
+    private var keptPageID: String? {
+        surface.payload.metadata["keptPageID"]?.nonEmpty
+    }
+
+    private var canGiveBraidFeedback: Bool {
+        surface.type == .bookOfYou &&
+            isKeptReadbackPage &&
+            keptPageID != nil &&
+            !surface.payload.metadata["tags", default: ""].contains(BraidLearningLoop.missedMeTag) &&
+            !surface.payload.metadata["tags", default: ""].contains(BraidLearningLoop.lovedItTag)
     }
 
     private var isPendingLetterPage: Bool {
@@ -420,12 +503,15 @@ struct CapturePageSheet: View {
             surface.renderStyle == .illuminatedPhoto ||
             currentEnchantmentSurface != nil ||
             surface.type == .narrativeOS ||
+            surface.type == .bookFae ||
             surface.type == .gossip ||
             surface.type == .theBleed ||
             surface.type == .letter ||
             surface.type == .elective ||
             surface.type == .academyClass ||
             surface.type == .anchor ||
+            surface.type == .radio ||
+            surface.type == .inventory ||
             isChapterPrimerPage ||
             surface.renderStyle == .gentleTranslation ||
             surface.origin == .imported
@@ -502,7 +588,7 @@ struct CapturePageSheet: View {
     }
 
     private func tutorTouchForThisPage() {
-        if surface.type == .narrativeOS, !isLocalBrainIssuePage {
+        if (surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass), !isLocalBrainIssuePage {
             tutorTouch("story-page")
         } else if isEnchantmentPage {
             tutorTouch("enchantment-page")
@@ -721,7 +807,7 @@ struct CapturePageSheet: View {
     }
 
     private var storySceneDraft: StoryPageSceneDraft? {
-        guard surface.type == .narrativeOS else { return nil }
+        guard surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass else { return nil }
         return StoryPageSceneDraft(surface: surface)
     }
 
@@ -731,7 +817,7 @@ struct CapturePageSheet: View {
 
     private var sheetHasLocalBrainActions: Bool {
         switch surface.type {
-        case .illuminatedPhoto, .narrativeOS, .askTheBook, .enchantment, .inkrestOfficeHours, .faeBargain:
+        case .illuminatedPhoto, .narrativeOS, .bookFae, .askTheBook, .enchantment, .inkrestOfficeHours, .faeBargain:
             return true
         default:
             return isEnchantmentPage
@@ -750,7 +836,7 @@ struct CapturePageSheet: View {
         let marginNote = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let body: String
 
-        if surface.type == .narrativeOS, let activeStoryTurn {
+        if (surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass), let activeStoryTurn {
             let choiceLines = activeStoryTurn.draft.choices.map { "• \($0.kindLabel): \($0.title)" }.joined(separator: "\n")
             let selectedResult = activeStoryTurn.selectedChoice.map { choice in
                 "\n\nChosen path: \(choice.title)\n\n\(activeStoryTurn.result(for: choice))"
@@ -891,7 +977,7 @@ struct CapturePageSheet: View {
                 if surface.type == .illuminatedPhoto {
                     await prepareIlluminatedArtifactIfNeeded()
                 }
-                if surface.type == .narrativeOS, !isLocalBrainIssuePage, storyTurns.isEmpty, let storySceneDraft {
+                if (surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass), !isLocalBrainIssuePage, storyTurns.isEmpty, let storySceneDraft {
                     storyTurns = [StoryPageSessionTurn(draft: storySceneDraft)]
                 }
             }
@@ -1026,6 +1112,10 @@ struct CapturePageSheet: View {
                 faeMarginaliaCard(note)
             }
 
+            if canGiveBraidFeedback {
+                braidFeedbackCard
+            }
+
             if isGeneratingCompassRun {
                 LocalBrainWorkingStatusCard(
                     label: "Compass Run",
@@ -1121,13 +1211,13 @@ struct CapturePageSheet: View {
                 hourPageView
             }
 
-            if surface.type != .narrativeOS && surface.type != .askTheBook && surface.type != .calendar && surface.type != .inkrestOfficeHours && surface.type != .faeBargain && !isChapterPrimerPage && !isBookJumpPage {
+            if surface.type != .narrativeOS && surface.type != .bookFae && surface.type != .academyClass && surface.type != .askTheBook && surface.type != .calendar && surface.type != .inkrestOfficeHours && surface.type != .faeBargain && !isChapterPrimerPage && !isBookJumpPage {
                 marginNoteEditor(minHeight: isPreparedPage ? 92 : (surface.type == .souvenir ? 120 : 150))
             } else if isBookJumpActivePage {
                 // Every open beat can carry a line — a souvenir to bring home, or
                 // a real detail to steady the page — so the fork controls have it.
                 marginNoteEditor(minHeight: 118)
-            } else if surface.type == .narrativeOS && !isLocalBrainIssuePage {
+            } else if (surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass) && !isLocalBrainIssuePage {
                 storyMarginNoteField
             }
         }
@@ -1238,22 +1328,13 @@ struct CapturePageSheet: View {
                 tint: BookPalette.teal
             )
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(phase == "after" ? "One-sentence souvenir" : "Margin note for the hour")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(openPageSecondaryText)
-                TextField(placeholder, text: $text, axis: .vertical)
-                    .font(.callout)
-                    .foregroundStyle(BookPalette.ink)
-                    .lineLimit(3...6)
-                    .dictationInput(text: $text)
-                    .padding(12)
-                    .background(BookPalette.page.opacity(0.9), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
-                    }
-            }
+            LivingTextEditor(
+                title: phase == "after" ? "One-sentence souvenir" : "Margin note for the hour",
+                placeholder: placeholder,
+                text: $text,
+                minHeight: 92,
+                builderPack: phase == "after" ? .core.merged(with: .souvenir) : .core
+            )
         }
     }
 
@@ -1656,6 +1737,176 @@ struct CapturePageSheet: View {
             ? "The sky-watch is marked on your calendar."
             : "It could not be added (check Calendar permission in Settings)."
         BookFeedback.play(ok ? .select : .error)
+    }
+
+    private var radioPageView: some View {
+        let unlocked = Set(PlayerVault.shared.data.ownedPacks ?? [])
+        let stations = RadioStationRegistry.stations(unlockedPackIDs: unlocked)
+        let currentPlayback = radioManager.playback.isTuned ? radioManager.playback : radioPlayback
+        let activeID = selectedRadioStationID ?? currentPlayback.activeStationID ?? surface.payload.metadata["radioStationID"] ?? stations.first?.id
+        let active = RadioStationRegistry.station(id: activeID, unlockedPackIDs: unlocked) ?? stations.first
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center, spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(BookPalette.nightPanel.opacity(0.92))
+                    Circle()
+                        .stroke(BookPalette.lampGold.opacity(0.55), lineWidth: 2)
+                    Image(systemName: "radio")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(BookPalette.lampGold)
+                }
+                .frame(width: 54, height: 54)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(active.map { "\($0.displayFrequency) FM" } ?? "Academy Band")
+                        .font(.caption.weight(.heavy))
+                        .foregroundStyle(BookPalette.teal)
+                    Text(active?.title ?? "ReEnchanted Radio")
+                        .font(.system(.title3, design: .serif, weight: .semibold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(radioManager.statusLine)
+                        .font(.caption)
+                        .foregroundStyle(BookPalette.ink.opacity(0.62))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            RadioSignalMeter(
+                stationID: active?.id ?? "radio",
+                isPlaying: radioManager.isPlaying && radioManager.playback.activeStationID == active?.id
+            )
+            .frame(height: 42)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("88")
+                    Spacer()
+                    Text(String(format: "%.1f", radioDialFrequency))
+                        .font(.caption.weight(.heavy))
+                        .foregroundStyle(BookPalette.lampGold)
+                    Spacer()
+                    Text("108")
+                }
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(BookPalette.ink.opacity(0.52))
+
+                Slider(value: $radioDialFrequency, in: 88...108, step: 0.1)
+                    .tint(BookPalette.teal)
+                    .onChange(of: radioDialFrequency) { _, value in
+                        guard let nearest = RadioStationRegistry.nearestStation(to: value, unlockedPackIDs: unlocked) else { return }
+                        if selectedRadioStationID != nearest.id, abs(nearest.frequency - value) < 0.35 {
+                            selectedRadioStationID = nearest.id
+                            radioManager.hapticTick()
+                        }
+                    }
+            }
+
+            if let active {
+                hourPageCallout(
+                    title: active.signalLine,
+                    symbol: "antenna.radiowaves.left.and.right",
+                    body: active.subtitle,
+                    tint: BookPalette.teal
+                )
+                if let track = radioManager.activeTrack {
+                    hourPageCallout(
+                        title: "Now playing: \(track.title)",
+                        symbol: "waveform",
+                        body: "\(track.artist). \(radioManager.sourceLine)",
+                        tint: BookPalette.lampGold
+                    )
+                } else {
+                    Text(radioManager.sourceLine)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.62))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let interlude = RadioStationRegistry.currentInterlude(
+                    state: currentPlayback,
+                    unlockedPackIDs: unlocked
+                ) {
+                    hourPageCallout(
+                        title: "Broadcast interruption",
+                        symbol: "quote.bubble",
+                        body: interlude,
+                        tint: BookPalette.violet
+                    )
+                }
+                Text("World effect: \(active.effects.map { "\($0.pageType.shortTitle) +\($0.boost)" }.joined(separator: ", "))")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.66))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(spacing: 8) {
+                ForEach(stations) { station in
+                    Button {
+                        selectedRadioStationID = station.id
+                        radioDialFrequency = station.frequency
+                        BookFeedback.play(.select)
+                        onTuneRadio(station.id)
+                    } label: {
+                        HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("\(station.displayFrequency)  \(station.title)")
+                                    .font(.subheadline.weight(.bold))
+                                Text(station.subtitle)
+                                    .font(.caption)
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer()
+                            Image(systemName: currentPlayback.activeStationID == station.id ? "dot.radiowaves.left.and.right" : "chevron.right")
+                                .font(.headline.weight(.bold))
+                        }
+                        .foregroundStyle(BookPalette.ink)
+                        .padding(12)
+                        .background((currentPlayback.activeStationID == station.id ? BookPalette.teal.opacity(0.18) : BookPalette.paper.opacity(0.58)), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke((currentPlayback.activeStationID == station.id ? BookPalette.teal : BookPalette.ink.opacity(0.12)), lineWidth: 1)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    guard let active else { return }
+                    BookFeedback.play(.sourceRefresh)
+                    selectedRadioStationID = active.id
+                    radioDialFrequency = active.frequency
+                    onTuneRadio(active.id)
+                } label: {
+                    Label("Tune station", systemImage: "play.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(BookPalette.teal)
+
+                Button {
+                    BookFeedback.play(.dismissPage)
+                    onStopRadio()
+                } label: {
+                    Label("Quiet", systemImage: "stop.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(BookPalette.ink)
+            }
+
+            Text(surface.payload.body)
+                .font(.system(.callout, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.76))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .onAppear {
+            let station = active ?? stations.first
+            selectedRadioStationID = station?.id
+            radioDialFrequency = station?.frequency ?? 94.1
+        }
     }
 
     private var bookJumpView: some View {
@@ -2601,6 +2852,10 @@ struct CapturePageSheet: View {
                 localBrainIssueBody
             } else if surface.type == .theBleed {
                 bleedEditionView
+            } else if surface.type == .radio {
+                radioPageView
+            } else if surface.type == .inventory {
+                inventoryPageView
             } else if let activeStoryTurn {
                 storySceneView(activeStoryTurn)
             }
@@ -2628,7 +2883,7 @@ struct CapturePageSheet: View {
                     .foregroundStyle(BookPalette.teal)
             }
 
-            if surface.type != .narrativeOS && surface.type != .theBleed && !isCompassPracticePage && surface.type != .supportGuild && !isPendingLetterPage {
+            if surface.type != .narrativeOS && surface.type != .bookFae && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && !isCompassPracticePage && surface.type != .supportGuild && !isPendingLetterPage {
                 Text(surface.payload.body)
                     .font(.system(.body, design: .serif))
                     .foregroundStyle(BookPalette.ink)
@@ -2641,6 +2896,293 @@ struct CapturePageSheet: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
         }
+    }
+
+    private var inventoryFae: FaePlayerState {
+        _ = inventoryRevision
+        return PlayerVault.shared.data.fae ?? FaePlayerState()
+    }
+
+    private var braidFeedbackCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Teach the Book", systemImage: "sparkles")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(BookPalette.teal)
+
+            Text(braidFeedbackMessage.isEmpty ? "Tell the Book whether this page found you." : braidFeedbackMessage)
+                .font(.footnote)
+                .foregroundStyle(BookPalette.ink.opacity(0.74))
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 10) {
+                Button {
+                    guard let keptPageID else { return }
+                    let message = onLoveBraid(keptPageID)
+                    braidFeedbackMessage = message.isEmpty ? "The Book marked this as a true page." : message
+                    BookFeedback.play(.keepPage)
+                } label: {
+                    Label("I loved this one", systemImage: "heart")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(BookPalette.lampGold)
+
+                Button {
+                    guard let keptPageID else { return }
+                    let lesson = onBraidMissedMe(keptPageID)
+                    braidFeedbackMessage = lesson.isEmpty
+                        ? "The Book learned a little more about how your days want to be told."
+                        : lesson
+                    BookFeedback.play(.braidComplete)
+                } label: {
+                    Label("This missed me", systemImage: "wand.and.stars")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(BookPalette.teal)
+            }
+            .disabled(!braidFeedbackMessage.isEmpty)
+        }
+        .padding(14)
+        .background(BookPalette.page.opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.teal.opacity(0.22), lineWidth: 1)
+        }
+    }
+
+    private var inventoryOwnedListings: [BookShopListing] {
+        _ = inventoryRevision
+        let owned = Set(PlayerVault.shared.data.ownedPacks ?? [])
+        return BookShopCatalog.listings.filter { owned.contains($0.packID) }
+    }
+
+    private var inventoryPageView: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(surface.payload.body)
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !inventoryMessage.isEmpty {
+                Label(inventoryMessage, systemImage: "sparkles")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.teal)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            inventorySectionTitle("Fae gifts", symbol: "hands.sparkles")
+            if inventoryFae.gifts.isEmpty {
+                Text("This shelf is empty. The Fae give first; the Book advises reading the terms afterward.")
+                    .font(.callout)
+                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+            } else {
+                ForEach(inventoryFae.gifts.sorted { $0.acquiredAt > $1.acquiredAt }) { gift in
+                    inventoryGiftCard(gift)
+                }
+            }
+
+            inventorySectionTitle("Installed folios", symbol: "books.vertical.fill")
+            if inventoryOwnedListings.isEmpty {
+                Text("No purchased folios are bound to this Book yet.")
+                    .font(.callout)
+                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+            } else {
+                ForEach(inventoryOwnedListings) { listing in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Label(listing.title, systemImage: "checkmark.seal.fill")
+                                .font(.subheadline.weight(.bold))
+                            Spacer()
+                            Text("ACTIVE")
+                                .font(.caption2.weight(.black))
+                                .foregroundStyle(BookPalette.teal)
+                        }
+                        Text(listing.contents)
+                            .font(.caption)
+                            .foregroundStyle(BookPalette.ink.opacity(0.68))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("Installed automatically. Its Pages, stations, art, and story forms join their normal rotations.")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(BookPalette.teal.opacity(0.82))
+                    }
+                    .inventoryObjectSurface(accent: BookPalette.teal)
+                }
+            }
+
+            inventorySectionTitle("Story objects", symbol: "key.horizontal.fill")
+            if inventoryStoryObjects.isEmpty {
+                Text("Objects you create in the Cast will live here too. They are not consumables; they are participants in the story.")
+                    .font(.callout)
+                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+            } else {
+                ForEach(inventoryStoryObjects.sorted { $0.updatedAt > $1.updatedAt }) { object in
+                    let glow = max(0, min(100, object.baseBelief + (inventoryObjectBeliefOffsets[object.id] ?? 0)))
+                    VStack(alignment: .leading, spacing: 7) {
+                        HStack {
+                            Label(object.name, systemImage: "key.horizontal.fill")
+                                .font(.subheadline.weight(.bold))
+                            Spacer()
+                            Text("\(BeliefLexicon.glowName(for: glow)) · \(glow)")
+                                .font(.caption2.weight(.black))
+                                .foregroundStyle(BookPalette.lampGold)
+                        }
+                        if !object.meaning.isEmpty {
+                            Text(object.meaning)
+                                .font(.system(.callout, design: .serif))
+                                .foregroundStyle(BookPalette.ink.opacity(0.82))
+                        }
+                        if !object.description.isEmpty {
+                            Text(object.description)
+                                .font(.caption)
+                                .foregroundStyle(BookPalette.ink.opacity(0.62))
+                        }
+                        Text("An enduring Cast entity. Its Belief changes how brightly it Glows and how often it enters Pages, letters, gossip, and stories.")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(BookPalette.teal.opacity(0.82))
+                    }
+                    .inventoryObjectSurface(accent: BookPalette.violet)
+                }
+            }
+        }
+    }
+
+    private func inventorySectionTitle(_ title: String, symbol: String) -> some View {
+        Label(title, systemImage: symbol)
+            .font(.headline.weight(.bold))
+            .foregroundStyle(BookPalette.ink)
+    }
+
+    private func inventoryGiftCard(_ gift: FaeGift) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .top) {
+                Label(gift.name, systemImage: gift.isCold ? "snowflake" : gift.faeKind.symbolName)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(gift.isCold ? BookPalette.ink.opacity(0.48) : BookPalette.ink)
+                Spacer()
+                Text(inventoryGiftState(gift))
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(gift.isCold ? BookPalette.ink.opacity(0.45) : BookPalette.teal)
+            }
+            Text(gift.descriptionText)
+                .font(.system(.callout, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.82))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(gift.effect.effectLine)
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.62))
+                .fixedSize(horizontal: false, vertical: true)
+
+            inventoryGiftControl(gift)
+        }
+        .inventoryObjectSurface(accent: gift.isCold ? BookPalette.ink.opacity(0.35) : BookPalette.lampGold)
+    }
+
+    @ViewBuilder
+    private func inventoryGiftControl(_ gift: FaeGift) -> some View {
+        if gift.isCold {
+            if let bargain = inventoryFae.bargains.first(where: { $0.giftID == gift.id && $0.status == .lapsed }) {
+                Button("Return to the bargain") { onOpenInventoryBargain(bargain) }
+                    .buttonStyle(.bordered)
+                    .tint(BookPalette.teal)
+            } else {
+                Text("Cold. The object remembers unfinished terms, but the matching bargain is no longer on the open desk.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.52))
+            }
+        } else {
+            switch gift.effect {
+            case .quieting:
+                if gift.isActive, let expiresAt = gift.expiresAt {
+                    Label("Quiet until \(expiresAt.formatted(date: .abbreviated, time: .shortened))", systemImage: "moon.zzz.fill")
+                        .font(.caption.weight(.bold)).foregroundStyle(BookPalette.teal)
+                } else {
+                    inventoryActionButton("Invoke for 24 hours", symbol: "moon.zzz") { useInventoryGift(gift.id, target: nil) }
+                }
+            case .callingCard:
+                if gift.isActive {
+                    inventoryActionButton("Present at the Goblin Market", symbol: "storefront") { onOpenInventoryMarket() }
+                } else {
+                    Text("Spent. The Goblins have punched a neat, insulting hole through it.")
+                        .font(.caption).foregroundStyle(BookPalette.ink.opacity(0.55))
+                }
+            case .loosePage:
+                Text(inventoryLoosePageText(gift))
+                    .font(.system(.callout, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.86))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(10)
+                    .background(BookPalette.paper.opacity(0.62), in: RoundedRectangle(cornerRadius: 6))
+                inventoryActionButton("Turn the loose page", symbol: "book.pages") {
+                    loosePageTurns[gift.id, default: 0] += 1
+                    inventoryRevision += 1
+                    inventoryMessage = "The loose page changed while you were looking at it. Naturally."
+                }
+            case .reshelving:
+                if let target = gift.boundSourceID,
+                   let source = BookPageSourceRegistry.sources.first(where: { $0.id == target }) {
+                    Label("Calling back: \(source.title)", systemImage: "arrow.uturn.backward.circle.fill")
+                        .font(.caption.weight(.bold)).foregroundStyle(BookPalette.teal)
+                } else {
+                    Menu {
+                        ForEach(BookPageSourceRegistry.sources.filter { FaeGiftEffects.reshelfEligible.contains($0.type) }) { source in
+                            Button(source.title) { useInventoryGift(gift.id, target: source.id) }
+                        }
+                    } label: {
+                        Label("Choose a Page to call back", systemImage: "books.vertical")
+                    }
+                    .buttonStyle(.bordered).tint(BookPalette.teal)
+                }
+            case .longMemory:
+                if let target = gift.boundSourceID,
+                   let page = inventoryKeptPages.first(where: { $0.id == target }) {
+                    Label("Remembering: \(page.promptText)", systemImage: "bookmark.fill")
+                        .font(.caption.weight(.bold)).foregroundStyle(BookPalette.teal)
+                } else if inventoryKeptPages.isEmpty {
+                    Text("Keep a Page first. The quill needs something true enough to refuse forgetting.")
+                        .font(.caption).foregroundStyle(BookPalette.ink.opacity(0.58))
+                } else {
+                    Menu {
+                        ForEach(inventoryKeptPages.prefix(30)) { page in
+                            Button(page.promptText) { useInventoryGift(gift.id, target: page.id) }
+                        }
+                    } label: {
+                        Label("Choose a Page to remember", systemImage: "bookmark")
+                    }
+                    .buttonStyle(.bordered).tint(BookPalette.teal)
+                }
+            }
+        }
+    }
+
+    private func inventoryActionButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) { Label(title, systemImage: symbol) }
+            .buttonStyle(.bordered)
+            .tint(BookPalette.teal)
+    }
+
+    private func useInventoryGift(_ giftID: String, target: String?) {
+        onUseInventoryGift(giftID, target)
+        inventoryRevision += 1
+        inventoryMessage = "The Inventory has amended itself in fresh ink."
+        BookFeedback.play(.select)
+    }
+
+    private func inventoryGiftState(_ gift: FaeGift) -> String {
+        if gift.isCold { return "COLD" }
+        if gift.effect == .callingCard, !gift.isActive { return "SPENT" }
+        if (gift.effect == .reshelving || gift.effect == .longMemory), gift.boundSourceID?.isEmpty != false { return "READY" }
+        if gift.isActive { return gift.effect == .loosePage ? "COLLECTED" : "ACTIVE" }
+        return "READY"
+    }
+
+    private func inventoryLoosePageText(_ gift: FaeGift) -> String {
+        guard !LoosePageReader.fragments.isEmpty else { return "" }
+        let turn = loosePageTurns[gift.id, default: 0]
+        let index = abs("\(gift.id)-inventory-\(turn)".stableHash) % LoosePageReader.fragments.count
+        return LoosePageReader.fragments[index]
     }
 
     private var pendingLetterPageView: some View {
@@ -2919,18 +3461,12 @@ struct CapturePageSheet: View {
     }
 
     private func marginNoteEditor(minHeight: CGFloat) -> some View {
-        TextEditor(text: $text)
-            .font(.body)
-            .foregroundStyle(BookPalette.ink)
-            .scrollContentBackground(.hidden)
-            .padding(10)
-            .frame(minHeight: minHeight)
-            .dictationInput(text: $text)
-            .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
-            }
+        LivingTextEditor(
+            title: "Margin note",
+            placeholder: "Add one true thing the Book should keep.",
+            text: $text,
+            minHeight: minHeight
+        )
     }
 
     private var storyMarginNoteField: some View {
@@ -3594,7 +4130,14 @@ struct CapturePageSheet: View {
                 favoritesOnly: PhotoSuggestionSettings.default.favoritesOnly,
                 includeScreenshots: PhotoSuggestionSettings.default.includeScreenshots
             )
-            let candidates = PhotoCandidateScorer().scoreAssets(assets, history: history)
+            let illuminationContext = PhotoIlluminationContext.current(
+                themeTags: (surface.payload.metadata["tags"] ?? "")
+                    .split(separator: ",")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    + [surface.type.rawValue],
+                now: Date()
+            )
+            let candidates = PhotoCandidateScorer().scoreAssets(assets, history: history, context: illuminationContext)
             guard let candidate = preferredIlluminatedPhotoCandidate(from: candidates, history: history) else {
                 BookFeedback.play(.error)
                 illuminationMessage = "The margins are quiet. Try choosing a photo by hand."
@@ -3607,7 +4150,7 @@ struct CapturePageSheet: View {
             }
 
             let image = try await library.requestFullImage(for: asset, targetSize: CGSize(width: 1400, height: 1400))
-            let analysis = try await analyzeIlluminatedPhoto(image)
+            let analysis = PhotoAnalysis.contextualPreview(context: illuminationContext)
             let draft = IlluminatedPageComposer.compose(
                 analysis: analysis,
                 sourceAssetName: "IlluminatedPhotoSource",
@@ -3756,7 +4299,7 @@ struct CapturePageSheet: View {
     }
 
     private func updateActiveStoryTurn(choice: StoryPageChoiceDraft) {
-        guard surface.type == .narrativeOS else { return }
+        guard surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass else { return }
         if storyTurns.isEmpty, let storySceneDraft {
             storyTurns = [StoryPageSessionTurn(draft: storySceneDraft, selectedChoice: choice)]
             return
@@ -3767,7 +4310,7 @@ struct CapturePageSheet: View {
 
     @MainActor
     private func generateStoryResultForActiveTurn(choiceID: String) async {
-        guard surface.type == .narrativeOS else { return }
+        guard surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass else { return }
         guard !isGeneratingStoryResult else {
             storyContinuationMessage = "The Book is already answering one path. Let that ink dry first."
             return
@@ -3862,7 +4405,7 @@ struct CapturePageSheet: View {
         if isCompassRunStartPage {
             return canSubmitCompassRun
         }
-        if surface.type == .narrativeOS {
+        if surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass {
             guard !isGeneratingStoryResult else { return false }
             return storyTurns.contains { $0.selectedChoice != nil } || selectedStoryChoice != nil
         }
@@ -4075,7 +4618,7 @@ struct CapturePageSheet: View {
         if isLocalBrainIssuePage {
             return ""
         }
-        if surface.type == .narrativeOS {
+        if surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass {
             let turns = storyTurns.isEmpty
                 ? [storySceneDraft.map { StoryPageSessionTurn(draft: $0, selectedChoice: selectedStoryChoice) }].compactMap { $0 }
                 : storyTurns
@@ -4173,6 +4716,21 @@ struct CapturePageSheet: View {
                 "Question: \(question)",
                 "Response: \(response)"
             ].filter { !$0.isEmpty }.joined(separator: "\n\n")
+        }
+        if surface.type == .radio {
+            let unlocked = Set(PlayerVault.shared.data.ownedPacks ?? [])
+            let station = RadioStationRegistry.station(
+                id: radioManager.playback.activeStationID ?? selectedRadioStationID ?? surface.payload.metadata["radioStationID"],
+                unlockedPackIDs: unlocked
+            )
+            let note = trimmed.isEmpty ? "No margin note. The station itself was the kept weather." : trimmed
+            return [
+                "ReEnchanted Radio",
+                station.map { "\($0.displayFrequency) FM - \($0.title)" } ?? surface.payload.headline,
+                station?.signalLine ?? surface.payload.body,
+                station.map { "World effect: \($0.effects.map { "\($0.pageType.shortTitle) +\($0.boost)" }.joined(separator: ", "))" },
+                "Listening note: \(note)"
+            ].compactMap { $0 }.joined(separator: "\n\n")
         }
         if isEnchantmentPage {
             let resultText = enchantmentResult.map { result in
@@ -4328,8 +4886,8 @@ struct CapturePageSheet: View {
                 tags.append("enchantment-turns:\(turns)")
             }
         }
-        if preparedSurface.type == .narrativeOS {
-            tags.append("narrative-os")
+        if preparedSurface.type == .narrativeOS || preparedSurface.type == .bookFae {
+            tags.append(preparedSurface.type == .bookFae ? "book-fae" : "narrative-os")
             if let selectedStoryChoice {
                 tags.append("choice:\(selectedStoryChoice.id)")
             }
@@ -4370,6 +4928,16 @@ struct CapturePageSheet: View {
             }
             if let kind = preparedSurface.payload.metadata["bleedEditionKind"], !kind.isEmpty {
                 tags.append("bleed:\(kind)")
+            }
+        }
+        if preparedSurface.type == .radio {
+            tags.append("radio")
+            tags.append("music")
+            if let stationID = radioManager.playback.activeStationID ?? selectedRadioStationID ?? preparedSurface.payload.metadata["radioStationID"], !stationID.isEmpty {
+                tags.append("radio-station:\(stationID)")
+            }
+            if let frequency = preparedSurface.payload.metadata["radioFrequency"], !frequency.isEmpty {
+                tags.append("radio-frequency:\(frequency)")
             }
         }
         if preparedSurface.type == .askTheBook {
@@ -4490,7 +5058,7 @@ struct CapturePageSheet: View {
     }
 
     private func compassRunConstraints() -> [String: String] {
-        [
+        return [
             "location": compassValue(compassLocation, fallback: surface.payload.metadata["place"] ?? "where you are"),
             "timeLimit": compassValue(compassTimeLimit, fallback: surface.payload.metadata["timeBox"] ?? "10-20 minutes"),
             "energy": compassValue(compassEnergy, fallback: surface.payload.metadata["energy"] ?? "ordinary tired adult"),
@@ -4826,6 +5394,9 @@ struct CapturePageSheet: View {
     /// Reconstructs the bargain from page metadata so the responder has full context.
     private func faeBargainFromMetadata(_ metadata: [String: String]) -> FaeBargain {
         let kind = FaeKind(rawValue: metadata["faeKind"] ?? "") ?? .goblin
+        let opening = metadata["openingGesture"] ?? surface.payload.body
+        let context = metadata["faeContext"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let promptedOpening = context?.isEmpty == false ? "\(opening)\n\n\(context ?? "")" : opening
         return FaeBargain(
             id: metadata["bargainID"] ?? "fae-bargain",
             faeKind: kind,
@@ -4833,7 +5404,7 @@ struct CapturePageSheet: View {
             giftID: "",
             giftName: metadata["giftName"] ?? "a gift",
             giftEffectLine: metadata["giftEffectLine"] ?? "",
-            openingGesture: metadata["openingGesture"] ?? surface.payload.body,
+            openingGesture: promptedOpening,
             terms: metadata["terms"] ?? surface.detail,
             offeredAt: Date(),
             deadline: Date(),
@@ -5406,6 +5977,9 @@ enum StoryPagePromptBuilder {
     """
 
     static func prompt(for draft: StoryPageSceneDraft) -> String {
+        if draft.surface.type == .academyClass {
+            return academyLessonPrompt(for: draft)
+        }
         let entities = draft.entities.isEmpty ? "The Book" : draft.entities.joined(separator: ", ")
         let signals = draft.signals.isEmpty ? "- No strong outside signal; use quiet ordinary evidence." : draft.signals.prefix(8).map { "- \($0)" }.joined(separator: "\n")
         let pressures = draft.pressures.isEmpty ? "- The margins have enough weight to turn." : draft.pressures.prefix(5).map { "- \($0)" }.joined(separator: "\n")
@@ -5434,6 +6008,19 @@ enum StoryPagePromptBuilder {
         let lens = draft.genreLens.isEmpty
             ? ""
             : "\n\nGENRE LENS — \(draft.genreName):\n\(draft.genreLens)\nThe lens colors diction, pacing, and what the camera notices. It never overrides the real material."
+        let faeDirective = draft.surface.type == .bookFae
+            ? """
+
+            BOOK FAE PAGE:
+            This is not an ordinary Story Page and not a Fae Bargain. It is a parley with \(draft.surface.payload.metadata["faeName"] ?? "a Book Fae").
+            The Book itself narrates the visitation. Its voice is intimate, observant, faintly amused, and alert to old dangers. Do not narrate as the Fae, an assistant, or a neutral game master.
+            Use old faerie manners: courtesy, exact wording, beautiful danger, gifts with edges, loopholes, and alien attention.
+            Failure must never read as punishment. Consequences are marks, obligations, debts of attention, strange gifts, and story hooks.
+            Build the scene from the supplied Fae identity, court, omen, standing, recent kept material, and entity memory. The visitor must want, notice, test, offer, conceal, or interrupt something specific.
+            Preserve the three old-law paths beneath the choices: courtesy softens Claim, naming the law deepens the relationship, and taking the thorn sharpens Claim for a secret.
+            Rewrite every visible choice title and prompt to fit this exact vignette. Anchor each choice to a specific line, object, gesture, mark, loophole, or offer that appeared in SCENE. Never reuse the framework titles "Offer Courtesy", "Name the Law", or "Take the Thorn" unless those exact words are uniquely necessary in this scene.
+            """
+            : ""
         return """
         Write one ReEnchanted Story Page.
 
@@ -5456,7 +6043,7 @@ enum StoryPagePromptBuilder {
         \(memories)
 
         CHAPTER TALISMAN MOVES:
-        \(talismanMoves)
+        \(talismanMoves)\(faeDirective)
         \(continuation)
 
         OUTPUT FORMAT, EXACTLY:
@@ -5508,6 +6095,89 @@ enum StoryPagePromptBuilder {
         Available enchantment spell ids:
         \(StoryEnchantmentCatalog.promptCatalog)
         Do not write any result or consequence sections. The Book will write the chosen result after the reader chooses.
+        """
+    }
+
+    private static func academyLessonPrompt(for draft: StoryPageSceneDraft) -> String {
+        let metadata = draft.surface.payload.metadata
+        let isClub = metadata["sessionKind"] == "club"
+        let leader = metadata["sessionLeader"] ?? "the professor"
+        let lessonTitle = metadata["lessonTitle"]?.nonEmpty ?? metadata["sessionName"] ?? "The Lesson"
+        let lectureBeats = metadata["lessonLectureBeats"]?.nonEmpty ?? metadata["sessionTeaches"] ?? "Teach the day's subject concretely."
+        let concept = metadata["lessonConcept"]?.nonEmpty ?? metadata["sessionTeaches"] ?? "The lesson has a real subject."
+        let realSubject = metadata["lessonRealSubject"]?.nonEmpty ?? "the Academy subject"
+        let demonstration = metadata["lessonDemonstration"]?.nonEmpty ?? "Demonstrate the subject with one concrete classroom object."
+        let interaction = metadata["lessonInteractionPrompt"]?.nonEmpty ?? "Ask the reader one answerable question about the lesson."
+        let practice = metadata["lessonRealWorldPractice"]?.nonEmpty ?? "Offer one small real-world practice for later; do not claim it is done."
+        let continuation = draft.continuationContext.map {
+            "\n\nCONTINUATION MEMORY:\n\($0)"
+        } ?? ""
+
+        return """
+        Write one ReEnchanted Academy \(isClub ? "Club Page" : "Class Page") using the Story Page format.
+
+        SESSION:
+        \(isClub ? "Club" : "Class"): \(metadata["sessionName"] ?? "an Academy session")
+        Required leader present in the room: \(leader)
+        Room: \(metadata["sessionRoom"] ?? "an Academy room")
+        Also present: \(metadata["sessionCompanions"] ?? "students")
+        Teaching style: \(metadata["sessionStyle"] ?? "specific and alive")
+
+        REAL LESSON:
+        Lesson title: \(lessonTitle)
+        Real subject: \(realSubject)
+        Core concept: \(concept)
+        Lecture beats:
+        \(lectureBeats)
+        Demonstration: \(demonstration)
+        Reader interaction: \(interaction)
+        Real-world practice invitation: \(practice)
+        \(continuation)
+
+        HARD RULES:
+        - \(leader) must be physically present, must teach, and must speak at least twice.
+        - This must teach the real subject, not merely mention it. Include one accurate mini-lecture beat and one demonstrated example.
+        - The professor or leader asks the reader one direct, answerable classroom question.
+        - At least one companion reacts in a small characterful way.
+        - Include room texture: one smell, one sound, one thing the light is doing.
+        - Do not claim the reader completed the practice, attended earlier, or did any real-world task.
+        - Simple concrete sentences. No assistant language, no headings or labels inside SCENE.
+
+        OUTPUT FORMAT, EXACTLY:
+        SCENE:
+        190-270 words. A living classroom scene with the lesson already underway, the required leader visibly teaching, and the reader invited into the exercise.
+
+        SLICE_OF_LIFE_CHOICE:
+        A bespoke button title, 2-5 words, for staying with one ordinary classroom detail.
+
+        SLICE_OF_LIFE_PROMPT:
+        One specific sentence under 16 words describing the classroom action.
+
+        SLICE_OF_LIFE_MECHANIC:
+        none, belief-dice, compass-run, or enchantment:<spell-id>.
+
+        PROGRESS_ARC_CHOICE:
+        A bespoke button title, 2-5 words, for answering or attempting the lesson.
+
+        PROGRESS_ARC_PROMPT:
+        One specific sentence under 16 words describing the lesson action.
+
+        PROGRESS_ARC_MECHANIC:
+        none, belief-dice, compass-run, or enchantment:<spell-id>.
+
+        SURPRISE_CHOICE:
+        A bespoke button title, 2-5 words, for a strange but subject-related side door.
+
+        SURPRISE_PROMPT:
+        One specific sentence under 16 words describing the sideways action.
+
+        SURPRISE_MECHANIC:
+        none, belief-dice, compass-run, or enchantment:<spell-id>.
+
+        Choice design rule:
+        The choices are internally Slice of Life, Progress Arc, and Surprise, but their visible titles must sound like natural class actions. At most one choice may use a mechanic. Prefer none unless the lesson genuinely needs proof outside the page.
+        Available enchantment spell ids:
+        \(StoryEnchantmentCatalog.promptCatalog)
         """
     }
 }
@@ -5854,14 +6524,26 @@ struct StoryPageSceneDraft: Equatable {
     init(surface: SurfacePage) {
         self.surface = surface
         let metadata = surface.payload.metadata
-        thread = metadata["selectedThreads"]?
+        thread = metadata["sessionSubjectThreadID"]?.nonEmpty
+            ?? metadata["selectedThreads"]?
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .first ?? "Ordinary Magic"
-        entities = metadata["selectedEntities"]?
+        if surface.type == .academyClass {
+            var academyEntities = [metadata["sessionLeader"]?.nonEmpty, metadata["sessionCompanions"]?.nonEmpty]
+                .compactMap { $0 }
+                .flatMap { $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } }
+                .filter { !$0.isEmpty }
+            if academyEntities.isEmpty {
+                academyEntities = ["The Book"]
+            }
+            entities = academyEntities
+        } else {
+            entities = metadata["selectedEntities"]?
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty } ?? ["The Book"]
+        }
         signals = metadata["realSignals"]?
             .split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -5949,7 +6631,35 @@ struct StoryPageSceneDraft: Equatable {
     }
 
     private var defaultChoices: [StoryPageChoiceDraft] {
-        [
+        if surface.type == .academyClass {
+            return [
+                StoryPageChoiceDraft(
+                    id: "sliceoflife",
+                    title: "Study the Detail",
+                    prompt: "Stay with one ordinary thing the lesson made visible.",
+                    effectLine: "A classroom detail gains weight without forcing the lesson forward.",
+                    symbolName: "leaf",
+                    tint: BookPalette.violet
+                ),
+                StoryPageChoiceDraft(
+                    id: "progressarc",
+                    title: "Try the Lesson",
+                    prompt: "Answer the professor and attempt the exercise.",
+                    effectLine: "\(thread) advances through practice, not summary.",
+                    symbolName: "graduationcap",
+                    tint: BookPalette.teal
+                ),
+                StoryPageChoiceDraft(
+                    id: "surprise",
+                    title: "Open a Side Door",
+                    prompt: "Follow the strange implication without leaving the classroom.",
+                    effectLine: "The subject reveals a sideways application that can return later.",
+                    symbolName: "sparkles",
+                    tint: BookPalette.gold
+                )
+            ]
+        }
+        return [
             StoryPageChoiceDraft(
                 id: "sliceoflife",
                 title: "Slice of Life",

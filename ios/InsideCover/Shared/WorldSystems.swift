@@ -1,6 +1,313 @@
 import Foundation
 
 
+struct RadioTrack: Codable, Equatable, Identifiable {
+    var id: String
+    var title: String
+    var artist: String
+    var assetName: String?
+    var durationSeconds: Int?
+    var moodTags: [String]
+}
+
+struct RadioStationEffect: Codable, Equatable {
+    var pageType: BookPageType
+    var boost: Int
+    var reason: String
+}
+
+struct RadioStation: Codable, Equatable, Identifiable {
+    var id: String
+    var title: String
+    var frequency: Double
+    var subtitle: String
+    var hostEntityID: String?
+    var packID: String?
+    var unlockRule: String
+    var moodTags: [String]
+    var signalLine: String
+    var tracks: [RadioTrack]
+    var interludeTitles: [String]
+    var effects: [RadioStationEffect]
+
+    var displayFrequency: String {
+        String(format: "%.1f", frequency)
+    }
+
+    var isCore: Bool {
+        packID == nil
+    }
+}
+
+struct RadioStationPack: Codable, Equatable, Identifiable {
+    var id: String
+    var displayName: String
+    var stations: [RadioStation]
+}
+
+struct RadioPlaybackState: Codable, Equatable {
+    var activeStationID: String?
+    var startedAt: Date?
+    var lastTunedAt: Date?
+    var lastTrackID: String?
+    var tuningNoise: Double
+
+    static let off = RadioPlaybackState()
+
+    init(
+        activeStationID: String? = nil,
+        startedAt: Date? = nil,
+        lastTunedAt: Date? = nil,
+        lastTrackID: String? = nil,
+        tuningNoise: Double = 0
+    ) {
+        self.activeStationID = activeStationID
+        self.startedAt = startedAt
+        self.lastTunedAt = lastTunedAt
+        self.lastTrackID = lastTrackID
+        self.tuningNoise = max(0, min(1, tuningNoise))
+    }
+
+    var isTuned: Bool {
+        activeStationID?.isEmpty == false
+    }
+}
+
+enum RadioStationRegistry {
+    static let userPackFileSuffix = ".reenchantedradio.json"
+
+    static let coreStations: [RadioStation] = [
+        RadioStation(
+            id: "scriptorium-desk",
+            title: "The Scriptorium Desk",
+            frequency: 94.1,
+            subtitle: "Focus, archives, lamps, pencils, and the sound of work becoming possible.",
+            hostEntityID: "penny-blackletter",
+            packID: nil,
+            unlockRule: "core",
+            moodTags: ["focus", "archive", "writing", "desk", "memory"],
+            signalLine: "The signal smells faintly of cedar drawers and warm paper.",
+            tracks: [
+                RadioTrack(
+                    id: "scriptorium-lamp-hour",
+                    title: "Lamp Hour",
+                    artist: "The Scriptorium Desk",
+                    assetName: "RadioScriptoriumLampHour",
+                    durationSeconds: nil,
+                    moodTags: ["focus", "archive"]
+                )
+            ],
+            interludeTitles: [
+                "Penny reads the index of lost useful things.",
+                "A page turns somewhere behind the wall."
+            ],
+            effects: [
+                RadioStationEffect(pageType: .diary, boost: 8, reason: "The Scriptorium Desk favors pages that gather the day."),
+                RadioStationEffect(pageType: .souvenir, boost: 8, reason: "The Scriptorium Desk sharpens one true sentence."),
+                RadioStationEffect(pageType: .bookRemembered, boost: 6, reason: "The archives hum louder while this station plays.")
+            ]
+        ),
+        RadioStation(
+            id: "inkrest-office",
+            title: "Dr. Inkrest's Office",
+            frequency: 101.5,
+            subtitle: "Low chairs, careful questions, rain on the tall windows, no hurry.",
+            hostEntityID: "dr-inkrest",
+            packID: nil,
+            unlockRule: "core",
+            moodTags: ["rest", "repair", "inner-weather", "office-hours"],
+            signalLine: "The static lowers its voice as if entering a room with someone asleep.",
+            tracks: [
+                RadioTrack(
+                    id: "inkrest-chair-by-rain",
+                    title: "Chair by Rain",
+                    artist: "Dr. Inkrest's Office",
+                    assetName: "RadioInkrestChairByRain",
+                    durationSeconds: nil,
+                    moodTags: ["rest", "repair"]
+                )
+            ],
+            interludeTitles: [
+                "A cup is set down on a saucer.",
+                "Someone writes the kinder version of a hard sentence."
+            ],
+            effects: [
+                RadioStationEffect(pageType: .rest, boost: 10, reason: "Inkrest's Office steadies the Book toward gentler pages."),
+                RadioStationEffect(pageType: .mood, boost: 7, reason: "Inkrest's Office listens for inner weather."),
+                RadioStationEffect(pageType: .inkrestOfficeHours, boost: 8, reason: "The office door is already half open.")
+            ]
+        ),
+        RadioStation(
+            id: "casement-static",
+            title: "The Casement Static",
+            frequency: 107.9,
+            subtitle: "Weather through the window, moon through the glass, far Academy bells under the hiss.",
+            hostEntityID: nil,
+            packID: nil,
+            unlockRule: "core",
+            moodTags: ["weather", "moon", "threshold", "outside", "almanac"],
+            signalLine: "The station is mostly weather, but the weather appears to be listening back.",
+            tracks: [
+                RadioTrack(
+                    id: "casement-rain-map",
+                    title: "Rain Map",
+                    artist: "The Casement Static",
+                    assetName: "RadioCasementRainMap",
+                    durationSeconds: nil,
+                    moodTags: ["weather", "threshold"]
+                )
+            ],
+            interludeTitles: [
+                "A window latch clicks in a room you have not visited.",
+                "Static arranges itself briefly into moonlight."
+            ],
+            effects: [
+                RadioStationEffect(pageType: .weather, boost: 10, reason: "The Casement Static pulls the outside world nearer."),
+                RadioStationEffect(pageType: .todaysSky, boost: 8, reason: "The station listens upward."),
+                RadioStationEffect(pageType: .wonderCompass, boost: 5, reason: "Threshold music makes small adventures easier to notice.")
+            ]
+        )
+    ]
+
+    static let bundledPacks: [RadioStationPack] = [
+        RadioStationPack(
+            id: "core-radio-pack",
+            displayName: "Core Radio Pack",
+            stations: coreStations
+        ),
+        RadioStationPack(
+            id: "academy-night-band",
+            displayName: "Academy Night Band",
+            stations: [
+                RadioStation(
+                    id: "midnight-bindery",
+                    title: "The Midnight Bindery",
+                    frequency: 99.3,
+                    subtitle: "Thread, glue, moonlit knives, and pages learning how to hold together.",
+                    hostEntityID: "penny-blackletter",
+                    packID: "academy-night-band",
+                    unlockRule: "sound-pack",
+                    moodTags: ["night", "binding", "archive", "memory", "book-of-you"],
+                    signalLine: "The bass line sounds like a needle passing through signatures.",
+                    tracks: [
+                        RadioTrack(
+                            id: "midnight-bindery-thread",
+                            title: "Thread Through the Dark",
+                            artist: "The Midnight Bindery",
+                            assetName: "RadioMidnightBinderyThread",
+                            durationSeconds: nil,
+                            moodTags: ["night", "binding"]
+                        )
+                    ],
+                    interludeTitles: [
+                        "Penny warns the glue is awake.",
+                        "A page signs its own name in the dark."
+                    ],
+                    effects: [
+                        RadioStationEffect(pageType: .bookOfYou, boost: 10, reason: "The Bindery favors pages that become chapters."),
+                        RadioStationEffect(pageType: .bookRemembered, boost: 8, reason: "Bound pages remember each other more readily."),
+                        RadioStationEffect(pageType: .bookConnections, boost: 6, reason: "Loose pages tug toward pattern while this plays.")
+                    ]
+                ),
+                RadioStation(
+                    id: "goblin-market-jazz",
+                    title: "Goblin Market Jazz",
+                    frequency: 103.7,
+                    subtitle: "Bent brass, laughing ledgers, and bargains with too many teeth in the margins.",
+                    hostEntityID: "marginalia-goblin",
+                    packID: "academy-night-band",
+                    unlockRule: "sound-pack",
+                    moodTags: ["fae", "market", "mischief", "bargain", "risk"],
+                    signalLine: "The trumpet keeps offering impossible discounts.",
+                    tracks: [
+                        RadioTrack(
+                            id: "goblin-market-after-hours",
+                            title: "After-Hours Coin Trick",
+                            artist: "Goblin Market Jazz",
+                            assetName: "RadioGoblinMarketAfterHours",
+                            durationSeconds: nil,
+                            moodTags: ["fae", "market"]
+                        )
+                    ],
+                    interludeTitles: [
+                        "A clerk advertises a bargain that refuses to explain itself.",
+                        "The rhythm hides a receipt under the rug."
+                    ],
+                    effects: [
+                        RadioStationEffect(pageType: .faeBargain, boost: 12, reason: "Goblin Market Jazz makes bargains tap at the glass."),
+                        RadioStationEffect(pageType: .bookFae, boost: 8, reason: "Fae notice music that cheats at counting."),
+                        RadioStationEffect(pageType: .quip, boost: 5, reason: "The margins get sharper while the brass is awake.")
+                    ]
+                )
+            ]
+        )
+    ]
+
+    static func userPacks(fileManager: FileManager = .default) -> [RadioStationPack] {
+        guard let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first,
+              let files = try? fileManager.contentsOfDirectory(
+                at: documents,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+              ) else {
+            return []
+        }
+        let decoder = JSONDecoder()
+        return files
+            .filter { $0.lastPathComponent.hasSuffix(userPackFileSuffix) }
+            .compactMap { url in
+                guard let data = try? Data(contentsOf: url),
+                      var pack = try? decoder.decode(RadioStationPack.self, from: data) else {
+                    return nil
+                }
+                pack.stations = pack.stations.map { station in
+                    var station = station
+                    station.packID = station.packID ?? pack.id
+                    return station
+                }
+                return pack
+            }
+    }
+
+    static func stations(unlockedPackIDs: Set<String> = []) -> [RadioStation] {
+        (bundledPacks + userPacks())
+            .flatMap(\.stations)
+            .filter { station in
+            station.packID.map { unlockedPackIDs.contains($0) } ?? true
+        }
+    }
+
+    static func station(id: String?, unlockedPackIDs: Set<String> = []) -> RadioStation? {
+        guard let id else { return nil }
+        return stations(unlockedPackIDs: unlockedPackIDs).first { $0.id == id }
+    }
+
+    static func nearestStation(to frequency: Double, unlockedPackIDs: Set<String> = []) -> RadioStation? {
+        stations(unlockedPackIDs: unlockedPackIDs)
+            .min { abs($0.frequency - frequency) < abs($1.frequency - frequency) }
+    }
+
+    static func surfaceBoosts(state: RadioPlaybackState, unlockedPackIDs: Set<String> = []) -> [BookPageType: Int] {
+        guard let station = station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs) else {
+            return [:]
+        }
+        return station.effects.reduce(into: [:]) { result, effect in
+            result[effect.pageType, default: 0] += effect.boost
+        }
+    }
+
+    static func currentInterlude(state: RadioPlaybackState, unlockedPackIDs: Set<String> = [], now: Date = Date()) -> String? {
+        guard let station = station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs),
+              !station.interludeTitles.isEmpty else {
+            return nil
+        }
+        let seedDate = state.lastTunedAt ?? state.startedAt ?? now
+        let slot = Int(now.timeIntervalSince(seedDate) / 900)
+        let index = abs(station.id.stableHash + slot) % station.interludeTitles.count
+        return station.interludeTitles[index]
+    }
+}
+
 struct BodySourceSignal: Equatable {
     struct Metric: Codable, Equatable, Identifiable {
         var id: String
@@ -401,10 +708,24 @@ struct AcademySession: Equatable {
     var kind: Kind
     var name: String
     var leader: String
+    var leaderEntityID: String?
     var room: String
     var companions: [String]
     var teaches: String
     var style: String
+    var subjectThreadID: String
+}
+
+struct AcademyLessonModule: Equatable {
+    var id: String
+    var sessionID: String
+    var title: String
+    var realSubject: String
+    var concept: String
+    var lectureBeats: [String]
+    var demonstration: String
+    var interactionPrompt: String
+    var realWorldPractice: String
 }
 
 /// The Academy's canonical weekly rhythm, ported from Enchantify's
@@ -413,102 +734,297 @@ enum AcademyScheduleRegistry {
     static let classes: [String: AcademySession] = [
         "art-of-the-glint": AcademySession(
             id: "art-of-the-glint", kind: .classSession,
-            name: "The Art of the Glint", leader: "Professor Lydia Boggle",
+            name: "The Art of the Glint", leader: "Professor Lydia Boggle", leaderEntityID: "lydia-boggle",
             room: "Wing 4 — The Glint Hall",
             companions: ["Zara Finch", "Aria Silverthorn", "Wilbur \"Wordplay\" Lexi"],
             teaches: "Notice (North): the Rut turns the world into wallpaper; one specific, odd detail rips the wallpaper down. Everything in the room is alive if you pay it the courtesy of noticing.",
-            style: "playful, specific, concrete, with puns that conceal serious doctrine"
+            style: "playful, specific, concrete, with puns that conceal serious doctrine",
+            subjectThreadID: "notice-north"
         ),
         "wayfinding-kineticism": AcademySession(
             id: "wayfinding-kineticism", kind: .classSession,
-            name: "Wayfinding & Kineticism", leader: "Professor Kyle Momort",
+            name: "Wayfinding & Kineticism", leader: "Professor Kyle Momort", leaderEntityID: "professor-kyle-momort",
             room: "Wing 2 — The Momentum Yard",
             companions: ["Finn Bridges", "Lara Rourck"],
             teaches: "Embark (East): breaking routine, micro-adventures, the Leap of Ink. Momort teaches it slightly corrupted — escape routes rather than arrivals; the true East is a threshold crossed with intention.",
-            style: "brisk, charismatic, a little too fond of exits"
+            style: "brisk, charismatic, a little too fond of exits",
+            subjectThreadID: "embark-east"
         ),
         "synesthetic-resonance": AcademySession(
             id: "synesthetic-resonance", kind: .classSession,
-            name: "Synesthetic Resonance", leader: "Professor Eleanor Euphony",
+            name: "Synesthetic Resonance", leader: "Professor Eleanor Euphony", leaderEntityID: "professor-eleanor-euphony",
             room: "Wing 3 — The Resonance Chamber",
             companions: ["Aria Silverthorn", "Elio"],
             teaches: "Sense (South): hearing colors, smelling the history of a room, the Heartbeat of the Stone. Full sensory presence as the solar moment of experience.",
-            style: "lush, attentive, hears what the room is humming"
+            style: "lush, attentive, hears what the room is humming",
+            subjectThreadID: "sense-south"
         ),
         "ink-binding": AcademySession(
             id: "ink-binding", kind: .classSession,
-            name: "Ink-Binding", leader: "Professor Vivian Villanelle",
+            name: "Ink-Binding", leader: "Professor Vivian Villanelle", leaderEntityID: "professor-vivian-villanelle",
             room: "The Inkworks",
             companions: ["Zara Finch", "Ellie Moons"],
             teaches: "Write (West): distilling an entire experience into a single permanent magical sentence. What is written is kept; what is not written dissolves.",
-            style: "exacting, lyrical, kind"
+            style: "exacting, lyrical, kind",
+            subjectThreadID: "write-west"
         ),
         "quiet-hours": AcademySession(
             id: "quiet-hours", kind: .classSession,
-            name: "Quiet Hours", leader: "Professor Cedric Stonebrook",
+            name: "Quiet Hours", leader: "Professor Cedric Stonebrook", leaderEntityID: "professor-cedric-stonebrook",
             room: "The Still Room",
             companions: ["whoever needs it that day"],
             teaches: "Rest (Center): integration and the Permission to Stop. Not a direction — the ground from which all directions emerge.",
-            style: "slow, grounded, speaks in almost-koans"
+            style: "slow, grounded, speaks in almost-koans",
+            subjectThreadID: "rest-center"
         ),
         "basic-enchantments": AcademySession(
             id: "basic-enchantments", kind: .classSession,
-            name: "Basic Enchantments", leader: "Professor Wispwood",
+            name: "Basic Enchantments", leader: "Professor Luna Wispwood", leaderEntityID: "professor-luna-wispwood",
             room: "The Spark Annex",
             companions: ["Finn Bridges", "Wilbur \"Wordplay\" Lexi"],
             teaches: "Casting text-based enchantments on ordinary subjects: Everything Speaks, Everything's Poetry, and how to let an object answer through close attention.",
-            style: "scattered, sparking, delighted by accidents"
+            style: "scattered, sparking, delighted by accidents",
+            subjectThreadID: "everyday-enchantments"
         ),
         "book-jumping": AcademySession(
             id: "book-jumping", kind: .classSession,
-            name: "Book Jumping", leader: "Professor Permancer",
+            name: "Book Jumping", leader: "Professor Permancer", leaderEntityID: "professor-permancer",
             room: "The Vault of Doors",
             companions: ["Zara Finch", "Orion Blackthorn"],
             teaches: "Entering and exiting stories safely: landing without tearing the page, reading the weather of a narrative before stepping in, and always knowing where your bookmark is.",
-            style: "precise, adventurous, fiercely safety-minded"
+            style: "precise, adventurous, fiercely safety-minded",
+            subjectThreadID: "book-jumping"
         ),
         "compass-running": AcademySession(
             id: "compass-running", kind: .classSession,
-            name: "Compass Running", leader: "Professor Cedric Stonebrook",
+            name: "Compass Running", leader: "Professor Cedric Stonebrook", leaderEntityID: "professor-cedric-stonebrook",
             room: "The Open Field Gate",
             companions: ["the whole motley Saturday crew"],
             teaches: "Full N-E-S-W compass runs in the field: constraints first, magic after, one small adventure with a souvenir sentence at the end.",
-            style: "practical, weathered, quietly encouraging"
+            style: "practical, weathered, quietly encouraging",
+            subjectThreadID: "compass-running"
         )
     ]
 
     static let clubs: [String: AcademySession] = [
         "compass-society": AcademySession(
             id: "compass-society", kind: .club,
-            name: "The Compass Society", leader: "Zara Finch (de facto anchor)",
+            name: "The Compass Society", leader: "Zara Finch (de facto anchor)", leaderEntityID: "zara-finch",
             room: "The Secret Garden of Prose",
             companions: ["Zara Finch", "Lara Rourck", "Elio (47 Compass Runs, won't explain the 47th)"],
             teaches: "Members read their One-Sentence Souvenirs aloud with real reverence. No one mocks a sentence here. Sharing a souvenir makes it more real.",
-            style: "warm, literary, slightly emotionally intense"
+            style: "warm, literary, slightly emotionally intense",
+            subjectThreadID: "compass-society"
         ),
         "marginalia-guild": AcademySession(
             id: "marginalia-guild", kind: .club,
-            name: "The Marginalia Guild", leader: "Professor Lydia Boggle (officially)",
+            name: "The Marginalia Guild", leader: "Professor Lydia Boggle (officially)", leaderEntityID: "lydia-boggle",
             room: "The Corridor of Whispered Secrets",
             companions: ["Ellie Moons", "a second-year six months deep in one mythology volume"],
             teaches: "Annotating books together and leaving notes for future readers — the best conversations are held with someone who read the same book fifty years ago and wrote something true in the margin.",
-            style: "playful, curious, surprisingly deep"
+            style: "playful, curious, surprisingly deep",
+            subjectThreadID: "marginalia-guild"
         ),
         "inkwright-society": AcademySession(
             id: "inkwright-society", kind: .club,
-            name: "The Inkwright Society", leader: "Professor Maxwell Thorne (observing)",
+            name: "The Inkwright Society", leader: "Professor Maxwell Thorne (observing)", leaderEntityID: nil,
             room: "The Bibliophonic Hall",
             companions: ["Finn Bridges", "Emberheart students with serious notebooks"],
             teaches: "Write, share, workshop — honest first, kind second. Each meeting ends with a burning: a piece read aloud, then ritually burned, its smoke becoming words absorbed into the library ceiling.",
-            style: "intense, creative, committed — the writing here is meant"
+            style: "intense, creative, committed — the writing here is meant",
+            subjectThreadID: "inkwright-society"
         ),
         "book-jumpers": AcademySession(
             id: "book-jumpers", kind: .club,
-            name: "The Book Jumpers", leader: "Professor Permancer",
+            name: "The Book Jumpers", leader: "Professor Permancer", leaderEntityID: "professor-permancer",
             room: "The Vault of Doors",
             companions: ["Zara Finch", "Orion Blackthorn"],
             teaches: "Short, controlled jumps into well-mapped stories. Half the meeting is planning the landing; the other half is arguing about what counts as a door.",
-            style: "adventurous, giddy, strictly rule-bound about exits"
+            style: "adventurous, giddy, strictly rule-bound about exits",
+            subjectThreadID: "book-jumpers"
+        )
+    ]
+
+    static let lessonModules: [String: AcademyLessonModule] = [
+        "art-of-the-glint": AcademyLessonModule(
+            id: "glint-specificity-001",
+            sessionID: "art-of-the-glint",
+            title: "Specificity Breaks the Rut",
+            realSubject: "attention training and close observation",
+            concept: "A specific, observable detail interrupts habituation better than a general judgment.",
+            lectureBeats: [
+                "The mind wallpapers familiar rooms to save effort.",
+                "A concrete detail restores contact with the real object.",
+                "A good noticing names evidence before interpretation."
+            ],
+            demonstration: "Professor Boggle places three ordinary objects under lamplight and asks which one changed once it was described exactly.",
+            interactionPrompt: "Name one exact classroom detail before saying what it means.",
+            realWorldPractice: "Find one ignored object today and write three observable facts about it before any metaphor."
+        ),
+        "wayfinding-kineticism": AcademyLessonModule(
+            id: "wayfinding-threshold-001",
+            sessionID: "wayfinding-kineticism",
+            title: "Thresholds Before Escapes",
+            realSubject: "behavioral activation, route design, and intentional movement",
+            concept: "A small threshold crossed on purpose changes a stuck pattern more reliably than a dramatic escape.",
+            lectureBeats: [
+                "Motion is not the same as arrival.",
+                "A threshold works when it is small enough to cross and specific enough to notice.",
+                "The first step should reduce friction, not demand a new identity."
+            ],
+            demonstration: "Professor Momort chalks three doorways on the floor and has students compare an escape route, an errand, and an intentional return.",
+            interactionPrompt: "Choose which doorway counts as a real threshold and say what changes after crossing it.",
+            realWorldPractice: "Take one short intentional route today and name the threshold before you cross it."
+        ),
+        "synesthetic-resonance": AcademyLessonModule(
+            id: "resonance-sensory-001",
+            sessionID: "synesthetic-resonance",
+            title: "The Senses Are Instruments",
+            realSubject: "sensory grounding, synesthetic metaphor, and embodied memory",
+            concept: "Sensory attention gives an experience measurable texture before the mind turns it into a story.",
+            lectureBeats: [
+                "A room can be read through sound, temperature, color, and pressure.",
+                "Synesthetic description is useful when it begins with actual sensory evidence.",
+                "Memory often keeps the body of a moment before it keeps the explanation."
+            ],
+            demonstration: "Professor Euphony rings a glass bell, dims one lamp, and asks students how the room's color seems to change without the walls moving.",
+            interactionPrompt: "Describe one sound in the room as a color, then name the real evidence underneath it.",
+            realWorldPractice: "Pause in one room today and record one sound, one color, and one body sensation."
+        ),
+        "ink-binding": AcademyLessonModule(
+            id: "ink-binding-souvenir-001",
+            sessionID: "ink-binding",
+            title: "One Sentence Can Carry Time",
+            realSubject: "sentence craft, compression, journaling, and memory selection",
+            concept: "A durable souvenir sentence keeps one true moment by choosing evidence and refusing ornament that is not true.",
+            lectureBeats: [
+                "A souvenir sentence is not a summary; it is a vessel.",
+                "Concrete nouns hold more time than abstract praise.",
+                "Revision removes beautiful lies so the true detail can breathe."
+            ],
+            demonstration: "Professor Villanelle writes three versions of the same moment on the board and crosses out the prettiest false word.",
+            interactionPrompt: "Pick the sentence that keeps the moment most honestly and say which word earns its place.",
+            realWorldPractice: "Write one sentence tonight that preserves a real moment without explaining why it mattered."
+        ),
+        "quiet-hours": AcademyLessonModule(
+            id: "quiet-hours-integration-001",
+            sessionID: "quiet-hours",
+            title: "Rest Is Not Absence",
+            realSubject: "rest, recovery, nervous system pacing, and integration",
+            concept: "Rest is active integration: stopping allows the nervous system to sort, repair, and make later action possible.",
+            lectureBeats: [
+                "Center is not a direction; it is the ground beneath direction.",
+                "A pause can be chosen before collapse chooses it for you.",
+                "Integration asks what the day is still carrying."
+            ],
+            demonstration: "Professor Stonebrook turns an hourglass on its side and lets the unmoving sand become the lesson.",
+            interactionPrompt: "Name one thing a pause would protect rather than prevent.",
+            realWorldPractice: "Take a five-minute stop today and write what became clearer after nothing was demanded."
+        ),
+        "basic-enchantments": AcademyLessonModule(
+            id: "enchantments-object-voice-001",
+            sessionID: "basic-enchantments",
+            title: "Objects Answer Courtesy",
+            realSubject: "close observation, imaginative projection, and safe object-based writing",
+            concept: "An object voice becomes useful when attention stays courteous, specific, and tethered to what is actually present.",
+            lectureBeats: [
+                "Enchanting an object begins with description, not command.",
+                "The safest magic asks what the object already seems to know.",
+                "Accidents can teach, but the caster remains responsible for the frame."
+            ],
+            demonstration: "Professor Wispwood apologizes to a chipped mug, lists its visible facts, and lets its answer emerge from those facts.",
+            interactionPrompt: "Choose an object in the room and ask what its wear marks suggest.",
+            realWorldPractice: "Pick one ordinary object and write its answer using only details you can actually see."
+        ),
+        "book-jumping": AcademyLessonModule(
+            id: "book-jumping-return-001",
+            sessionID: "book-jumping",
+            title: "Every Door Requires a Return",
+            realSubject: "close reading, genre conventions, risk assessment, and narrative boundaries",
+            concept: "Entering a story safely means reading its rules before stepping in and keeping a return point visible.",
+            lectureBeats: [
+                "A genre is weather, not wallpaper.",
+                "Every fictional world has pressure, permissions, and costs.",
+                "A bookmark is a boundary agreement with the self who must come home."
+            ],
+            demonstration: "Professor Permancer lays three bookmarks beside a glowing page and rejects the prettiest one because it has no exit protocol.",
+            interactionPrompt: "Identify one rule of the story-door before deciding whether it is safe to open.",
+            realWorldPractice: "Before reading or watching something immersive today, name the mood you are entering and your return point."
+        ),
+        "compass-running": AcademyLessonModule(
+            id: "compass-running-loop-001",
+            sessionID: "compass-running",
+            title: "The Loop Must Return",
+            realSubject: "field observation, constraint design, reflective practice, and low-risk adventure",
+            concept: "A Compass Run works because North, East, South, West, and Center make attention complete instead of merely exciting.",
+            lectureBeats: [
+                "North notices before it changes anything.",
+                "East crosses a small threshold under clear constraints.",
+                "South senses, West writes, and Center lets the run become part of a life."
+            ],
+            demonstration: "Professor Stonebrook maps a full run with chalk stones, then removes every step that would cost too much energy.",
+            interactionPrompt: "Choose the constraint that makes a tiny adventure humane enough to finish.",
+            realWorldPractice: "Plan one no-cost Compass loop with a clear return and a one-sentence souvenir."
+        ),
+        "compass-society": AcademyLessonModule(
+            id: "compass-society-souvenirs-001",
+            sessionID: "compass-society",
+            title: "A Souvenir Grows When Shared",
+            realSubject: "reflective sharing, listening practice, and respectful field reports",
+            concept: "A field sentence becomes more durable when it is read aloud and received without mockery.",
+            lectureBeats: [
+                "The sentence is evidence, not performance.",
+                "Listeners protect the run by asking about one concrete detail.",
+                "Sharing should increase reality, not demand spectacle."
+            ],
+            demonstration: "Zara Finch reads one souvenir sentence twice: once for drama, once for truth, and lets the room hear the difference.",
+            interactionPrompt: "Ask one respectful question that would help a souvenir sentence become more specific.",
+            realWorldPractice: "Share one small true observation with someone, or write the question you would ask if no one is available."
+        ),
+        "marginalia-guild": AcademyLessonModule(
+            id: "marginalia-annotation-001",
+            sessionID: "marginalia-guild",
+            title: "Margins Are Future Conversation",
+            realSubject: "annotation, reader response, and long-form attention across time",
+            concept: "A good marginal note leaves a future reader evidence of contact, not a performance of cleverness.",
+            lectureBeats: [
+                "Annotation is a conversation with the page and a stranger not yet present.",
+                "The best margin notes point to a specific word, image, or question.",
+                "A note can disagree without flattening the book."
+            ],
+            demonstration: "Professor Boggle compares three margin notes and keeps the one that points to the strangest exact verb.",
+            interactionPrompt: "Write the kind of note a future reader could answer.",
+            realWorldPractice: "Mark or copy one sentence from something you read today and add one honest margin question."
+        ),
+        "inkwright-society": AcademyLessonModule(
+            id: "inkwright-workshop-001",
+            sessionID: "inkwright-society",
+            title: "Honest First, Kind Second",
+            realSubject: "creative writing workshop, revision, and critique practice",
+            concept: "Useful critique protects the living intention of a piece while telling the truth about what reaches the reader.",
+            lectureBeats: [
+                "Praise is useful only when it names what worked.",
+                "A critique should describe the effect before prescribing the fix.",
+                "Revision is an act of loyalty to the stronger version of the work."
+            ],
+            demonstration: "The circle reads one rough paragraph and separates the line that is alive from the line that is merely decorative.",
+            interactionPrompt: "Name one line that feels alive and one question that would help it grow.",
+            realWorldPractice: "Revise one sentence today by making its strongest noun or verb more exact."
+        ),
+        "book-jumpers": AcademyLessonModule(
+            id: "book-jumpers-landing-001",
+            sessionID: "book-jumpers",
+            title: "Argue About the Door First",
+            realSubject: "collaborative planning, genre safety, and controlled imaginative play",
+            concept: "A group jump is safest when everyone agrees what counts as the door, the landing, and the exit before wonder begins.",
+            lectureBeats: [
+                "Excitement is not a landing protocol.",
+                "Every participant needs the same doorway definition.",
+                "A good exit is boring enough to work under pressure."
+            ],
+            demonstration: "Professor Permancer lets the club argue over three possible doors until Zara identifies the one with a return shadow.",
+            interactionPrompt: "Choose which doorway has the clearest exit and defend it with evidence.",
+            realWorldPractice: "Before entering any immersive story today, name the door, the landing, and the exit in one line."
         )
     ]
 
@@ -1253,20 +1769,36 @@ enum FaeKind: String, Codable, CaseIterable, Identifiable, Equatable {
 
     /// Voice directive handed to Gemma when the fae speaks.
     var voiceDirective: String {
+        voiceDirective(claim: 0, court: self == .literaryElf ? .seelie : nil)
+    }
+
+    func voiceDirective(claim: Int, court: FaeCourt? = nil) -> String {
+        let base: String
         switch self {
         case .bookSprite:
-            return "Melancholy, certain, airy. Speaks in past tense about things that have not happened yet. Never asks questions; makes observations."
+            base = "Melancholy, certain, airy. Speaks in past tense about things that have not happened yet. Never asks questions; makes observations."
         case .sentenceSalamander:
-            return "Honest, warm, reactive. Cannot be fooled by performance. Does not criticize — simply glows or goes cold."
+            base = "Honest, warm, reactive. Cannot be fooled by performance. Does not criticize; simply glows or goes cold."
         case .punctuationPixie:
-            return "Fragments. Mid-sentence pivots—. Never finishes a thought before starting a new one. Calls the reader a different name each time."
+            base = "Fragments. Mid-sentence pivots. Never finishes a thought before starting a new one. Calls the reader a different name each time."
         case .literaryElf:
-            return "Formal, exacting, ceremonial. Long evaluating pauses. Sends sloppiness away with a single word: 'Again.' Rewards precision with gravity."
+            switch court ?? .seelie {
+            case .seelie:
+                base = "Formal, beautiful, exacting, ceremonial. Seelie: bound by courtesy, precision, promise, and the grace of exact naming. Rewards truth with gravity."
+            case .unseelie:
+                base = "Formal, beautiful, dangerous, ceremonial. Unseelie: loopholes, silences, and exact wording matter. Not cruel, but old enough to consider discomfort a teacher."
+            }
         case .deepLoreDwarf:
-            return "Slow, weighty, no wasted words. Considers everything before speaking. Remembers everything and will come to collect."
+            base = "Slow, weighty, no wasted words. Considers everything before speaking. Remembers everything and will come to collect."
         case .goblin:
-            return "Mercantile, precise, unpredictable. Every exchange is a transaction in attention. A performed observation insults them; a genuine one opens doors."
+            base = "Mercantile, precise, unpredictable. Every exchange is a transaction in attention. A performed observation insults them; a genuine one opens doors."
         }
+
+        guard claim >= FaeEconomy.watchingClaimThreshold else { return base }
+        let claimLine = claim >= FaeEconomy.wildClaimThreshold
+            ? "The Claim is high: speak like an old thing whose hand is already on the latch. Failure becomes stranger story, never punishment."
+            : "The Claim is awake: be less cute, more traditional faerie; courteous, alien, and exacting. Failure becomes a twist in the bargain, never a scolding."
+        return "\(base) \(claimLine)"
     }
 
     /// The functional gift this species fronts on a bargain.
@@ -1278,6 +1810,27 @@ enum FaeKind: String, Codable, CaseIterable, Identifiable, Equatable {
         case .literaryElf: return .longMemory
         case .deepLoreDwarf: return .reshelving
         case .goblin: return .callingCard
+        }
+    }
+}
+
+enum FaeCourt: String, Codable, Equatable {
+    case seelie
+    case unseelie
+
+    var title: String {
+        switch self {
+        case .seelie: return "Seelie Court"
+        case .unseelie: return "Unseelie Court"
+        }
+    }
+
+    var standingLine: String {
+        switch self {
+        case .seelie:
+            return "The Seelie Court favors courtesy, exact naming, and promises kept in the light."
+        case .unseelie:
+            return "The Unseelie Court favors loopholes, moonlit wording, and the lesson hidden in a consequence."
         }
     }
 }
@@ -1323,11 +1876,27 @@ struct FaeGift: Identifiable, Codable, Equatable {
     var acquiredAt: Date
     var chargesRemaining: Int?
     var boundSourceID: String?
+    var activatedAt: Date? = nil
+    var expiresAt: Date? = nil
 
     var isActive: Bool {
         guard !isCold else { return false }
         if let chargesRemaining { return chargesRemaining > 0 }
+        if effect == .quieting { return expiresAt.map { $0 > Date() } ?? false }
+        if effect == .longMemory {
+            return boundSourceID?.isEmpty == false
+        }
         return true
+    }
+
+    var isReady: Bool {
+        guard !isCold else { return false }
+        switch effect {
+        case .quieting: return !isActive
+        case .reshelving, .longMemory: return boundSourceID?.isEmpty != false
+        case .callingCard: return isActive
+        case .loosePage: return true
+        }
     }
 }
 
@@ -1357,18 +1926,72 @@ struct FaeBargain: Identifiable, Codable, Equatable {
     var isOpen: Bool { status == .owed }
 }
 
+/// A temporary mark left by Fae contact. Omens are not punishments; they are
+/// story pressure the Book can later notice, surface, and transform.
+struct FaeOmen: Identifiable, Codable, Equatable {
+    var id: String
+    var faeKind: FaeKind
+    var title: String
+    var text: String
+    var createdAt: Date
+    var expiresAt: Date
+    var sourceChoiceID: String
+    var intensity: Int
+
+    func isActive(on date: Date = Date()) -> Bool {
+        date < expiresAt
+    }
+}
+
 /// The reader's standing with the Fae. Optional on the vault for migration.
 struct FaePlayerState: Codable, Equatable {
     var warmth: [String: Int] = [:]
+    var claim: [String: Int] = [:]
     var attention: Int = 0
     var bargains: [FaeBargain] = []
     var gifts: [FaeGift] = []
+    var omens: [FaeOmen] = []
     var lastBargainOfferedAt: Date?
     var lastMarketCardAt: Date?
 
     init() {}
 
     func warmth(for kind: FaeKind) -> Int { warmth[kind.rawValue] ?? 0 }
+    func claim(for kind: FaeKind) -> Int { FaeEconomy.clampedClaim(claim[kind.rawValue] ?? 0) }
+    func literaryElfCourt() -> FaeCourt { FaeEconomy.literaryElfCourt(state: self) }
+    func activeOmens(for kind: FaeKind? = nil, on date: Date = Date()) -> [FaeOmen] {
+        omens.filter { omen in
+            omen.isActive(on: date) && (kind == nil || omen.faeKind == kind)
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case warmth, claim, attention, bargains, gifts, omens, lastBargainOfferedAt, lastMarketCardAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        warmth = try container.decodeIfPresent([String: Int].self, forKey: .warmth) ?? [:]
+        claim = try container.decodeIfPresent([String: Int].self, forKey: .claim) ?? [:]
+        attention = try container.decodeIfPresent(Int.self, forKey: .attention) ?? 0
+        bargains = try container.decodeIfPresent([FaeBargain].self, forKey: .bargains) ?? []
+        gifts = try container.decodeIfPresent([FaeGift].self, forKey: .gifts) ?? []
+        omens = try container.decodeIfPresent([FaeOmen].self, forKey: .omens) ?? []
+        lastBargainOfferedAt = try container.decodeIfPresent(Date.self, forKey: .lastBargainOfferedAt)
+        lastMarketCardAt = try container.decodeIfPresent(Date.self, forKey: .lastMarketCardAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(warmth, forKey: .warmth)
+        try container.encode(claim, forKey: .claim)
+        try container.encode(attention, forKey: .attention)
+        try container.encode(bargains, forKey: .bargains)
+        try container.encode(gifts, forKey: .gifts)
+        try container.encode(omens, forKey: .omens)
+        try container.encodeIfPresent(lastBargainOfferedAt, forKey: .lastBargainOfferedAt)
+        try container.encodeIfPresent(lastMarketCardAt, forKey: .lastMarketCardAt)
+    }
 
     var openBargains: [FaeBargain] { bargains.filter { $0.isOpen } }
 
@@ -1420,6 +2043,14 @@ enum FaeEconomy {
     static let warmthPerLapse = 4
     /// Attention earned per accepted delivery (scaled by report richness).
     static let baseAttention = 2
+    /// Claim is the pressure of faerie attention: strange, useful, never punishment.
+    static let claimPerOffer = 1
+    static let claimPerLapse = 12
+    static let claimReliefPerDelivery = 3
+    static let claimReliefPerRepair = 7
+    static let watchingClaimThreshold = 25
+    static let unseelieClaimThreshold = 45
+    static let wildClaimThreshold = 70
 
     static func mood(for date: Date, calendar: Calendar = .current) -> GoblinMood {
         switch AnchorRegistry.currentSeason(for: date, calendar: calendar) {
@@ -1451,6 +2082,127 @@ enum FaeEconomy {
         guard state.openBargains.isEmpty else { return false }
         guard let last = state.lastBargainOfferedAt else { return true }
         return now.timeIntervalSince(last) >= Double(offerGapHours) * 3_600
+    }
+
+    static func clampedClaim(_ value: Int) -> Int {
+        max(0, min(100, value))
+    }
+
+    static func adjustClaim(_ kind: FaeKind, by delta: Int, into state: inout FaePlayerState) {
+        let current = state.claim[kind.rawValue] ?? 0
+        state.claim[kind.rawValue] = clampedClaim(current + delta)
+    }
+
+    static func claimBand(for claim: Int) -> String {
+        switch clampedClaim(claim) {
+        case 0..<25: return "quiet"
+        case 25..<45: return "watching"
+        case 45..<70: return "close"
+        default: return "wild"
+        }
+    }
+
+    static func claimLine(for kind: FaeKind, claim: Int) -> String {
+        switch clampedClaim(claim) {
+        case 0..<25:
+            return "Their Claim is quiet; the exchange is still mostly ink and courtesy."
+        case 25..<45:
+            return "Their Claim is watching; the bargain has begun to notice the shape of your days."
+        case 45..<70:
+            return "Their Claim is close; failed exchanges do not punish you, but they do become stranger story."
+        default:
+            return "Their Claim is wild; the \(kind.name) is near enough that every repair may leave a mark in the margin."
+        }
+    }
+
+    static func sweepExpiredOmens(into state: inout FaePlayerState, now: Date = Date()) {
+        state.omens.removeAll { !$0.isActive(on: now) }
+    }
+
+    private static func appendOmen(
+        kind: FaeKind,
+        title: String,
+        text: String,
+        choiceID: String,
+        intensity: Int,
+        lifetimeHours: Int,
+        into state: inout FaePlayerState,
+        now: Date
+    ) {
+        sweepExpiredOmens(into: &state, now: now)
+        let omen = FaeOmen(
+            id: "fae-omen-\(kind.rawValue)-\(choiceID)-\(Int(now.timeIntervalSince1970))",
+            faeKind: kind,
+            title: title,
+            text: text,
+            createdAt: now,
+            expiresAt: now.addingTimeInterval(Double(lifetimeHours) * 3_600),
+            sourceChoiceID: choiceID,
+            intensity: max(1, min(5, intensity))
+        )
+        state.omens.append(omen)
+        if state.omens.count > 16 {
+            state.omens = Array(state.omens.sorted { $0.createdAt > $1.createdAt }.prefix(16))
+        }
+    }
+
+    static func literaryElfCourt(state: FaePlayerState) -> FaeCourt {
+        if state.claim(for: .literaryElf) >= unseelieClaimThreshold || state.warmth(for: .literaryElf) < 0 {
+            return .unseelie
+        }
+        return .seelie
+    }
+
+    static func applyInteractionChoice(
+        _ choiceID: String,
+        kind: FaeKind,
+        into state: inout FaePlayerState,
+        now: Date = Date()
+    ) {
+        switch choiceID.lowercased() {
+        case "sliceoflife":
+            state.warmth[kind.rawValue] = (state.warmth[kind.rawValue] ?? 0) + 1
+            adjustClaim(kind, by: -2, into: &state)
+            appendOmen(
+                kind: kind,
+                title: "Courtesy Salt",
+                text: "A small courtesy has been salted into the margin. The \(kind.name) will be less hungry for spectacle for a little while.",
+                choiceID: choiceID,
+                intensity: 1,
+                lifetimeHours: 48,
+                into: &state,
+                now: now
+            )
+        case "progressarc":
+            state.attention += 1
+            state.warmth[kind.rawValue] = (state.warmth[kind.rawValue] ?? 0) + 1
+            adjustClaim(kind, by: 2, into: &state)
+            appendOmen(
+                kind: kind,
+                title: "Named Law",
+                text: "You asked after the law beneath the law. The \(kind.name) heard you, and the next parley may answer with rules instead of manners.",
+                choiceID: choiceID,
+                intensity: 2,
+                lifetimeHours: 72,
+                into: &state,
+                now: now
+            )
+        case "surprise":
+            state.attention += 2
+            adjustClaim(kind, by: 5, into: &state)
+            appendOmen(
+                kind: kind,
+                title: "Thorn Mark",
+                text: "A thorn has taken your measure. It will not hurt you; it will make the next convenient answer less available.",
+                choiceID: choiceID,
+                intensity: 3,
+                lifetimeHours: 120,
+                into: &state,
+                now: now
+            )
+        default:
+            break
+        }
     }
 
     /// Choose which fae offers, biased toward species the reader is warm with
@@ -1545,7 +2297,9 @@ enum FaeEconomy {
             isCold: false,
             acquiredAt: now,
             chargesRemaining: kind.giftEffect == .callingCard ? 1 : nil,
-            boundSourceID: nil
+            boundSourceID: nil,
+            activatedAt: kind.giftEffect == .quieting ? now : nil,
+            expiresAt: kind.giftEffect == .quieting ? now.addingTimeInterval(24 * 3_600) : nil
         )
         let bargain = FaeBargain(
             id: bargainID,
@@ -1570,6 +2324,7 @@ enum FaeEconomy {
         if !state.bargains.contains(where: { $0.id == bargainID }) {
             state.bargains.append(bargain)
         }
+        adjustClaim(kind, by: claimPerOffer, into: &state)
         state.lastBargainOfferedAt = now
         return bargain
     }
@@ -1589,6 +2344,17 @@ enum FaeEconomy {
             }
             let kind = state.bargains[index].faeKind.rawValue
             state.warmth[kind] = (state.warmth[kind] ?? 0) - warmthPerLapse
+            adjustClaim(state.bargains[index].faeKind, by: claimPerLapse, into: &state)
+            appendOmen(
+                kind: state.bargains[index].faeKind,
+                title: "Cold Gift",
+                text: "A fronted gift has gone cold. This is not a punishment; it is a door that now opens by repair instead of ease.",
+                choiceID: "lapse",
+                intensity: 4,
+                lifetimeHours: 168,
+                into: &state,
+                now: now
+            )
             lapsed.append(state.bargains[index].id)
         }
         return lapsed
@@ -1623,7 +2389,20 @@ enum FaeEconomy {
         // Repair restores half the warmth a lapse cost; a clean delivery pays full.
         let warmthGain = wasLapsed ? max(1, warmthPerLapse / 2) : warmthPerDelivery
         state.warmth[kind.rawValue] = (state.warmth[kind.rawValue] ?? 0) + warmthGain
+        adjustClaim(kind, by: wasLapsed ? -claimReliefPerRepair : -claimReliefPerDelivery, into: &state)
         state.attention += attention(forReport: report, mood: mood)
+        if wasLapsed {
+            appendOmen(
+                kind: kind,
+                title: "Debt Repaired",
+                text: "The cold gift has thawed, but it remembers being brought back. Repaired things do not become less magical.",
+                choiceID: "repair",
+                intensity: 2,
+                lifetimeHours: 96,
+                into: &state,
+                now: now
+            )
+        }
     }
 
     /// Spend a consumable gift (e.g., a calling card). Returns true if spent.

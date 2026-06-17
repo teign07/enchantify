@@ -501,6 +501,7 @@ extension ContentView {
     /// tendArc so the Book's long memory moves whenever the field does.
     @MainActor
     func tendConstellations(now: Date = Date()) {
+        let previousConstellations = vault.data.constellations ?? []
         let digest = LiteraryContinuityProjector.digest(
             days: days,
             events: narrativeEvents,
@@ -510,7 +511,7 @@ extension ContentView {
             now: now
         )
         let advanced = ConstellationKeeper.advanced(
-            vault.data.constellations ?? [],
+            previousConstellations,
             observing: digest,
             now: now
         )
@@ -540,6 +541,10 @@ extension ContentView {
         vault.data.wagers = wagers
         vault.data.themes = themes
         vault.save()
+        let previousIDs = Set(previousConstellations.map(\.id))
+        if let discovered = advanced.first(where: { !previousIDs.contains($0.id) }) {
+            BookFeedback.constellationDiscovered(nodes: max(2, discovered.evidencePageIDs.count))
+        }
         surfaceRefreshDate = now
     }
 
@@ -988,12 +993,16 @@ extension ContentView {
 
     @MainActor
     func bookJumpSurfaceWithProse(from base: SurfacePage) async -> SurfacePage {
-        await generatedProseSurface(
+        let action = base.payload.metadata["bookJumpAction"] ?? BookJumpAction.advance.rawValue
+        let continuityInstruction = action == BookJumpAction.start.rawValue
+            ? "This is the opening jump: the fall through the page may be shown once."
+            : "The reader is already inside the book. Begin with the consequence of their last choice. Never repeat the fall, landing, arrival, premise, or introductory scene-setting."
+        return await generatedProseSurface(
             from: base,
             proseKey: "bookJumpProse",
             prompt: LocalModelManager.bookJumpPrompt(surface: base),
             instructions: """
-            You are the Book inside ReEnchanted staging a controlled Book Jump into a named public-domain work. The reader has physically fallen into the book and stands inside a real, specific scene from it — write it to the senses, name the book's actual places and people, never settle for generic mood. Prose only, no headings, no quotes from the source text.
+            You are the Book inside ReEnchanted staging a controlled Book Jump into a named public-domain work. Write to the senses, name the book's actual places and people, and never settle for generic mood. \(continuityInstruction) Prose only, no headings, no quotes from the source text.
             """,
             maxTokens: 700,
             sourceID: "book-jump",
@@ -1044,18 +1053,36 @@ extension ContentView {
 
     @MainActor
     func academyClassSurfaceWithProse(from base: SurfacePage) async -> SurfacePage {
-        let teaches = base.payload.metadata["sessionTeaches"] ?? "the day's lesson"
-        let leader = base.payload.metadata["sessionLeader"] ?? "The professor"
-        return await generatedProseSurface(
-            from: base,
-            proseKey: "classProse",
-            prompt: LocalModelManager.academyClassPrompt(surface: base, day: today),
-            instructions: """
-            You are the Labyrinth of Stories narrating Academy classes and clubs. Write the scene in prose only, no headings or lists.
-            """,
-            sourceID: "academy-class",
-            tags: ["academy", "class", "club"],
-            fallbackBody: "\(base.payload.body)\n\n\(leader) is teaching: \(teaches)\n\nThe local brain could not write the full scene this time; the lesson itself still stands."
+        let draft = StoryPageSceneDraft(surface: base)
+        let fallback = StoryPageProse(fallback: draft)
+        let prose: StoryPageProse
+
+        do {
+            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
+            prose = try await MLXStoryPageWriter().write(surface: base)
+            #else
+            prose = fallback
+            #endif
+        } catch {
+            appLog.error("Academy lesson prose fell back: \(error.localizedDescription, privacy: .public)")
+            prose = fallback
+        }
+
+        let prepared = base.preparedStoryPageCopy(prose: prose, slotID: "academy-\(base.id)")
+        var metadata = prepared.payload.metadata
+        metadata["classProse"] = prose.scene
+        metadata["academyLessonPage"] = "true"
+        return SurfacePage(
+            id: prepared.id,
+            type: prepared.type,
+            sourceID: prepared.sourceID,
+            intent: prepared.intent,
+            renderStyle: prepared.renderStyle,
+            score: prepared.score,
+            reason: prepared.reason,
+            prompt: prepared.prompt,
+            detail: prepared.detail,
+            payload: BookPagePayload(headline: prepared.payload.headline, body: prepared.payload.body, metadata: metadata)
         )
     }
 

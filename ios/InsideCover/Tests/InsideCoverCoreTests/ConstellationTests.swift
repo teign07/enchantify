@@ -291,7 +291,7 @@ final class ConstellationTests: XCTestCase {
 
     // MARK: Letters
 
-    func testLetterUsesAbsenceSignalAsOccasion() {
+    func testFirstLetterIsIntroductionLetter() {
         let now = date(2026, 6, 10)
         let day = BookDay(id: "2026-06-10", date: date(2026, 6, 10, hour: 0), pages: [])
         var inputs = BookSourceInputs.empty
@@ -301,9 +301,39 @@ final class ConstellationTests: XCTestCase {
         )
         let draft = CharacterLetterPageGenerator.draftCandidate(for: day, inputs: inputs, now: now)
         XCTAssertNotNil(draft)
-        let occasion = draft?.payload.metadata["letterOccasion"] ?? ""
+        XCTAssertEqual(draft?.payload.metadata["letterRelationshipStage"], "introduction")
+        XCTAssertTrue(draft?.payload.metadata["letterOccasion"]?.contains("first letter") == true)
+        XCTAssertTrue(draft?.payload.body.contains("Introduce yourself before asking anything") == true)
+    }
+
+    func testLetterUsesAbsenceSignalAsOccasion() {
+        let now = date(2026, 6, 10)
+        let entity = NarrativePackRegistry.entities.first { $0.id == "penny-blackletter" }!
+        let priorLetter = BookPage(
+            type: .letter,
+            createdAt: date(2026, 6, 8),
+            promptText: "Letter from \(entity.name)",
+            userInput: "Dear friend, I noticed the harbor again.",
+            tags: ["letter", "sender:\(entity.id)"]
+        )
+        let day = BookDay(id: "2026-06-10", date: date(2026, 6, 10, hour: 0), pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.days = [BookDay(id: "2026-06-08", date: date(2026, 6, 8, hour: 0), pages: [priorLetter])]
+        inputs.continuity = LiteraryContinuityDigest(
+            signals: [signal(id: "absence-shoreline", kind: .absence, subjectID: "shoreline", subjectName: "Shoreline", strength: 70, at: now)],
+            beliefLifecycles: []
+        )
+        let draft = CharacterLetterPageGenerator.draftCandidate(
+            for: entity,
+            source: BookPageSourceRegistry.source(for: .letter),
+            day: day,
+            inputs: inputs,
+            now: now
+        )
+        let occasion = draft.payload.metadata["letterOccasion"] ?? ""
+        XCTAssertEqual(draft.payload.metadata["letterRelationshipStage"], "continuing")
         XCTAssertTrue(occasion.contains("Shoreline"))
-        XCTAssertTrue(draft?.payload.body.contains("Letter occasion:") == true)
+        XCTAssertTrue(draft.payload.body.contains("Letter occasion:"))
     }
 
     func testLetterPacketMentionsNamedConstellations() {

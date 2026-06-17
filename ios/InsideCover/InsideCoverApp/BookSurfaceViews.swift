@@ -955,6 +955,7 @@ struct SurfaceCard: View {
             || surface.type == .bookRemembered
             || surface.type == .bookNotices
             || surface.type == .theBleed
+            || surface.type == .radio
             || surface.type == .facultyResearch
             || surface.type == .supportGuild
             || surface.type == .castMember
@@ -965,7 +966,7 @@ struct SurfaceCard: View {
         guard isReadingCard else { return nil }
         let body = surface.payload.body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return nil }
-        if surface.type == .wonderCompass || surface.type == .narrativeOS || surface.type == .marginsAtlas || surface.type == .bookConnections || surface.type == .bookRemembered || surface.type == .bookNotices || surface.type == .theBleed || surface.type == .gossip || surface.type == .facultyResearch || surface.type == .supportGuild || surface.type == .castMember {
+        if surface.type == .wonderCompass || surface.type == .narrativeOS || surface.type == .marginsAtlas || surface.type == .bookConnections || surface.type == .bookRemembered || surface.type == .bookNotices || surface.type == .theBleed || surface.type == .radio || surface.type == .gossip || surface.type == .facultyResearch || surface.type == .supportGuild || surface.type == .castMember {
             return body.bookPreviewSentenceLimit(2)
         }
         return body
@@ -975,7 +976,7 @@ struct SurfaceCard: View {
         switch surface.type {
         case .wonderCompass:
             return 3
-        case .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .theBleed:
+        case .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .theBleed, .radio:
             return 4
         case .gossip:
             return 4
@@ -1703,6 +1704,7 @@ struct BookOfYouCard: View {
     @State private var inkVisible = false
 
     private let visualStyle = PageVisualStyle.style(for: .bookOfYou)
+    private var details: BraidPageDetails { BraidPageDetails.details(for: page) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1710,11 +1712,16 @@ struct BookOfYouCard: View {
                 .font(.caption.weight(.bold))
                 .foregroundStyle(visualStyle.accent)
 
+            Text(details.title)
+                .font(.system(.title3, design: .serif).weight(.semibold))
+                .foregroundStyle(BookPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+
             if !page.mediaAssets.isEmpty {
                 BookOfYouMediaStrip(assets: page.mediaAssets)
             }
 
-            Text(page.userInput)
+            Text(details.body)
                 .font(.system(.body, design: .serif))
                 .lineSpacing(5)
                 .foregroundStyle(BookPalette.ink)
@@ -1837,16 +1844,21 @@ private struct BookOfYouMediaThumbnail: View {
 struct ArchiveCard: View {
     let page: BookPage
     let onOpen: () -> Void
+    private var details: BraidPageDetails { BraidPageDetails.details(for: page) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(page.createdAt, style: .date)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(BookPalette.teal)
-            Text(page.userInput)
+            Text(details.title)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(BookPalette.ink)
+                .lineLimit(2)
+            Text(details.body)
                 .font(.footnote)
                 .foregroundStyle(BookPalette.ink.opacity(0.72))
-                .lineLimit(6)
+                .lineLimit(5)
         }
         .padding(14)
         .frame(width: 240, height: 170, alignment: .topLeading)
@@ -2376,6 +2388,20 @@ struct PageVisualStyle {
 
     static func style(for type: BookPageType) -> PageVisualStyle {
         switch type {
+        case .inventory:
+            return PageVisualStyle(
+                accent: Color(red: 0.18, green: 0.43, blue: 0.40),
+                symbolColor: Color(red: 0.18, green: 0.43, blue: 0.40),
+                paperTop: Color(red: 0.93, green: 0.88, blue: 0.73),
+                paperMiddle: Color(red: 0.82, green: 0.74, blue: 0.59),
+                paperBottom: Color(red: 0.57, green: 0.49, blue: 0.39),
+                scrapColor: Color(red: 0.86, green: 0.79, blue: 0.65),
+                sideMarginalia: "IlluminationScrapS02_19",
+                cornerMarginalia: "IlluminationScrapS03_11",
+                smallMarginalia: "MarginaliaStamp",
+                watermarkMarginalia: "MarginaliaCompass",
+                watermarkOpacity: 0.09
+            )
         case .calendar:
             return PageVisualStyle(
                 accent: Color(red: 0.30, green: 0.34, blue: 0.58),
@@ -2444,6 +2470,26 @@ struct PageVisualStyle {
                 scrapWidth: 94,
                 scrapHeight: 34
             )
+        case .radio:
+            return PageVisualStyle(
+                accent: Color(red: 0.17, green: 0.38, blue: 0.44),
+                symbolColor: Color(red: 0.17, green: 0.38, blue: 0.44),
+                paperTop: Color(red: 0.94, green: 0.89, blue: 0.73),
+                paperMiddle: Color(red: 0.82, green: 0.76, blue: 0.62),
+                paperBottom: Color(red: 0.56, green: 0.54, blue: 0.48),
+                scrapColor: Color(red: 0.87, green: 0.80, blue: 0.63),
+                sideMarginalia: "MarginaliaCompass",
+                cornerMarginalia: "MarginaliaStar",
+                smallMarginalia: "MarginaliaStamp",
+                watermarkMarginalia: "MarginaliaCompass",
+                sideMarginaliaWidth: 72,
+                cornerMarginaliaWidth: 82,
+                sideMarginaliaOpacity: 0.38,
+                cornerMarginaliaOpacity: 0.34,
+                watermarkOpacity: 0.12,
+                scrapWidth: 92,
+                scrapHeight: 34
+            )
         case .bookJump:
             return PageVisualStyle(
                 accent: Color(red: 0.28, green: 0.22, blue: 0.48),
@@ -2462,6 +2508,26 @@ struct PageVisualStyle {
                 cornerMarginaliaOpacity: 0.36,
                 watermarkOpacity: 0.12,
                 scrapWidth: 92,
+                scrapHeight: 34
+            )
+        case .bookFae:
+            return PageVisualStyle(
+                accent: Color(red: 0.22, green: 0.42, blue: 0.32),
+                symbolColor: Color(red: 0.22, green: 0.42, blue: 0.32),
+                paperTop: Color(red: 0.94, green: 0.90, blue: 0.72),
+                paperMiddle: Color(red: 0.82, green: 0.78, blue: 0.60),
+                paperBottom: Color(red: 0.54, green: 0.55, blue: 0.40),
+                scrapColor: Color(red: 0.86, green: 0.80, blue: 0.62),
+                sideMarginalia: "MarginaliaFeather",
+                cornerMarginalia: "MarginaliaSeal",
+                smallMarginalia: "MarginaliaStar",
+                watermarkMarginalia: "IlluminationScrapS02_13",
+                sideMarginaliaWidth: 74,
+                cornerMarginaliaWidth: 84,
+                sideMarginaliaOpacity: 0.44,
+                cornerMarginaliaOpacity: 0.36,
+                watermarkOpacity: 0.12,
+                scrapWidth: 90,
                 scrapHeight: 34
             )
         case .elective:
@@ -3309,9 +3375,11 @@ struct OnboardingFlowView: View {
         var firstSouvenir: String
     }
 
+    let onGlowUnlocked: () -> Void
     let onFinished: (Result) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FocusState private var isOnboardingFieldFocused: Bool
     @State private var step = 0
     @State private var snack = ""
     @State private var name = ""
@@ -3321,8 +3389,15 @@ struct OnboardingFlowView: View {
     @State private var firstSouvenir = ""
     @State private var shimmer = false
     @State private var pageTilt = false
+    @State private var didNotifyGlowUnlocked = false
+    @State private var castPreviewURL: URL?
 
-    private let stepCount = 7
+    private let stepCount = 9
+
+    init(onGlowUnlocked: @escaping () -> Void = {}, onFinished: @escaping (Result) -> Void) {
+        self.onGlowUnlocked = onGlowUnlocked
+        self.onFinished = onFinished
+    }
 
     var body: some View {
         ZStack {
@@ -3332,63 +3407,102 @@ struct OnboardingFlowView: View {
                         .fill(BookPalette.nightPanel.opacity(0.4))
                 }
                 .ignoresSafeArea()
+                .onTapGesture {
+                    isOnboardingFieldFocused = false
+                }
 
             onboardingAura
+                .onTapGesture {
+                    isOnboardingFieldFocused = false
+                }
 
-            VStack(spacing: 0) {
-                Spacer(minLength: 18)
+            GeometryReader { proxy in
+                let isPortrait = proxy.size.height >= proxy.size.width
+                let portraitHeaderOverlap: CGFloat = isPortrait ? 24 : 0
+                let portraitHeaderLift: CGFloat = isPortrait ? -8 : 0
+                let pageTopPadding: CGFloat = isPortrait ? 68 : 22
 
-                onboardingHeader
+                VStack(spacing: 0) {
+                    Spacer(minLength: 18)
+
+                    onboardingHeader
+                        .padding(.horizontal, 22)
+                        .offset(y: portraitHeaderLift)
+                        .zIndex(1)
+
+                    ScrollViewReader { scrollProxy in
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 18) {
+                                Color.clear
+                                    .frame(height: pageTopPadding)
+                                    .id("onboarding-page-top")
+
+                                stagePill
+                                stepContent
+                                    .transition(.asymmetric(
+                                        insertion: .opacity.combined(with: .move(edge: .trailing)),
+                                        removal: .opacity.combined(with: .move(edge: .leading))
+                                    ))
+                            }
+                            .padding(.horizontal, 22)
+                            .padding(.bottom, 22)
+                        }
+                        .onChange(of: step) { _, _ in
+                            DispatchQueue.main.async {
+                                withAnimation(reduceMotion ? .none : .easeOut(duration: 0.18)) {
+                                    scrollProxy.scrollTo("onboarding-page-top", anchor: .top)
+                                }
+                            }
+                            notifyGlowUnlockedIfNeeded()
+                        }
+                        .onChange(of: belief) { _, _ in
+                            notifyGlowUnlockedIfNeeded()
+                        }
+                        .scrollDismissesKeyboard(.interactively)
+                    }
+                    .frame(maxHeight: isPortrait ? 486 : 520)
+                    .background {
+                        ZStack {
+                            Image("ParchmentTexture")
+                                .resizable()
+                                .scaledToFill()
+                                .opacity(0.9)
+                            BookPalette.page.opacity(0.6)
+                            LinearGradient(
+                                colors: [
+                                    BookPalette.lampGold.opacity(shimmer ? 0.16 : 0.05),
+                                    .clear,
+                                    BookPalette.teal.opacity(shimmer ? 0.08 : 0.03)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(BookPalette.lampGold.opacity(shimmer ? 0.62 : 0.34), lineWidth: 1)
+                    }
+                    .rotation3DEffect(.degrees(reduceMotion ? 0 : (pageTilt ? 0.8 : -0.8)), axis: (x: 0, y: 1, z: 0))
+                    .padding(.top, isPortrait ? -portraitHeaderOverlap : 44)
                     .padding(.horizontal, 22)
-                    .padding(.bottom, 12)
+                    .shadow(color: BookPalette.lampGold.opacity(shimmer ? 0.18 : 0.08), radius: 22, x: 0, y: 8)
+                    .shadow(color: .black.opacity(0.32), radius: 12, x: 0, y: 18)
+                    .zIndex(0)
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        stagePill
-                        stepContent
-                            .transition(.asymmetric(
-                                insertion: .opacity.combined(with: .move(edge: .trailing)),
-                                removal: .opacity.combined(with: .move(edge: .leading))
-                            ))
-                    }
-                    .padding(22)
-                }
-                .frame(maxHeight: 560)
-                .background {
-                    ZStack {
-                        Image("ParchmentTexture")
-                            .resizable()
-                            .scaledToFill()
-                            .opacity(0.9)
-                        BookPalette.page.opacity(0.6)
-                        LinearGradient(
-                            colors: [
-                                BookPalette.lampGold.opacity(shimmer ? 0.16 : 0.05),
-                                .clear,
-                                BookPalette.teal.opacity(shimmer ? 0.08 : 0.03)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(BookPalette.lampGold.opacity(shimmer ? 0.62 : 0.34), lineWidth: 1)
-                }
-                .rotation3DEffect(.degrees(reduceMotion ? 0 : (pageTilt ? 0.8 : -0.8)), axis: (x: 0, y: 1, z: 0))
-                .padding(.horizontal, 22)
-                .shadow(color: BookPalette.lampGold.opacity(shimmer ? 0.18 : 0.08), radius: 22, x: 0, y: 8)
-                .shadow(color: .black.opacity(0.4), radius: 22, x: 0, y: 12)
+                    stepDots
+                        .padding(.top, isPortrait ? 18 : 16)
 
-                stepDots
-                    .padding(.top, 16)
-
-                Spacer(minLength: 30)
+                    Spacer(minLength: 30)
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height)
             }
         }
         .transition(.opacity)
+        #if canImport(QuickLook)
+        .quickLookPreview($castPreviewURL)
+        #endif
         .onAppear {
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
@@ -3398,6 +3512,23 @@ struct OnboardingFlowView: View {
                 pageTilt = true
             }
         }
+    }
+
+    private struct OnboardingCastMember: Identifiable {
+        var id: String { image }
+        let image: String
+        let name: String
+        let line: String
+        let tint: Color
+    }
+
+    private func notifyGlowUnlockedIfNeeded() {
+        guard !didNotifyGlowUnlocked else { return }
+        guard step >= 4 else { return }
+        guard !belief.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+        didNotifyGlowUnlocked = true
+        onGlowUnlocked()
     }
 
     private var stepDots: some View {
@@ -3436,11 +3567,13 @@ struct OnboardingFlowView: View {
                 Text(onboardingHeaderLine)
                     .font(.system(.callout, design: .serif).weight(.semibold))
                     .foregroundStyle(BookPalette.nightText)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.9)
             }
             Spacer(minLength: 0)
         }
         .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(BookPalette.nightPanel.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -3484,6 +3617,10 @@ struct OnboardingFlowView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .background(BookPalette.paper.opacity(0.48), in: Capsule())
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isOnboardingFieldFocused = false
+        }
     }
 
     @ViewBuilder
@@ -3491,76 +3628,116 @@ struct OnboardingFlowView: View {
         switch step {
         case 0:
             onboardingSystemStrip([
-                ("sparkles", "Pages rise"),
-                ("archivebox", "You keep what matters"),
-                ("brain.head.profile", "The Book remembers")
+                ("book.closed", "A living Book"),
+                ("building.columns", "An infinite Academy"),
+                ("door.left.hand.open", "An impossible arrival")
             ])
             onboardingTitle("The Cover Opens")
             onboardingProse("""
-            You open the Book, and the ink does not stay still.
+            You open the app.
 
-            Letters lift off the page like startled birds. You taste ink. You hear the low roar of old stories turning over in their sleep. The paper of history rushes past your ears — and then, gently, stone under your feet.
+            The first word lifts from the screen and turns to look at you.
 
-            You are standing in a colossal library-school. The light through the high windows matches the light outside your real window, exactly. That is the first rule here: this place is magic, but it pays attention to your actual day.
+            Then the sentence breaks its spine.
 
-            In the shadow of a shelf, something grey and silent tries to erase the edge of a bookcase. It retreats the moment you look at it.
+            Ink blooms under the glass, cold as rainwater and impossibly wet. It climbs through the light and over your fingers. The room tips. Your stomach remains briefly behind while the rest of you falls through the bright gutter between screen and story.
 
-            Zara's voice comes from somewhere nearby. "Don't panic. Mostly don't panic. You have fallen into ReEnchanted. The Book will offer you small pages from your real life. You decide what is worth keeping."
+            Stories rush past in layers. A green sea slaps salt across your mouth. Someone's first kiss tastes of strawberries and panic. Dragonfire warms the soles of your feet. Snow catches in your hair, smelling faintly of peppermint and old wool. A city burns somewhere below, its smoke curling into commas. You hear swords, lullabies, train brakes, wolves, applause — a thousand endings all happening at once.
+
+            There isn't any down. There are only chapters.
+
+            Words flock around you, sorting themselves as you fall. HERO circles your wrist and thinks better of it. WITNESS catches in your sleeve. LOST flashes across your ribs, crosses itself out, and becomes ARRIVING.
+
+            The screen widens until it has margins, then pages, then weather. White light brushes your cheeks like wings. For one breath you're sure you're about to be shelved.
+
+            Stone meets you in a crumple.
+
+            You're sprawled beneath a sky made of vaulted glass, inside a library so large its far shelves have sun showers. Towers of books lean together like old scholars. Staircases climb into cloud. Enchantify Academy burns gold among the stacks, and every student on the nearest gallery is staring at you.
+
+            Behind you, the app's screen goes black with the soft, final sound of a door deciding it was never there.
+
+            A bell misses its own note.
+
+            Someone whispers, with considerable academic alarm, "They came through the Unwritten."
             """)
             continueButton("Stand up")
         case 1:
-            guidePortrait(mood: "Zara has already decided you are interesting.")
+            onboardingPreviewCard(symbol: "text.book.closed", title: "Your life is inside the Book", body: "Your ordinary world is the Great Unwritten Chapter: alive, consequential, and still making its next sentence.")
+            onboardingTitle("The Chapter Without an Ending")
+            onboardingProse("""
+            A girl with quick gray eyes reaches you first. She checks your sleeves for punctuation, then looks behind you for a door that isn't there anymore.
+
+            "You're from the Great Unwritten," she says. Not a question. "Your ordinary world is a Chapter of this Book — supposedly the best one. No fixed plot. No narrator tidying things afterward. Everything you do can change what comes next."
+
+            She glances up at the watching students. "We can jump into nearly any written book. Walk its roads. Meet its people. Get chased out of its third act. But no one here can jump into yours. An unwritten next page can't hold a doorway."
+
+            "You, however, came the other way. Almost nobody does that. So they're going to be fascinated by your groceries, your weather, your terrible signs, and anything else you thought was ordinary. Sorry in advance."
+            """)
+            continueButton("Meet your guide")
+        case 2:
+            guidePortrait(mood: "Zara's already decided you're interesting.")
             onboardingTitle("The Guide")
             onboardingProse("""
-            A student helps you up and brushes ink off your shoulder. Quick eyes, a compass on a cord around her neck.
+            The quick-eyed student brushes ink off your shoulder. A compass hangs on a cord around her neck.
 
             "Zara Finch. You fell well — most people land in the cookery section."
 
-            She points down the aisle. "Before the Book starts choosing pages for you, it needs a few human details. Nothing grand. The little things are usually where the door-hinges are."
+            She points down the aisle. "Before the Book starts choosing pages for you, it needs a few human details. Nothing grand. The little things are usually where the magic gets specific."
 
             She studies you, then asks the most important question first:
 
-            "What's your favorite snack to eat while reading? I'm sharp green apples. They keep me awake when the footnotes get long."
+            "What's your favorite snack to eat while reading? Mine's sharp green apples. They keep me awake when the footnotes get long."
 
-            This is not a test. It is the Book learning your texture.
+            This isn't a test. It's the Book learning your texture.
             """)
             onboardingField("Your answer...", text: $snack)
             continueButton("Tell her", disabled: snack.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        case 2:
-            onboardingPreviewCard(symbol: "book.closed", title: "The Book learns your name", body: "This is how characters, letters, and future pages can speak to you without sounding like a form.")
-            onboardingTitle("The Name on the Flyleaf")
+        case 3:
+            onboardingPreviewCard(symbol: "book.closed", title: "The Book learns your name", body: "It's how characters, letters, and future pages can speak to you without sounding like a form.")
+            onboardingTitle("The Name the Book Knows")
             onboardingProse("""
             Zara nods, satisfied, as if your answer told her more than it should have.
 
-            "The Book will want to know what to call you. Not your full legal anything — just the name that feels like yours when someone says it kindly."
+            "The Book wants to know what to call you. Not your full legal anything — just the name that feels like yours when someone says it kindly."
 
-            She taps a blank line on the flyleaf. "Write that name here. Later, when someone in the stacks writes to you, this is the name they'll use."
+            She taps a blank line on the flyleaf. "Write that name here. Later, when someone in the stacks writes to you, that's the name they'll use."
             """)
             onboardingField("What should the Book call you?", text: $name)
             continueButton("Write it in", disabled: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        case 3:
+        case 4:
             onboardingPreviewCard(symbol: "leaf", title: "Beliefs become living ink", body: "A belief you name here can later glow, recur, gather pages, and pull story toward itself.")
-            onboardingTitle("The Core Question")
+            onboardingTitle("Belief and the Grey")
             onboardingProse("""
             Zara goes quiet for a moment. When she speaks again, her voice is lower.
 
-            "One more. The real one. This place runs on Belief — not belief as in being correct, but belief as in what you are willing to give attention to."
+            At the far end of the aisle, a grey absence worries at the corner of a page. A word vanishes. Then another.
 
-            "I believe every book is a door. That's mine. I'll trade it to you for yours."
+            "The Nothing," Zara says. "It isn't a villain. It's what remains when Belief leaves: pages eaten blank here; burnout, routine, and a world reduced to wallpaper in the Unwritten."
+
+            She raises her compass. The erased word returns in wet black ink. "Belief makes the magic happen. Not certainty. Attention. Care. The stubborn decision that something matters enough to become real again."
+
+            "I believe every book's a door. That's mine. I'll trade it to you for yours."
 
             "What do you believe in?"
 
-            It can be a person, a value, a promise, a place, a stubborn little light. Do not make it impressive. Make it true enough to follow.
+            It can be a person, a value, a promise, a place, a stubborn little light. Don't make it impressive. Make it true enough to follow.
             """)
             onboardingField("I believe...", text: $belief)
             if !belief.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 onboardingProse("""
                 "Good," Zara says. "Saying it out loud matters. But the Labyrinth remembers best when a belief has a little weight."
 
-                "Belief is what you give. Glow is what the Book shows you afterward."
+                "Belief's what you give. Glow's what the Book shows you afterward."
 
                 "You can plant three points of Belief into what you just named. The Book will hold it. Things with more Belief become more real here: they Glow brighter, appear in more Pages, and find their way into stories more often. It won't give those points back. That's why planting means something."
                 """)
+                onboardingPreviewCard(
+                    symbol: "sparkles",
+                    title: "Your Glow wakes",
+                    body: "The new pill at the top is yours. It shows the Book's attention around you, and later it opens the menu for giving Belief to pages, people, and patterns."
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.94)))
+
                 VStack(spacing: 10) {
                     Button {
                         BookFeedback.play(.braidStart)
@@ -3589,30 +3766,55 @@ struct OnboardingFlowView: View {
                     .tint(BookPalette.lampGold)
                 }
             }
-        case 4:
+        case 5:
+            onboardingTitle("The School's Argument")
+            onboardingProse("""
+            Zara leads you into a circular hall where five banners hang above an empty marble floor. They aren't stirring in a draft. They're leaning toward you.
+
+            "Enchantify was founded to teach one dangerous subject: how to re-enchant the world. Not by pretending life's perfect. By learning to notice it, enter it, sense it, write it, and rest inside it before the Nothing turns it flat."
+
+            The banners drop at once.
+
+            Emberheart comes first: heat without flame, red ink racing through your pulse, the fierce clean feeling of choosing. Mossbloom follows with rain-dark soil beneath your nails and the patience of roots moving where no one can see. Tidecrest breaks over both — salt, laughter, cold water, a moment so complete it refuses to become a lesson. Riddlewind arrives as another hand finding yours in the dark. Duskthorn is last: a bright black pressure beneath the breastbone, the honest edge that keeps a story from going soft.
+
+            For a heartbeat the hall disappears. You're falling again, not through books this time, but through five possible readings of your own life. Each one recognizes something. None agrees to explain what.
+
+            Then the marble strikes back beneath your shoes. The banners recoil to the rafters.
+
+            Zara steadies your elbow. "The school calls them Chapters. They aren't teams. They're arguments about what a life is. Emberheart says you author it. Mossbloom says something larger writes through you. Tidecrest says there isn't a story, only the living moment. Riddlewind says we write it together. Duskthorn says conflict keeps a story from becoming forgettable."
+
+            One banner leans toward you. Another pretends it didn't.
+
+            "You won't choose today," Zara says. "That'd be too easy. The Chapters will watch what you actually keep. When enough pages exist, the Binding will recognize where your Belief's been living."
+            """)
+            onboardingChapterStrip
+            continueButton("Let them watch")
+        case 6:
             onboardingTitle("The First Page Rises")
             onboardingProse("""
             A small page slips from the stack and lands in front of you.
 
-            Zara folds her arms. "This is the whole trick. The Book will offer pages. Some will ask a question. Some will notice the weather. Some will bring a character, a memory, or a small strange invitation."
+            Zara folds her arms. "This is the whole trick. The Book offers pages. Some ask a question. Some notice the weather. Some bring a character, a memory, or a small strange invitation."
 
-            "You do not have to keep them all. If a page is not for today, let it wait. If it catches something true, keep it. Kept pages become the archive the Book uses to remember you."
+            "You don't have to keep them all. If a page isn't for today, let it wait. If it catches something true, keep it. Kept pages become the archive the Book uses to remember you."
 
-            "Try it once, where it cannot hurt anything."
+            "Try it once, where it can't hurt anything."
             """)
             onboardingPracticePage
             continueButton(
                 rehearsalChoice == .keep ? "Keep the sentence" : "Let the page drift",
                 disabled: rehearsalChoice == nil || (rehearsalChoice == .keep && firstSouvenir.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             )
-        case 5:
+        case 7:
             onboardingTitle("The Cast Notices")
             onboardingProse("""
             Beyond Zara, the library-school is already full of people with opinions.
 
-            "You will meet them slowly," Zara says. "No one sensible introduces a whole academy at once. But you should know this much: the cast can write, argue, notice patterns, remember details, and change their minds."
+            "You'll meet them slowly," Zara says. "No one sensible introduces a whole academy at once. But they know you're here now — the person who jumped out of the Chapter none of us can enter."
 
-            Some will send letters. Some will disagree about what your pages mean. Some will remember a detail you forgot you gave them. The Book is not a menu of pages. It is a little society learning how to read you kindly.
+            Some send letters across the binding. Some ask for evidence from your unreachable world. Some disagree about what your pages mean. They remember what you tell them, form opinions, and change their minds.
+
+            Your real life matters here because it isn't flavor text. A true action in the Unwritten carries more weight than something merely narrated inside the Book. It's how you help the Academy resist the Nothing — and how the Academy helps you notice your world before it disappears into routine.
             """)
             onboardingCastGlimpse
             continueButton("Meet the morning")
@@ -3632,11 +3834,13 @@ struct OnboardingFlowView: View {
     private var onboardingSymbol: String {
         switch step {
         case 0: return "book.closed"
-        case 1: return "person.crop.circle"
-        case 2: return "text.book.closed"
-        case 3: return "leaf"
-        case 4: return "rectangle.stack"
-        case 5: return "person.2"
+        case 1: return "door.left.hand.open"
+        case 2: return "person.crop.circle"
+        case 3: return "text.book.closed"
+        case 4: return "leaf"
+        case 5: return "flag.2.crossed"
+        case 6: return "rectangle.stack"
+        case 7: return "person.2"
         default: return "sparkles"
         }
     }
@@ -3644,24 +3848,28 @@ struct OnboardingFlowView: View {
     private var onboardingStageName: String {
         switch step {
         case 0: return "Arrival"
-        case 1: return "Guide"
-        case 2: return "Flyleaf"
-        case 3: return "Belief"
-        case 4: return "First Page"
-        case 5: return "Cast"
+        case 1: return "The Unwritten"
+        case 2: return "Guide"
+        case 3: return "Name"
+        case 4: return "Belief"
+        case 5: return "Chapters"
+        case 6: return "First Page"
+        case 7: return "Cast"
         default: return "Threshold"
         }
     }
 
     private var onboardingHeaderLine: String {
         switch step {
-        case 0: return "The Book is waking up around you."
-        case 1: return "Zara Finch meets you at the edge of the stacks."
-        case 2: return "The flyleaf is listening for your name."
-        case 3: return "The first belief asks for weight."
-        case 4: return "You practice choosing what deserves the archive."
-        case 5: return "The world looks back."
-        default: return "The daily magic is about to begin."
+        case 0: return "The Book's waking up."
+        case 1: return "The Academy has never seen your door."
+        case 2: return "Zara meets you at the stacks."
+        case 3: return "The Book wants your name."
+        case 4: return "A first belief asks for weight."
+        case 5: return "Five old arguments notice you."
+        case 6: return "Try keeping one true page."
+        case 7: return "The world looks back."
+        default: return "The daily magic begins."
         }
     }
 
@@ -3739,74 +3947,123 @@ struct OnboardingFlowView: View {
     private var onboardingCastGlimpse: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                onboardingCastCard(
+                onboardingCastCard(OnboardingCastMember(
                     image: "LabyrinthCharacterZaraFinch",
                     name: "Zara",
                     line: "opens the door",
                     tint: BookPalette.teal
-                )
-                onboardingCastCard(
-                    image: "LabyrinthCharacterDrSeleneInkrest",
-                    name: "Inkrest",
-                    line: "remembers gently",
+                ))
+                onboardingCastCard(OnboardingCastMember(
+                    image: "LabyrinthCharacterFinnBridges",
+                    name: "Finn",
+                    line: "finds the path",
                     tint: BookPalette.violet
-                )
+                ))
             }
             HStack(spacing: 8) {
-                onboardingCastCard(
+                onboardingCastCard(OnboardingCastMember(
                     image: "LabyrinthCharacterPennyBlackletter",
                     name: "Penny",
                     line: "spots the glint",
                     tint: BookPalette.gold
-                )
-                onboardingCastCard(
-                    image: "LabyrinthCharacterHeadmistressSeraphinaThorne",
-                    name: "Seraphina",
+                ))
+                onboardingCastCard(OnboardingCastMember(
+                    image: "LabyrinthCharacterOrionBlackthorn",
+                    name: "Orion",
                     line: "guards the threshold",
                     tint: BookPalette.lampGold
-                )
+                ))
             }
         }
     }
 
-    private func onboardingCastCard(image: String, name: String, line: String, tint: Color) -> some View {
+    private var onboardingChapterStrip: some View {
         VStack(spacing: 8) {
-            Image(image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 54, height: 54)
-                .clipShape(Circle())
-                .overlay {
-                    Circle()
-                        .stroke(tint.opacity(0.72), lineWidth: 1.4)
+            ForEach(AcademyChapterRegistry.publicChapters) { chapter in
+                HStack(spacing: 10) {
+                    Image(systemName: chapter.symbolName)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(BookPalette.lampGold)
+                        .frame(width: 30, height: 30)
+                        .background(BookPalette.nightPanel.opacity(0.86), in: Circle())
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(chapter.name)
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(BookPalette.ink)
+                        Text(chapter.philosophy)
+                            .font(.system(size: 10, design: .serif))
+                            .foregroundStyle(BookPalette.ink.opacity(0.66))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.82)
+                    }
+                    Spacer(minLength: 0)
                 }
-                .shadow(color: tint.opacity(0.22), radius: 8)
-                .accessibilityHidden(true)
-            Text(name)
-                .font(.caption.weight(.black))
-                .foregroundStyle(BookPalette.ink)
-            Text(line)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(BookPalette.ink.opacity(0.58))
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.82)
+                .padding(9)
+                .background(BookPalette.paper.opacity(0.44), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.lampGold.opacity(0.16), lineWidth: 1)
+                }
+            }
         }
-        .frame(maxWidth: .infinity, minHeight: 126)
-        .padding(10)
-        .background(BookPalette.paper.opacity(0.46), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(tint.opacity(0.18), lineWidth: 1)
+    }
+
+    private func onboardingCastCard(_ member: OnboardingCastMember) -> some View {
+        Button {
+            guard let url = ImagePreview.url(forAsset: member.image) else {
+                BookFeedback.play(.error)
+                return
+            }
+            BookFeedback.play(.openPage)
+            castPreviewURL = url
+        } label: {
+            VStack(spacing: 8) {
+                Image(member.image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 54, height: 54)
+                    .clipShape(Circle())
+                    .overlay {
+                        Circle()
+                            .stroke(member.tint.opacity(0.72), lineWidth: 1.4)
+                    }
+                    .shadow(color: member.tint.opacity(0.22), radius: 8)
+                    .accessibilityHidden(true)
+                Text(member.name)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(BookPalette.ink)
+                Text(member.line)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.58))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.82)
+            }
+            .frame(maxWidth: .infinity, minHeight: 126)
+            .padding(10)
+            .background(BookPalette.paper.opacity(0.46), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(member.tint.opacity(0.18), lineWidth: 1)
+            }
+            .overlay(alignment: .topTrailing) {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.system(size: 9, weight: .black))
+                    .foregroundStyle(member.tint.opacity(0.7))
+                    .padding(6)
+            }
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open full illustration of \(member.name)")
     }
 
     private var closingProse: String {
         let planted = investedBelief
-            ? "Somewhere deep in the Register, ink moves. Your belief now has a Glow of its own. It will start shaping what finds you.\n\n"
+            ? "Somewhere deep in the Register, ink moves. Your belief now has a Glow of its own. It'll start shaping what finds you.\n\n"
             : "Zara nods. \"Wise. Some things you keep.\"\n\n"
         return """
-        \(planted)"Here's how this place works," Zara says, walking you toward a desk where a book lies open to a blank page — your page.
+        \(planted)"One last correction," Zara says, walking you toward a desk where a book lies open to a blank page — your page. "You didn't open an app. You entered the Book. You're standing in its story now, and your life outside is one of its Chapters. Both are real. The binding's simply strange."
 
         "Pages rise to meet your real day. Keep the ones worth keeping. Let the others wait without guilt."
 
@@ -3814,9 +4071,11 @@ struct OnboardingFlowView: View {
 
         "Give Belief to whatever you want the Book to treat as more real. More Belief means brighter Glow, more appearances, and more gravity in the story."
 
-        "At night, read your Book of You. It braids what you kept into a fuller page, and over time those pages become patterns, themes, and a story only your life could have written."
+        "At night, read your Book of You. It'll braid what you kept into a fuller page. Those pages become patterns, friendships, rivalries, and eventually the evidence the Chapters use when they Bind you."
 
-        She taps the cover once. "Real life, re-enchanted. Off you go."
+        A grey bite appears at the edge of the blank paper. Zara puts your first true sentence over it, and the damage stops.
+
+        She taps the cover once. "That's the work. Re-enchant the Unwritten before the Nothing convinces you it was ordinary. Off you go."
         """
     }
 
@@ -3861,7 +4120,11 @@ struct OnboardingFlowView: View {
             .lineLimit(2)
             .minimumScaleFactor(0.82)
             .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                isOnboardingFieldFocused = false
+            }
     }
 
     private func onboardingProse(_ text: String) -> some View {
@@ -3870,6 +4133,10 @@ struct OnboardingFlowView: View {
             .foregroundStyle(BookPalette.ink.opacity(0.86))
             .lineSpacing(3)
             .fixedSize(horizontal: false, vertical: true)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                isOnboardingFieldFocused = false
+            }
     }
 
     private func onboardingField(_ placeholder: String, text: Binding<String>) -> some View {
@@ -3878,6 +4145,7 @@ struct OnboardingFlowView: View {
             .foregroundStyle(BookPalette.ink)
             .textFieldStyle(.plain)
             .lineLimit(1...3)
+            .focused($isOnboardingFieldFocused)
             .dictationInput(text: text)
             .padding(12)
             .background(BookPalette.paper.opacity(0.8), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -3889,6 +4157,7 @@ struct OnboardingFlowView: View {
 
     private func continueButton(_ title: String, disabled: Bool = false) -> some View {
         Button {
+            isOnboardingFieldFocused = false
             BookFeedback.play(.openPage)
             advance()
         } label: {
@@ -3948,6 +4217,10 @@ struct OnboardingFlowView: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(BookPalette.page.opacity(0.56), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isOnboardingFieldFocused = false
+        }
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(BookPalette.teal.opacity(0.18), lineWidth: 1)

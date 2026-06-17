@@ -91,6 +91,53 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(activeSourceIDs.isSubset(of: adapterSourceIDs))
     }
 
+    func testCoreRadioStationsAreAvailableWithoutPacks() throws {
+        let stations = RadioStationRegistry.stations()
+
+        XCTAssertEqual(stations.map(\.id), ["scriptorium-desk", "inkrest-office", "casement-static"])
+        XCTAssertTrue(stations.allSatisfy(\.isCore))
+        XCTAssertEqual(try XCTUnwrap(RadioStationRegistry.station(id: "inkrest-office")).displayFrequency, "101.5")
+    }
+
+    func testUnlockedRadioSoundPackAddsStationsToDial() throws {
+        let lockedStations = RadioStationRegistry.stations()
+        let unlockedStations = RadioStationRegistry.stations(unlockedPackIDs: ["academy-night-band"])
+
+        XCTAssertFalse(lockedStations.contains { $0.id == "goblin-market-jazz" })
+        XCTAssertTrue(unlockedStations.contains { $0.id == "midnight-bindery" })
+        XCTAssertTrue(unlockedStations.contains { $0.id == "goblin-market-jazz" })
+        XCTAssertEqual(try XCTUnwrap(RadioStationRegistry.station(id: "goblin-market-jazz", unlockedPackIDs: ["academy-night-band"])).displayFrequency, "103.7")
+    }
+
+    func testManualRadioPageCarriesStationMetadata() {
+        var inputs = richInputs()
+        inputs.radio = RadioPlaybackState(activeStationID: "casement-static")
+
+        let surface = BookPageSourceAdapters.manualSurface(
+            for: .radio,
+            day: emptyDay(),
+            context: CuratorContext.make(for: emptyDay()),
+            inputs: inputs,
+            now: localDate(hour: 20)
+        )
+
+        XCTAssertEqual(surface.type, .radio)
+        XCTAssertEqual(surface.sourceID, "reenchanted-radio")
+        XCTAssertEqual(surface.payload.metadata["radioStationID"], "casement-static")
+        XCTAssertEqual(surface.payload.metadata["radioFrequency"], "107.9")
+        XCTAssertTrue(surface.payload.metadata["radioEffects"]?.contains("Weather +10") == true)
+    }
+
+    func testTunedRadioStationBoostsCuratorMood() {
+        var inputs = richInputs()
+        inputs.radio = RadioPlaybackState(activeStationID: "inkrest-office")
+        let mood = CuratorMood.make(inputs: inputs, now: localDate(hour: 11))
+        let restPage = SurfacePage(type: .rest, sourceID: "center-page", prompt: "Center", detail: "Breathe.")
+        let weatherPage = SurfacePage(type: .weather, sourceID: "weather-page", prompt: "Weather", detail: "Outside.")
+
+        XCTAssertGreaterThan(mood.adjustment(for: restPage, now: localDate(hour: 11)), mood.adjustment(for: weatherPage, now: localDate(hour: 11)))
+    }
+
     func testSurfacePageSourceMetadataResolvesFromSourceID() {
         let page = SurfacePage(
             type: .weather,
@@ -116,6 +163,136 @@ final class BookCuratorTests: XCTestCase {
         assertCheckInPrimary(.souvenir, atHour: 18, minute: 0)
         assertCheckInPrimary(.mood, atHour: 18, minute: 35)
         assertCheckInPrimary(.fuel, atHour: 19, minute: 10)
+    }
+
+    func testFirstHoursCuratorHidesDeepSystemCards() {
+        let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
+        let candidates = [
+            rankedCandidate(.bookConnections, score: 100),
+            rankedCandidate(.bookRemembered, score: 99),
+            rankedCandidate(.faeBargain, score: 98),
+            rankedCandidate(.marginsAtlas, score: 97),
+            rankedCandidate(.theBleed, score: 96),
+            rankedCandidate(.helpTips, score: 40),
+            rankedCandidate(.fuel, score: 39),
+            rankedCandidate(.souvenir, score: 38)
+        ]
+        let mood = CuratorMood.make(inputs: .empty, now: now)
+
+        let pages = BookCurator.rankedPages(
+            from: candidates,
+            limit: 8,
+            mood: mood,
+            now: now
+        ).map(\.page)
+
+        XCTAssertFalse(pages.contains { [.bookConnections, .bookRemembered, .faeBargain, .marginsAtlas, .theBleed].contains($0.type) })
+        XCTAssertEqual(Set(pages.map(\.type)), [.helpTips, .fuel, .souvenir])
+    }
+
+    func testFirstHoursCuratorBoostsOrientationCards() {
+        let now = localDate(year: 2026, month: 6, day: 1, hour: 11)
+        let candidates = [
+            rankedCandidate(.castMember, score: 49),
+            rankedCandidate(.helpTips, score: 42),
+            rankedCandidate(.lore, score: 41),
+            rankedCandidate(.mood, score: 40)
+        ]
+        let mood = CuratorMood.make(inputs: .empty, now: now)
+
+        let pages = BookCurator.rankedPages(
+            from: candidates,
+            limit: 3,
+            mood: mood,
+            now: now
+        ).map(\.page)
+
+        XCTAssertEqual(pages.first?.type, .helpTips)
+        XCTAssertEqual(Set(pages.map(\.type)), [.helpTips, .lore, .mood])
+    }
+
+    func testDeepSystemCardsReturnAfterFirstHours() {
+        let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = [
+            SelfFact(
+                id: "onboarding-name",
+                questionID: "onboarding-name",
+                question: "What should the Book call you?",
+                answer: "Avery",
+                bookTranslation: "The Book knows this now.",
+                sensitivity: .identity,
+                usePermission: .privateContext,
+                tags: ["identity", "onboarding"],
+                createdAt: now.addingTimeInterval(-7 * 3600),
+                updatedAt: now.addingTimeInterval(-7 * 3600)
+            )
+        ]
+        let candidates = [
+            rankedCandidate(.bookConnections, score: 100),
+            rankedCandidate(.bookRemembered, score: 99),
+            rankedCandidate(.helpTips, score: 40)
+        ]
+        let mood = CuratorMood.make(inputs: inputs, now: now)
+
+        let pages = BookCurator.rankedPages(
+            from: candidates,
+            limit: 3,
+            mood: mood,
+            now: now
+        ).map(\.page)
+
+        XCTAssertEqual(pages.map(\.type), [.bookConnections, .bookRemembered, .helpTips])
+    }
+
+    func testRecentlySurfacedPageTypeIsSuppressedBriefly() {
+        let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
+        var mood = CuratorMood.neutral
+        mood.surfaceHistory = [
+            CuratorVarietyGovernor.typeKey(for: .fuel): SurfaceHistoryRecord(
+                lastShownAt: now.addingTimeInterval(-20 * 60),
+                recentShowCount: 1
+            )
+        ]
+        let candidates = [
+            rankedCandidate(.fuel, score: 100),
+            rankedCandidate(.weather, score: 40),
+            rankedCandidate(.mood, score: 39)
+        ]
+
+        let pages = BookCurator.rankedPages(
+            from: candidates,
+            limit: 3,
+            mood: mood,
+            now: now
+        ).map(\.page)
+
+        XCTAssertFalse(pages.contains { $0.type == .fuel })
+        XCTAssertEqual(Set(pages.map(\.type)), [.weather, .mood])
+    }
+
+    func testSurfacedPageTypeReturnsAfterCooldown() {
+        let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
+        var mood = CuratorMood.neutral
+        mood.surfaceHistory = [
+            CuratorVarietyGovernor.typeKey(for: .fuel): SurfaceHistoryRecord(
+                lastShownAt: now.addingTimeInterval(-91 * 60),
+                recentShowCount: 1
+            )
+        ]
+        let candidates = [
+            rankedCandidate(.fuel, score: 100),
+            rankedCandidate(.weather, score: 40)
+        ]
+
+        let pages = BookCurator.rankedPages(
+            from: candidates,
+            limit: 2,
+            mood: mood,
+            now: now
+        ).map(\.page)
+
+        XCTAssertEqual(pages.first?.type, .fuel)
     }
 
     func testSouvenirCanReturnInSeparateCheckInWindows() {
@@ -630,6 +807,32 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertGreaterThan(event.effect.relationshipWeightDeltas["weather-bleeds-book"] ?? 0, 0)
     }
 
+    func testAcademyClassKeptWeightsProfessorSubjectAndLesson() {
+        let page = BookPage(
+            id: "glint-class-kept",
+            type: .academyClass,
+            createdAt: localDate(hour: 9),
+            promptText: "Class: The Art of the Glint",
+            userInput: "Chosen path: Try the Lesson",
+            tags: [
+                "academy",
+                "class",
+                "art-of-the-glint",
+                "class:art-of-the-glint",
+                "subject:notice-north",
+                "entity:lydia-boggle",
+                "lesson:glint-specificity-001"
+            ]
+        )
+
+        let event = NarrativeEventResolver.event(forKept: page)
+
+        XCTAssertGreaterThan(event.effect.entityWeightDeltas["lydia-boggle"] ?? 0, 0)
+        XCTAssertGreaterThan(event.effect.threadWeightDeltas["notice-north"] ?? 0, 0)
+        XCTAssertGreaterThan(event.effect.threadWeightDeltas["art-of-the-glint"] ?? 0, 0)
+        XCTAssertGreaterThan(event.effect.threadWeightDeltas["glint-specificity-001"] ?? 0, 0)
+    }
+
     func testIlluminatedPhotoKeptCreatesPennyEventAndTalismanHint() {
         let page = BookPage(
             id: "photo-kept",
@@ -1032,6 +1235,196 @@ final class BookCuratorTests: XCTestCase {
         )
     }
 
+    func testIllustrationCopyIsWrittenByTheBookInsteadOfExposingDossierMetadata() {
+        let profile = CharacterIllustrationProfile(
+            id: "dr-elowen-vellum",
+            characterName: "Dr. Elowen Vellum",
+            slug: "dr-elowen-vellum",
+            status: "canonical",
+            chapter: nil,
+            core: "Precise in her care; sharp kind eyes",
+            signature: "a silver bookmark-caliper and red marginal notes",
+            palette: "warm parchment",
+            silhouette: "upright",
+            continuity: "",
+            avoid: "",
+            assetName: nil,
+            intendedAssetName: "",
+            prompt: "production prompt",
+            negativePrompt: "",
+            marginalia: ["production note"],
+            tags: ["character"]
+        )
+
+        let title = LabyrinthIllustrationPageSourceAdapter.bookPageTitle(for: profile)
+        let body = LabyrinthIllustrationPageSourceAdapter.bookPageBody(for: profile)
+
+        XCTAssertEqual(title, "The Book Remembers: Dr. Elowen Vellum")
+        XCTAssertTrue(body.contains("where the ink begins"))
+        XCTAssertFalse(body.localizedCaseInsensitiveContains("dossier"))
+        XCTAssertFalse(body.localizedCaseInsensitiveContains("marginalia:"))
+        XCTAssertFalse(body.localizedCaseInsensitiveContains("silhouette:"))
+        XCTAssertFalse(body.contains("|"))
+    }
+
+    func testWorldEventResolverActivatesDictionaryRebellionByCalendar() throws {
+        let now = localDate(year: 2026, month: 9, day: 10, hour: 12)
+
+        let events = WorldEventResolver.activeEvents(now: now)
+        let event = try XCTUnwrap(events.first { $0.id == "dictionary-rebellion" })
+
+        XCTAssertEqual(event.title, "The Dictionary Rebellion")
+        XCTAssertTrue(event.influenceLine.contains("Words are peeling off"))
+        XCTAssertFalse(event.phase.lexicalRules.isEmpty)
+    }
+
+    func testDictionaryRebellionInfluencesStoryPacket() {
+        let now = localDate(year: 2026, month: 9, day: 10, hour: 16)
+
+        let packet = StoryScenePacketBuilder.packet(
+            for: dayWithMusicSouvenir(),
+            inputs: richInputs(),
+            now: now
+        )
+
+        XCTAssertTrue(packet.activeWorldEvents.contains { $0.id == "dictionary-rebellion" })
+        XCTAssertTrue(packet.realSignals.contains { $0.contains("WORLD EVENT: The Dictionary Rebellion") })
+        XCTAssertTrue(packet.selectedEntities.contains { $0.id == "penny-blackletter" })
+        XCTAssertTrue(packet.selectedThreads.contains { $0.id == "ordinary-magic" })
+    }
+
+    func testWorldEventResolverPromotesOutcomeFromKeptEventPages() throws {
+        let now = localDate(year: 2026, month: 9, day: 12, hour: 12)
+        let pages = (0..<3).map { index in
+            BookPage(
+                id: "event-touch-\(index)",
+                type: index == 0 ? .letter : .bookNotices,
+                createdAt: localDate(year: 2026, month: 9, day: 9 + index, hour: 12),
+                promptText: "Dictionary Rebellion",
+                userInput: "A word changed.",
+                tags: ["world-event", "event:dictionary-rebellion", "event-phase:outbreak"]
+            )
+        }
+        let day = BookDay(id: "2026-09-12", date: localDate(year: 2026, month: 9, day: 12, hour: 0), pages: pages)
+        var inputs = richInputs()
+        inputs.days = [day]
+
+        let event = try XCTUnwrap(WorldEventResolver.activeEvents(now: now, inputs: inputs).first { $0.id == "dictionary-rebellion" })
+
+        XCTAssertEqual(event.playerTouchCount, 3)
+        XCTAssertEqual(event.outcome?.id, "lexical-ally")
+        XCTAssertTrue(event.influenceLine.contains("Lexical Ally"))
+    }
+
+    func testDictionaryRebellionOutcomeFeedsStoryPacket() {
+        let now = localDate(year: 2026, month: 9, day: 12, hour: 16)
+        let touches = (0..<5).map { index in
+            BookPage(
+                id: "definition-touch-\(index)",
+                type: .letter,
+                createdAt: localDate(year: 2026, month: 9, day: 8 + index, hour: 12),
+                promptText: "A rebellion note",
+                userInput: "A definition changed.",
+                tags: ["world-event", "event:dictionary-rebellion"]
+            )
+        }
+        var inputs = richInputs()
+        inputs.days = [BookDay(id: "2026-09-12", date: localDate(year: 2026, month: 9, day: 12, hour: 0), pages: touches)]
+
+        let packet = StoryScenePacketBuilder.packet(
+            for: dayWithMusicSouvenir(),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertEqual(packet.activeWorldEvents.first { $0.id == "dictionary-rebellion" }?.outcome?.id, "definition-binder")
+        XCTAssertTrue(packet.realSignals.contains { $0.contains("Definition Binder") })
+    }
+
+    func testWorldEventsBoostAndTagSurfacedPages() throws {
+        let now = localDate(year: 2026, month: 9, day: 10, hour: 10)
+
+        let pages = BookCurator.surfacedPages(
+            for: emptyDay(),
+            inputs: richInputs(),
+            now: now,
+            limit: 12
+        )
+        let affected = pages.filter { $0.payload.metadata["worldEventIDs"]?.contains("dictionary-rebellion") == true }
+
+        XCTAssertFalse(affected.isEmpty)
+        XCTAssertTrue(affected.contains { $0.type == .letter || $0.type == .academyClass || $0.type == .bookNotices })
+        XCTAssertTrue(affected.allSatisfy { ($0.payload.metadata["tags"] ?? "").contains("event:dictionary-rebellion") })
+        XCTAssertTrue(affected.allSatisfy { ($0.payload.metadata["tags"] ?? "").contains("event-outcome:unwitnessed") })
+    }
+
+    func testWorldEventDoorSurfacesFieldworkDuringActiveEvent() throws {
+        let now = localDate(year: 2026, month: 9, day: 10, hour: 10)
+
+        let pages = BookCurator.surfacedPages(
+            for: emptyDay(),
+            inputs: richInputs(),
+            now: now,
+            limit: 12
+        )
+        let eventDoor = try XCTUnwrap(pages.first { $0.sourceID == "world-event-door" })
+
+        XCTAssertEqual(eventDoor.type, .bookNotices)
+        XCTAssertEqual(eventDoor.intent, .capture)
+        XCTAssertTrue(eventDoor.payload.body.contains("Fieldwork:"))
+        XCTAssertTrue(eventDoor.payload.metadata["fieldworkPrompt"]?.contains("ordinary word") == true)
+        XCTAssertTrue(eventDoor.payload.metadata["tags"]?.contains("event-fieldwork") == true)
+    }
+
+    func testWorldEventDoorReflectsOutcomeAfterPlayerTouchesEvent() throws {
+        let now = localDate(year: 2026, month: 9, day: 12, hour: 10)
+        let touches = (0..<5).map { index in
+            BookPage(
+                id: "event-door-touch-\(index)",
+                type: .bookNotices,
+                createdAt: localDate(year: 2026, month: 9, day: 8 + index, hour: 12),
+                promptText: "Dictionary fieldwork",
+                userInput: "A better definition.",
+                tags: ["world-event", "event:dictionary-rebellion", "event-fieldwork"]
+            )
+        }
+        var inputs = richInputs()
+        inputs.days = [BookDay(id: "2026-09-12", date: localDate(year: 2026, month: 9, day: 12, hour: 0), pages: touches)]
+
+        let manual = BookPageSourceAdapters.active
+            .first { $0.source.id == "world-event-door" }?
+            .manualSurface(for: emptyDay(), context: .make(for: emptyDay()), inputs: inputs, now: now)
+
+        let eventDoor = try XCTUnwrap(manual)
+        XCTAssertTrue(eventDoor.payload.body.contains("Definition Binder"))
+        XCTAssertEqual(eventDoor.payload.metadata["worldEventOutcome"], "definition-binder")
+        XCTAssertTrue(eventDoor.payload.metadata["tags"]?.contains("event-outcome:definition-binder") == true)
+    }
+
+    func testMonthlyEditionBindsWorldEventTracesFromKeptTags() throws {
+        let eventPage = BookPage(
+            type: .letter,
+            createdAt: localDate(year: 2026, month: 9, day: 10, hour: 12),
+            promptText: "A letter from Penny",
+            userInput: "The word ordinary resigned.",
+            tags: ["letter", "world-event", "event:dictionary-rebellion", "event-phase:outbreak", "event-outcome:lexical-ally"]
+        )
+        let day = BookDay(id: "2026-09-10", date: localDate(year: 2026, month: 9, day: 10, hour: 0), pages: [eventPage])
+
+        let edition = MonthlyEditionBuilder.edition(
+            from: [day],
+            readerName: "Avery",
+            startDate: localDate(year: 2026, month: 9, day: 1, hour: 0),
+            endDate: localDate(year: 2026, month: 9, day: 30, hour: 23),
+            generatedAt: localDate(year: 2026, month: 9, day: 30, hour: 12)
+        )
+        let section = try XCTUnwrap(edition.sections.first { $0.id == "world-events" })
+
+        XCTAssertEqual(section.title, "World Events")
+        XCTAssertTrue(section.items.first?.body.contains("Dictionary Rebellion") == true)
+        XCTAssertTrue(section.items.first?.body.contains("Lexical Ally") == true)
+    }
+
     private func localDate(hour: Int, minute: Int = 0) -> Date {
         var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
         components.hour = hour
@@ -1065,6 +1458,17 @@ final class BookCuratorTests: XCTestCase {
         for type in types where type != expected {
             XCTAssertEqual(boosts[type], -18, file: file, line: line)
         }
+    }
+
+    private func rankedCandidate(_ type: BookPageType, score: Int) -> SurfacePage {
+        SurfacePage(
+            id: "candidate-\(type.rawValue)",
+            type: type,
+            sourceID: "candidate-\(type.rawValue)",
+            score: score,
+            prompt: type.title,
+            detail: "Candidate for \(type.title)."
+        )
     }
 
     private func distance(_ a: CodablePoint, _ b: CodablePoint) -> Double {

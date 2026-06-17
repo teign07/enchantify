@@ -45,6 +45,18 @@ struct CharacterIllustrationProfile: Identifiable, Codable, Equatable {
     var hasBundledAsset: Bool {
         assetName?.isEmpty == false
     }
+
+    var illustrationDossierKind: String {
+        if tags.contains("location") || status == "location" { return "Location dossier" }
+        if tags.contains("book-fae") || status == "book-fae" { return "Book Fae dossier" }
+        return "Character dossier"
+    }
+
+    var illustrationTag: String {
+        if tags.contains("location") || status == "location" { return "location" }
+        if tags.contains("book-fae") || status == "book-fae" { return "book-fae" }
+        return "character"
+    }
 }
 
 enum QuipPackAvailability: String, Codable, Equatable {
@@ -393,7 +405,7 @@ enum BookReferenceCatalog {
 
     static var characterIllustrations: [CharacterIllustrationProfile] {
         let profiles = bundledLibrary.characterIllustrations
-        return profiles.isEmpty ? fallbackCharacterIllustrations : profiles
+        return profiles.isEmpty ? fallbackCharacterIllustrations + fallbackScheduledProfessorIllustrations : profiles
     }
 
     static var labyrinthIllustrations: [LabyrinthIllustrationPlate] {
@@ -405,6 +417,12 @@ enum BookReferenceCatalog {
         "LabyrinthCharacterGwendolynMythwright",
         "LabyrinthCharacterSorenNg",
         "LabyrinthCharacterLydiaBoggle",
+        "LabyrinthCharacterProfessorKyleMomort",
+        "LabyrinthCharacterProfessorEleanorEuphony",
+        "LabyrinthCharacterProfessorVivianVillanelle",
+        "LabyrinthCharacterProfessorCedricStonebrook",
+        "LabyrinthCharacterProfessorLunaWispwood",
+        "LabyrinthCharacterProfessorPermancer",
         "LabyrinthTalismanEmberSeal",
         "LabyrinthTalismanMossClasp",
         "LabyrinthTalismanTideGlass",
@@ -415,8 +433,22 @@ enum BookReferenceCatalog {
         "LabyrinthCharacterOrionBlackthorn",
         "LabyrinthCharacterPennyBlackletter",
         "LabyrinthCharacterSerenityBrown",
+        "LabyrinthCharacterFinnBridges",
+        "LabyrinthCharacterLysanderMosswood",
+        "LabyrinthCharacterDamienNights",
+        "LabyrinthCharacterMinSeoKim",
+        "LabyrinthCharacterMelisandeBlackwood",
         "LabyrinthCharacterWickerEddies",
-        "LabyrinthCharacterZaraFinch"
+        "LabyrinthCharacterZaraFinch",
+        "LabyrinthFaeBookSprite",
+        "LabyrinthFaeSentenceSalamander",
+        "LabyrinthFaePunctuationPixie",
+        "LabyrinthFaeDeepLoreDwarf",
+        "LabyrinthFaeMarginaliaGoblin",
+        "LabyrinthLocationOuterStacks",
+        "LabyrinthLocationStacks",
+        "LabyrinthLocationGreatHall",
+        "LabyrinthLocationKitchens"
     ]
 
     private static var characterIllustrationPlates: [LabyrinthIllustrationPlate] {
@@ -430,8 +462,8 @@ enum BookReferenceCatalog {
                 assetName: assetName,
                 title: profile.characterName,
                 caption: profile.core,
-                note: "Character dossier illustration. Signature: \(profile.signature). Marginalia: \(profile.marginalia.joined(separator: " | ")).",
-                tags: Array((["illustration", "character", profile.slug] + profile.tags).prefix(8)),
+                note: "\(profile.illustrationDossierKind) illustration. Signature: \(profile.signature). Marginalia: \(profile.marginalia.joined(separator: " | ")).",
+                tags: Array((["illustration", profile.illustrationTag, profile.slug] + profile.tags).prefix(8)),
                 characterID: profile.id
             )
         }
@@ -484,6 +516,147 @@ enum BookReferenceCatalog {
                 "chapter mark: Duskthorn"
             ],
             tags: ["canonical", "character", "duskthorn", "illustration", "vesper-thorne"]
+        )
+    ]
+
+    private static let fallbackScheduledProfessorIllustrations = [
+        CharacterIllustrationProfile(
+            id: "lydia-boggle",
+            characterName: "Professor Lydia Boggle",
+            slug: "lydia-boggle",
+            status: "canonical",
+            chapter: "Riddlewind",
+            core: "Professor of The Art of the Glint — the noticing class. Humorous, witty, mid-laugh; an animist with a chaos streak who finds the glint in the garbage and pays the world the attention it's owed. Always a pun ready.",
+            signature: "a small glint-lens held up to an ordinary found object (a misspelled sign, an odd vanity plate)",
+            palette: "marigold gold, robin's-egg blue, warm ink",
+            silhouette: "caught mid-delight, holding an ordinary object up to the light as if it were evidence",
+            continuity: "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+            avoid: "solemn sage, tidy academic portrait, inconsistent signature object, polished digital fantasy portrait",
+            assetName: "LabyrinthCharacterLydiaBoggle",
+            intendedAssetName: "LabyrinthCharacterLydiaBoggle",
+            prompt: "Create an Enchantify Academy character dossier illustration in the house style: sparse graphite and ink linework, watercolor washes, jewel-color accents, and character-specific parchment marginalia. A single character, centered, knowing and a little uncanny — not a generic portrait. Subject: Professor Lydia Boggle — playful Riddlewind professor of noticing, animist with a chaos sensibility, mid-laugh, holding an ordinary object up to the light like evidence. Signature: a small glint-lens and odd found objects (a misspelled sign, a vanity plate). Palette: marigold gold, robin's-egg blue, warm ink.",
+            negativePrompt: "Avoid generic fantasy pinup, glossy anime, polished digital fantasy portrait, room-first composition, and inconsistent signature object.",
+            marginalia: [
+                "file tab labeled Professor Lydia Boggle",
+                "signature evidence: a glint-lens and an ordinary object held to the light",
+                "jewel-color swatches: marigold gold, robin's-egg blue, warm ink",
+                "margin note: \"what does it know? — wait for it\""
+            ],
+            tags: ["canonical", "character", "riddlewind", "noticing", "glint", "illustration", "lydia-boggle"]
+        ),
+        CharacterIllustrationProfile(
+            id: "professor-kyle-momort",
+            characterName: "Professor Kyle Momort",
+            slug: "professor-kyle-momort",
+            status: "canonical",
+            chapter: "Emberheart",
+            core: "Professor of Wayfinding and Narrative Kineticism; brisk, charismatic, and a little too fond of exits; teaches intentional momentum and small crossed thresholds.",
+            signature: "a folding route-map and a chalk arrow that refuses to point backward",
+            palette: "ember orange, road-sign blue, charcoal ink",
+            silhouette: "already in motion, coat turning behind him, one hand marking a route",
+            continuity: "Preserve the moving posture, folding route-map, chalk arrow, and quick amused expression.",
+            avoid: "static lecturer, generic adventurer, room-first composition, polished digital fantasy portrait",
+            assetName: "LabyrinthCharacterProfessorKyleMomort",
+            intendedAssetName: "LabyrinthCharacterProfessorKyleMomort",
+            prompt: "Enchantify Academy dossier portrait in sparse graphite, ink, and watercolor: Professor Kyle Momort in motion with a folding route-map and impossible chalk arrow; ember orange, road-sign blue, charcoal ink; kinetic marginalia and threshold diagrams.",
+            negativePrompt: "Avoid generic fantasy pinup, glossy anime, static office portrait, and inconsistent signature objects.",
+            marginalia: ["file tab labeled Professor Kyle Momort", "signature evidence: folding route-map and chalk arrow", "chapter mark: Emberheart"],
+            tags: ["canonical", "character", "faculty", "professor", "emberheart", "wayfinding", "illustration"]
+        ),
+        CharacterIllustrationProfile(
+            id: "professor-eleanor-euphony",
+            characterName: "Professor Eleanor Euphony",
+            slug: "professor-eleanor-euphony",
+            status: "canonical",
+            chapter: "Tidecrest",
+            core: "Professor of Synesthetic Resonance; lush, attentive, and able to hear the emotional weather humming inside a room.",
+            signature: "a silver tuning fork wound with colored thread",
+            palette: "tidal blue, plum violet, resonant silver",
+            silhouette: "head tilted toward an unheard chord, tuning fork poised near one palm",
+            continuity: "Preserve the listening posture, colored-thread tuning fork, and sensory notation in the margins.",
+            avoid: "stage singer, generic musician, room-first composition, polished digital fantasy portrait",
+            assetName: "LabyrinthCharacterProfessorEleanorEuphony",
+            intendedAssetName: "LabyrinthCharacterProfessorEleanorEuphony",
+            prompt: "Enchantify Academy dossier portrait in sparse graphite, ink, and watercolor: Professor Eleanor Euphony listening to a silver tuning fork wound with colored thread; tidal blue, plum violet, resonant silver; marginal notes that translate sound into color.",
+            negativePrompt: "Avoid concert imagery, glossy anime, generic fantasy pinup, and inconsistent signature objects.",
+            marginalia: ["file tab labeled Professor Eleanor Euphony", "signature evidence: silver tuning fork and colored thread", "chapter mark: Tidecrest"],
+            tags: ["canonical", "character", "faculty", "professor", "tidecrest", "sound", "sense", "illustration"]
+        ),
+        CharacterIllustrationProfile(
+            id: "professor-vivian-villanelle",
+            characterName: "Professor Vivian Villanelle",
+            slug: "professor-vivian-villanelle",
+            status: "canonical",
+            chapter: "Riddlewind",
+            core: "Professor of Ink-Binding and Souvenir Craft; exacting, lyrical, and kind; teaches students to keep one true moment in one durable sentence.",
+            signature: "a black-glass pen and a narrow ribbon of freshly bound text",
+            palette: "black ink, wine red, parchment gold",
+            silhouette: "composed and exact, weighing a sentence between pen and fingertips",
+            continuity: "Preserve the black-glass pen, ribbon of text, and precise editorial gaze.",
+            avoid: "generic poet, quill cliché, room-first composition, polished digital fantasy portrait",
+            assetName: "LabyrinthCharacterProfessorVivianVillanelle",
+            intendedAssetName: "LabyrinthCharacterProfessorVivianVillanelle",
+            prompt: "Enchantify Academy dossier portrait in sparse graphite, ink, and watercolor: Professor Vivian Villanelle with a black-glass pen and ribbon of bound text; black ink, wine red, parchment gold; edited sentences and souvenir scraps in the margins.",
+            negativePrompt: "Avoid generic fantasy pinup, glossy anime, generic quill portrait, and inconsistent signature objects.",
+            marginalia: ["file tab labeled Professor Vivian Villanelle", "signature evidence: black-glass pen and bound sentence", "chapter mark: Riddlewind"],
+            tags: ["canonical", "character", "faculty", "professor", "riddlewind", "writing", "souvenir", "illustration"]
+        ),
+        CharacterIllustrationProfile(
+            id: "professor-cedric-stonebrook",
+            characterName: "Professor Cedric Stonebrook",
+            slug: "professor-cedric-stonebrook",
+            status: "canonical",
+            chapter: "Mossbloom",
+            core: "Professor of Quiet Hours and Compass Running; slow, grounded, and weathered; teaches complete small adventures with Rest at their center.",
+            signature: "a palm-sized trail marker and a five-point Compass stone",
+            palette: "moss green, river stone gray, weathered ochre",
+            silhouette: "steady and unhurried, seated or standing as if the ground has accepted him",
+            continuity: "Preserve the trail marker, Compass stone, weathered coat, and unhurried expression.",
+            avoid: "mountain-man caricature, mystical guru, room-first composition, polished digital fantasy portrait",
+            assetName: "LabyrinthCharacterProfessorCedricStonebrook",
+            intendedAssetName: "LabyrinthCharacterProfessorCedricStonebrook",
+            prompt: "Enchantify Academy dossier portrait in sparse graphite, ink, and watercolor: Professor Cedric Stonebrook with a small trail marker and five-point Compass stone; moss green, river gray, weathered ochre; quiet field notes in the margins.",
+            negativePrompt: "Avoid guru clichés, glossy anime, generic fantasy pinup, and inconsistent signature objects.",
+            marginalia: ["file tab labeled Professor Cedric Stonebrook", "signature evidence: trail marker and Compass stone", "chapter mark: Mossbloom"],
+            tags: ["canonical", "character", "faculty", "professor", "mossbloom", "rest", "compass-run", "illustration"]
+        ),
+        CharacterIllustrationProfile(
+            id: "professor-luna-wispwood",
+            characterName: "Professor Luna Wispwood",
+            slug: "professor-luna-wispwood",
+            status: "canonical",
+            chapter: "Tidecrest",
+            core: "Professor of Basic Enchantments; scattered, sparking, and delighted by useful accidents; teaches ordinary objects to answer close attention.",
+            signature: "a rain-bright wand wrapped in copper wire and a softly argumentative teacup",
+            palette: "rain blue, copper spark, cloud white",
+            silhouette: "wind-touched and slightly disheveled, one sleeve giving off a harmless spark",
+            continuity: "Preserve the copper-wrapped wand, argumentative teacup, sparks, and rain-lit appearance.",
+            avoid: "generic witch, dangerous explosion, room-first composition, polished digital fantasy portrait",
+            assetName: "LabyrinthCharacterProfessorLunaWispwood",
+            intendedAssetName: "LabyrinthCharacterProfessorLunaWispwood",
+            prompt: "Enchantify Academy dossier portrait in sparse graphite, ink, and watercolor: Professor Luna Wispwood with a copper-wrapped rain-bright wand and enchanted teacup; rain blue, copper spark, cloud white; object replies scribbled in the margins.",
+            negativePrompt: "Avoid generic witch imagery, glossy anime, destructive magic, and inconsistent signature objects.",
+            marginalia: ["file tab labeled Professor Luna Wispwood", "signature evidence: copper-wrapped wand and enchanted teacup", "chapter mark: Tidecrest"],
+            tags: ["canonical", "character", "faculty", "professor", "tidecrest", "enchantment", "objects", "illustration"]
+        ),
+        CharacterIllustrationProfile(
+            id: "professor-permancer",
+            characterName: "Professor Permancer",
+            slug: "professor-permancer",
+            status: "canonical",
+            chapter: "Duskthorn",
+            core: "Professor of Book Jumping; precise, adventurous, and fiercely safety-minded; teaches narrative weather, controlled landings, and responsible returns.",
+            signature: "a many-ribboned bookmark compass and a ring of labeled door keys",
+            palette: "doorway violet, safety gold, midnight ink",
+            silhouette: "poised at a threshold, one hand on a bookmark compass and the other counting keys",
+            continuity: "Preserve the bookmark compass, labeled keys, threshold posture, and alert measuring gaze.",
+            avoid: "reckless adventurer, generic wizard, room-first composition, polished digital fantasy portrait",
+            assetName: "LabyrinthCharacterProfessorPermancer",
+            intendedAssetName: "LabyrinthCharacterProfessorPermancer",
+            prompt: "Enchantify Academy dossier portrait in sparse graphite, ink, and watercolor: Professor Permancer at a story-door with a many-ribboned bookmark compass and labeled keys; doorway violet, safety gold, midnight ink; landing diagrams in the margins.",
+            negativePrompt: "Avoid reckless action poses, glossy anime, generic fantasy wizard, and inconsistent signature objects.",
+            marginalia: ["file tab labeled Professor Permancer", "signature evidence: bookmark compass and labeled door keys", "chapter mark: Duskthorn"],
+            tags: ["canonical", "character", "faculty", "professor", "duskthorn", "book-jump", "threshold", "illustration"]
         )
     ]
 

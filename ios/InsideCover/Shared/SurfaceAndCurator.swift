@@ -146,6 +146,8 @@ struct WorkBlockingState: Codable, Equatable {
             return isBraiding
         case .narrativeOS:
             return isPreparingStoryPage
+        case .bookFae:
+            return isPreparingStoryPage
         case .gossip:
             return isPreparingGossipPage
         case .facultyResearch:
@@ -192,6 +194,8 @@ struct SurfaceReadinessState: Codable, Equatable {
         case .illuminatedPhoto:
             return !hasNonEmptyMetadata("renderedPreviewPath")
         case .narrativeOS:
+            return !hasNonEmptyMetadata("storyScene")
+        case .bookFae:
             return !hasNonEmptyMetadata("storyScene")
         case .gossip:
             return !hasNonEmptyMetadata("gossipProse")
@@ -356,6 +360,8 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .reflect
         case .faeBargain:
             return .capture
+        case .bookFae:
+            return .simulate
         case .pactDispatch:
             return .importReference
         case .festival:
@@ -364,7 +370,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .reflect
         case .castBond:
             return .importReference
-        case .body, .fuel, .facultyResearch, .supportGuild, .weather, .letter, .academyClass, .bookConnections, .bookNotices, .theBleed, .todaysSky, .bookJump:
+        case .body, .fuel, .facultyResearch, .supportGuild, .weather, .letter, .academyClass, .bookConnections, .bookNotices, .theBleed, .todaysSky, .bookJump, .radio, .inventory:
             return .reflect
         case .elective:
             return .capture
@@ -580,9 +586,10 @@ enum BookCurator {
         limit: Int = 3,
         preferences: CuratorSurfacePreferences = .none
     ) -> [SurfacePage] {
+        let inputs = inputs.resolvingWorldEvents(for: day, now: now)
         let candidates = BookPageSourceAdapters.active.flatMap { adapter in
             adapter.candidates(for: day, context: context, inputs: inputs, now: now)
-        }
+        }.map { WorldEventEffects.framed($0, events: inputs.activeWorldEvents) }
         var picked = rankedPages(
             from: candidates,
             limit: limit,
@@ -620,6 +627,8 @@ enum BookCurator {
     ) -> [RankedSurfacePage] {
         let sortedPages = candidates
             .filter { preferences.allows($0) }
+            .filter { mood.allows($0) }
+            .filter { mood.allowsTypeRefresh(for: $0, now: now) }
             .enumerated()
             .sorted { left, right in
                 let leftScore = preferences.adjustedScore(for: left.element) + mood.adjustment(for: left.element, now: now)
@@ -656,6 +665,48 @@ enum BookCurator {
         return pages.filter { page in
             seen.insert(page.id).inserted
         }
+    }
+}
+
+enum WorldEventEffects {
+    static func framed(_ page: SurfacePage, events: [ResolvedWorldEvent]) -> SurfacePage {
+        let boost = events.scoreBoost(for: page.type)
+        guard boost != 0 || !events.isEmpty else { return page }
+        var metadata = page.payload.metadata
+        if !events.isEmpty {
+            metadata["worldEventIDs"] = events.map(\.id).joined(separator: ",")
+            metadata["worldEventTitles"] = events.map(\.title).joined(separator: ", ")
+            metadata["worldEventPacket"] = events.influencePacket
+            metadata["worldEventOutcomes"] = events.compactMap(\.outcome?.id).joined(separator: ",")
+            let existingTags = metadata["tags"].map { tags in
+                tags.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            } ?? []
+            let eventTags = events.flatMap { event -> [String] in
+                var tags = ["world-event", "event:\(event.id)", "event-phase:\(event.phase.id)"]
+                if let outcome = event.outcome {
+                    tags.append("event-outcome:\(outcome.id)")
+                }
+                return tags
+            }
+            metadata["tags"] = Array(Set(existingTags + eventTags)).sorted().joined(separator: ",")
+        }
+        let payload = BookPagePayload(
+            headline: page.payload.headline,
+            body: page.payload.body,
+            metadata: metadata
+        )
+        return SurfacePage(
+            id: page.id,
+            type: page.type,
+            sourceID: page.sourceID,
+            intent: page.intent,
+            renderStyle: page.renderStyle,
+            score: page.score + boost,
+            reason: boost == 0 ? page.reason : "\(page.reason) \(events.first?.title ?? "A world event") is tugging this page upward.",
+            prompt: page.prompt,
+            detail: page.detail,
+            payload: payload
+        )
     }
 }
 
@@ -700,6 +751,10 @@ extension SurfacePage {
 
 /// Penalizes what the reader has already seen, on a forgetting curve.
 enum CuratorVarietyGovernor {
+    static func typeKey(for type: BookPageType) -> String {
+        "type:\(type.rawValue)"
+    }
+
     static func fatiguePenalty(
         forKey key: String,
         history: [String: SurfaceHistoryRecord],
@@ -766,7 +821,7 @@ enum CuratorTimeAffinity {
             case .weather: return 5
             case .body, .mood: return 4
             case .fuel, .wonderCompass: return 2
-            case .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .gossip, .bookJump: return -3
+            case .narrativeOS, .bookFae, .marginsAtlas, .bookConnections, .bookRemembered, .gossip, .bookJump: return -3
             default: return 0
             }
         case 11..<17:
@@ -779,7 +834,7 @@ enum CuratorTimeAffinity {
         case 17..<21:
             switch type {
             case .bookOfYou: return 6
-            case .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .bookJump: return 4
+            case .narrativeOS, .bookFae, .marginsAtlas, .bookConnections, .bookRemembered, .bookJump: return 4
             case .supportGuild, .letter, .fuel: return 3
             case .rest: return 2
             default: return 0
@@ -788,7 +843,7 @@ enum CuratorTimeAffinity {
             switch type {
             case .lore, .rest, .helpTips, .welcome: return 4
             case .packPage: return 3
-            case .illustration, .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .bookJump: return 2
+            case .illustration, .narrativeOS, .bookFae, .marginsAtlas, .bookConnections, .bookRemembered, .bookJump, .radio: return 2
             case .body: return -4
             case .wonderCompass: return -4
             default: return 0
@@ -843,6 +898,7 @@ struct CuratorMood {
     var reshelvedSourceIDs: Set<String> = []
     var pactWar: PactWarState = PactWarState()
     var almanacBoosts: [BookPageType: Int] = [:]
+    var isFirstHours: Bool = false
 
     static let neutral = CuratorMood()
 
@@ -876,7 +932,21 @@ struct CuratorMood {
             pactWar: inputs.pactWar,
             almanacBoosts: Almanac.surfaceBoosts(on: now, hemisphere: inputs.hemisphere)
                 .merging(BookJumpEngine.surfaceBoosts(state: inputs.bookJump, now: now)) { $0 + $1 }
+                .merging(RadioStationRegistry.surfaceBoosts(state: inputs.radio, unlockedPackIDs: inputs.ownedPackIDs)) { $0 + $1 },
+            isFirstHours: firstHoursActive(inputs: inputs, now: now)
         )
+    }
+
+    func allows(_ page: SurfacePage) -> Bool {
+        guard isFirstHours else { return true }
+        return !Self.firstHoursHiddenTypes.contains(page.type)
+    }
+
+    func allowsTypeRefresh(for page: SurfacePage, now: Date = Date()) -> Bool {
+        guard let record = surfaceHistory[CuratorVarietyGovernor.typeKey(for: page.type)] else {
+            return true
+        }
+        return now.timeIntervalSince(record.lastShownAt) >= Self.typeRefreshCooldown
     }
 
     func adjustment(for page: SurfacePage, now: Date = Date()) -> Int {
@@ -886,6 +956,11 @@ struct CuratorMood {
             return 0
         }
         var delta = CuratorTimeAffinity.boost(for: page.type, at: now)
+
+        if isFirstHours {
+            delta += Self.firstHoursOrientationBoosts[page.type] ?? 0
+        }
+
         delta -= CuratorVarietyGovernor.fatiguePenalty(forKey: page.varietyKey, history: surfaceHistory, now: now)
         delta -= quietReflectionPenalty(for: page, now: now)
 
@@ -902,7 +977,7 @@ struct CuratorMood {
 
         // Narrative heat: a field full of fresh events favors story-bearing
         // pages; a cold field favors pages that gather new material.
-        let storyBearing: Set<BookPageType> = [.narrativeOS, .gossip, .letter, .castMember, .supportGuild]
+        let storyBearing: Set<BookPageType> = [.narrativeOS, .bookFae, .gossip, .letter, .castMember, .supportGuild]
         let materialGathering: Set<BookPageType> = [.diary, .mood, .aboutYou, .souvenir]
         if narrativeHeat >= 6, storyBearing.contains(page.type) {
             delta += min(8, narrativeHeat / 2)
@@ -929,7 +1004,7 @@ struct CuratorMood {
 
         // A real-world hinge approaching: keep the desk light.
         if let minutes = minutesToNextCalendarEvent, minutes <= 45 {
-            let heavy: Set<BookPageType> = [.narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .gossip, .facultyResearch, .letter, .supportGuild, .bookOfYou, .bookJump]
+            let heavy: Set<BookPageType> = [.narrativeOS, .bookFae, .marginsAtlas, .bookConnections, .bookRemembered, .gossip, .facultyResearch, .letter, .supportGuild, .bookOfYou, .bookJump]
             if heavy.contains(page.type) {
                 delta -= 12
             }
@@ -938,6 +1013,51 @@ struct CuratorMood {
             }
         }
         return delta
+    }
+
+    private static let firstHoursDuration: TimeInterval = 6 * 3600
+    private static let typeRefreshCooldown: TimeInterval = 90 * 60
+
+    private static let firstHoursHiddenTypes: Set<BookPageType> = [
+        .faeBargain,
+        .bookRemembered,
+        .bookConnections,
+        .marginsAtlas,
+        .theBleed,
+        .bookJump,
+        .pactDispatch
+    ]
+
+    private static let firstHoursOrientationBoosts: [BookPageType: Int] = [
+        .helpTips: 18,
+        .welcome: 16,
+        .lore: 10,
+        .mood: 10,
+        .fuel: 10,
+        .body: 8,
+        .weather: 8,
+        .souvenir: 8,
+        .wonderCompass: 6,
+        .narrativeOS: 4,
+        .calendar: 4,
+        .quip: 3,
+        .rest: 3
+    ]
+
+    private static func firstHoursActive(inputs: BookSourceInputs, now: Date) -> Bool {
+        let pageDates = inputs.days.flatMap(\.pages).map(\.createdAt)
+        let selfFactDates = inputs.selfFacts.map(\.createdAt)
+        let firstTouch = (pageDates + selfFactDates).min()
+        guard let firstTouch else {
+            return inputs.days.isEmpty
+                && inputs.selfFacts.isEmpty
+                && inputs.surfaceHistory.isEmpty
+                && inputs.body == nil
+                && inputs.weather == nil
+                && inputs.enchantedWeather == nil
+                && inputs.narrative == nil
+        }
+        return now.timeIntervalSince(firstTouch) < firstHoursDuration
     }
 
     private func quietReflectionPenalty(for page: SurfacePage, now: Date) -> Int {

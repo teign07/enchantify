@@ -1,8 +1,17 @@
 import SwiftUI
 import OSLog
 import Darwin.Mach
+#if canImport(AVFoundation)
+import AVFoundation
+#endif
+#if canImport(LocalAuthentication)
+import LocalAuthentication
+#endif
 #if canImport(AudioToolbox)
 import AudioToolbox
+#endif
+#if canImport(CoreHaptics)
+import CoreHaptics
 #endif
 #if canImport(UIKit)
 import UIKit
@@ -49,7 +58,88 @@ let mlxRuntimeLinked = false
 
 let appLog = Logger(subsystem: "com.openclaw.enchantify.insidecover", category: "InsideCoverApp")
 
+extension Notification.Name {
+    static let bookAppLockAuthorized = Notification.Name("bookAppLockAuthorized")
+}
+
+#if canImport(LocalAuthentication)
+@MainActor
+final class BookAppLock: ObservableObject {
+    @Published private(set) var isUnlocked = false
+    @Published private(set) var isAuthenticating = false
+    @Published private(set) var message = "The Book is closed."
+
+    @discardableResult
+    func authenticate() async -> Bool {
+        guard !isAuthenticating else { return false }
+        isAuthenticating = true
+        defer { isAuthenticating = false }
+
+        let context = LAContext()
+        context.localizedCancelTitle = "Leave closed"
+        context.localizedFallbackTitle = "Use passcode"
+
+        var error: NSError?
+        let policy = LAPolicy.deviceOwnerAuthentication
+        guard context.canEvaluatePolicy(policy, error: &error) else {
+            message = error?.localizedDescription ?? "Set a device passcode to lock the Book."
+            isUnlocked = false
+            return false
+        }
+
+        do {
+            let reason = "Open ReEnchanted and unlock your private Book."
+            if try await context.evaluatePolicy(policy, localizedReason: reason) {
+                isUnlocked = true
+                message = "The cover opens."
+                BookFeedback.play(.openPage)
+                return true
+            }
+        } catch {
+            isUnlocked = false
+            message = "The Book stayed closed."
+            BookFeedback.play(.dismissPage)
+        }
+        return false
+    }
+
+    func lock() {
+        guard isUnlocked else { return }
+        isUnlocked = false
+        message = "The Book is closed."
+    }
+
+    func acceptCurrentAuthorization() {
+        isUnlocked = true
+        message = "The cover opens."
+    }
+}
+#endif
+
 enum BookFeedback {
+    enum HapticMode: String, CaseIterable, Identifiable {
+        case full
+        case gentle
+        case off
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .full: return "Full"
+            case .gentle: return "Gentle"
+            case .off: return "Off"
+            }
+        }
+    }
+
+    enum BookJumpCue {
+        case start
+        case deeper
+        case stabilize
+        case returnHome
+    }
+
     enum Cue {
         case tap
         case select
@@ -151,27 +241,30 @@ enum BookFeedback {
     #endif
 
     static func play(_ cue: Cue) {
+        let playedComposedHaptic = BookHapticEngine.shared.play(cue)
         #if canImport(UIKit)
-        switch cue {
-        case .tap:
-            UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.35)
-        case .select:
-            UISelectionFeedbackGenerator().selectionChanged()
-        case .openPage, .sourceRefresh, .braidStart:
-            UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.55)
-        case .keepPage, .braidComplete:
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-        case .dismissPage, .undo:
-            UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 0.42)
-        case .error:
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
-        case .knock:
-            UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 0.85)
-        case .knockReply:
-            let generator = UIImpactFeedbackGenerator(style: .soft)
-            generator.impactOccurred(intensity: 0.7)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-                generator.impactOccurred(intensity: 0.62)
+        if !playedComposedHaptic, hapticMode != .off {
+            switch cue {
+            case .tap:
+                UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.35)
+            case .select:
+                UISelectionFeedbackGenerator().selectionChanged()
+            case .openPage, .sourceRefresh, .braidStart:
+                UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.55)
+            case .keepPage, .braidComplete:
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            case .dismissPage, .undo:
+                UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 0.42)
+            case .error:
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            case .knock:
+                UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 0.85)
+            case .knockReply:
+                let generator = UIImpactFeedbackGenerator(style: .soft)
+                generator.impactOccurred(intensity: 0.7)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                    generator.impactOccurred(intensity: 0.62)
+                }
             }
         }
         #endif
@@ -180,7 +273,483 @@ enum BookFeedback {
         AudioServicesPlaySystemSound(bookSoundID(for: cue) ?? cue.systemSoundID)
         #endif
     }
+
+    static var hapticMode: HapticMode {
+        get { HapticMode(rawValue: UserDefaults.standard.string(forKey: "bookHapticMode") ?? "full") ?? .full }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: "bookHapticMode")
+            BookHapticEngine.shared.modeDidChange()
+        }
+    }
+
+    static func beliefTransferred(amount: Int, recipientGlow: Int) {
+        BookHapticEngine.shared.playBeliefTransfer(amount: amount, recipientGlow: recipientGlow)
+    }
+
+    static func bookJump(_ cue: BookJumpCue) {
+        BookHapticEngine.shared.playBookJump(cue)
+    }
+
+    static func faeArrival(kind: String, court: String? = nil) {
+        BookHapticEngine.shared.playFaeArrival(kind: kind, court: court)
+    }
+
+    static func constellationDiscovered(nodes: Int) {
+        BookHapticEngine.shared.playConstellation(nodes: nodes)
+    }
+
+    static func chapterBinding() {
+        BookHapticEngine.shared.playChapterBinding()
+    }
+
+    static func pageRising(rarity: Int) {
+        BookHapticEngine.shared.playPageRise(rarity: rarity)
+    }
+
+    static func nothingPressure(_ level: Int) {
+        BookHapticEngine.shared.playNothing(level: level)
+    }
+
+    static func radioLocked() {
+        BookHapticEngine.shared.playRadioLock()
+    }
 }
+
+private final class BookHapticEngine {
+    static let shared = BookHapticEngine()
+
+    #if canImport(CoreHaptics)
+    private var engine: CHHapticEngine?
+    private var lastPlayedAt: [String: Date] = [:]
+    #endif
+
+    private init() {
+        prepare()
+    }
+
+    func modeDidChange() {
+        if BookFeedback.hapticMode == .off {
+            #if canImport(CoreHaptics)
+            engine?.stop(completionHandler: nil)
+            #endif
+        } else {
+            prepare()
+        }
+    }
+
+    func play(_ cue: BookFeedback.Cue) -> Bool {
+        switch cue {
+        case .tap: return pattern("tap", [beat(0, 0.22, 0.55)])
+        case .select: return pattern("select", [beat(0, 0.28, 0.72)])
+        case .openPage: return pattern("open-page", [beat(0, 0.20, 0.18), beat(0.075, 0.28, 0.38), beat(0.16, 0.34, 0.62)])
+        case .keepPage: return pattern("keep-page", [beat(0, 0.34, 0.74), beat(0.11, 0.22, 0.30), beat(0.25, 0.48, 0.42)])
+        case .dismissPage: return pattern("dismiss-page", [beat(0, 0.30, 0.72), beat(0.10, 0.16, 0.28)])
+        case .undo: return pattern("undo", [beat(0, 0.30, 0.68), beat(0.13, 0.22, 0.42)])
+        case .braidStart: return pattern("braid-start", [beat(0, 0.14, 0.18), beat(0.08, 0.18, 0.28), beat(0.17, 0.23, 0.42)])
+        case .braidComplete: return pattern("braid-complete", [beat(0, 0.22, 0.30), beat(0.10, 0.35, 0.52), beat(0.22, 0.48, 0.72)])
+        case .sourceRefresh: return pattern("source-refresh", [beat(0, 0.18, 0.28), beat(0.09, 0.24, 0.48)])
+        case .error: return pattern("error", [beat(0, 0.60, 0.90), beat(0.16, 0.42, 0.82)])
+        case .knock: return pattern("knock", [beat(0, 0.72, 0.94)])
+        case .knockReply: return pattern("knock-reply", [beat(0, 0.48, 0.60), beat(0.22, 0.42, 0.52)])
+        }
+    }
+
+    func playBeliefTransfer(amount: Int, recipientGlow: Int) {
+        let count = max(1, min(5, amount))
+        var events = (0..<count).map { index in
+            beat(Double(index) * 0.075, 0.20 + Double(index) * 0.05, 0.35 + Double(index) * 0.08)
+        }
+        events.append(beat(Double(count) * 0.075 + 0.12, min(0.78, 0.38 + Double(recipientGlow) / 220), 0.34))
+        _ = pattern("belief-transfer", events, minimumInterval: 0.12)
+    }
+
+    func playBookJump(_ cue: BookFeedback.BookJumpCue) {
+        let events: [HapticBeat]
+        switch cue {
+        case .start:
+            events = [beat(0, 0.12, 0.18), beat(0.06, 0.18, 0.30), beat(0.12, 0.28, 0.45), beat(0.19, 0.44, 0.64), beat(0.31, 0.88, 0.92)]
+        case .deeper:
+            events = [beat(0, 0.82, 0.16), beat(0.16, 0.48, 0.30)]
+        case .stabilize:
+            events = [beat(0, 0.12, 0.82), beat(0.12, 0.16, 0.66), beat(0.24, 0.24, 0.48), beat(0.39, 0.42, 0.30)]
+        case .returnHome:
+            events = [beat(0, 0.62, 0.48), beat(0.10, 0.42, 0.40), beat(0.20, 0.28, 0.32), beat(0.34, 0.20, 0.22), beat(0.52, 0.50, 0.38)]
+        }
+        _ = pattern("book-jump-\(cue)", events, minimumInterval: 0.25)
+    }
+
+    func playFaeArrival(kind: String, court: String?) {
+        let key = kind.lowercased()
+        let events: [HapticBeat]
+        if key.contains("pixie") {
+            events = [beat(0, 0.15, 0.82), beat(0.045, 0.12, 0.74), beat(0.14, 0.18, 0.88), beat(0.20, 0.10, 0.68)]
+        } else if key.contains("goblin") {
+            events = [beat(0, 0.62, 0.82), beat(0.09, 0.40, 0.70), beat(0.17, 0.54, 0.76)]
+        } else if key.contains("sprite") {
+            events = [beat(0, 0.12, 0.20), beat(0.07, 0.18, 0.36), beat(0.15, 0.25, 0.54), beat(0.25, 0.34, 0.72)]
+        } else if key.contains("salamander") {
+            events = [beat(0, 0.18, 0.22), beat(0.07, 0.27, 0.36), beat(0.14, 0.39, 0.50), beat(0.22, 0.52, 0.66)]
+        } else if key.contains("dwarf") {
+            events = [beat(0, 0.76, 0.36), beat(0.28, 0.82, 0.30)]
+        } else if court?.lowercased().contains("unseelie") == true {
+            events = [beat(0, 0.46, 0.50), beat(0.13, 0.34, 0.38), beat(0.41, 0.58, 0.62)]
+        } else {
+            events = [beat(0, 0.38, 0.38), beat(0.13, 0.48, 0.48), beat(0.26, 0.38, 0.38)]
+        }
+        _ = pattern("fae-\(key)", events, minimumInterval: 0.5)
+    }
+
+    func playConstellation(nodes: Int) {
+        let count = max(2, min(nodes, 7))
+        var events = (0..<count).map { beat(Double($0) * 0.07, 0.16, 0.78) }
+        events.append(beat(Double(count) * 0.07 + 0.10, 0.52, 0.30))
+        _ = pattern("constellation", events, minimumInterval: 1)
+    }
+
+    func playChapterBinding() {
+        _ = pattern("chapter-binding", [beat(0, 0.18, 0.18), beat(0.10, 0.24, 0.26), beat(0.21, 0.32, 0.38), beat(0.34, 0.44, 0.52), beat(0.52, 0.92, 0.82)], minimumInterval: 2)
+    }
+
+    func playPageRise(rarity: Int) {
+        var events = [beat(0, 0.10, 0.18), beat(0.06, 0.14, 0.28), beat(0.13, 0.20, 0.42)]
+        if rarity >= 80 { events.append(beat(0.34, 0.58, 0.66)) }
+        _ = pattern("page-rise", events, minimumInterval: 0.8)
+    }
+
+    func playNothing(level: Int) {
+        let pressure = max(1, min(level, 4))
+        var events = [beat(0, 0.36, 0.92)]
+        if pressure >= 2 { events.append(beat(0.19, 0.26, 0.84)) }
+        if pressure >= 4 { events.append(beat(0.58, 0.12, 0.76)) }
+        _ = pattern("nothing", events, minimumInterval: 1)
+    }
+
+    func playRadioLock() {
+        _ = pattern("radio-lock", [beat(0, 0.12, 0.82), beat(0.05, 0.14, 0.78), beat(0.11, 0.18, 0.70), beat(0.22, 0.62, 0.42)], minimumInterval: 0.35)
+    }
+
+    private struct HapticBeat {
+        var time: TimeInterval
+        var intensity: Double
+        var sharpness: Double
+    }
+
+    private func beat(_ time: TimeInterval, _ intensity: Double, _ sharpness: Double) -> HapticBeat {
+        HapticBeat(time: time, intensity: intensity, sharpness: sharpness)
+    }
+
+    private func prepare() {
+        #if canImport(CoreHaptics)
+        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics, engine == nil else { return }
+        do {
+            let engine = try CHHapticEngine()
+            engine.playsHapticsOnly = true
+            engine.isAutoShutdownEnabled = true
+            engine.stoppedHandler = { [weak self] _ in self?.engine = nil }
+            engine.resetHandler = { [weak self] in
+                self?.engine = nil
+                self?.prepare()
+            }
+            try engine.start()
+            self.engine = engine
+        } catch {
+            engine = nil
+        }
+        #endif
+    }
+
+    @discardableResult
+    private func pattern(_ key: String, _ beats: [HapticBeat], minimumInterval: TimeInterval = 0.04) -> Bool {
+        #if canImport(CoreHaptics)
+        let mode = BookFeedback.hapticMode
+        guard mode != .off, CHHapticEngine.capabilitiesForHardware().supportsHaptics else { return false }
+        let now = Date()
+        if let last = lastPlayedAt[key], now.timeIntervalSince(last) < minimumInterval { return true }
+        lastPlayedAt[key] = now
+        prepare()
+        guard let engine else { return false }
+        let scale = mode == .gentle ? 0.48 : 1.0
+        let selected = mode == .gentle && beats.count > 3
+            ? beats.enumerated().filter { $0.offset.isMultiple(of: 2) }.map(\.element)
+            : beats
+        let events = selected.map { item in
+            CHHapticEvent(
+                eventType: .hapticTransient,
+                parameters: [
+                    CHHapticEventParameter(parameterID: .hapticIntensity, value: Float(min(1, item.intensity * scale))),
+                    CHHapticEventParameter(parameterID: .hapticSharpness, value: Float(min(1, item.sharpness)))
+                ],
+                relativeTime: item.time
+            )
+        }
+        do {
+            let player = try engine.makePlayer(with: CHHapticPattern(events: events, parameters: []))
+            try player.start(atTime: CHHapticTimeImmediate)
+            return true
+        } catch {
+            self.engine = nil
+            return false
+        }
+        #else
+        return false
+        #endif
+    }
+}
+
+#if canImport(AVFoundation)
+@Observable
+@MainActor
+final class BookRadioManager {
+    static let shared = BookRadioManager()
+
+    private let engine = AVAudioEngine()
+    private let player = AVAudioPlayerNode()
+    private var filePlayer: AVAudioPlayer?
+    private var activeBuffer: AVAudioPCMBuffer?
+    private var didAttachPlayer = false
+
+    private(set) var playback = RadioPlaybackState.off
+    private(set) var activeStation: RadioStation?
+    private(set) var activeTrack: RadioTrack?
+    private(set) var isPlaying = false
+    private(set) var statusLine = "The dial is cold."
+    private(set) var sourceLine = "No broadcast is tuned."
+
+    private init() {}
+
+    func restore(state: RadioPlaybackState, unlockedPackIDs: Set<String>) {
+        playback = state
+        activeStation = RadioStationRegistry.station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs)
+        if let station = activeStation, state.isTuned {
+            tune(to: station, unlockedPackIDs: unlockedPackIDs, persist: false)
+        }
+    }
+
+    func tune(to station: RadioStation, unlockedPackIDs: Set<String>, persist: Bool = true) {
+        configureAudioSession()
+        let track = selectTrack(for: station)
+        player.stop()
+        filePlayer?.stop()
+        filePlayer = nil
+
+        if let track, let url = resolvedAudioURL(for: track) {
+            do {
+                let audioPlayer = try AVAudioPlayer(contentsOf: url)
+                audioPlayer.numberOfLoops = -1
+                audioPlayer.volume = station.id == "casement-static" ? 0.48 : 0.42
+                audioPlayer.prepareToPlay()
+                audioPlayer.play()
+                filePlayer = audioPlayer
+                activeBuffer = nil
+                activeTrack = track
+                sourceLine = "Playing \(track.title) from local radio assets."
+            } catch {
+                appLog.error("Radio asset failed: \(error.localizedDescription, privacy: .public)")
+                playProceduralFallback(for: station, track: track)
+            }
+        } else {
+            playProceduralFallback(for: station, track: track)
+        }
+
+        isPlaying = true
+        activeStation = station
+        playback = RadioPlaybackState(
+            activeStationID: station.id,
+            startedAt: playback.activeStationID == station.id ? playback.startedAt ?? Date() : Date(),
+            lastTunedAt: Date(),
+            lastTrackID: track?.id,
+            tuningNoise: 0
+        )
+        if let interlude = RadioStationRegistry.currentInterlude(state: playback, unlockedPackIDs: unlockedPackIDs) {
+            statusLine = "\(station.displayFrequency) \(station.title): \(interlude)"
+        } else {
+            statusLine = "\(station.displayFrequency) \(station.title) is broadcasting."
+        }
+        if persist {
+            PlayerVault.shared.data.radio = playback
+            PlayerVault.shared.save()
+        }
+    }
+
+    func tune(stationID: String, unlockedPackIDs: Set<String>) {
+        guard let station = RadioStationRegistry.station(id: stationID, unlockedPackIDs: unlockedPackIDs) else {
+            statusLine = "That frequency is not unlocked yet."
+            return
+        }
+        tune(to: station, unlockedPackIDs: unlockedPackIDs)
+        BookFeedback.radioLocked()
+    }
+
+    func stop(persist: Bool = true) {
+        player.stop()
+        filePlayer?.stop()
+        filePlayer = nil
+        isPlaying = false
+        playback = .off
+        activeStation = nil
+        activeTrack = nil
+        statusLine = "The dial is cold."
+        sourceLine = "No broadcast is tuned."
+        if persist {
+            PlayerVault.shared.data.radio = playback
+            PlayerVault.shared.save()
+        }
+    }
+
+    func hapticTick() {
+        BookFeedback.play(.select)
+    }
+
+    private func configureAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try session.setActive(true)
+        } catch {
+            appLog.error("Radio audio session failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func attachPlayerIfNeeded() {
+        guard !didAttachPlayer else { return }
+        engine.attach(player)
+        engine.connect(player, to: engine.mainMixerNode, format: makeFormat())
+        didAttachPlayer = true
+    }
+
+    private func selectTrack(for station: RadioStation) -> RadioTrack? {
+        guard !station.tracks.isEmpty else { return nil }
+        let index = abs(station.id.stableHash + Int(Date().timeIntervalSince1970 / 1800)) % station.tracks.count
+        return station.tracks[index]
+    }
+
+    private func resolvedAudioURL(for track: RadioTrack) -> URL? {
+        guard let assetName = track.assetName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !assetName.isEmpty else {
+            return nil
+        }
+        let extensions = ["m4a", "mp3", "wav", "aac", "caf", "aiff"]
+        for ext in extensions {
+            if let url = Bundle.main.url(forResource: assetName, withExtension: ext) {
+                return url
+            }
+        }
+        guard let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        let roots = [
+            documents,
+            documents.appendingPathComponent("Radio", isDirectory: true),
+            documents.appendingPathComponent("RadioPacks", isDirectory: true)
+        ]
+        for root in roots {
+            for ext in extensions {
+                let url = root.appendingPathComponent(assetName).appendingPathExtension(ext)
+                if FileManager.default.fileExists(atPath: url.path) {
+                    return url
+                }
+            }
+        }
+        return nil
+    }
+
+    private func playProceduralFallback(for station: RadioStation, track: RadioTrack?) {
+        attachPlayerIfNeeded()
+        let buffer = makeStationBuffer(for: station)
+        activeBuffer = buffer
+        activeTrack = track
+        player.stop()
+        player.scheduleBuffer(buffer, at: nil, options: [.loops])
+        if !engine.isRunning {
+            do {
+                try engine.start()
+            } catch {
+                statusLine = "The station sparked but would not hold: \(error.localizedDescription)"
+                appLog.error("Radio engine failed: \(error.localizedDescription, privacy: .public)")
+                return
+            }
+        }
+        player.volume = station.id == "casement-static" ? 0.38 : 0.32
+        player.play()
+        sourceLine = track.map { "Procedural fallback for \($0.title). Drop \($0.assetName ?? $0.id).m4a into Radio to replace it." }
+            ?? "Procedural fallback broadcast."
+    }
+
+    private func makeFormat() -> AVAudioFormat {
+        AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
+    }
+
+    private func makeStationBuffer(for station: RadioStation) -> AVAudioPCMBuffer {
+        let sampleRate = 44_100.0
+        let duration = 10.0
+        let frameCount = AVAudioFrameCount(sampleRate * duration)
+        let format = makeFormat()
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount)!
+        buffer.frameLength = frameCount
+        let left = buffer.floatChannelData![0]
+        let right = buffer.floatChannelData![1]
+        let recipe = recipe(for: station.id)
+        var noiseSeed = UInt64(abs(station.id.stableHash) + 1)
+        for frame in 0..<Int(frameCount) {
+            let t = Double(frame) / sampleRate
+            let slow = sin(2 * .pi * recipe.slowHz * t)
+            let shimmer = sin(2 * .pi * recipe.shimmerHz * t + slow * 0.8)
+            let pulse = sin(2 * .pi * recipe.pulseHz * t)
+            noiseSeed = noiseSeed &* 6364136223846793005 &+ 1442695040888963407
+            let rawNoise = Double(Int64(bitPattern: noiseSeed) % 10_000) / 10_000.0
+            let noise = (rawNoise - 0.5) * recipe.staticAmount
+            let base = sin(2 * .pi * recipe.baseHz * t + shimmer * 0.03)
+            let overtone = sin(2 * .pi * recipe.overtoneHz * t + pulse * 0.05)
+            let sample = Float((base * recipe.baseGain) + (overtone * recipe.overtoneGain) + noise)
+            left[frame] = sample
+            right[frame] = Float(Double(sample) * 0.86 + shimmer * recipe.shimmerGain)
+        }
+        return buffer
+    }
+
+    private func recipe(for stationID: String) -> (baseHz: Double, overtoneHz: Double, shimmerHz: Double, slowHz: Double, pulseHz: Double, baseGain: Double, overtoneGain: Double, shimmerGain: Double, staticAmount: Double) {
+        switch stationID {
+        case "inkrest-office":
+            return (146.83, 220.0, 1.4, 0.05, 0.11, 0.055, 0.030, 0.010, 0.010)
+        case "casement-static":
+            return (98.0, 196.0, 2.2, 0.033, 0.07, 0.035, 0.020, 0.008, 0.060)
+        default:
+            return (130.81, 261.63, 1.8, 0.041, 0.09, 0.050, 0.028, 0.010, 0.018)
+        }
+    }
+}
+#else
+@Observable
+@MainActor
+final class BookRadioManager {
+    static let shared = BookRadioManager()
+    private(set) var playback = RadioPlaybackState.off
+    private(set) var activeStation: RadioStation?
+    private(set) var activeTrack: RadioTrack?
+    private(set) var isPlaying = false
+    private(set) var statusLine = "Audio playback is unavailable on this platform."
+    private(set) var sourceLine = "No broadcast is tuned."
+    private init() {}
+    func restore(state: RadioPlaybackState, unlockedPackIDs: Set<String>) { playback = state }
+    func tune(stationID: String, unlockedPackIDs: Set<String>) {
+        activeStation = RadioStationRegistry.station(id: stationID, unlockedPackIDs: unlockedPackIDs)
+        activeTrack = activeStation?.tracks.first
+        playback = RadioPlaybackState(activeStationID: stationID, startedAt: Date(), lastTunedAt: Date(), lastTrackID: activeStation?.tracks.first?.id)
+        PlayerVault.shared.data.radio = playback
+        PlayerVault.shared.save()
+    }
+    func stop(persist: Bool = true) {
+        playback = .off
+        activeStation = nil
+        activeTrack = nil
+        if persist {
+            PlayerVault.shared.data.radio = playback
+            PlayerVault.shared.save()
+        }
+    }
+    func hapticTick() {}
+}
+#endif
 
 extension Notification.Name {
     static let localBrainDidWake = Notification.Name("localBrainDidWake")

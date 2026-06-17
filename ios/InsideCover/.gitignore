@@ -1,0 +1,7 @@
+# Xcode build output
+.DerivedData/
+DerivedData/
+build/
+
+# macOS
+.DS_Store

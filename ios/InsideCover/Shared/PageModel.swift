@@ -27,11 +27,13 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case askTheBook
     case inkrestOfficeHours
     case faeBargain
+    case bookFae
     case pactDispatch
     case festival
     case twoReadings
     case castBond
     case todaysSky
+    case radio
     case bookJump
     case enchantment
     case anchor
@@ -46,6 +48,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case bookRemembered
     case bookNotices
     case theBleed
+    case inventory
 
     var id: String { rawValue }
 
@@ -101,6 +104,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Dr. Inkrest's Office Hours"
         case .faeBargain:
             return "A Fae Bargain"
+        case .bookFae:
+            return "Book Fae Page"
         case .pactDispatch:
             return "A Pact Dispatch"
         case .festival:
@@ -111,6 +116,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "A Turn in the Cast"
         case .todaysSky:
             return "Today's Sky"
+        case .radio:
+            return "ReEnchanted Radio"
         case .bookJump:
             return "Book Jump"
         case .enchantment:
@@ -139,6 +146,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "The Book Notices"
         case .theBleed:
             return "The Bleed"
+        case .inventory:
+            return "The Inventory"
         }
     }
 
@@ -194,6 +203,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Office Hours"
         case .faeBargain:
             return "Bargain"
+        case .bookFae:
+            return "Book Fae"
         case .pactDispatch:
             return "Dispatch"
         case .festival:
@@ -204,6 +215,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Cast"
         case .todaysSky:
             return "Sky"
+        case .radio:
+            return "Radio"
         case .bookJump:
             return "Jump"
         case .enchantment:
@@ -232,6 +245,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Notices"
         case .theBleed:
             return "Bleed"
+        case .inventory:
+            return "Inventory"
         }
     }
 
@@ -287,6 +302,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "lamp.desk"
         case .faeBargain:
             return "hands.sparkles"
+        case .bookFae:
+            return "wand.and.stars"
         case .pactDispatch:
             return "flag.2.crossed"
         case .festival:
@@ -297,6 +314,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "person.2.wave.2"
         case .todaysSky:
             return "moon.stars"
+        case .radio:
+            return "radio"
         case .bookJump:
             return "book.closed.fill"
         case .enchantment:
@@ -325,6 +344,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "sparkle.magnifyingglass"
         case .theBleed:
             return "newspaper"
+        case .inventory:
+            return "shippingbox.fill"
         }
     }
 }
@@ -390,6 +411,18 @@ struct BookPageSource: Codable, Identifiable, Equatable {
 
 enum BookPageSourceRegistry {
     static let sources: [BookPageSource] = [
+        BookPageSource(
+            id: "the-inventory",
+            type: .inventory,
+            title: "The Inventory",
+            shortTitle: "Inventory",
+            symbolName: "shippingbox.fill",
+            origin: .simulated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "always available; rises when something changes",
+            note: "Fae gifts, Goblin wares, bound objects, and installed folios."
+        ),
         BookPageSource(
             id: "inner-weather",
             type: .mood,
@@ -631,6 +664,18 @@ enum BookPageSourceRegistry {
             note: "A Book Fae gave first. Now a sensory return is owed."
         ),
         BookPageSource(
+            id: "book-fae-page",
+            type: .bookFae,
+            title: "Book Fae Page",
+            shortTitle: "Book Fae",
+            symbolName: "wand.and.stars",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "fae",
+            note: "A keepable parley with the old-law Fae of the margins."
+        ),
+        BookPageSource(
             id: "pact-dispatch",
             type: .pactDispatch,
             title: "A Pact Dispatch",
@@ -689,6 +734,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "almanac",
             note: "The Book reads the night overhead: the Moon's phase and sign, the Sun's sign, and the nearest reason to look up."
+        ),
+        BookPageSource(
+            id: "reenchanted-radio",
+            type: .radio,
+            title: "ReEnchanted Radio",
+            shortTitle: "Radio",
+            symbolName: "radio",
+            origin: .simulated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "tuned signal",
+            note: "An analog station from the Academy. What you tune can tint which pages rise."
         ),
         BookPageSource(
             id: "book-jump",
@@ -970,9 +1027,9 @@ enum BookPageSourceRegistry {
             return 36
         case .body, .supportGuild, .bookOfYou, .inkrestOfficeHours:
             return 32
-        case .narrativeOS, .wonderCompass, .anchor, .welcome:
+        case .narrativeOS, .bookFae, .wonderCompass, .anchor, .welcome:
             return 30
-        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices:
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .inventory:
             return 22
         case .diary, .souvenir, .askTheBook, .enchantment, .faeBargain:
             return 28
@@ -984,7 +1041,7 @@ enum BookPageSourceRegistry {
             return 30
         case .castBond:
             return 30
-        case .todaysSky, .bookJump:
+        case .todaysSky, .bookJump, .radio:
             return 30
         case .weather, .gossip, .facultyResearch, .letter, .academyClass, .elective:
             return 26
@@ -1005,9 +1062,9 @@ enum BookPageSourceRegistry {
 
     static func narrativeWeight(for source: BookPageSource) -> Int {
         switch source.type {
-        case .narrativeOS:
+        case .narrativeOS, .bookFae:
             return 34
-        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices:
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .inventory:
             return 18
         case .mood, .fuel:
             return 30
@@ -1025,7 +1082,7 @@ enum BookPageSourceRegistry {
             return 26
         case .castBond:
             return 28
-        case .todaysSky:
+        case .todaysSky, .radio:
             return 24
         case .bookJump:
             return 30

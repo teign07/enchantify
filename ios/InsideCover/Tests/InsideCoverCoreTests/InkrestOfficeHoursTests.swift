@@ -45,6 +45,47 @@ final class InkrestOfficeHoursTests: XCTestCase {
         XCTAssertTrue(InkrestOfficeHours.rotatingPrompts.contains(first))
     }
 
+    func testOfficeHoursAllowsASubstantialSitting() {
+        XCTAssertEqual(InkrestOfficeHours.replyCap, 7)
+    }
+
+    func testPromptRequiresRichSpecificReflectionWithoutStackingQuestions() {
+        let intake = InkrestIntake(
+            promptID: "values",
+            lens: "values",
+            rotatingQuestion: "What quietly mattered?",
+            rotatingAnswer: "I stayed with a difficult conversation instead of escaping it.",
+            innerWeather: "rain clearing",
+            freeNote: "I am proud and tired."
+        )
+        let prompt = InkrestOfficeHoursPromptBuilder.prompt(
+            intake: intake,
+            day: todayWith(pages: [keptPage()]),
+            previousTurns: [],
+            userMessage: intake.openingMessage,
+            isClosing: false
+        )
+
+        XCTAssertTrue(prompt.contains("Write 3 to 5 short paragraphs"))
+        XCTAssertTrue(prompt.contains("reflect at least two specific details or tensions"))
+        XCTAssertTrue(prompt.contains("ask exactly ONE curious narrative-therapy question"))
+        XCTAssertTrue(prompt.contains("Do not rush toward advice"))
+    }
+
+    func testClosingPromptSynthesizesTheWholeSitting() {
+        let prompt = InkrestOfficeHoursPromptBuilder.prompt(
+            intake: InkrestIntake(),
+            day: todayWith(pages: [keptPage()]),
+            previousTurns: [AskTheBookTurn(prompt: "I kept going.", answer: "That sounds costly and deliberate.")],
+            userMessage: "I think I needed someone to notice.",
+            isClosing: true
+        )
+
+        XCTAssertTrue(prompt.contains("Take 4 to 6 short paragraphs"))
+        XCTAssertTrue(prompt.contains("Gather the important thread across the whole sitting"))
+        XCTAssertTrue(prompt.contains("reflect back two specific things"))
+    }
+
     func testSurfacesInWindowWithAKeptPage() {
         let adapter = InkrestOfficeHoursPageSourceAdapter()
         let day = todayWith(pages: [keptPage()])

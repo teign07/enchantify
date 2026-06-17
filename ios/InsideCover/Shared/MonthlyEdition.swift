@@ -258,6 +258,7 @@ enum MonthlyEditionBuilder {
         let subtitle = theme?.name ?? "\(dateLine(startDate, calendar: calendar)) - \(dateLine(endDate, calendar: calendar))"
         let sections = [
             themeSection(theme, pages: pages),
+            worldEventSection(from: pages),
             openingSection(from: pages, continuity: continuity),
             pageSection(
                 id: "daily-braids",
@@ -410,6 +411,52 @@ enum MonthlyEditionBuilder {
             title: "What The Book Noticed",
             note: "Connections, absences, durations, and living Beliefs gathered from the month.",
             items: items
+        )
+    }
+
+    private static func worldEventSection(from pages: [BookPage]) -> MonthlyEditionSection {
+        let eventPages = pages.filter { page in
+            page.tags.contains("world-event") || page.tags.contains { $0.hasPrefix("event:") }
+        }
+        guard !eventPages.isEmpty else {
+            return MonthlyEditionSection(id: "world-events", title: "World Events", note: "", items: [])
+        }
+        let eventIDs = eventPages
+            .flatMap { page in page.tags.compactMap { $0.hasPrefix("event:") ? String($0.dropFirst("event:".count)) : nil } }
+        let counts = Dictionary(grouping: eventIDs, by: { $0 }).mapValues(\.count)
+        var summaryLines = counts
+            .sorted { left, right in
+                if left.value == right.value { return left.key < right.key }
+                return left.value > right.value
+            }
+            .map { "\($0.key.replacingOccurrences(of: "-", with: " ").capitalized): \($0.value) kept page\($0.value == 1 ? "" : "s")" }
+        let outcomeIDs = eventPages
+            .flatMap { page in page.tags.compactMap { $0.hasPrefix("event-outcome:") ? String($0.dropFirst("event-outcome:".count)) : nil } }
+        if let strongestOutcome = Dictionary(grouping: outcomeIDs, by: { $0 }).mapValues(\.count)
+            .sorted(by: { left, right in
+                if left.value == right.value { return left.key < right.key }
+                return left.value > right.value
+            })
+            .first {
+            summaryLines.append("Strongest outcome: \(strongestOutcome.key.replacingOccurrences(of: "-", with: " ").capitalized)")
+        }
+        let summary = summaryLines.joined(separator: "\n")
+        let item = MonthlyEditionItem(
+            id: "world-events-summary",
+            kind: .continuity,
+            title: "Temporary Physics",
+            body: summary.isEmpty ? "A world event touched the month and left traces in the kept pages." : summary,
+            date: eventPages.map(\.createdAt).min(),
+            pageType: nil,
+            sourceID: nil,
+            mediaAssets: [],
+            tags: ["world-event", "monthly-edition"]
+        )
+        return MonthlyEditionSection(
+            id: "world-events",
+            title: "World Events",
+            note: "The weeks when the Book's rules changed and the pages learned to behave differently.",
+            items: [item] + eventPages.prefix(10).map(pageItem)
         )
     }
 
