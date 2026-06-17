@@ -1169,6 +1169,7 @@ enum LocalModelManager {
         days: [BookDay],
         themes: [BookTheme] = [],
         entityBeliefOffsets: [String: Int] = [:],
+        learnedNotes: [String] = [],
         calendar: Calendar = .current
     ) -> BraidContext {
         BraidPromptBuilder.context(
@@ -1176,6 +1177,7 @@ enum LocalModelManager {
             days: days,
             themes: themes,
             entityBeliefOffsets: entityBeliefOffsets,
+            learnedNotes: learnedNotes,
             calendar: calendar
         )
     }
@@ -1190,6 +1192,14 @@ enum LocalModelManager {
 
     static func bookOfYouBraidPrompt(for day: BookDay, context: BraidContext) -> String {
         BraidPromptBuilder.prompt(for: day, context: context)
+    }
+
+    static func braidRewritePrompt(for day: BookDay, priorBraid: String, weakNotes: [String], context: BraidContext) -> String {
+        BraidPromptBuilder.rewritePrompt(for: day, priorBraid: priorBraid, weakNotes: weakNotes, context: context)
+    }
+
+    static func braidTasteNotePrompt(for day: BookDay, priorBraid: String, weakNotes: [String], context: BraidContext) -> String {
+        BraidPromptBuilder.tasteNotePrompt(for: day, priorBraid: priorBraid, weakNotes: weakNotes, context: context)
     }
 
     static func braidEvidenceLines(for day: BookDay, characterLimit: Int = 760) -> [String] {

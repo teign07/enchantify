@@ -872,6 +872,134 @@ extension ContentView {
     /// prose into the page, fall back to the template body when the brain
     /// is unavailable. The per-type functions below are thin orderings.
     @MainActor
+    // MARK: - Braid self-improvement (Gemma in the loop)
+
+    /// Locate a kept Book of You page by id: (dayIndex, pageIndex, page).
+    private func locatedBraidPage(pageID: String) -> (Int, Int, BookPage)? {
+        guard let dayIndex = days.firstIndex(where: { day in
+            day.pages.contains { $0.id == pageID && $0.type == .bookOfYou }
+        }), let pageIndex = days[dayIndex].pages.firstIndex(where: { $0.id == pageID }) else {
+            return nil
+        }
+        return (dayIndex, pageIndex, days[dayIndex].pages[pageIndex])
+    }
+
+    static let braidTasteNoteInstructions = """
+    You are the Book inside ReEnchanted, learning a single reader's taste.
+    Return exactly one short second-person instruction to yourself for next time. No preamble, no quotes, no label. Begin with a verb. Never diagnose, flatter, or moralize.
+    """
+
+    /// Trim Gemma's taste note to one clean second-person line.
+    static func cleanedTasteNote(_ raw: String) -> String {
+        var note = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let firstLine = note.components(separatedBy: .newlines).first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) {
+            note = firstLine
+        }
+        note = note.trimmingCharacters(in: CharacterSet(charactersIn: "\"'“”"))
+        for label in ["Note:", "Instruction:", "Next time:"] where note.lowercased().hasPrefix(label.lowercased()) {
+            note = String(note.dropFirst(label.count)).trimmingCharacters(in: .whitespaces)
+        }
+        return String(note.prefix(160)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// "This missed me" → Gemma reads the missed braid and writes one
+    /// reader-taught taste note, persisted to steer future braids. Returns a
+    /// reader-facing line. Distress-gated (the Book stays quiet on hard days).
+    @MainActor
+    func improveNextBraidFromMiss(pageID: String) async -> String {
+        guard let (dayIndex, _, page) = locatedBraidPage(pageID: pageID) else { return "" }
+        let day = days[dayIndex]
+        guard !DistressSignals.evaluate(day: today).isActive else {
+            return BraidLearningLoop.publicLesson(for: page)
+        }
+        let context = LocalModelManager.braidContext(
+            for: day,
+            days: days,
+            themes: vault.data.themes ?? [],
+            entityBeliefOffsets: entityBeliefLedger,
+            learnedNotes: vault.data.learnedBraidNotes ?? []
+        )
+        let weak = BraidLearningLoop.weakDimensionNotes(for: page, context: context)
+        let prompt = LocalModelManager.braidTasteNotePrompt(
+            for: day, priorBraid: page.userInput, weakNotes: weak, context: context
+        )
+        guard let raw = await LocalBrainProse.write(
+            prompt: prompt,
+            instructions: Self.braidTasteNoteInstructions,
+            maxTokens: 60,
+            sourceID: "braid-taste-note",
+            tags: ["braid", "taste-note"]
+        ) else {
+            return BraidLearningLoop.publicLesson(for: page)
+        }
+        let note = Self.cleanedTasteNote(raw)
+        guard !note.isEmpty else { return BraidLearningLoop.publicLesson(for: page) }
+        var notes = vault.data.learnedBraidNotes ?? []
+        notes.append(note)
+        vault.data.learnedBraidNotes = Array(notes.suffix(6))
+        vault.save()
+        BookFeedback.play(.braidComplete)
+        return "The Book listened, and will carry this into the next page: \(note)"
+    }
+
+    /// "Rewrite this braid" → Gemma rewrites the missed braid; the deterministic
+    /// taster referees, so the page is only replaced when it reads truer.
+    @MainActor
+    func rewriteBraid(pageID: String) async -> String {
+        guard let (dayIndex, pageIndex, page) = locatedBraidPage(pageID: pageID) else {
+            return "The Book reached for that page, but it had already moved."
+        }
+        let day0 = days[dayIndex]
+        guard !DistressSignals.evaluate(day: today).isActive else {
+            return "Not tonight. The Book is keeping the day gently and left the page as it is."
+        }
+        let context = LocalModelManager.braidContext(
+            for: day0,
+            days: days,
+            themes: vault.data.themes ?? [],
+            entityBeliefOffsets: entityBeliefLedger,
+            learnedNotes: vault.data.learnedBraidNotes ?? []
+        )
+        let weak = BraidLearningLoop.weakDimensionNotes(for: page, context: context)
+        let prompt = LocalModelManager.braidRewritePrompt(
+            for: day0, priorBraid: page.userInput, weakNotes: weak, context: context
+        )
+        guard let raw = await LocalBrainProse.write(
+            prompt: prompt,
+            instructions: BraidInstructions.bookOfYou,
+            maxTokens: 620,
+            sourceID: "braid-rewrite",
+            tags: ["braid", "rewrite", "gemma"]
+        ) else {
+            return "The Book reached for new words, but the local brain was quiet. Try again in a moment."
+        }
+        let revised = BraidTextPolisher.polishedBookOfYou(raw)
+        guard !revised.isEmpty else {
+            return "The Book reached for new words, but the local brain was quiet. Try again in a moment."
+        }
+        // Referee: keep the rewrite only if it tastes better than the original.
+        var candidate = page
+        candidate.userInput = revised
+        let originalScore = BraidTastingRoom.score(page: page, context: context)
+        let revisedScore = BraidTastingRoom.score(page: candidate, context: context)
+        guard revisedScore.total > originalScore.total else {
+            return "The Book reread it, tried another way, and decided your page already held. It kept the original."
+        }
+        var day = days[dayIndex]
+        var updated = day.pages[pageIndex]
+        updated.userInput = revised
+        updated.tags = Set(updated.tags).union(["braid-rewritten"]).sorted()
+        updated = BraidPageDetails.annotated(updated, context: context)
+        day.pages[pageIndex] = updated
+        persist(day: day, message: "The Book rewrote the page closer to your day.")
+        if selectedSurface?.payload.metadata["keptPageID"] == pageID {
+            selectedSurface = keptSurface(for: updated)
+        }
+        surfaceRefreshDate = Date()
+        BookFeedback.play(.braidComplete)
+        return "The Book rewrote the page closer to your day."
+    }
+
     func generatedProseSurface(
         from base: SurfacePage,
         proseKey: String,

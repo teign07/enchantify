@@ -291,17 +291,7 @@ struct MLXBookBraider: Braider {
         return selected.prefix(limit).map { String($0.userInput.prefix(700)) }
     }
 
-    static let bookOfYouInstructions = """
-    You are The Book inside ReEnchanted. You braid kept private real-life pages into a grounded, literary Book of You entry.
-    Use only the supplied kept pages. Do not diagnose, moralize, invent completed actions, or speak as a generic assistant.
-    Write a small narrative with a beginning, a turn, and a landing. Do not list. Do not copy long phrases back verbatim.
-    Keep the braid to 4 to 7 paragraphs, about 280 to 450 words. It should feel like a full page of the Book without becoming a scroll chore.
-    Mention each motif, image, sentence idea, or emotional beat only once.
-    Do not restate the same idea in consecutive paragraphs with swapped words.
-    Keep it warm, vivid, playful, and true.
-    Prose standard: varied literary cadence. Mix short, surprising, concrete sentences with longer, flowing sentences that turn once or twice before landing. Use specific nouns and verbs, one exact physical detail per paragraph, and a voice that feels intimate, lucid, playful, and plainspoken rather than clipped. No vague wonder, generic inspiration, journey, profound, tapestry, echoes, or abstract emotional summary.
-    Style compass: contemporary literary fantasy with dark playfulness, lucid sentences, concrete ordinary objects made strange, a storyteller's sideways humor, and endings that land softly but sharply.
-    """
+    static let bookOfYouInstructions = BraidInstructions.bookOfYou
 
     static let weatherInstructions = """
     You are the Weather Page inside ReEnchanted.
@@ -2586,6 +2576,23 @@ extension SurfacePage {
 // Every prose-shaped generation goes through LocalBrainProse; this is the
 // only place outside the MLX block that knows whether a native brain exists
 // in this build. Callers get prose or nil — never an #if.
+/// Braid instructions live outside the device-only MLX block so the
+/// self-improvement path (taste notes, rewrites) can reference them on any
+/// build, not just on-device.
+enum BraidInstructions {
+    static let bookOfYou = """
+    You are The Book inside ReEnchanted. You braid kept private real-life pages into a grounded, literary Book of You entry.
+    Use only the supplied kept pages. Do not diagnose, moralize, invent completed actions, or speak as a generic assistant.
+    Write a small narrative with a beginning, a turn, and a landing. Do not list. Do not copy long phrases back verbatim.
+    Keep the braid to 4 to 7 paragraphs, about 280 to 450 words. It should feel like a full page of the Book without becoming a scroll chore.
+    Mention each motif, image, sentence idea, or emotional beat only once.
+    Do not restate the same idea in consecutive paragraphs with swapped words.
+    Keep it warm, vivid, playful, and true.
+    Prose standard: varied literary cadence. Mix short, surprising, concrete sentences with longer, flowing sentences that turn once or twice before landing. Use specific nouns and verbs, one exact physical detail per paragraph, and a voice that feels intimate, lucid, playful, and plainspoken rather than clipped. No vague wonder, generic inspiration, journey, profound, tapestry, echoes, or abstract emotional summary.
+    Style compass: contemporary literary fantasy with dark playfulness, lucid sentences, concrete ordinary objects made strange, a storyteller's sideways humor, and endings that land softly but sharply.
+    """
+}
+
 enum LocalBrainProse {
     static func write(
         prompt: String,

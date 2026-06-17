@@ -791,6 +791,12 @@ struct ContentView: View {
                     },
                     onBraidMissedMe: { pageID in
                         markBraidMissedMe(pageID: pageID)
+                    },
+                    onImproveNextBraid: { pageID in
+                        await improveNextBraidFromMiss(pageID: pageID)
+                    },
+                    onRewriteBraid: { pageID in
+                        await rewriteBraid(pageID: pageID)
                     }
                 ) { savedSurface, input, tags in
                     savePage(surface: savedSurface, input: input, tags: tags)
@@ -4869,7 +4875,8 @@ struct ContentView: View {
                 for: braidDay,
                 days: days,
                 themes: vault.data.themes ?? [],
-                entityBeliefOffsets: entityBeliefLedger
+                entityBeliefOffsets: entityBeliefLedger,
+                learnedNotes: vault.data.learnedBraidNotes ?? []
             )
             var braid = try await braider.braid(day: braidDay, context: braidContext)
             braid = BraidPageDetails.annotated(braid, context: braidContext)

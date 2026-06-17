@@ -419,6 +419,105 @@ final class BraidPromptContextTests: XCTestCase {
         )
     }
 
+    // MARK: - Gemma in the loop
+
+    func testReaderTaughtNotesLeadLearnedGuidanceInPrompt() {
+        let day = BookDay(id: "2026-06-16", date: date("2026-06-16T12:00:00Z"), pages: [])
+        let prior = BookDay(
+            id: "2026-06-15",
+            date: date("2026-06-15T12:00:00Z"),
+            pages: [
+                BookPage(
+                    type: .bookOfYou,
+                    promptText: "Book of You",
+                    userInput: "Today was a profound journey full of hidden meaning.",
+                    tags: ["braid", BraidLearningLoop.missedMeTag]
+                )
+            ]
+        )
+        let notes = ["Stay closer to what my hands actually did.", "Let the evening hold the final line."]
+
+        let context = BraidPromptBuilder.context(for: day, days: [prior, day], learnedNotes: notes)
+        let prompt = BraidPromptBuilder.prompt(for: day, context: context)
+
+        // The reader-taught notes are present and sort ahead of heuristics.
+        XCTAssertTrue(prompt.contains("Stay closer to what my hands actually did."))
+        XCTAssertEqual(context.learnedGuidance?.promptLines.first, "Let the evening hold the final line.")
+    }
+
+    func testReaderTaughtNotesIgnoreBlankEntries() {
+        let day = BookDay(id: "2026-06-16", date: date("2026-06-16T12:00:00Z"), pages: [])
+        let context = BraidPromptBuilder.context(for: day, days: [day], learnedNotes: ["   ", ""])
+        XCTAssertNil(context.learnedGuidance)
+    }
+
+    func testRewritePromptCarriesPriorDraftAndWeakNotes() {
+        let day = BookDay(
+            id: "2026-06-16",
+            date: date("2026-06-16T20:30:00Z"),
+            pages: [
+                BookPage(
+                    type: .souvenir,
+                    createdAt: date("2026-06-16T08:00:00Z"),
+                    promptText: "One true thing",
+                    userInput: "The coffee cup sat beside the laptop while rain tapped the window."
+                )
+            ]
+        )
+        let prior = "Today was a profound journey full of hidden meaning."
+        let weak = ["Trade abstract wonder for ordinary enchanted objects: cups, keys, windows."]
+
+        let prompt = BraidPromptBuilder.rewritePrompt(for: day, priorBraid: prior, weakNotes: weak, context: .empty)
+
+        XCTAssertTrue(prompt.contains("Rewrite it truer"))
+        XCTAssertTrue(prompt.contains(prior))
+        XCTAssertTrue(prompt.contains("WHAT MISSED LAST TIME"))
+        XCTAssertTrue(prompt.contains("ordinary enchanted objects"))
+        // It reuses the full braid craft spec.
+        XCTAssertTrue(prompt.contains("KEPT PAGES FROM TODAY"))
+    }
+
+    func testTasteNotePromptAsksForOneSecondPersonLine() {
+        let day = BookDay(
+            id: "2026-06-16",
+            date: date("2026-06-16T20:30:00Z"),
+            pages: [
+                BookPage(
+                    type: .diary,
+                    createdAt: date("2026-06-16T09:00:00Z"),
+                    promptText: "Diary",
+                    userInput: "Walked to the harbor and watched the fog lift off the water."
+                )
+            ]
+        )
+        let prompt = BraidPromptBuilder.tasteNotePrompt(
+            for: day, priorBraid: "A profound journey of hidden meaning.", weakNotes: [], context: .empty
+        )
+
+        XCTAssertTrue(prompt.contains("missed them"))
+        XCTAssertTrue(prompt.contains("exactly one second-person instruction"))
+        XCTAssertTrue(prompt.contains("harbor"))
+    }
+
+    func testWeakDimensionNotesNameGenericBraidsProblems() {
+        let weakPage = BookPage(
+            type: .bookOfYou,
+            promptText: "Book of You",
+            userInput: """
+            Today's Journey
+
+            Today was a profound journey full of hidden meaning and a tapestry of echoes.
+
+            The day mattered.
+            """
+        )
+
+        let notes = BraidLearningLoop.weakDimensionNotes(for: weakPage)
+
+        XCTAssertFalse(notes.isEmpty)
+        XCTAssertTrue(notes.contains { $0.contains("generic") || $0.contains("ordinary enchanted objects") || $0.contains("memorable sentence") })
+    }
+
     private func date(_ value: String) -> Date {
         ISO8601DateFormatter().date(from: value)!
     }

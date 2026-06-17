@@ -24,6 +24,7 @@ enum BraidPromptBuilder {
         days: [BookDay],
         themes: [BookTheme] = [],
         entityBeliefOffsets: [String: Int] = [:],
+        learnedNotes: [String] = [],
         calendar: Calendar = .current
     ) -> Context {
         let recentBraids = recentBraidTexts(excludingDayID: day.id, days: days)
@@ -34,16 +35,19 @@ enum BraidPromptBuilder {
             beliefOffsets: entityBeliefOffsets
         ).flatMap { AcademyChapterRegistry.chapter(forTalismanID: $0.id) }
         let improvementContext = Context(recentBraids: recentBraids, theme: theme, chapter: chapter)
-        let learnedGuidance = BraidLearningLoop.guidance(
+        let learned = BraidLearningLoop.guidance(
             fromPages: days.flatMap(\.pages),
             context: improvementContext
         )
+        // Reader-taught Gemma notes sort ahead of the deterministic heuristics:
+        // the reader said this braid missed, and the Book listened.
+        let merged = BraidLearningGuidance(signals: BraidLearningLoop.readerTaughtSignals(from: learnedNotes) + learned.signals)
 
         return Context(
             recentBraids: recentBraids,
             theme: theme,
             chapter: chapter,
-            learnedGuidance: learnedGuidance.signals.isEmpty ? nil : learnedGuidance
+            learnedGuidance: merged.signals.isEmpty ? nil : merged
         )
     }
 
@@ -185,6 +189,52 @@ enum BraidPromptBuilder {
 
         KEPT PAGES FROM TODAY:
         \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(themeSection)\(chapterSection)\(learnedSection)\(continuity)
+        """
+    }
+
+    /// Gemma re-reads a braid the reader said missed them and rewrites it
+    /// truer. The full braid craft spec is reused so the revision plays by the
+    /// same rules; the prior draft and the weak-dimension notes tell it what to
+    /// fix. `weakNotes` come from `BraidLearningLoop.weakDimensionNotes`.
+    static func rewritePrompt(for day: BookDay, priorBraid: String, weakNotes: [String], context: Context) -> String {
+        let base = prompt(for: day, context: context)
+        let weakSection = weakNotes.isEmpty
+            ? ""
+            : "\n\nWHAT MISSED LAST TIME (address these first, without violating the kept pages):\n"
+                + weakNotes.map { "- \($0)" }.joined(separator: "\n")
+        return """
+        You already braided this day once, and the reader felt the page missed them. Rewrite it truer to their day.
+
+        YOUR PRIOR DRAFT (keep what was honest, fix what missed, and do not reuse its sentences):
+        \(priorBraid)\(weakSection)
+
+        Now write the improved Book of You page, following every rule below.
+
+        \(base)
+        """
+    }
+
+    /// Gemma turns a missed braid into one short reader-taught taste note that
+    /// will steer future braids. Returns a prompt for a single sentence.
+    static func tasteNotePrompt(for day: BookDay, priorBraid: String, weakNotes: [String], context: Context) -> String {
+        let evidence = evidenceLines(for: day).joined(separator: "\n\n")
+        let weakSection = weakNotes.isEmpty
+            ? ""
+            : "\n\nHEURISTIC HUNCHES (you may agree or disagree):\n"
+                + weakNotes.map { "- \($0)" }.joined(separator: "\n")
+        return """
+        You are the Book inside ReEnchanted. The reader marked this Book of You page as one that missed them.
+        Read it against the kept pages it was braided from, and name in one short sentence what the Book should do differently next time it braids this reader's days.
+
+        THE PAGE THAT MISSED:
+        \(priorBraid)\(weakSection)
+
+        KEPT PAGES FROM THAT DAY:
+        \(evidence.isEmpty ? "- None recorded." : evidence)
+
+        Reply with exactly one second-person instruction to yourself for next time, at most 24 words.
+        Begin with a verb. No preamble, no quotation marks, no "Note:" label.
+        Speak as the reader's own taste, for example: "Stay closer to what my hands actually did." or "Let the evening hold the final line."
         """
     }
 
@@ -446,6 +496,27 @@ enum BraidLearningLoop {
         let guidance = guidance(from: observations, limit: limit)
         updated.learnedGuidance = guidance.signals.isEmpty ? nil : guidance
         return updated
+    }
+
+    /// Reader-taught Gemma notes (earned on "this missed me") become guidance
+    /// signals weighted above the deterministic heuristics, newest first.
+    static func readerTaughtSignals(from notes: [String]) -> [BraidLearningGuidance.Signal] {
+        let cleaned = notes.compactMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty }
+        guard !cleaned.isEmpty else { return [] }
+        return cleaned.enumerated().map { index, note in
+            BraidLearningGuidance.Signal(dimension: "reader-taught", weight: 40 + index, note: note)
+        }
+    }
+
+    /// The weak-dimension prompt lines for a single braid page — used to tell
+    /// Gemma exactly what to address when re-reading or rewriting it.
+    static func weakDimensionNotes(for page: BookPage, context: BraidPromptBuilder.Context = .empty) -> [String] {
+        let sample = BraidTastingRoom.Sample(
+            page: page,
+            details: BraidPageDetails.details(for: page),
+            score: BraidTastingRoom.score(page: page, context: context)
+        )
+        return guidance(from: [Observation(selected: sample, acceptedByReader: false)]).promptLines
     }
 
     static func publicLesson(for page: BookPage, context: BraidPromptBuilder.Context = .empty) -> String {

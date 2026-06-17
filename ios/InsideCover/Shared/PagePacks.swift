@@ -471,6 +471,10 @@ struct PlayerVaultData: Codable, Equatable {
     var beliefEconomy: BeliefEconomyState?
     var bookJump: BookJumpState?
     var radio: RadioPlaybackState?
+    /// Gemma-authored taste notes earned when the reader marks a braid "missed
+    /// me." Each is one short second-person nudge folded into future braid
+    /// prompts as reader-taught guidance. Capped to the most recent few.
+    var learnedBraidNotes: [String]?
 }
 
 // MARK: - The BookShop

@@ -365,6 +365,8 @@ struct CapturePageSheet: View {
     var onOpenInventoryBargain: (FaeBargain) -> Void = { _ in }
     var onLoveBraid: (String) -> String = { _ in "" }
     var onBraidMissedMe: (String) -> String = { _ in "" }
+    var onImproveNextBraid: (String) async -> String = { _ in "" }
+    var onRewriteBraid: (String) async -> String = { _ in "" }
     let onSave: (SurfacePage, String, [String]) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -435,6 +437,10 @@ struct CapturePageSheet: View {
     @State private var inventoryRevision = 0
     @State private var inventoryMessage = ""
     @State private var braidFeedbackMessage = ""
+    @State private var didMarkBraidMissed = false
+    @State private var isImprovingBraid = false
+    @State private var isRewritingBraid = false
+    @State private var didRewriteBraid = false
     @State private var loosePageTurns: [String: Int] = [:]
     @AppStorage("illuminatedPhotoHistory") private var illuminatedPhotoHistoryData = "{}"
     #if canImport(PhotosUI)
@@ -2914,36 +2920,79 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.ink.opacity(0.74))
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: 10) {
-                Button {
-                    guard let keptPageID else { return }
-                    let message = onLoveBraid(keptPageID)
-                    braidFeedbackMessage = message.isEmpty ? "The Book marked this as a true page." : message
-                    BookFeedback.play(.keepPage)
-                } label: {
-                    Label("I loved this one", systemImage: "heart")
-                        .font(.subheadline.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(BookPalette.lampGold)
+            if !didMarkBraidMissed {
+                HStack(spacing: 10) {
+                    Button {
+                        guard let keptPageID else { return }
+                        let message = onLoveBraid(keptPageID)
+                        braidFeedbackMessage = message.isEmpty ? "The Book marked this as a true page." : message
+                        BookFeedback.play(.keepPage)
+                    } label: {
+                        Label("I loved this one", systemImage: "heart")
+                            .font(.subheadline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(BookPalette.lampGold)
 
+                    Button {
+                        guard let keptPageID else { return }
+                        // The page is tagged immediately for instant feedback;
+                        // the Book then reads it with the local brain to learn
+                        // for the next braid, and reveals the rewrite offer.
+                        let lesson = onBraidMissedMe(keptPageID)
+                        braidFeedbackMessage = lesson.isEmpty
+                            ? "The Book is reading this again to learn how your days want to be told."
+                            : lesson
+                        didMarkBraidMissed = true
+                        isImprovingBraid = true
+                        BookFeedback.play(.braidStart)
+                        Task {
+                            let learned = await onImproveNextBraid(keptPageID)
+                            isImprovingBraid = false
+                            if !learned.isEmpty { braidFeedbackMessage = learned }
+                        }
+                    } label: {
+                        Label("This missed me", systemImage: "wand.and.stars")
+                            .font(.subheadline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(BookPalette.teal)
+                }
+                .disabled(!braidFeedbackMessage.isEmpty)
+            } else if !didRewriteBraid {
+                // The reader said it missed; offer to let the Book try again.
+                if isImprovingBraid {
+                    Label("The Book is listening…", systemImage: "ear")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.6))
+                }
                 Button {
-                    guard let keptPageID else { return }
-                    let lesson = onBraidMissedMe(keptPageID)
-                    braidFeedbackMessage = lesson.isEmpty
-                        ? "The Book learned a little more about how your days want to be told."
-                        : lesson
-                    BookFeedback.play(.braidComplete)
+                    guard let keptPageID, !isRewritingBraid else { return }
+                    isRewritingBraid = true
+                    braidFeedbackMessage = "The Book is rewriting this page closer to your day…"
+                    BookFeedback.play(.braidStart)
+                    Task {
+                        let result = await onRewriteBraid(keptPageID)
+                        isRewritingBraid = false
+                        didRewriteBraid = true
+                        if !result.isEmpty { braidFeedbackMessage = result }
+                    }
                 } label: {
-                    Label("This missed me", systemImage: "wand.and.stars")
-                        .font(.subheadline.weight(.bold))
-                        .frame(maxWidth: .infinity)
+                    HStack {
+                        if isRewritingBraid {
+                            ProgressView().controlSize(.small)
+                        }
+                        Label("Rewrite this braid", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.subheadline.weight(.bold))
+                    }
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(BookPalette.teal)
+                .disabled(isRewritingBraid || isImprovingBraid)
             }
-            .disabled(!braidFeedbackMessage.isEmpty)
         }
         .padding(14)
         .background(BookPalette.page.opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
