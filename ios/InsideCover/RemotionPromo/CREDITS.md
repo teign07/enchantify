@@ -2,24 +2,15 @@
 
 ## Music
 
-**"The Curtain Rises"** — Kevin MacLeod (incompetech.com)
-Licensed under Creative Commons: By Attribution 4.0 License
-http://creativecommons.org/licenses/by/4.0/
+**"Mossy Footsteps"** — original track made by the ReEnchanted team with Suno.
 
-> This is a **required attribution** (CC-BY 4.0). The credit above must appear
-> wherever the video is published — e.g. the YouTube/Vimeo description, an end
-> card, or the post caption. Free for commercial use *with* this credit.
+First-party music: no third-party attribution required. Confirm your Suno plan
+allows the intended use (commercial use generally requires a paid Suno plan).
 
-Source file: `public/audio/music-curtain-rises.wav` (the 28s original was
-crossfade-looped to 54s and given headroom; original downloaded from
-incompetech.com).
+Source file: `public/audio/mossy-footsteps.mp3`.
 
-### Suggested description blurb (copy-paste)
-
-```
-Music: "The Curtain Rises" by Kevin MacLeod (incompetech.com)
-Licensed under Creative Commons: By Attribution 4.0 — http://creativecommons.org/licenses/by/4.0/
-```
+The previous bed was "The Curtain Rises" by Kevin MacLeod (incompetech.com),
+CC-BY 4.0 — kept in git history if a no-attribution fallback is ever needed.
 
 ## Sound effects
 

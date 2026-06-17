@@ -631,10 +631,9 @@ export const ReEnchantedPromo: React.FC = () => {
   return (
     <AbsoluteFill style={{backgroundColor: ink}}>
       <Background />
-      {/* Musical bed: "The Curtain Rises" by Kevin MacLeod (incompetech.com),
-          CC-BY 4.0 — credit required, see RemotionPromo/CREDITS.md. */}
+      {/* Musical bed: "Mossy Footsteps" — see RemotionPromo/CREDITS.md. */}
       <Audio
-        src={staticFile('audio/music-curtain-rises.wav')}
+        src={staticFile('audio/mossy-footsteps.mp3')}
         volume={(f) => interpolate(f, [0, 30, 1500, 1620], [0, 0.78, 0.78, 0], clamp)}
       />
       {/* The app's own sounds, punctuating each beat. */}
