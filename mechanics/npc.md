@@ -38,7 +38,7 @@ Track items simply. This is not an encumbrance system.
 
 ## NPC Relationship System
 
-Relationships range from -100 to +100. Track them in `players/[name].md`. They affect everything.
+Relationships range from -100 to +100. The canonical store is `memory/relationships/[name].json` (synced to the Relationships table in `players/[name].md`). Update via `python3 scripts/relationships.py delta` or `update-player.py relationship`. They affect everything.
 
 ### Score Levels
 
@@ -74,7 +74,17 @@ Relationships range from -100 to +100. Track them in `players/[name].md`. They a
 
 ### NPC-to-NPC Relationships
 
-Track observed relationships between NPCs (allies, rivals, romances, feuds). Player actions can shift these — befriending Zara while Zara dislikes Finn may make Finn wary of the player. Update the NPC-to-NPC table in `players/[name].md` when observed.
+Track observed relationships between NPCs (allies, rivals, romances, feuds, chapter bonds, teacher's pets) in the same JSON graph (`npc_npc` edges).
+
+**Bulk baseline (recommended after roster changes):**
+```bash
+python3 scripts/relationships.py generate bj
+```
+This reads `lore/characters.md`, applies chapter rules (mates, distant acquaintances, study partners, cross-chapter cool, faculty ties), merges **cliques and curated bonds** from `config/relationship_lore.py`, then locked overrides from `config/relationship-overrides.json`, and writes `npc_agenda` per character.
+
+**Hand edits:** `python3 scripts/relationships.py edge "A" "B" stance --strength N` (locked/manual). Add more overrides to `config/relationship-overrides.json` and re-run `generate`.
+
+Player actions can shift edges — befriending Zara while Zara rivals Finn may make Finn wary of the player. `story-context.py` surfaces `SOCIAL_GRAPH`, `NPC_AGENDA`, and `SOCIAL_PRESSURE`. `world-pulse.py` emits occasional social beats from agendas after simulation.
 
 ### Update Cadence
 

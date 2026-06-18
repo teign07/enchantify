@@ -16,9 +16,12 @@
 
 **Casting flow (text-only):** Use `--mode description` at start. At proof time, require a vivid real-world description. Proceed identically.
 
+**Visual Enchantments:** Everything's Van Gogh, Everything's Monet, Everything's Anime, Everything's Shakespeare, and Everything's Archive can generate a local Draw Things image artifact during completion. If there is an actual image file, pass it with `--proof-image /path/to/photo`; otherwise the script generates from the proof description. Use `--send-image` to push the result through Telegram, or `--no-image` to skip.
+
 **Hard gate:** If the player says they cast/use/try an Enchantment, do not answer with narrative prose first. Run the formal script phase. If the script says proof is required, ask for proof. If proof has arrived, complete the script before narrating the result.
 
 **Rules:**
+- Only offer official Enchantments already listed in the player's Flyleaf. Do not invent "close enough" Enchantment names in play.
 - Never refuse to engage with what the player sends. A blurry photo of a lamp is still a lamp that can be enchanted.
 - The Enchantment's effect should connect to the current story — drive back the Nothing, impress a professor, startle classmates.
 - Always describe the *sensory experience* of casting. What does the magic taste like? What temperature? What texture? The synesthesia IS the magic.

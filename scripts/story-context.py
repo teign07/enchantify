@@ -19,6 +19,7 @@ from typing import Any
 from scene_ledger import load_entries as load_scene_ledger_entries
 import action_lifecycle
 import entity_memory
+import relationships
 
 
 BASE = Path(__file__).resolve().parent.parent
@@ -340,6 +341,41 @@ def emerging_thread_seeds(limit: int = 6) -> list[str]:
             if name.lower() not in claimed and name not in seeds:
                 seeds.append(name)
     return seeds[-limit:]
+
+
+def book_constellations(limit: int = 6) -> dict[str, Any]:
+    """What the player's Book (InsideCover/ReEnchanted) has noticed, named,
+    and wagered. Exported from the phone's continuity engines into
+    config/insidecover-continuity.json; characters may refer to named
+    constellations as something the Book keeps about the player."""
+    path = BASE / "config" / "insidecover-continuity.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    named = [
+        {
+            "name": c.get("name"),
+            "kind": c.get("kind"),
+            "phase": c.get("phase"),
+            "line": truncate(str(c.get("latestLine", "")), 180),
+            "sightings": len(c.get("sightingDayIDs", [])),
+        }
+        for c in payload.get("constellations", [])
+        if c.get("name") and c.get("phase") in ("named", "woven")
+    ][:limit]
+    sealed = [
+        truncate(str(w.get("prediction", "")), 180)
+        for w in payload.get("wagers", [])
+        if w.get("status") == "sealed"
+    ][:3]
+    themes = [
+        {"month": t.get("monthKey"), "name": t.get("name"), "line": truncate(str(t.get("line", "")), 180)}
+        for t in payload.get("themes", [])
+    ][-3:]
+    if not named and not sealed and not themes:
+        return {}
+    return {"named_constellations": named, "sealed_wagers": sealed, "themes": themes}
 
 
 def thread_closure_obligations(limit: int = 4) -> list[dict[str, Any]]:
@@ -699,8 +735,14 @@ def build_context(player: str) -> dict[str, Any]:
         "bleed_ripples": recent_bleed_ripples(),
         "recent_outreach": recent_outreach(),
         "narrative_obligations": narrative_obligations(player),
+        "book_constellations": book_constellations(),
     }
     context["entity_memories"] = relevant_entity_memories(context)
+    cast = []
+    anchor = context.get("scene_continuity_anchor") or {}
+    if anchor.get("cast"):
+        cast = [name.strip() for name in str(anchor["cast"]).split(",") if name.strip()]
+    context["social_graph"] = relationships.social_snapshot(player, cast=cast or None)
     context["continuity_threads"] = continuity_threads(context)
     context["quiet_life_threads"] = quiet_life_threads(context)
     context["model_guidance"] = [
@@ -715,7 +757,9 @@ def build_context(player: str) -> dict[str, Any]:
         "If a BLEED_RIPPLE is relevant, treat it as public interpretation or rumor pressure, not guaranteed objective truth.",
         "If RECENT_CHARACTER_OUTREACH includes a player reply, treat it as relationship continuity: the sender knows the player answered and scenes may acknowledge that.",
         "If ENTITY_MEMORY is present for a character, let it shape behavior, trust, hesitations, callbacks, and offscreen continuity. Do not repeat old actions unless there is a story reason.",
+        "If SOCIAL_GRAPH, NPC_AGENDA, or SOCIAL_PRESSURE is present, let relationship tiers, offscreen goals, and NPC↔NPC stances shape tone, who withholds, and who speaks for whom — without exposition dumps.",
         "Treat NARRATIVE_OBLIGATIONS as repair duties: satisfy, explicitly defer, or preserve them for closeout.",
+        "If BOOK_CONSTELLATIONS are present, characters may refer to a named constellation by its name as something the player's Book keeps (e.g. 'the thread the Book calls Inner Weather Ascendant'). They know the Book wagers but never the outcome of a sealed wager. Use at most one such reference per scene, as intimacy, never as surveillance.",
     ]
     return context
 
@@ -778,6 +822,30 @@ def render_text(context: dict[str, Any]) -> str:
         lines.append("RECENT_CHARACTER_OUTREACH:")
         for item in context["recent_outreach"][-4:]:
             lines.append(f"- {item.get('hook')}")
+    social = context.get("social_graph") or {}
+    if social.get("player_npc"):
+        lines.append("SOCIAL_GRAPH:")
+        for row in social["player_npc"][:6]:
+            lines.append(
+                f"- {row['npc']}: {row['score']:+d} ({row['tier'].replace('_', ' ')}) — {row.get('notes') or ''}"
+            )
+    if social.get("npc_npc"):
+        lines.append("NPC_NPC_STANCES:")
+        for edge in social["npc_npc"][:6]:
+            lines.append(
+                f"- {edge['a']} ↔ {edge['b']}: {edge.get('stance')} ({edge.get('strength')})"
+            )
+    if social.get("npc_agenda"):
+        lines.append("NPC_AGENDA:")
+        for row in social["npc_agenda"][:4]:
+            watching = ", ".join(row.get("watching") or []) or "—"
+            lines.append(
+                f"- {row['npc']}: {row.get('goal')} | fear: {row.get('fear')} | watching: {watching}"
+            )
+    if social.get("propagation_hints"):
+        lines.append("SOCIAL_PRESSURE:")
+        for hint in social["propagation_hints"][:4]:
+            lines.append(f"- {hint}")
     if context.get("entity_memories"):
         lines.append("ENTITY_MEMORY:")
         for memory in context["entity_memories"]:
@@ -795,6 +863,15 @@ def render_text(context: dict[str, Any]) -> str:
         for item in context["narrative_obligations"]:
             suffix = f" [{item.get('choice_pressure')}]" if item.get("choice_pressure") else ""
             lines.append(f"- {item.get('severity')} {item.get('title')}{suffix}: {item.get('scene_hook')}")
+    if context.get("book_constellations"):
+        book = context["book_constellations"]
+        lines.append("BOOK_CONSTELLATIONS (what the player's Book keeps):")
+        for item in book.get("named_constellations", []):
+            lines.append(f"- {item['name']} [{item['phase']}, {item['sightings']} sightings]: {item['line']}")
+        for theme in book.get("themes", []):
+            lines.append(f"- THEME {theme['month']}: \"{theme['name']}\" — {theme['line']}")
+        for wager in book.get("sealed_wagers", []):
+            lines.append(f"- SEALED WAGER (outcome unknown to all): {wager}")
     lines.append("MODEL_GUIDANCE:")
     lines.extend(f"- {item}" for item in context["model_guidance"])
     return "\n".join(lines)

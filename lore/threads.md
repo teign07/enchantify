@@ -112,16 +112,16 @@ Two endings:
 
 **id:** `zara-inkwright`
 **type:** npc-subplot
-**phase:** rising
+**phase:** climax
 **pressure:** low *(will rise — portfolio deadline is approaching, Wicker knows)*
 **npc_anchor:** Zara Finch (Belief 23)
 **locations:** The Library, Inkwright Society Hall, Zara's usual corner of the Great Hall
 **entities:** Zara Finch
 **Nothing pressure:** medium — the Nothing would love to make her doubt the portfolio is good enough. Self-erasure before the deadline.
 
-**Next beat:** Zara's open notebook has been left on a page dense with crossed-out lines — a portfolio artist's statement, every version abandoned mid-sentence. The folded paper under the Tide Glass price tag has been joined by a second, written in different handwriting.
+**Next beat:** Offscreen, Zara's Inkwright Application has acquired a concrete trace: Overnight the draft wins: the two fallen pages vanish fully beneath the shelf, leaving only a pale rectangle in the dust where they'd lain — while the proud-lifted page in the squared stack slides askew, its watermark groove catching the mo… The next visible scene should surface that trace in the room, rumor, object, or NPC behavior before asking the player what to do.
 
-**Last advanced:** 2026-05-24
+**Last advanced:** 2026-06-11
 **born:** 2026-04-12
 **closed:** —
 
@@ -138,9 +138,9 @@ Two endings:
 **entities:** Wicker Eddies
 **Nothing pressure:** high — Wicker is adjacent to the Nothing. His schemes drain Belief from others as a feature, not a side effect. The Nothing doesn't control him; they simply have similar tastes.
 
-**Next beat:** Three students have already attempted the dare, believing the initials were a senior's endorsement — one of them is now nursing a bruised wrist and asking loudly who authorized it. The original errand it replaced is gone, but the receipt pinned beneath has been handled enough times that the margin note is smudged, almost unreadable.
+**Next beat:** Offscreen, Wicker's Campaign has acquired a concrete trace: By the time the breakfast crowd thins, three separate people have repeated the receipt's line as if they'd thought it themselves, and the steward — caught between two unguarded ledgers — quietly slides Finn's betting stub into his apron rat… The next visible scene should surface that trace in the room, rumor, object, or NPC behavior before asking the player what to do.
 
-**Last advanced:** 2026-05-24
+**Last advanced:** 2026-06-12
 **born:** 2026-04-01
 **closed:** —
 
@@ -159,9 +159,9 @@ Two endings:
 **entities:** Headmistress Thorne, Dusk Thorn Talisman, Victor Ebonheart
 **Nothing pressure:** high — something in Duskthorn is already adjacent to absence. The sealed corridor smells of it.
 
-**Next beat:** The Second Floor Records Office lamp is burning past the building's posted closing hour — visible as a thin amber line beneath the frosted glass panel from the stairwell landing. The ghost-mark on the bulletin board, examined closely, carries the faint shadow of a prior notice's ink: the letterhead impression is consistent with documents originating from the Headmistress's office.
+**Next beat:** Offscreen, The Duskthorn Investigation has acquired a concrete trace: Offscreen, The Duskthorn Investigation has acquired a concrete trace: Dusk Thorn lets a bead of candle-wax cool over the Registry's Ember Seal overnight, and by lamplight the lifted cast shows the griffin's beak a hair too blunt — the press… The next visible scene should surface that trace in the room, rumor, object, or NPC behavior before asking the player what to do.
 
-**Last advanced:** 2026-05-24
+**Last advanced:** 2026-06-12
 **born:** 2026-04-01
 **closed:** —
 
@@ -245,6 +245,60 @@ When a new subplot, mystery, or character goal emerges with enough Belief to sus
 
 **Last advanced:** 2026-05-14
 **born:** 2026-05-12
+**closed:** —
+
+
+## Thread: Serenity's Unwritten Thread
+
+**id:** `serenity-unwritten-thread`
+**type:** npc-subplot
+**phase:** setup
+**pressure:** low
+**npc_anchor:** Serenity Brown
+**locations:** Academy corridors, Library, Great Hall, and wherever the Unwritten Interest touches the day
+**entities:** Serenity Brown
+**Nothing pressure:** medium - the Nothing can flatten this into mere trivia instead of lived story
+
+**Next beat:** By full dark the brine sets hard and silver, locking six of the seven specks into crisp Marathon code along the shelf — but the unfinished last dot wicks sideways into the verdigris crack, so the dried line reads as a letter that keeps flickering between two meanings depending on which way the lamp leans. The chip of green sea-glass has fogged over from the inside overnight, and Inkwell's ledger now holds a faint salt-ring around the blank page, as if something tried to sign it and thought better of it.
+
+**Last advanced:** 2026-06-09
+**born:** 2026-05-26
+**closed:** —
+
+
+## Thread: Gimble's Unwritten Thread
+
+**id:** `gimble-unwritten-thread`
+**type:** npc-subplot
+**phase:** setup
+**pressure:** low
+**npc_anchor:** Gimble of the Errata Registry
+**locations:** Academy corridors, Library, Great Hall, and wherever the Unwritten Interest touches the day
+**entities:** Gimble of the Errata Registry
+**Nothing pressure:** medium - the Nothing can flatten this into mere trivia instead of lived story
+
+**Next beat:** Gimble of the Errata Registry leaves a concrete trace of this interest where bj can find it: a note, object, recommendation, or small request that reveals whether their gift is helping or becoming tangled in can become too interested in classification; may mistake emotional avoidance for a filing problem; needs reminding that sometimes a person needs soup before categories..
+
+**Last advanced:** 2026-06-02
+**born:** 2026-06-02
+**closed:** —
+
+
+## Thread: Bellkeeper's Unwritten Thread
+
+**id:** `bellkeeper-unwritten-thread`
+**type:** npc-subplot
+**phase:** setup
+**pressure:** low
+**npc_anchor:** Bellkeeper Elian Quill
+**locations:** Academy corridors, Library, Great Hall, and wherever the Unwritten Interest touches the day
+**entities:** Bellkeeper Elian Quill
+**Nothing pressure:** medium - the Nothing can flatten this into mere trivia instead of lived story
+
+**Next beat:** Bellkeeper Elian Quill leaves a concrete trace of this interest where bj can find it: a note, object, recommendation, or small request that reveals whether their gift is helping or becoming tangled in can over-prepare; may make a day feel too neatly arranged if not reminded that surprise is part of being alive; sometimes treats open time as a thing to protect so carefully that nothing enters it..
+
+**Last advanced:** 2026-06-09
+**born:** 2026-06-09
 **closed:** —
 
 

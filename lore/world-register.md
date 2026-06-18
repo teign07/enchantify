@@ -14,12 +14,15 @@
 
 | Entity | Type | Belief | Notes |
 |---|---|---|---|
+| Bellkeeper's Unwritten Thread | Thread | 8 | [id:bellkeeper-unwritten-thread] Phase: setup — Bellkeeper Elian Quill's map-and-route obsession has begun affecting Academy life. |
+| Gimble's Unwritten Thread | Thread | 8 | [id:gimble-unwritten-thread] Phase: setup — Gimble of the Errata Registry's practical personal finance, envelope budgeting, open-source budgeting tools, actual budget has begun affecting Academy life. |
+| Serenity's Unwritten Thread | Thread | 11 | [id:serenity-unwritten-thread] Phase: setup — Salt code set hard but the final letter stayed ambiguous; sea-glass fogged, ledger ringed — riddle still open. |
 | Inkrest's Difficult Pages | Thread | 7 | [id:inkrest-difficult-pages] Phase: setup — Dr. Inkrest has opened Tuesday/Thursday office hours for Difficult Pages, daydream work, consciousness/brain-study translation, reauthoring notes, and grounded next-hour actions. |
-| Elowen's Refectory Experiments | Thread | 10 | [id:elowen-refectory-experiments] Phase: setup — Elowen has begun translating fuel, health, and longevity research into small practical experiments for bj. |
+| Elowen's Refectory Experiments | Thread | 9 | [id:elowen-refectory-experiments] Phase: setup — Elowen has begun translating fuel, health, and longevity research into small practical experiments for bj. |
 | Academy Daily Life | Thread | 65 | [id:academy-daily] Phase: quiet — Wandering day — Book Jumpers meeting opened a mystery thread about compromised books; bj met Corin for the first time |
-| Wicker's Campaign | Thread | 65 | [id:wicker-schemes] Phase: resolution — Dare attempted thrice; original errand vanished; receipt margin nearly illegible. |
-| Zara's Inkwright Application | Thread | 28 | [id:zara-inkwright] Phase: rising — Zara gone; notebook shows crossed-out statements; second note added to Tide Glass. |
-| The Duskthorn Investigation | Thread | 65 | [id:duskthorn-investigation] Phase: resolution — Registry relocated upstairs; Thorne-origin notice beneath new one; office lit after hours. |
+| Wicker's Campaign | Thread | 65 | [id:wicker-schemes] Phase: resolution — By the time the breakfast crowd thins, three separate people have repeated the receipt's line as if they'd thought it th… |
+| Zara's Inkwright Application | Thread | 36 | [id:zara-inkwright] Phase: climax — Overnight the draft wins: the two fallen pages vanish fully beneath the shelf, leaving only a pale rectangle in the dust… |
+| The Duskthorn Investigation | Thread | 65 | [id:duskthorn-investigation] Phase: resolution — Offscreen, The Duskthorn Investigation has acquired a concrete trace: Dusk Thorn lets a bead of candle-wax cool over the… |
 
 ---
 
@@ -38,7 +41,7 @@
 
 
 
-| The Quillquarium | Location | 15 | [thread:academy-daily] Living-object tank; the objects inside choose their bearers |
+| The Quillquarium | Location | 16 | [thread:academy-daily] Living-object tank; the objects inside choose their bearers |
 
 
 ---
@@ -51,7 +54,6 @@
 
 
 
-| Professor Thaddeus Mook | NPC | 17 | [thread:academy-daily] Riddlewind; pompous, articulate; uses three syllables where one would do; enjoys the sound of his own erudition |
 
 
 
@@ -66,129 +68,308 @@
 
 
 
-| Ellie Moons | NPC | 18 | [thread:academy-daily] Riddlewind; intellectual puzzle-lover; taps fingers when thinking; drawn to the mystery in everything |
-
-| Penny Blackletter | NPC | 41 | [thread:academy-daily,press-and-peculiar-commerce] Riddlewind student; Editor-in-Chief of The Bleed, Margins Desk; social media and marketing specialist for Wonder Compass, the Doobaleedoos $1 Patreon, and free open-source Enchantify; turns story proof into public-safe in-character dispatches; Unwritten Interest: indie publishing, ethical marketing, Patreon, open-source storytelling, creator economy; drafts only, never auto-posts |
-| Professor Bastion Goldweaver | NPC | 34 | [thread:academy-daily,press-and-peculiar-commerce] Flamboyant Chair of Applied Abundance; entrepreneurial professor for ethical monetization, products, Patreon, pricing, offer ladders, launch experiments, and sustainable revenue around Wonder Compass, The Doobaleedoos, and free open-source Enchantify; drafts only, never spends/posts/promises without consent |
-| Headmistress Thorne | NPC | 65 | [thread:duskthorn-investigation] Leads the Academy; sees the Unwritten; the most powerful presence in the Labyrinth |
 
 
 
-
-| Professor Kyle Momort | NPC | 21 | [thread:academy-daily] Emberheart; smooth, measured; teaches Wayfinding as escape routes not arrivals; secretly Duskthorn |
+| Professor Bastion Goldweaver | NPC | 41 | [thread:academy-daily,press-and-peculiar-commerce] Flamboyant Chair of Applied Abundance; entrepreneurial professor for ethical monetization, products, Patreon, pricing, offer ladders, launch experiments, and sustainable revenue around Wonder Compass, The Doobaleedoos, and free open-source Enchantify; drafts only, never spends/posts/promises without consent |
 
 
 
 
-| Professor Archibald Permancer | NPC | 17 | [thread:academy-daily] Mossbloom; lectures even in casual conversation; surprisingly engaging when the subject is dark; secretly obsessed with dark arts |
 
 
-| Caspian Shan | NPC | 17 | [thread:academy-daily] Emberheart; stealthy, secretive; merges with shadows; night photographer |
-
-| Serenity Brown | NPC | 34 | [thread:academy-daily] Tidecrest; carefree, spontaneous; keeps everyone from being too serious; 50 Belief invested by bj (20 on 2026-04-30, 30 on 2026-05-18) — Bond tier |
-
-| Professor Euphony | NPC | 23 | [thread:main-arc] Euphony is exhausted after the Discordant Song and quietly afraid that every restored sound now has a cost. |
-| Dr. Selene Inkrest | NPC | 31 | [thread:academy-daily,inkrest-difficult-pages] Book Fae; Academy Narrative Therapist; Unwritten Interest: consciousness and brain studies as they relate to BJ; scheduled Tuesday/Thursday 9:30 PM office hours; reads therapy chart, Vellum chart, fuel, heartbeat, diary/daydreams; supports narrative therapy, reauthoring, grounding, and Difficult Pages; no Chapter allegiance |
-| Professor Luna Wispwood | NPC | 30 | [thread:academy-daily] Head of Tidecrest; adventurous, flighty; always planning the next thing; changes topics mid-sentence |
-| Dr. Elowen Vellum | NPC | 27 | [thread:academy-daily,elowen-refectory-experiments] Book Fae; Literary Elf; Academy Longevity Physician; reads fuel, health, BP/labs when provided, supplements, movement, recovery, and Vellum Chart context into precise daily longevity experiments; no Chapter allegiance |
-| Professor Maxwell Thorne | NPC | 21 | [thread:academy-daily] Emberheart; every sentence has a second meaning; speaks in metaphors; collection of allegorical works |
 
 
-| Wicker Eddies | NPC | 79 | [thread:wicker-schemes] Primary antagonist; Duskthorn; charismatic, cunning, always three moves ahead |
-| Anton Smith | NPC | 17 | [thread:academy-daily] Mossbloom; scholarly, socially awkward; oldest libraries; paper is sacred to him |
-| Headmaster Orion Blackthorn | NPC | 18 | [thread:academy-daily] Emberheart; clipped, precise; loves innovation, ignores the human cost; challenges are demanding but fair |
-| Bellkeeper Elian Quill | NPC | 30 | [thread:academy-daily] Book Fae; Registrar of Hours; proactive support character who reads schedule, calendar, Heartbeat, and support signals to prepare Today’s Page cards, transition supports, Compass windows, and evening scraps; simple language; no calendar/reminder writes without explicit consent |
-| Orlando "Oracle" Scrollstone | NPC | 20 | [thread:academy-daily] Riddlewind; predicts things one beat too late; unsettlingly accurate |
-| Professor Elara Nightshade | NPC | 21 | [thread:academy-daily] Head of Emberheart; competitive, passionate; everything she says sounds like a dare; biased toward her chapter |
-| Professor Vivian Villanelle | NPC | 23 | [thread:academy-daily] Tidecrest; warm and supportive; teaches ink-binding and souvenir craft; recites poetry aloud; focused on structure |
-| Gimble of the Errata Registry | NPC | 30 | [thread:academy-daily] Goblin; Errata Registry Bursar of Small Abundances; finance support; reads Ledger Chart and Actual Budget/SimpleFIN when configured; binds money fog without shame; no Chapter allegiance |
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Professor Thaddeus Mook | NPC | 19 | [thread:academy-daily] Riddlewind; pompous, articulate; uses three syllables where one would do; enjoys the sound of his own erudition |
+
+
+
+
+
+
+
+
+
+
+
+| Penny Blackletter | NPC | 45 | [thread:academy-daily,press-and-peculiar-commerce] Riddlewind student; Editor-in-Chief of The Bleed, Margins Desk; social media and marketing specialist for Wonder Compass, the Doobaleedoos $1 Patreon, and free open-source Enchantify; turns story proof into public-safe in-character dispatches; Unwritten Interest: indie publishing, ethical marketing, Patreon, open-source storytelling, creator economy; drafts only, never auto-posts |
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Professor Elara Nightshade | NPC | 24 | [thread:academy-daily] Head of Emberheart; competitive, passionate; everything she says sounds like a dare; biased toward her chapter |
+
+
+
+
+
+
+| Bellkeeper Elian Quill | NPC | 34 | [thread:academy-daily,bellkeeper-unwritten-thread] Book Fae; Registrar of Hours; proactive support character who reads schedule, calendar, Heartbeat, and support signals to prepare Today’s Page cards, transition supports, Compass windows, and evening scraps; simple language; no calendar/reminder writes without explicit consent |
+
+
+| Gimble of the Errata Registry | NPC | 38 | [thread:academy-daily,gimble-unwritten-thread] Goblin; Errata Registry Bursar of Small Abundances; finance support; reads Ledger Chart and Actual Budget/SimpleFIN when configured; binds money fog without shame; no Chapter allegiance |
+
+
+
+
+
+
+
+
+
+
+| Raven Hearts | NPC | 16 | [thread:wicker-schemes,academy-daily] Mossbloom; Wicker's crew; quiet, calculating; watches for strange shadows |
+
+| Ivy Liversedge | NPC | 16 | [thread:academy-daily] Mossbloom; kind-hearted, self-sacrificing; healing herbs; the one who patches things up |
+
+
+| Briar Merlock | NPC | 19 | [thread:academy-daily] Mossbloom; forest-dweller wisdom; foraging; wild mushroom identification |
+
+
+| Serenity Brown | NPC | 23 | [thread:academy-daily,serenity-unwritten-thread] Tidecrest; carefree, spontaneous; keeps everyone from being too serious; 50 Belief invested by bj (20 on 2026-04-30, 30 on 2026-05-18) — Bond tier |
+
+
+| Professor Vivian Villanelle | NPC | 18 | [thread:academy-daily] Tidecrest; warm and supportive; teaches ink-binding and souvenir craft; recites poetry aloud; focused on structure |
+| Dr. Selene Inkrest | NPC | 33 | [thread:academy-daily,inkrest-difficult-pages] Book Fae; Academy Narrative Therapist; Unwritten Interest: consciousness and brain studies as they relate to BJ; scheduled Tuesday/Thursday 9:30 PM office hours; reads therapy chart, Vellum chart, fuel, heartbeat, diary/daydreams; supports narrative therapy, reauthoring, grounding, and Difficult Pages; no Chapter allegiance |
+| Anton Smith | NPC | 16 | [thread:academy-daily] Mossbloom; scholarly, socially awkward; oldest libraries; paper is sacred to him |
+| Professor Luna Wispwood | NPC | 24 | [thread:academy-daily] Head of Tidecrest; adventurous, flighty; always planning the next thing; changes topics mid-sentence |
+| Orlando "Oracle" Scrollstone | NPC | 18 | [thread:academy-daily] Riddlewind; predicts things one beat too late; unsettlingly accurate |
+| Headmistress Thorne | NPC | 46 | [thread:duskthorn-investigation] Leads the Academy; sees the Unwritten; the most powerful presence in the Labyrinth |
+| Dr. Elowen Vellum | NPC | 25 | [thread:academy-daily,elowen-refectory-experiments] Book Fae; Literary Elf; Academy Longevity Physician; reads fuel, health, BP/labs when provided, supplements, movement, recovery, and Vellum Chart context into precise daily longevity experiments; no Chapter allegiance |
+| Professor Euphony | NPC | 14 | [thread:main-arc] Euphony is exhausted after the Discordant Song and quietly afraid that every restored sound now has a cost. |
+| Professor Kyle Momort | NPC | 18 | [thread:academy-daily] Emberheart; smooth, measured; teaches Wayfinding as escape routes not arrivals; secretly Duskthorn |
+| Wicker Eddies | NPC | 61 | [thread:wicker-schemes] Primary antagonist; Duskthorn; charismatic, cunning, always three moves ahead |
 
 ## Fading Presence (Belief 5–14)
 
 | Entity | Type | Belief | Notes |
 |---|---|---|---|
-| The Goblin Index Empire | fae | 15 | [thread:academy-daily] Oldest power in the Outer Stacks; born from marginalia; trade in attention; friend or foe unknown until you're in the market |
+
 
 
 | The Great Hall | Location | 15 | [thread:academy-daily] Where bj was sorted into Riddlewind; the Register lives here |
 | The Observatory | Location | 11 | [thread:academy-daily] Where bj calibrated the Compass; sky still holds his question |
 
 
-| Erik Forgeton | NPC | 13 | [thread:academy-daily] Emberheart Enchantment Guardian; safeguards individuality and passion |
+
 | Sylvia Deep | NPC | 12 | [thread:academy-daily] Mossbloom Enchantment Guardian; promotes wisdom and reflection |
-| Harry Ono | NPC | 13 | [thread:academy-daily] Tidecrest Enchantment Guardian; encourages present-moment magic and spontaneity |
+
 | The Labyrinth of Stories | Object | 10 | The enchanted textbook; Inside Cover = quest log; The Flyleaf = known enchantments; given to each student on arrival |
 
 
 | Book Sprites | fae | 11 | [thread:academy-daily] |
-| Sentence Salamanders | fae | 11 | [thread:academy-daily] |
-| Punctuation Pixies | fae | 11 | [thread:academy-daily] |
+
+| Punctuation Pixies | fae | 12 | [thread:academy-daily] |
 | Literary Elves | fae | 14 | [thread:academy-daily] |
 | Deep Lore Dwarves | fae | 11 | [thread:academy-daily] |
 
-| Damien Nights | NPC | 11 | [thread:wicker-schemes,academy-daily] Riddlewind; Wicker's crew; brooding shadow magic; watches the player more than he should |
-| Selene Moonfall | NPC | 15 | [thread:wicker-schemes,academy-daily] Tidecrest; Wicker's crew; mysterious, alluring, deceptive; social climbing as a skill |
-| Professor Ignatius Imatook | NPC | 10 | [thread:academy-daily] Mossbloom; drifts mid-conversation into describing places that don't exist; stormchaser in spirit |
-| Evelyn Riad | NPC | 8 | [thread:academy-daily] Mossbloom; library researcher; finds Nothing-related clues in obscure academic papers |
+| Damien Nights | NPC | 17 | [thread:wicker-schemes,academy-daily] Riddlewind; Wicker's crew; brooding shadow magic; watches the player more than he should |
 
-| Soren Ng | NPC | 11 | [thread:academy-daily] Riddlewind; methodical; growing riddle collection; quietly building something |
 
-| Felicity "Fable" Grimmhaven | NPC | 9 | [thread:academy-daily] Riddlewind; collects folklore; stories about things that haven't happened yet |
-| Raven Hearts | NPC | 17 | [thread:wicker-schemes,academy-daily] Mossbloom; Wicker's crew; quiet, calculating; watches for strange shadows |
 
-| Briar Merlock | NPC | 16 | [thread:academy-daily] Mossbloom; forest-dweller wisdom; foraging; wild mushroom identification |
-| Clarissa "Clio" Quibblesnatch | NPC | 9 | [thread:academy-daily] Mossbloom; poetic daydreamer; open mic nights; sees stories in everything |
-| Ignatius "Inkwell" Scribblesnap | NPC | 10 | [thread:academy-daily] Tidecrest; documentation-obsessed; vintage pens; journals everything; the Labyrinth's spiritual cousin |
+
+
+
 | The Obsidian Chronograph | Object | 8 | Anchor pen; cool, heavy, precise — waits in the Quillquarium for its bearer |
 | Aria Silverthorn | NPC | 8 | [thread:academy-daily] Riddlewind; empathetic, lacks confidence; hums when thinking; drawn to the player in ways she doesn't acknowledge |
-| Cedric Widden | NPC | 8 | [thread:main-arc,academy-daily] Riddlewind; witty mischief; harmless pranks; would trip over himself to help |
-| Lyra Stanford | NPC | 12 | [thread:academy-daily] Riddlewind; intuitive, mystical; stargazes; believes the sky has opinions |
+| Cedric Widden | NPC | 9 | [thread:main-arc,academy-daily] Riddlewind; witty mischief; harmless pranks; would trip over himself to help |
 
-| Brianna Clarke | NPC | 7 | [thread:academy-daily] Emberheart; rebellious, innovative; doodles magical symbols; the kind who starts things |
-| Isolde Firare | NPC | 10 | [thread:academy-daily] Emberheart; competitive, adventurous; first to challenge and first to respect competence |
+
+| Brianna Clarke | NPC | 11 | [thread:academy-daily] Emberheart; rebellious, innovative; doodles magical symbols; the kind who starts things |
+
 | Rowan Laraway | NPC | 10 | [thread:academy-daily] Emberheart; analytical tinkerer; always disassembling something they probably shouldn't |
 
-| Min-seo Kim | NPC | 10 | [thread:academy-daily] Mossbloom; gentle, nurturing; communicates with plants; the Academy's conscience |
-| Ivy Liversedge | NPC | 12 | [thread:academy-daily] Mossbloom; kind-hearted, self-sacrificing; healing herbs; the one who patches things up |
+| Min-seo Kim | NPC | 12 | [thread:academy-daily] Mossbloom; gentle, nurturing; communicates with plants; the Academy's conscience |
 
 
-| Octavius "Ode" Quillenchant | NPC | 7 | [thread:academy-daily] Tidecrest; heartfelt poet; anonymous notes in public places; quietly moves people |
 
-| Serenity Lightfeather | NPC | 11 | [thread:academy-daily] Riddlewind; free-spirited dreamer; optimistic to the point of missing danger |
-| Felix Quimby | NPC | 9 | [thread:academy-daily] Riddlewind; quick, agile; speed-running errands; easily distracted by the next thing |
-| Jasper Blum | NPC | 6 | [thread:academy-daily] Mossbloom; quiet, protective; defensive spells; stargazes alone |
-| Astrid Natsune | NPC | 12 | [thread:academy-daily] Mossbloom; dreamy, philosophical; constellations; hard to reach when she's up there |
-| Aurora Whispers | NPC | 8 | [thread:academy-daily] Tidecrest; dreamy, adventurous; tarot readings; imagines the best possible version of everything |
-| Apple Reminders | Tool | 10 | [thread:academy-daily] The Obligation Stones. Heavy tablets that materialize in the student's dorm room. Overdue tasks grow heavier; completed ones crumble with a satisfying crack. |
-| Calendar | Tool | 6 | [thread:academy-daily] The Academy Clock Tower: displays obligations from the Climax. When overbooked, chimes too fast; when clear, plays a peaceful melody. |
+| Octavius "Ode" Quillenchant | NPC | 8 | [thread:academy-daily] Tidecrest; heartfelt poet; anonymous notes in public places; quietly moves people |
+
+
+| Jasper Blum | NPC | 8 | [thread:academy-daily] Mossbloom; quiet, protective; defensive spells; stargazes alone |
+
+| Aurora Whispers | NPC | 10 | [thread:academy-daily] Tidecrest; dreamy, adventurous; tarot readings; imagines the best possible version of everything |
+| Apple Reminders | Tool | 13 | [thread:academy-daily] The Obligation Stones. Heavy tablets that materialize in the student's dorm room. Overdue tasks grow heavier; completed ones crumble with a satisfying crack. |
+| Calendar | Tool | 7 | [thread:academy-daily] The Academy Clock Tower: displays obligations from the Climax. When overbooked, chimes too fast; when clear, plays a peaceful melody. |
 
 ---
 | The Crossroads of Simple Joys | Location | 5 | Outer Stacks REST anchor — warm amber room tended by three Hearthkin who archive uncomplicated joys in sealed glass vessels; a chair by the fire waits; the oldest vessel on the highest shelf has been there longer than anyone will say. 📍 GPS-gated: 44.424774, -69.008679 |
 | The Archive of Fermentation | Location | 5 | Outer Stacks EMBARK anchor — vast cold vault of glass-fronted cases tended by the Wayskeeper, a fae who has never finished a journey; each vessel holds a fermenting path; bj's is already labeled. 📍 GPS-gated: 44.426328, -69.005545 |
-| Boggle | NPC | 5 | [thread:academy-daily] Riddlewind; Enchantment teacher; chaotic, sticky, hard to pin down; the pun always lands eventually |
-| Professor Stonebrook | NPC | 7 | [thread:academy-daily] Head of Mossbloom; Observatory keeper; calibrated the Wonder Compass with bj at T12; long pauses, philosophical |
+
+| Professor Stonebrook | NPC | 8 | [thread:academy-daily] Head of Mossbloom; Observatory keeper; calibrated the Wonder Compass with bj at T12; long pauses, philosophical |
 
 
-| Marina Clockhouse | NPC | 8 | [thread:academy-daily] Tidecrest; serene, mysterious; bond with aquatic creatures; the tide hears her |
 
 
-| Melisande Blackwood | NPC | 5 | [thread:wicker-schemes,academy-daily] Emberheart; Wicker's crew; loyal, intelligent, ruthless; knows things she shouldn't |
+| Melisande Blackwood | NPC | 6 | [thread:wicker-schemes,academy-daily] Emberheart; Wicker's crew; loyal, intelligent, ruthless; knows things she shouldn't |
+
+
+
+
+
+
+
+
+| Lysander Mosswood | NPC | 9 | [thread:academy-daily] Mossbloom; thoughtful, wise; nature walks; will send the player to specific local trails |
+
+
+
 | Thorn Thomas | NPC | 8 | [thread:academy-daily] Mossbloom; transforms into small animals; curious; can fit under doors |
 
+| Serenity Lightfeather | NPC | 10 | [thread:academy-daily] Riddlewind; free-spirited dreamer; optimistic to the point of missing danger |
 
-| Astra Sonseur | NPC | 8 | [thread:academy-daily] Emberheart; radiant, hopeful; sun energy; makes the room warmer without trying |
-| Orion Watson | NPC | 8 | [thread:academy-daily] Tidecrest; confident, bold explorer; the first to jump |
-| Eleanor Whitewood | NPC | 11 | [thread:academy-daily] Emberheart benefactor; real-world believer in storytelling magic; genuinely warm |
-| Wilbur "Wordplay" Lexi | NPC | 9 | [thread:academy-daily] Riddlewind; pun-first personality; the one who makes Boggle laugh |
-| Dylan Williamson | NPC | 13 | [thread:academy-daily] Tidecrest; energetic weather controller; storm-chasing; brings weather into rooms |
+| Isolde Firare | NPC | 8 | [thread:academy-daily] Emberheart; competitive, adventurous; first to challenge and first to respect competence |
+
+
+
+| Clarissa "Clio" Quibblesnatch | NPC | 12 | [thread:academy-daily] Mossbloom; poetic daydreamer; open mic nights; sees stories in everything |
+
+
+| Quentin Pagester | NPC | 8 | [thread:academy-daily] Riddlewind; meticulous archivist; catalogues enchanted books; organizational systems are sacred |
+
+
+
+| Ignatius "Inkwell" Scribblesnap | NPC | 8 | [thread:academy-daily] Tidecrest; documentation-obsessed; vintage pens; journals everything; the Labyrinth's spiritual cousin |
+
+
+
+
+| Dylan Williamson | NPC | 8 | [thread:academy-daily] Tidecrest; energetic weather controller; storm-chasing; brings weather into rooms |
+| Felix Quimby | NPC | 8 | [thread:academy-daily] Riddlewind; quick, agile; speed-running errands; easily distracted by the next thing |
+| Evelyn Riad | NPC | 8 | [thread:academy-daily] Mossbloom; library researcher; finds Nothing-related clues in obscure academic papers |
+| Marina Clockhouse | NPC | 7 | [thread:academy-daily] Tidecrest; serene, mysterious; bond with aquatic creatures; the tide hears her |
+
+
+
+
+| Selene Moonfall | NPC | 16 | [thread:wicker-schemes,academy-daily] Tidecrest; Wicker's crew; mysterious, alluring, deceptive; social climbing as a skill |
+
+
+| Orion Watson | NPC | 5 | [thread:academy-daily] Tidecrest; confident, bold explorer; the first to jump |
+| Caspian Shan | NPC | 14 | [thread:academy-daily] Emberheart; stealthy, secretive; merges with shadows; night photographer |
 | Finn Bridges | NPC | 10 | [thread:academy-daily] Emberheart; independent, determined; antagonistic but honorable; a rival who respects competence |
-| Letitia Windings | NPC | 12 | [thread:academy-daily] Riddlewind Enchantment Guardian; ensures cooperation and unity remain strong |
-| Lila Woods | NPC | 9 | [thread:academy-daily] Emberheart; impulsive, fiery; explosive potions; will demand food reviews |
-| Lysander Mosswood | NPC | 8 | [thread:academy-daily] Mossbloom; thoughtful, wise; nature walks; will send the player to specific local trails |
-| Zara Finch | NPC | 11 | [thread:main-arc,zara-inkwright] House guide and first friend at Enchantify; Riddlewind; warm, curious, fiercely loyal |
-| Quentin Pagester | NPC | 11 | [thread:academy-daily] Riddlewind; meticulous archivist; catalogues enchanted books; organizational systems are sacred |
-| Gwendolyn Mythwright | NPC | 13 | [thread:academy-daily] Mossbloom; passionate cryptid seeker; writes extensively about things she hasn't proven |
-| Professor Wellend Thickets | NPC | 13 | [thread:academy-daily] Head of Riddlewind; speaks only in questions and riddles; uses cooperative philosophy as cover; secretly Duskthorn |
+
+
+| Zara Finch | NPC | 12 | [thread:main-arc,zara-inkwright] House guide and first friend at Enchantify; Riddlewind; warm, curious, fiercely loyal |
+
+| Professor Ignatius Imatook | NPC | 7 | [thread:academy-daily] Mossbloom; drifts mid-conversation into describing places that don't exist; stormchaser in spirit |
+| Letitia Windings | NPC | 14 | [thread:academy-daily] Riddlewind Enchantment Guardian; ensures cooperation and unity remain strong |
+| Astrid Natsune | NPC | 7 | [thread:academy-daily] Mossbloom; dreamy, philosophical; constellations; hard to reach when she's up there |
+| Professor Wellend Thickets | NPC | 16 | [thread:academy-daily] Head of Riddlewind; speaks only in questions and riddles; uses cooperative philosophy as cover; secretly Duskthorn |
+
+| Professor Archibald Permancer | NPC | 16 | [thread:academy-daily] Mossbloom; lectures even in casual conversation; surprisingly engaging when the subject is dark; secretly obsessed with dark arts |
+| Lila Woods | NPC | 12 | [thread:academy-daily] Emberheart; impulsive, fiery; explosive potions; will demand food reviews |
+| Gwendolyn Mythwright | NPC | 11 | [thread:academy-daily] Mossbloom; passionate cryptid seeker; writes extensively about things she hasn't proven |
+| Wilbur "Wordplay" Lexi | NPC | 5 | [thread:academy-daily] Riddlewind; pun-first personality; the one who makes Boggle laugh |
+| Erik Forgeton | NPC | 13 | [thread:academy-daily] Emberheart Enchantment Guardian; safeguards individuality and passion |
+| Sentence Salamanders | fae | 12 | [thread:academy-daily] |
+| Soren Ng | NPC | 12 | [thread:academy-daily] Riddlewind; methodical; growing riddle collection; quietly building something |
+| Professor Maxwell Thorne | NPC | 11 | [thread:academy-daily] Emberheart; every sentence has a second meaning; speaks in metaphors; collection of allegorical works |
+| The Goblin Index Empire | fae | 14 | [thread:academy-daily] Oldest power in the Outer Stacks; born from marginalia; trade in attention; friend or foe unknown until you're in the market |
+
+| Felicity "Fable" Grimmhaven | NPC | 14 | [thread:academy-daily] Riddlewind; collects folklore; stories about things that haven't happened yet |
+| Harry Ono | NPC | 12 | [thread:academy-daily] Tidecrest Enchantment Guardian; encourages present-moment magic and spontaneity |
+| Ellie Moons | NPC | 12 | [thread:academy-daily] Riddlewind; intellectual puzzle-lover; taps fingers when thinking; drawn to the mystery in everything |
+| Lyra Stanford | NPC | 10 | [thread:academy-daily] Riddlewind; intuitive, mystical; stargazes; believes the sky has opinions |
+| Astra Sonseur | NPC | 10 | [thread:academy-daily] Emberheart; radiant, hopeful; sun energy; makes the room warmer without trying |
+| Eleanor Whitewood | NPC | 5 | [thread:academy-daily] Emberheart benefactor; real-world believer in storytelling magic; genuinely warm |
+| Headmaster Orion Blackthorn | NPC | 13 | [thread:academy-daily] Emberheart; clipped, precise; loves innovation, ignores the human cost; challenges are demanding but fair |
 
 ## Whisper Register (Belief <5)
 
@@ -199,6 +380,7 @@
 
 ---
 - Victor Ebonheart (NPC, Belief 4) — [thread:duskthorn-investigation] Duskthorn benefactor; real-world connection to the Academy; the kind of patron whose interest should make you nervous
+- Boggle (NPC, Belief 4) — [thread:academy-daily] Riddlewind; Enchantment teacher; chaotic, sticky, hard to pin down; the pun always lands eventually
 
 ## Chapter Talismans
 
@@ -206,8 +388,8 @@
 
 | Talisman | Chapter | Belief | Philosophy & Goal |
 |---|---|---|---|
-| Dusk Thorn | Duskthorn | 105 | [thread:duskthorn-investigation] Goal: Introduce conflict, obstacles, or drama. Philosophy: No conflict, no story. |
-| Wind Cipher | Riddlewind | 44 | Goal: Force collaborative puzzles or shared encounters. Philosophy: Coauthored story. |
-| Ember Seal | Emberheart | 64 | Goal: Generate Embark opportunities for self-agency. Philosophy: Self-authorship. |
-| Moss Clasp | Mossbloom | 23 | Goal: Enhance receptive experiences and quiet reflection. Philosophy: Surrender/higher power. |
-| Tide Glass | Tidecrest | 62 | Goal: Inject spontaneity and unpredictable changes. Philosophy: Life is a poem/unscripted. |
+| Dusk Thorn | Duskthorn | 103 | [thread:duskthorn-investigation] Goal: Introduce conflict, obstacles, or drama. Philosophy: No conflict, no story. |
+| Wind Cipher | Riddlewind | 42 | Goal: Force collaborative puzzles or shared encounters. Philosophy: Coauthored story. |
+| Ember Seal | Emberheart | 46 | Goal: Generate Embark opportunities for self-agency. Philosophy: Self-authorship. |
+| Moss Clasp | Mossbloom | 24 | Goal: Enhance receptive experiences and quiet reflection. Philosophy: Surrender/higher power. |
+| Tide Glass | Tidecrest | 40 | Goal: Inject spontaneity and unpredictable changes. Philosophy: Life is a poem/unscripted. |

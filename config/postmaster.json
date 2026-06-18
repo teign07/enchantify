@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "character": "Postmaster Finch Threadneedle",
+  "enabled": true,
+  "mailboxes": [
+    {
+      "account": "enchantifyacademy@gmail.com",
+      "role": "Enchantify Academy public/project correspondence",
+      "enabled": true
+    },
+    {
+      "account": "thedoobaleedoos@gmail.com",
+      "role": "Doobaleedoos, Wonder Compass, Patreon, creator/business correspondence",
+      "enabled": true
+    }
+  ],
+  "max_messages_per_account": 10,
+  "gog_client": "postmaster",
+  "default_query": "newer_than:14d -in:spam -in:trash",
+  "urgent_query": "newer_than:14d -in:spam -in:trash (urgent OR deadline OR invoice OR payment OR appointment OR collaboration OR Patreon OR YouTube OR sponsor OR press)",
+  "telegram_default": false,
+  "can_send_email": false,
+  "can_create_gmail_drafts": false,
+  "handoff_to_penny_goldweaver": true,
+  "handoff_to_gimble": true,
+  "handoff_to_bellkeeper": true
+}

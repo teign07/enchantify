@@ -35,9 +35,14 @@ the Labyrinth generates the events JSON itself and passes it in:
   "belief_investments": [              // Belief permanently invested somewhere
     {"target": "Zara Finch", "type": "npc", "amount": 10, "notes": "..."}
   ],
-  "nothing_events": [                  // confrontations, manifestations, retreats
+  "nothing_events": [                  // antagonist beats (see nothing-director.py)
     {"type": "confrontation", "date": "2026-04-17",
-     "location": "North Gardens", "outcome": "overwritten", "details": "..."}
+     "location": "North Gardens", "outcome": "overwritten", "details": "..."},
+    {"type": "pressure_felt", "details": "Meal tasted flat; no manifestation."},
+    {"type": "manifestation_offered", "details": "Shadeclaw at tapestry edge; player declined."},
+    {"type": "enchantment_banish", "details": "Minor erosion cleared with proof."},
+    {"type": "compass_complete", "details": "Climax re-inked; pressure eased."},
+    {"type": "coherence_loss", "details": "Repeated reality-wagers flattened the scene."}
   ],
   "enchantments_cast": [
     {"name": "Everything Speaks", "target": "table lager", "outcome": "..."}
@@ -764,29 +769,34 @@ def update_arc_spine(events: dict, date: str, dry_run: bool):
 
 
 def update_nothing_intelligence(events: dict, date: str, dry_run: bool):
-    path = BASE / "lore" / "nothing-intelligence.md"
-    content = read_file(path)
     nothing_events = events.get("nothing_events", [])
     if not nothing_events:
         return
+    try:
+        import nothing_director
 
-    confrontations = [e for e in nothing_events if e.get("type") in ("confrontation", "overwrite", "defeat")]
+        if nothing_director.update_from_closeout(events, date, dry_run=dry_run):
+            return
+    except Exception:
+        pass
+
+    path = BASE / "lore" / "nothing-intelligence.md"
+    content = read_file(path)
+    confrontations = [
+        e for e in nothing_events
+        if e.get("type") in ("confrontation", "overwrite", "defeat")
+    ]
     if not confrontations:
         return
 
     c = confrontations[-1]
-    event_date     = c.get("date", date)
-    location       = c.get("location", "unknown location")
-    outcome        = c.get("outcome", "outcome unknown")
-    details        = c.get("details", "")
+    event_date = c.get("date", date)
+    location = c.get("location", "unknown location")
+    outcome = c.get("outcome", "outcome unknown")
+    details = c.get("details", "")
 
-    # Update pressure level
-    content = re.sub(r'(Pressure level:\s*).*', r'\1retreating', content)
-
-    # Update Updated date
-    content = re.sub(r'(\*Updated:\s*)[\d-]+', rf'\g<1>{date}', content)
-
-    # Append to Recent Activity
+    content = re.sub(r"(Pressure level:\s*).*", r"\1retreating", content)
+    content = re.sub(r"(\*Updated:\s*)[\d-]+", rf"\g<1>{date}", content)
     new_activity = f"- **{event_date}:** {details or f'Confronted and {outcome} at {location}. Retreated.'}"
     if "## Recent Nothing Activity" in content:
         content = content.rstrip() + f"\n{new_activity}\n"
@@ -845,22 +855,21 @@ def update_player_file(events: dict, player: str, dry_run: bool):
                 flags=re.DOTALL
             )
 
-    # Update relationship scores
+    write_file(path, content, dry_run)
+
+    if dry_run:
+        return
+
+    import relationships
+
     for interaction in events.get("npc_interactions", []):
-        npc   = interaction.get("npc", "")
+        npc = interaction.get("npc", "")
         delta = interaction.get("relationship_delta", 0)
+        note = (interaction.get("notes") or "").strip()
         if not npc or not delta:
             continue
-        # Find existing row in Relationships table
-        m = re.search(
-            rf'(\|\s*{re.escape(npc)}\s*\|[^|]*\|\s*)(\d+)(\s*\|)',
-            content
-        )
-        if m:
-            new_score = int(m.group(2)) + int(delta)
-            content = content[:m.start()] + m.group(1) + str(new_score) + m.group(3) + content[m.end():]
-
-    write_file(path, content, dry_run)
+        delta_arg = f"+{int(delta)}" if int(delta) > 0 else str(int(delta))
+        relationships.apply_player_delta(player, npc, delta_arg, note, sync_md=True)
 
 
 def update_labyrinth_state_from_events(events: dict, dry_run: bool):

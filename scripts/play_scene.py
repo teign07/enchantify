@@ -111,7 +111,10 @@ def main() -> int:
     parser.add_argument("--packet-out", type=Path)
     parser.add_argument("--title")
     parser.add_argument("--mood")
-    parser.add_argument("--scene-mode", choices=["slice", "school-life", "arc", "mystery", "aftermath", "compass", "enchantment"])
+    parser.add_argument(
+        "--scene-mode",
+        choices=["slice", "school-life", "dorm", "arc", "mystery", "aftermath", "compass", "enchantment"],
+    )
     parser.add_argument("--drama-budget", choices=["low", "medium", "high"])
     parser.add_argument("--intensity", default="cinematic")
     parser.add_argument("--target", default="8729557865")

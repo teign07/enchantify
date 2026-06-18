@@ -45,6 +45,12 @@ SECRETS_ENV = BASE / "config" / "secrets.env"
 
 sys.path.insert(0, str(BASE / "scripts"))
 import cron_steward  # type: ignore
+try:
+    import relationships  # type: ignore
+    _HAS_RELATIONSHIPS = True
+except Exception:
+    relationships = None  # type: ignore
+    _HAS_RELATIONSHIPS = False
 
 
 def now() -> datetime:
@@ -403,6 +409,12 @@ def collect_day(player: str, date_str: str) -> dict[str, Any]:
     outreach = latest_matching_jsonl(LOGS / "character-outreach.jsonl", date_str, 5)
     compass_history = read(PLAYERS / f"{player}-compass-runs.md", 3000)
     enchantment_log = latest_matching_jsonl(LOGS / "enchantments.jsonl", date_str, 5)
+    relationship_weather = ""
+    if _HAS_RELATIONSHIPS:
+        try:
+            relationship_weather = relationships.bleed_social_weather(player, limit=8)
+        except Exception:
+            relationship_weather = ""
     return {
         "player": player,
         "date": date_str,
@@ -428,9 +440,28 @@ def collect_day(player: str, date_str: str) -> dict[str, Any]:
         "bleed_ripples": ripples,
         "anchors": anchors,
         "outreach": outreach,
+        "relationship_weather": relationship_weather[:2200],
         "compass_excerpt": clean(compass_history, 1200),
         "enchantments": enchantment_log,
     }
+
+
+def storybook_relationship_sentence(raw: str) -> str:
+    for line in (raw or "").splitlines():
+        if "↔" not in line and ":" not in line:
+            continue
+        if line.startswith("RELATIONSHIP GRAPH") or line.startswith("Player-facing"):
+            continue
+        text = line.strip().strip("-").strip()
+        text = re.sub(r"\s*[+-]?\d+\s*\([^)]+\)", "", text)
+        text = re.sub(r"\s*\(\d+\)", "", text)
+        text = re.sub(r":\s*[—-]\s*", ": ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        if "↔" in text:
+            return f"{text} was one of the social threads pulling through the day."
+        if text:
+            return f"{text} remained part of the day's social weather."
+    return "the social field stayed quiet, which is also a kind of weather."
 
 
 def normalize_model(model: str) -> str:
@@ -492,6 +523,8 @@ Rules:
   but should be tied to the day's actual scenes/images.
 - Make the first 70 percent read as a chapter, not a status digest. Structured
   facts belong in Margin Notes, still translated into voice.
+- Use relationship_weather as social gravity: who is close, who is watching,
+  which bonds or tensions shaped the day. Do not print raw scores.
 - End with one sentence the Book remembers.
 
 Use exactly this Markdown structure:
@@ -510,6 +543,7 @@ Use exactly this Markdown structure:
 - Body weather:
 - Ledger weather:
 - Academy weather:
+- Relationship weather:
 - One thing the Book remembers:
 
 ### Open Threads
@@ -644,6 +678,7 @@ def fallback_chapter(context: dict[str, Any], reason: str = "") -> str:
     latest_mood = poetic_mood(mood_words[-1] if mood_words else "unwritten")
     fuel = poetic_fuel(context.get("heartbeat", {}).get("fuel") or "fuel not yet visible")
     watch = poetic_watch(context.get("heartbeat", {}).get("watch") or "body data quiet")
+    rel_line = storybook_relationship_sentence(context.get("relationship_weather") or "")
     raw_scene_title = scenes[-1].get("title") if scenes else "the page that waited"
     scene_title = re.sub(r"^Latest delivered scene\s+\S+", "the latest saved scene", str(raw_scene_title or "")).strip() or "the page that waited"
     opening = scenes[-1].get("text_excerpt") if scenes else context.get("diary") or "The Book kept the day open without forcing it to explain itself."
@@ -680,6 +715,7 @@ def fallback_chapter(context: dict[str, Any], reason: str = "") -> str:
         f"- Body weather: {fuel}",
         "- Ledger weather: see Gimble's latest cross-read in the support faculty records.",
         "- Academy weather: the scene ledger held the day's playable proof.",
+        f"- Relationship weather: {clean(rel_line, 180)}",
         "- One thing the Book remembers: care becomes real when it leaves a trace.",
         "",
         "### Open Threads",

@@ -6,7 +6,7 @@ in HEARTBEAT.md, preserving the permanent standing orders below.
 Belfast M4 Build — March 2026
 """
 
-import os, sys, json, subprocess, requests, imaplib, email, time, shutil, math, signal, re
+import os, sys, json, subprocess, requests, imaplib, email, time, shutil, math, signal, re, importlib.util
 from datetime import datetime, timedelta, date
 from pathlib import Path
 
@@ -574,22 +574,64 @@ def get_biz_stats():
                 old_data = json.load(f).get('biz_data', {})
         except: pass
 
-    stats = {"yt": "Offline", "patreon": 0, "comments": "None.", "new_member_alert": False}
+    stats = {
+        "yt": "Offline",
+        "patreon": 0,
+        "patreon_latest": "unknown",
+        "patreon_recent_titles": [],
+        "comments": "None.",
+        "new_member_alert": False,
+    }
+    # Keep providers isolated: one failure should not erase the others.
     try:
         y_url = f"https://www.googleapis.com/youtube/v3/channels?part=statistics&id={YT_CH_ID}&key={YT_KEY}"
-        stats['yt'] = requests.get(y_url, timeout=5).json()['items'][0]['statistics']['subscriberCount']
+        y_json = requests.get(y_url, timeout=5).json()
+        items = y_json.get("items") if isinstance(y_json, dict) else []
+        if items:
+            stats['yt'] = items[0].get("statistics", {}).get("subscriberCount", stats['yt'])
+    except:
+        pass
 
-        headers = {"Authorization": f"Bearer {PATREON_TOKEN}"}
-        p_url = f"https://www.patreon.com/api/campaigns/{PATREON_ID}?include=recent_comments"
-        p_res = requests.get(p_url, headers=headers, timeout=5).json()
-        stats['patreon'] = p_res['data']['attributes']['patron_count']
+    try:
+        # Prefer the same adapter used by Penny/Goldweaver so pulse and desks agree.
+        adapter_path = os.path.join(ENCHANTIFY_WORKSPACE, "scripts", "patreon-adapter.py")
+        if os.path.exists(adapter_path):
+            spec = importlib.util.spec_from_file_location("patreon_adapter", adapter_path)
+            if spec and spec.loader:
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                a_status = module.status()
+                if a_status.get("connected"):
+                    campaigns = a_status.get("campaigns") or []
+                    attrs = (campaigns[0] or {}).get("attributes") if campaigns else {}
+                    stats["patreon"] = attrs.get("patron_count", 0)
+                    latest = a_status.get("latest_published_at") or ""
+                    stats["patreon_latest"] = latest[:10] if latest else "unknown"
+                    titles = []
+                    for post in (a_status.get("posts") or [])[:3]:
+                        title = ((post.get("attributes") or {}).get("title") or "").strip()
+                        if title:
+                            titles.append(title)
+                    stats["patreon_recent_titles"] = titles
+    except:
+        pass
 
+    try:
         if int(stats['patreon']) > int(old_data.get('patreon', 0)):
             stats['new_member_alert'] = True
+    except:
+        pass
 
-        if 'included' in p_res:
-            stats['comments'] = "\n- ".join([c['attributes']['body'] for c in p_res['included'] if c['type'] == 'comment'][:3])
-    except: pass
+    try:
+        # Keep old comments fetch as best-effort for Clubhouse texture.
+        if PATREON_TOKEN and PATREON_ID:
+            headers = {"Authorization": f"Bearer {PATREON_TOKEN}"}
+            p_url = f"https://www.patreon.com/api/campaigns/{PATREON_ID}?include=recent_comments"
+            p_res = requests.get(p_url, headers=headers, timeout=5).json()
+            if 'included' in p_res:
+                stats['comments'] = "\n- ".join([c['attributes']['body'] for c in p_res['included'] if c['type'] == 'comment'][:3])
+    except:
+        pass
 
     set_cache_val("biz_data", stats)
     return stats
@@ -702,6 +744,7 @@ def _save_health_cache(result, source_path=None):
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
         os.replace(tmp, HEALTH_CACHE)
+        _health_log(f"OK health cache updated from {source_path}: {result}")
     except Exception as e:
         _health_log(f"WARN could not save health cache: {e}")
 
@@ -720,6 +763,23 @@ def _health_file_date(path):
         except ValueError:
             return None
     return None
+
+
+def _health_file_age_minutes(path):
+    try:
+        modified = datetime.fromtimestamp(os.path.getmtime(path))
+        return int((datetime.now() - modified).total_seconds() // 60)
+    except Exception:
+        return None
+
+
+def _format_file_age(path):
+    age_mins = _health_file_age_minutes(path)
+    if age_mins is None:
+        return "unknown age"
+    if age_mins < 60:
+        return f"{age_mins}m old"
+    return f"{age_mins // 60}h {age_mins % 60}m old"
 
 def _format_cached_health(reason="iCloud sync lock"):
     cache = _load_health_cache()
@@ -856,6 +916,9 @@ def _get_health_inner(HEALTH_DIR):
         latest_date = next((_health_file_date(path) for path in files if _health_file_date(path)), None)
         if not todays_files:
             if latest_date:
+                latest_path = next((path for path in files if _health_file_date(path) == latest_date), None)
+                if latest_path:
+                    _health_log(f"WARN no today's health export; latest is {latest_path} ({_format_file_age(latest_path)})")
                 return f"Watch data stale — latest Health Auto Export is {latest_date.isoformat()}; waiting for today's iCloud export."
             return _format_cached_health("no dated Health Auto Export found")
 
@@ -875,7 +938,7 @@ def _get_health_inner(HEALTH_DIR):
                           and m.get('data')]
             return len(meaningful) < 2
 
-        def build_result(metrics, source_date):
+        def build_result(metrics, source_date, source_path=None):
             def metric_total(name):
                 """Sum all qty values for a metric across the day's hourly entries."""
                 m = next((x for x in metrics if x.get('name') == name), None)
@@ -925,6 +988,9 @@ def _get_health_inner(HEALTH_DIR):
                 result = f"{result} (latest usable export: {source_date.isoformat()})"
             elif is_sparse(metrics):
                 result = f"{result} (today's export is still partial)"
+            age_mins = _health_file_age_minutes(source_path) if source_path else None
+            if source_date == today and age_mins is not None and age_mins > 120:
+                result = f"{result} (today's export looks stale: {age_mins // 60}h {age_mins % 60}m old)"
             return result
 
         # Prefer today's file, even if it is partial. Never let yesterday's step
@@ -945,13 +1011,18 @@ def _get_health_inner(HEALTH_DIR):
                 continue
             metrics = candidate
             used_path = path
-            result = build_result(metrics, today)
+            result = build_result(metrics, today, path)
             if result:
                 break
 
         if result:
             _save_health_cache(result, used_path)
             return result
+
+        today_cache = _load_health_cache()
+        if today_cache.get("source_date") == today.isoformat() and today_cache.get("result"):
+            _health_log(f"WARN today's health export unreadable; using today's cache from {today_cache.get('updated_at')}")
+            return _format_cached_health("today's export temporarily unreadable")
 
         # If today's export exists but has no usable body metrics yet, surface
         # the newest usable dated export instead of an older cache. The label
@@ -969,14 +1040,16 @@ def _get_health_inner(HEALTH_DIR):
                 raise
             if not candidate:
                 continue
-            result = build_result(candidate, source_date)
+            result = build_result(candidate, source_date, path)
             if result:
                 _save_health_cache(result, path)
                 return result
 
         if not metrics:
             if lock_errors:
-                _health_log(f"WARN all recent health exports locked under {HEALTH_DIR}")
+                newest = files[0] if files else ""
+                detail = f"; newest {newest} ({_format_file_age(newest)})" if newest else ""
+                _health_log(f"WARN all recent health exports locked under {HEALTH_DIR}{detail}")
                 return _format_cached_health("iCloud sync lock")
             return _format_cached_health("no usable recent export")
         return _format_cached_health("sparse export")
@@ -1097,6 +1170,7 @@ def pulse():
 ### 📈 Business (The Doobaleedoos)
 
 - **Patreon:** {biz['patreon']} members | **YouTube:** {biz['yt']} subs
+- **Patreon Feed:** Latest published {biz.get('patreon_latest', 'unknown')} | Recent: {", ".join(biz.get('patreon_recent_titles', [])[:2]) if biz.get('patreon_recent_titles') else "none visible"}
 - **Financials:**
   {get_finances()}
 - **Inbox:**

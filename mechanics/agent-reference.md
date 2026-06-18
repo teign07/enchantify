@@ -254,7 +254,11 @@ Before doing anchor work, read:
 - View state with `python3 scripts/pact-engine.py --state`
 - Surface `[CONSENT REQUIRED]` items, but never post without approval
 
-## 14. Telegram Audio
+## 14. Delivery Surfaces
+
+**Cursor / desktop chat:** Run `open-book.py`, write the scene, then `run-live-scene.py --surface chat`. Put the text between `SCENE_FOR_PLAYER_BEGIN` and `SCENE_FOR_PLAYER_END` in the player-visible reply. Do not end with only `NO_REPLY`.
+
+**Telegram audio:**
 
 For Telegram replies:
 - always use `scripts/multi_voice_tts.py`

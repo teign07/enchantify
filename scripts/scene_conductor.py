@@ -241,8 +241,9 @@ class Conductor:
     def __init__(self, packet: ScenePacket, dry_run: bool = False):
         self.packet = packet
         self.dry_run = dry_run
-        self.buffered_delivery = packet.channel == "telegram"
+        self.buffered_delivery = packet.channel == "telegram" and bool(packet.target)
         self.pending_deliveries: dict[str, dict[str, Any]] = {}
+        self._text_sent_early = False
         TEXT_OUTBOX.mkdir(parents=True, exist_ok=True)
         ARTIFACT_OUTBOX.mkdir(parents=True, exist_ok=True)
 
@@ -450,8 +451,12 @@ class Conductor:
             return True, f"text payload written to {out}"
 
         if self.buffered_delivery:
+            ok, detail = self._send_text_message(self.packet.text.text)
+            if ok:
+                self._text_sent_early = True
+                return True, f"text sent early and payload written to {out} | {detail}"
             self.pending_deliveries["text"] = {"text": self.packet.text.text}
-            return True, f"text prepared and payload written to {out}"
+            return False, f"text send failed (will retry at flush) | payload written to {out} | {detail}"
 
         ok, detail = self._send_text_message(self.packet.text.text)
         if ok:
@@ -787,6 +792,12 @@ class Conductor:
 
     def _flush_pending_deliveries(self, results: dict[str, dict[str, Any]]) -> None:
         for step in self.packet.sequence:
+            if step == "text" and self._text_sent_early:
+                current = results.setdefault(step, {})
+                if current.get("ok") and not current.get("delivered"):
+                    current["delivered"] = True
+                    current.setdefault("summary", "text sent early")
+                continue
             pending = self.pending_deliveries.get(step)
             if not pending:
                 continue
@@ -919,13 +930,18 @@ def main() -> int:
     packet = load_packet(args.packet)
     results = Conductor(packet, dry_run=args.dry_run).run()
     essential_steps = [step for step in packet.sequence if step in ("text", "voice")]
-    essential_ok = all(results.get(step, {}).get("ok") for step in essential_steps)
+    text_result = results.get("text", {})
+    text_ok = bool(text_result.get("ok")) and (
+        text_result.get("delivered") or not packet.target
+    )
+    essential_ok = text_ok
     delivery_ok = all(item.get("ok") for item in results.values())
     print(json.dumps({
         "scene_id": packet.scene_id,
         "sequence": packet.sequence,
         "essential_steps": essential_steps,
         "essential_ok": essential_ok,
+        "text_delivered": text_ok,
         "delivery_ok": delivery_ok,
         "results": results,
     }, indent=2))

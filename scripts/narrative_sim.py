@@ -34,6 +34,12 @@ if str(SCRIPT_DIR) not in sys.path:
 
 import world_context
 from belief_caps import clamp_belief
+try:
+    import relationships
+    _HAS_RELATIONSHIPS = True
+except Exception:
+    relationships = None  # type: ignore
+    _HAS_RELATIONSHIPS = False
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 THREADS_MD = BASE_DIR / "lore" / "threads.md"
@@ -1352,6 +1358,7 @@ def llm_trace_prompt(plans: list[dict], state: dict) -> str:
         "- Output ONLY valid JSON: {\"traces\":[{\"id\":\"...\",\"visible_trace\":\"...\",\"hidden_effect\":\"...\"}]}.\n"
         "- The visible_trace must be a tiny story snippet: one or two sentences, simple, concrete, and playable.\n"
         "- Invent the action fresh from the actor's goals, quirks, faults, chapter, thread, target, and prior memory.\n"
+        "- Use social_context when present: player bond, allies, rivalries, watch-lists, and fears should shape who notices, helps, withholds, or gets hurt.\n"
         "- Do NOT use pre-defined action labels in the prose. Do NOT say protected, moved, acted, gesture, changed behavior, made the thread more present, left a trace, the room learned, students stopped treating, what it costs when nobody helps, or anything like a template.\n"
         "- Do NOT summarize philosophy. Show an object, place, person, quote, or small choice that can feed the next scene, The Bleed, memory, or a story seed.\n"
         "- If action is invest_belief, show what the actor makes more believable or repeatable.\n"
@@ -1839,6 +1846,12 @@ def simulate_world_pulse(register_text: str, threads_text: str, state: Optional[
             action_name = "take_action"
             reason = f"{profile.name} can leave a trace in {thread.name}, but not resolve it without the player"
         target = choose_target(action_name, profile, entities)
+        social_context = {}
+        if _HAS_RELATIONSHIPS:
+            try:
+                social_context = relationships.actor_social_context(relationships.DEFAULT_PLAYER, profile.name)
+            except Exception:
+                social_context = {}
         plan_id = f"sim-{len(planned_actions) + 1}"
         planned_actions.append({
             "id": plan_id,
@@ -1876,6 +1889,7 @@ def simulate_world_pulse(register_text: str, threads_text: str, state: Optional[
                 "target": target,
                 "reason": reason,
                 "influences": influences[:6],
+                "social_context": social_context,
             },
         })
 

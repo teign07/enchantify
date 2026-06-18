@@ -49,6 +49,16 @@ try:
     _HAS_NARRATIVE_SIM = True
 except ImportError:
     _HAS_NARRATIVE_SIM = False
+try:
+    import relationships as _relationships
+    _HAS_RELATIONSHIPS = True
+except ImportError:
+    _HAS_RELATIONSHIPS = False
+try:
+    import nothing_director as _nothing_director
+    _HAS_NOTHING_DIRECTOR = True
+except ImportError:
+    _HAS_NOTHING_DIRECTOR = False
 TICK_QUEUE     = BASE_DIR / "memory" / "tick-queue.md"
 THREADS_MD     = BASE_DIR / "lore" / "threads.md"
 REGISTER_MD    = BASE_DIR / "lore" / "world-register.md"
@@ -955,6 +965,25 @@ def run_living_world_simulation(events: list, ctx: Optional[dict] = None) -> Non
 
         _append_simulation_ledger(ledger_entries)
         narrative_sim.save_state(updated_state)
+
+        if _HAS_RELATIONSHIPS:
+            try:
+                for beat in _relationships.social_pulse_beats(
+                    _relationships.DEFAULT_PLAYER, actions, limit=2
+                ):
+                    events.append(beat)
+            except Exception as social_exc:
+                print(f"[{SKILL_ID}] Social pulse beat error: {social_exc}")
+
+        if _HAS_NOTHING_DIRECTOR:
+            try:
+                nd_packet = _nothing_director.assess(_relationships.DEFAULT_PLAYER if _HAS_RELATIONSHIPS else "bj")
+                nd_beat = _nothing_director.tick_queue_beat(nd_packet)
+                if nd_beat:
+                    events.append(nd_beat)
+            except Exception as nothing_exc:
+                print(f"[{SKILL_ID}] Nothing pulse beat error: {nothing_exc}")
+
         print(f"[{SKILL_ID}] Living-world simulation produced {len(actions)} offscreen action(s), {len(applied)} applied consequence(s), and {len(updated_state.get('talisman_intents', []))} talisman intent(s).")
     except Exception as e:
         print(f"[{SKILL_ID}] Living-world simulation error: {e}")

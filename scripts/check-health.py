@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+from datetime import datetime
 from pathlib import Path
 
 
@@ -36,6 +37,15 @@ def main() -> int:
         print(f"CANDIDATE_DIRS: {len(candidate_dirs)}")
         for item in candidate_dirs[:6]:
             print(f"- {item}")
+        files = []
+        for item in candidate_dirs:
+            p = Path(item)
+            files.extend([x for x in p.glob("*.json") if x.is_file()])
+        files = sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)
+        print(f"JSON_FILES: {len(files)}")
+        for path in files[:8]:
+            mtime = datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="minutes")
+            print(f"- {path.name} | modified {mtime} | {path.stat().st_size} bytes")
     except Exception as e:
         print(f"CANDIDATE_DIRS_ERROR: {type(e).__name__}: {e}")
 

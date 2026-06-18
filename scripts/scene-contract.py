@@ -9,6 +9,7 @@ meant to be read before writing a scene and checked before delivery.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import re
@@ -77,6 +78,92 @@ SCENE_FULLNESS_DEFAULTS = {
     "enchantment": {"target_words": "550-850", "minimum_words": 425, "minimum_paragraphs": 4},
 }
 
+STORY_LENSES: dict[str, dict[str, Any]] = {
+    "friendship": {
+        "label": "Friendship / Affection",
+        "centers": "relationship warmth, trust, repair, chosen company, small loyalties",
+        "moves": ["shared task", "private joke", "small kindness", "honest question", "repair after awkwardness"],
+        "avoid": "turning tenderness into a clue exchange or romance-by-default",
+    },
+    "comedy": {
+        "label": "Comedy / Absurdist",
+        "centers": "delightful inconvenience, social timing, magical objects behaving badly, Boggle-shaped nonsense",
+        "moves": ["misbehaving object", "public misunderstanding", "too-serious rule applied to a silly problem", "comic escalation with low stakes"],
+        "avoid": "making the joke random; it should still reveal character",
+    },
+    "apprenticeship": {
+        "label": "Apprenticeship / Classcraft",
+        "centers": "learning by doing, practice, mentor texture, a skill becoming real",
+        "moves": ["demonstration", "failed first try", "classmate interruption", "practice object", "teacher correction"],
+        "avoid": "summarizing the lesson or turning practice into a hidden investigation",
+    },
+    "errand_caper": {
+        "label": "Errand Caper",
+        "centers": "a simple concrete job that gets charmingly complicated",
+        "moves": ["deliver something", "fetch a specific object", "find the right office", "make a trade", "solve a practical blockage"],
+        "avoid": "conspiracy language; keep the problem physical and immediate",
+    },
+    "exploration": {
+        "label": "Exploration / Travelogue",
+        "centers": "place, movement, strange rooms, local customs, sensory discovery",
+        "moves": ["walk a new route", "map a corner", "notice a rule", "meet a place through objects", "choose a threshold"],
+        "avoid": "making every new place hide evidence",
+    },
+    "character_study": {
+        "label": "Character Study",
+        "centers": "one NPC's want, contradiction, habit, wound, or private competence",
+        "moves": ["portrait beat", "revealing routine", "minor choice under pressure", "the thing they do when unobserved"],
+        "avoid": "interrogating the NPC only for plot information",
+    },
+    "rivalry_social": {
+        "label": "Rivalry / Social Weather",
+        "centers": "reputation, alliances, dares, status, embarrassment, petty stakes that matter",
+        "moves": ["public challenge", "rumor with a face", "favor owed", "awkward table politics", "choosing who to stand near"],
+        "avoid": "making social pressure into another secret-cabal clue chain",
+    },
+    "recovery": {
+        "label": "Recovery / Aftercare",
+        "centers": "rest, digestion, re-entry, gentle consequences, not having to be impressive",
+        "moves": ["warm food", "quiet room", "soft check-in", "put one thing away", "let a hard thing become smaller"],
+        "avoid": "guilt, productivity, or mandatory catharsis",
+    },
+    "wonder": {
+        "label": "Wonder Quest",
+        "centers": "ordinary magic, attention, real-world noticing, small awe",
+        "moves": ["name one texture", "inspect an overlooked object", "make a tiny offering", "collect a sensory souvenir"],
+        "avoid": "abstract inspiration without a concrete thing to notice",
+    },
+    "institutional": {
+        "label": "Institutional / School Politics",
+        "centers": "rules, offices, committees, permissions, bureaucracy with a soul",
+        "moves": ["form with a strange blank", "meeting minutes", "policy interpreted by a person", "office ritual", "rule bent kindly or cruelly"],
+        "avoid": "only using institutions as sinister conspiracy machines",
+    },
+    "literary_weird": {
+        "label": "Literary Weird",
+        "centers": "books behaving like places, grammar becoming weather, metaphor with consequences",
+        "moves": ["sentence-object", "book margin crossing over", "genre rule surfacing", "public-domain echo", "literalized figure of speech"],
+        "avoid": "floating symbolism; make one weird thing touch the room",
+    },
+    "mystery": {
+        "label": "Mystery / Investigation",
+        "centers": "specific unknowns, evidence, witness behavior, careful inference",
+        "moves": ["ask one precise question", "inspect one object", "compare two accounts", "notice what is absent"],
+        "avoid": "defaulting every daily scene into clue haze; use only when the Page or thread truly asks",
+    },
+}
+
+PAGE_LENS_POOLS: dict[str, list[str]] = {
+    "dorm": ["recovery", "friendship", "wonder", "character_study", "literary_weird"],
+    "slice_of_life": ["friendship", "comedy", "apprenticeship", "errand_caper", "exploration", "character_study", "rivalry_social", "recovery", "wonder"],
+    "conflict": ["rivalry_social", "institutional", "character_study", "errand_caper", "mystery", "literary_weird"],
+    "archive": ["recovery", "character_study", "literary_weird", "wonder"],
+    "wonder_compass": ["wonder", "exploration", "recovery"],
+    "enchantment": ["wonder", "literary_weird", "apprenticeship", "errand_caper"],
+    "letter": ["friendship", "character_study", "rivalry_social", "literary_weird", "institutional"],
+    "bleed": ["institutional", "rivalry_social", "comedy", "mystery", "character_study"],
+}
+
 
 def read_safe(path: Path, limit: int = 0) -> str:
     if not path.exists():
@@ -92,6 +179,22 @@ def run_script(args: list[str]) -> str:
     if proc.returncode != 0:
         return ""
     return (proc.stdout or "").strip()
+
+
+def seasonal_packet(player: str) -> dict[str, Any]:
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPTS / "seasonal-director.py"), player, "--json"],
+        cwd=BASE,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0 or not (proc.stdout or "").strip():
+        return {}
+    try:
+        payload = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def slate_value(slate: str, key: str) -> str:
@@ -144,6 +247,31 @@ def player_known_enchantments(player: str, limit: int = 16) -> list[str]:
         if cells and cells[0] and cells[0] not in names:
             names.append(cells[0])
     return names[:limit]
+
+
+def _unknown_enchantment_names(text: str, known: list[str]) -> list[str]:
+    known_lc = {name.lower() for name in known}
+    found: list[str] = []
+
+    patterns = [
+        r"\b(?:cast|use|try|offer|start)\s+(?:the\s+)?(?:formal\s+)?Enchantment\s+([A-Z][A-Za-z' ]{2,40})",
+        r"\b(?:cast|use|try|offer|start)\s+(?:the\s+)?([A-Z][A-Za-z' ]{2,40})\s+Enchantment\b",
+        r"\bEnchantment\s*:\s*([A-Z][A-Za-z' ]{2,40})",
+        r"\bEverything(?:'s| is)?\s+[A-Z][A-Za-z']+(?:\s+[A-Z][A-Za-z']+)?",
+        r"\bMirror,\s*Mirror\b",
+        r"\bMirror Mirror\b",
+    ]
+    for pattern in patterns:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            raw = match.group(1) if match.groups() else match.group(0)
+            name = re.sub(r"\s+", " ", raw).strip(" .,:;!?\"'")
+            if not name:
+                continue
+            # Trim trailing prose that followed an invented name.
+            name = re.split(r"\b(?:on|at|with|to|before|after|then|and|or)\b", name, maxsplit=1)[0].strip()
+            if name and name.lower() not in known_lc and name not in found:
+                found.append(name)
+    return found
 
 
 def select_enchantment(context_text: str, known: list[str]) -> str:
@@ -206,7 +334,9 @@ def mechanics_opportunities(
         enchant_reasons.append("Belief is in recovery range; first scene-appropriate Enchantment offer for the day is due")
     if "basic enchantments" in (schedule + " " + classroom).lower():
         enchant_reasons.append("current class/practice is Basic Enchantments")
-    if "nothing" in nothing.lower() and any(w in nothing.lower() for w in ("active", "high", "pressing", "seam")):
+    if "nothing" in nothing.lower() and any(
+        w in nothing.lower() for w in ("active", "high", "pressing", "seam", "margin", "breach", "manifest:")
+    ):
         enchant_reasons.append("Nothing pressure is present; Enchantments are the standard answer to minor/moderate manifestations")
     if context_words & ENCHANTMENT_OBJECT_WORDS:
         enchant_reasons.append("scene context contains enchantable objects or clues")
@@ -366,6 +496,73 @@ def apply_fullness_rules(rules: dict[str, list[str]], fullness: dict[str, Any]) 
     )
     rules["must_not"].append(
         "Do not deliver a low-effort short reply: fewer than the fullness floor, fewer than the required scene paragraphs, or choices written as terse command fragments."
+    )
+
+
+def select_story_lens(
+    player: str,
+    mode: str,
+    page_contract: dict[str, Any],
+    story_context: dict[str, Any],
+    slate: str,
+) -> dict[str, Any]:
+    page_type = page_contract.get("page_type") or MODE_TO_PAGE.get(mode) or "slice_of_life"
+    pool = list(PAGE_LENS_POOLS.get(page_type, PAGE_LENS_POOLS["slice_of_life"]))
+    pressure = " ".join(
+        [
+            slate_value(slate, "STORY"),
+            slate_value(slate, "NOTHING"),
+            " ".join(str(item.get("title") or item.get("name") or item.get("thread") or "") for item in story_context.get("academy", {}).get("active_threads", [])[:3]),
+            " ".join(str(item.get("hook") or "") for item in story_context.get("open_simulation_actions", [])[:3]),
+        ]
+    ).lower()
+
+    if mode == "mystery" or "investigation" in pressure or "clue" in pressure:
+        if "mystery" not in pool:
+            pool.append("mystery")
+    elif page_type in {"slice_of_life", "dorm"} and "mystery" in pool:
+        pool.remove("mystery")
+
+    # Bias away from the project's current overused shape unless the active
+    # contract explicitly calls for it. The hash keeps rotation deterministic
+    # without writing state on every scene contract read.
+    if "mystery" in pool and mode not in {"arc", "mystery"} and page_type != "conflict":
+        pool.remove("mystery")
+
+    seed_material = "|".join(
+        [
+            player,
+            date.today().isoformat(),
+            mode,
+            page_type,
+            slate_value(slate, "SCHEDULE"),
+            slate_value(slate, "CAST"),
+            slate_value(slate, "STORY"),
+        ]
+    )
+    digest = hashlib.sha256(seed_material.encode("utf-8")).hexdigest()
+    selected = pool[int(digest[:8], 16) % len(pool)] if pool else "friendship"
+    lens = STORY_LENSES[selected]
+    return {
+        "id": selected,
+        "label": lens["label"],
+        "centers": lens["centers"],
+        "moves": lens["moves"],
+        "avoid": lens["avoid"],
+        "pool": [STORY_LENSES[item]["label"] for item in pool],
+    }
+
+
+def apply_story_lens_rules(rules: dict[str, list[str]], story_lens: dict[str, Any]) -> None:
+    moves = "; ".join(story_lens.get("moves", [])[:4])
+    rules["must_include"].append(
+        f"STORY LENS: {story_lens.get('label')} — center {story_lens.get('centers')}. Use one of these scene moves if it fits: {moves}."
+    )
+    rules["must_include"].append(
+        "Let the Page Type decide the purpose, but let the Story Lens decide the flavor of events, choices, conflict, and surprise."
+    )
+    rules["must_not"].append(
+        f"Do not default to conspiracy-mystery/clue structure unless the Story Lens is Mystery. Lens-specific avoid: {story_lens.get('avoid')}."
     )
 
 
@@ -534,6 +731,7 @@ def build_contract(player: str, mode: str | None, budget: str | None, page_type:
     selected_mode = mode or page_contract.get("recommended_scene_mode") or initial_mode
     selected_budget = budget or page_contract.get("recommended_drama_budget") or drama_budget(selected_mode, slate, None)
     mechanics = mechanics_state.get_mechanics_state(BASE, player)
+    seasonal = seasonal_packet(player)
     active_enchantment = mechanics.get("active_enchantment")
     story_context = build_story_context(player)
     current_location = academy_value("Current Location") or "unknown Academy location"
@@ -542,6 +740,8 @@ def build_contract(player: str, mode: str | None, budget: str | None, page_type:
     rules = mode_rules(selected_mode, selected_budget)
     apply_page_rules(rules, page_contract)
     apply_tool_rules(rules, page_contract)
+    story_lens = select_story_lens(player, selected_mode, page_contract, story_context, slate)
+    apply_story_lens_rules(rules, story_lens)
     fullness = scene_fullness_contract(selected_mode, page_contract)
     apply_fullness_rules(rules, fullness)
     classroom = classroom_contract(player, selected_mode, slate)
@@ -552,6 +752,18 @@ def build_contract(player: str, mode: str | None, budget: str | None, page_type:
     if continuity_anchor.get("location"):
         current_location = continuity_anchor.get("location")
     opportunities = mechanics_opportunities(player, selected_mode, slate, story_context, mechanics)
+    nothing_packet: dict[str, Any] = {}
+    try:
+        import nothing_director
+
+        nothing_packet = nothing_director.assess(
+            player,
+            page_type=page_contract.get("page_type"),
+            scene_mode=selected_mode,
+        )
+        nothing_director.apply_scene_rules(rules, nothing_packet, opportunities=opportunities)
+    except Exception:
+        nothing_packet = {}
     if continuity_anchor:
         anchor_bits = []
         if continuity_anchor.get("location"):
@@ -604,6 +816,21 @@ def build_contract(player: str, mode: str | None, budget: str | None, page_type:
         rules["must_include"].append(
             f"Flag risky uncertain actions as dice-gated before resolving them. If the player chooses that action, run scripts/roll-dice.py with current Belief. Reason: {reasons}."
         )
+    if seasonal.get("active_events"):
+        names = ", ".join(seasonal.get("event_names", [])[:3])
+        atmosphere_shift = seasonal.get("atmosphere_shift", "")
+        nothing_shift = seasonal.get("nothing_shift", "")
+        compass_flavor = seasonal.get("compass_flavor", "")
+        rules["must_include"].append(
+            f"Seasonal events are active ({names}). Weave seasonal texture into opening atmosphere and NPC behavior."
+        )
+        if atmosphere_shift:
+            rules["must_include"].append(f"Seasonal atmosphere guidance: {atmosphere_shift}")
+        if nothing_shift:
+            rules["must_include"].append(f"Seasonal Nothing modulation: {nothing_shift}")
+        if compass_flavor:
+            rules["may_advance"].append(f"Seasonal Compass flavor (optional): {compass_flavor}")
+        rules["must_not"].append("Do not announce seasonal events as patch notes; let the player notice them through scene reality.")
 
     contract = {
         "player": player,
@@ -615,11 +842,18 @@ def build_contract(player: str, mode: str | None, budget: str | None, page_type:
         "available_cast": slate_value(slate, "CAST"),
         "atmosphere": slate_value(slate, "FEEL"),
         "story_pressure": slate_value(slate, "STORY"),
-        "nothing_pressure": slate_value(slate, "NOTHING"),
+        "nothing_pressure": (
+            nothing_director.slate_line(nothing_packet)
+            if nothing_packet
+            else slate_value(slate, "NOTHING")
+        ),
+        "nothing_director": nothing_packet,
         "schedule_texture": slate_value(slate, "SCHEDULE"),
         "suppress": slate_value(slate, "SUPPRESS"),
+        "seasonal": seasonal,
         "nearby_places": environment_locations(),
         "page_contract": page_contract,
+        "story_lens": story_lens,
         "scene_fullness": fullness,
         "classroom_contract": classroom,
         "story_context": {
@@ -666,8 +900,10 @@ def build_contract(player: str, mode: str | None, budget: str | None, page_type:
 def render_text(contract: dict[str, Any]) -> str:
     mechanics = contract["mechanics"]
     page = contract.get("page_contract") or {}
+    story_lens = contract.get("story_lens") or {}
     tool_posture = page.get("tool_posture") or {}
     classroom = contract.get("classroom_contract") or {}
+    seasonal = contract.get("seasonal") or {}
     places = "; ".join(
         f"{p['location']} ({p['state']})" for p in contract.get("nearby_places", [])[:3]
     )
@@ -680,6 +916,11 @@ def render_text(contract: dict[str, Any]) -> str:
         f"PAGE_CLOSURE: {page.get('closure_condition', 'unknown')}",
         f"PAGE_ARTIFACT_DUE: {', '.join(page.get('artifact_due', [])) or 'proof artifact'}",
         f"PAGE_SECONDARY_FLAVOR: {page.get('secondary_flavor') or 'none'}",
+        f"STORY_LENS: {story_lens.get('label') or 'none'}",
+        f"STORY_LENS_CENTERS: {story_lens.get('centers') or 'none'}",
+        f"STORY_LENS_MOVES: {', '.join(story_lens.get('moves', [])[:5]) or 'none'}",
+        f"STORY_LENS_AVOID: {story_lens.get('avoid') or 'none'}",
+        f"STORY_LENS_ROTATION_POOL: {', '.join(story_lens.get('pool', [])[:8]) or 'none'}",
         f"PAGE_TOOL_POSTURE: {tool_posture.get('posture') or 'text/voice only'}",
         f"PAGE_INTRUSION_LEVEL: {tool_posture.get('intrusion_level') or 'low'}",
         f"PAGE_PREFERRED_TOOLS: {', '.join(tool_posture.get('preferred_tools', [])) or 'none'}",
@@ -695,24 +936,53 @@ def render_text(contract: dict[str, Any]) -> str:
         f"ATMOSPHERE: {contract.get('atmosphere') or 'quiet Academy texture'}",
         f"STORY_PRESSURE: {contract.get('story_pressure') or 'none'}",
         f"NOTHING_PRESSURE: {contract.get('nothing_pressure') or 'background only'}",
-        f"SCHEDULE_TEXTURE: {contract.get('schedule_texture') or 'ambient'}",
-        f"SUPPRESS: {contract.get('suppress') or 'no extra suppression'}",
-        f"NEARBY_PLACES: {places or 'not enough data'}",
-        (
-            "MECHANICS: "
-            f"belief={mechanics['belief']} ({mechanics['belief_band']}), "
-            f"compass={'offer' if mechanics.get('compass_opportunity') else 'no'}, "
-            f"enchantment={'offer' if mechanics['enchantment_opportunity'] else ('low-belief-offer' if mechanics['offer_enchantment'] else 'no')}, "
-            f"dice={'roll-on-risk' if mechanics['dice_opportunity'] or mechanics['roll_on_risk'] else 'light'}"
-        ),
     ]
+    nd = contract.get("nothing_director") or {}
+    if nd:
+        lines.extend(
+            [
+                f"NOTHING_MODE: {nd.get('play_mode', 'background')}",
+                f"NOTHING_WEAPON: {nd.get('weapon', 'targeted')}",
+                f"NOTHING_ATMOSPHERIC_BEAT: {nd.get('atmospheric_beat', '')}",
+            ]
+        )
+        if nd.get("target_thread"):
+            lines.append(f"NOTHING_TARGET_THREAD: {nd.get('target_thread')} (Belief {nd.get('target_belief')})")
+    lines.extend(
+        [
+            f"SCHEDULE_TEXTURE: {contract.get('schedule_texture') or 'ambient'}",
+            f"SUPPRESS: {contract.get('suppress') or 'no extra suppression'}",
+            f"NEARBY_PLACES: {places or 'not enough data'}",
+            (
+                "MECHANICS: "
+                f"belief={mechanics['belief']} ({mechanics['belief_band']}), "
+                f"compass={'offer' if mechanics.get('compass_opportunity') else 'no'}, "
+                f"enchantment={'offer' if mechanics['enchantment_opportunity'] else ('low-belief-offer' if mechanics['offer_enchantment'] else 'no')}, "
+                f"dice={'roll-on-risk' if mechanics['dice_opportunity'] or mechanics['roll_on_risk'] else 'light'}"
+            ),
+        ]
+    )
+    if seasonal.get("active_events"):
+        lines.append("SEASONAL_EVENTS:")
+        for item in seasonal.get("active_events", [])[:4]:
+            lines.append(f"- {item.get('name')} [{item.get('layer')}]")
+        if seasonal.get("atmosphere_shift"):
+            lines.append(f"SEASONAL_ATMOSPHERE: {seasonal.get('atmosphere_shift')}")
+        if seasonal.get("npc_shift"):
+            lines.append(f"SEASONAL_NPC_SHIFT: {seasonal.get('npc_shift')}")
+        if seasonal.get("nothing_shift"):
+            lines.append(f"SEASONAL_NOTHING_SHIFT: {seasonal.get('nothing_shift')}")
+        if seasonal.get("enchantment_shift"):
+            lines.append(f"SEASONAL_ENCHANTMENT_SHIFT: {seasonal.get('enchantment_shift')}")
+        if seasonal.get("compass_flavor"):
+            lines.append(f"SEASONAL_COMPASS_FLAVOR: {seasonal.get('compass_flavor')}")
     if mechanics.get("compass_opportunity"):
-        lines.append("COMPASS_OPPORTUNITY: once-daily formal Compass Run may be offered as an option")
+        lines.append("COMPASS_OPPORTUNITY: once-daily formal Compass Run must be offered as one of the three numbered choices")
         lines.extend(f"- {reason}" for reason in mechanics.get("compass_reasons", []))
         lines.append(f"- FORMAL START: python3 scripts/compass-run.py start {contract['player']}")
         lines.append("- COMPLETE ONLY AFTER WEST: python3 scripts/compass-run.py complete-west [player] --souvenir \"[one real sentence]\"")
     if mechanics.get("enchantment_opportunity"):
-        lines.append(f"ENCHANTMENT_OPPORTUNITY: {mechanics.get('suggested_enchantment')}")
+        lines.append(f"ENCHANTMENT_OPPORTUNITY: {mechanics.get('suggested_enchantment')} must be offered as one of the three numbered choices")
         lines.extend(f"- {reason}" for reason in mechanics.get("enchantment_reasons", []))
         lines.append(
             f"- FORMAL START: python3 scripts/enchantment.py start {contract['player']} --spell \"{mechanics.get('suggested_enchantment')}\" --target \"[target]\""
@@ -976,6 +1246,20 @@ def validate_scene(text: str, contract: dict[str, Any]) -> list[str]:
         has_known_spell = any((name or "").lower() in text.lower() for name in mechanics.get("known_enchantments", []))
         if not (has_enchantment or has_known_spell):
             failures.append("scene contract names an Enchantment opportunity, but no Enchantment is offered or mentioned")
+        choice_text = " ".join(choices.values()).lower()
+        choice_has_enchantment = any((name or "").lower() in choice_text for name in mechanics.get("known_enchantments", []))
+        if not choice_has_enchantment:
+            failures.append("Enchantment opportunity is mentioned in prose but not offered as a numbered choice with an official known Enchantment name")
+    unknown_enchantments = _unknown_enchantment_names(text, mechanics.get("known_enchantments", []))
+    if unknown_enchantments:
+        failures.append(
+            "unknown Enchantment name used; only the player's Flyleaf Enchantments are valid: "
+            + ", ".join(unknown_enchantments[:5])
+        )
+    if mechanics.get("compass_opportunity"):
+        choice_text = " ".join(choices.values()).lower()
+        if "compass" not in choice_text:
+            failures.append("Compass opportunity is mentioned in prose but not offered as a numbered choice")
     if contract["scene_mode"] == "enchantment" or mechanics.get("active_enchantment"):
         ritual_markers = {"photo", "describe", "description", "proof", "camera", "send"}
         if not (text_words & ritual_markers):
@@ -1089,12 +1373,31 @@ def _tag_existing_choice_block(text: str) -> str:
 
 
 def _fallback_choice_block(contract: dict[str, Any]) -> list[str]:
-    return [
-        "What do you do?",
-        "1. [LIFE] Ask whether anyone wants tea before the next strange thing happens, giving the room one ordinary kindness to gather around.",
-        "2. [ARC] Try a Belief roll to investigate the marked clue in the drawer, letting the current thread answer through evidence instead of panic.",
-        "3. [SURPRISE] Follow the odd draft under the side door no one mentioned, because the page may be asking a better sideways question.",
-    ]
+    mechanics = contract.get("mechanics") or {}
+    thread = _thread_touchpoint(contract)
+    location = contract.get("current_location") or "the room"
+    spell = mechanics.get("suggested_enchantment") or "Everything Speaks"
+
+    life = (
+        f"1. [LIFE] Stay in {location} for one ordinary breath: check on the person beside you, notice what your hands are doing, and let the room become human again."
+    )
+    arc = (
+        f"2. [ARC] Press the current thread directly by asking one precise question about {thread}, accepting that the answer may change who knows you are looking."
+    )
+    surprise = (
+        "3. [SURPRISE] Leave the expected line of inquiry and follow one sideways detail in the room that does not fit yet."
+    )
+
+    if mechanics.get("compass_opportunity"):
+        surprise = (
+            "3. [SURPRISE] Step outside the expected scene and start the formal Wonder Compass Run now: let the Book open North and give you one real-world noticing ritual before returning."
+        )
+    if mechanics.get("enchantment_opportunity"):
+        arc = (
+            f"2. [ARC] Cast the formal Enchantment {spell} on the clearest object or clue here, then send real photo or description proof before the Book lets it take effect."
+        )
+
+    return ["What do you do?", life, arc, surprise]
 
 
 def _replace_choice_block(text: str, contract: dict[str, Any], *, force: bool = False) -> str:
@@ -1165,10 +1468,22 @@ def repair_scene_text(text: str, contract: dict[str, Any], failures: list[str] |
         "ARC choice",
         "SURPRISE choice",
         "classroom ARC choice",
+        "Enchantment opportunity",
+        "Compass opportunity",
     ]
     if any(any(needle in item for needle in choice_failures) for item in failures):
         force_choice_repair = any(
-            any(needle in item for needle in ("too terse", "LIFE choice", "ARC choice", "SURPRISE choice"))
+            any(
+                needle in item
+                for needle in (
+                    "too terse",
+                    "LIFE choice",
+                    "ARC choice",
+                    "SURPRISE choice",
+                    "Enchantment opportunity",
+                    "Compass opportunity",
+                )
+            )
             for item in failures
         )
         repaired = _replace_choice_block(repaired, contract, force=force_choice_repair)

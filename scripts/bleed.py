@@ -45,6 +45,12 @@ WORKSPACE_DIR = SCRIPT_DIR.parent
 _sys.path.insert(0, str(SCRIPT_DIR))
 import cron_steward
 try:
+    import relationships
+    _RELATIONSHIPS_AVAILABLE = True
+except Exception:
+    relationships = None  # type: ignore
+    _RELATIONSHIPS_AVAILABLE = False
+try:
     from schedule import get_schedule_data, WEEKDAY_NAMES
     _SCHEDULE_AVAILABLE = True
 except ImportError:
@@ -1774,10 +1780,38 @@ def gossip_source_roster() -> str:
     return "\n".join(f"- {name} ({initials}): {style}" for name, initials, style in GOSSIP_SOURCES)
 
 
+def build_relationship_graph_brief(player: str = "bj") -> str:
+    if not _RELATIONSHIPS_AVAILABLE:
+        return "Relationship graph unavailable; do not invent social graph claims."
+    try:
+        return relationships.bleed_social_weather(player, limit=12)
+    except Exception as exc:
+        return f"Relationship graph could not be read today: {type(exc).__name__}. Do not invent graph claims."
+
+
 def build_fallback_gossip(data: dict) -> str:
     lead_thread = _thread_names(data.get("thread_summary", ""))[0] if _thread_names(data.get("thread_summary", "")) else "Wicker's Campaign"
     tick = _first_nonempty_line(data.get("tick_queue", ""), "No one admits to moving the latest rumor.")
     tick = re.sub(r"[*_`]+", "", tick)
+    social = data.get("relationship_graph") or ""
+    social_lines = []
+    for line in social.splitlines():
+        if "↔" not in line:
+            continue
+        clean_line = line.strip("- ").strip()
+        clean_line = re.sub(r"\s*\(\d+\)", "", clean_line)
+        clean_line = re.sub(r"\s+", " ", clean_line)
+        social_lines.append(clean_line)
+        if len(social_lines) >= 4:
+            break
+    if len(social_lines) >= 3:
+        return "\n\n".join([
+            f"Zara Finch says the interesting part is not the rumor, but the route it took: {social_lines[0]}. She has begun watching who repeats it before lunch. — Z.F.",
+            f"Raven Hearts reports that {social_lines[1]} has become visible in seating choices, which is where the Academy always confesses first. No one has admitted noticing. — R.H.",
+            f"Serenity Brown thinks {social_lines[2]} may be kinder than it looks, though she admits kindness and leverage can wear the same shoes in bad lighting. — S.B.",
+            f"Melisande Blackwood has filed {social_lines[3] if len(social_lines) > 3 else lead_thread} under useful pressure, not scandal. Her distinction was exact enough to make two students stop whispering. — M.B.",
+            f"Cedric Widden was heard describing the latest corridor report as '{compact_text(tick, 120)}' and then immediately denying he had described anything at all. The denial was more convincing before it asked for a biscuit. — C.W.",
+        ])
     return (
         "Zara Finch says Wicker Eddies has been smiling at empty chairs again, which would be ordinary theater if the chairs had not started facing him back. "
         "She adds that anyone who calls this coincidence should be asked why coincidence keeps choosing the same table. — Z.F.\n\n"
@@ -2073,6 +2107,9 @@ Weather:
 
 Health:
 {compact_text(data.get('health', ''), 500)}
+
+Relationship graph:
+{compact_text(data.get('relationship_graph', ''), 1000)}
 """
 
 
@@ -2118,6 +2155,7 @@ def generate_content_chunked(data: dict, reason: str = "") -> dict:
             "HEADLINE: title/subhead/body, 4-6 paragraphs, concrete reporting on a current event that has new information. "
             "GOSSIP: 5 distinct corridor whisper items from actual named Academy characters, each signed with that character's initials. "
             "Wicker Eddies may be the subject, but he must not be the columnist or signature. Never use — W.E. "
+            "At least three gossip items must use the relationship graph as evidence: bonds, rivalries, watch-lists, or player gravity turned into observed behavior, not raw scores. "
             "FEATURE: titled/bylined longer context piece, 4-6 paragraphs, not a repeat of recent features.",
         ),
         (
@@ -2326,6 +2364,9 @@ DR. INKREST BRIEF (for Dr. Inkrest's Reauthoring Desk):
 PENNY BLACKLETTER EDITOR BRIEF (for The Editor's Column):
 {data.get('penny_editor_data', '')}
 
+RELATIONSHIP GRAPH (for Gossip, feature color, and social consequences; do not print scores raw):
+{data.get('relationship_graph', '')}
+
 ENVIRONMENTAL (heartbeat):
 {data['pulse']}
 
@@ -2357,6 +2398,8 @@ Each item must be written in that character's style and end with that character'
 Wicker Eddies may be the subject of gossip, but he must not be the source, columnist,
 or signature for gossip about himself. Never use W.E. as a gossip signature.
 Use a mix of sources; do not make every item come from Wicker's crew.
+Base at least three items on the RELATIONSHIP GRAPH: real ties, rivalries, watch-lists,
+or player gravity. Do not print raw scores; turn them into observed social behavior.
 Approved gossip sources:
 {gossip_source_roster()}
 CONSTRAINT: Every item must be freshly written. Do not reuse sentences, observations, or
@@ -4012,6 +4055,7 @@ def main():
             gimble_column_data = build_gimble_ledger_brief(player_data.get("name", "bj"))
             inkrest_column_data = build_inkrest_column_brief(player_data.get("name", "bj"))
             penny_editor_data = build_penny_editor_brief(player_data.get("name", "bj"))
+            relationship_graph = build_relationship_graph_brief(player_data.get("name", "bj"))
             talisman_npcs    = get_chapter_npcs(leading_talisman.get("chapter", "")) if leading_talisman else ""
 
             # Format market odds for prompt injection
@@ -4060,6 +4104,7 @@ def main():
                 "gimble_column_data":    gimble_column_data,
                 "inkrest_column_data":   inkrest_column_data,
                 "penny_editor_data":     penny_editor_data,
+                "relationship_graph":     relationship_graph,
                 "previous_coverage":     previous_coverage,
             }
 

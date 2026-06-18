@@ -93,6 +93,11 @@ PLATFORM_SPECS: dict[str, dict[str, Any]] = {
         "output": ["hook post", "3-6 connected posts", "soft CTA", "image suggestion", "privacy label"],
         "notes": "Teach one idea clearly; Bluesky rewards genuine conversation more than funnel language.",
     },
+    "bluesky-reply": {
+        "label": "Bluesky Reply",
+        "output": ["context being answered", "reply under 300 characters", "why it helps the conversation", "privacy label"],
+        "notes": "Helpful first. No drive-by promotion. Mention Enchantify or Wonder Compass only when it genuinely adds signal.",
+    },
     "instagram-carousel": {
         "label": "Instagram Carousel",
         "output": ["7-10 slides", "slide text", "image direction per slide", "caption", "alt text", "hashtags", "CTA", "privacy label"],
@@ -504,6 +509,18 @@ def find_wonder_excerpt() -> str:
     return clean("\n\n".join(parts), 11000)
 
 
+def postmaster_context(*, ensure_fresh: bool = False, max_age_hours: float = 8.0) -> dict[str, Any]:
+    try:
+        spec = importlib.util.spec_from_file_location("postmaster", BASE / "scripts" / "postmaster.py")
+        if not spec or not spec.loader:
+            raise RuntimeError("postmaster module unavailable")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.desk_context(ensure_fresh=ensure_fresh, max_age_hours=max_age_hours)
+    except Exception as exc:
+        return {"available": False, "diagnosis": clean(str(exc), 300)}
+
+
 def build_context(player: str, date_str: str) -> dict[str, Any]:
     storybook = read(STORYBOOK_DAILY / f"{date_str}.md", limit=9000)
     support = read(SUPPORT_GUILD / f"{date_str}.md", limit=4500)
@@ -544,6 +561,7 @@ def build_context(player: str, date_str: str) -> dict[str, Any]:
             "images": image_rows(date_str),
             "wonder_compass_excerpt": find_wonder_excerpt(),
             "enchantify_feature_lines": feature_lines[:45],
+            "postmaster": postmaster_context(ensure_fresh=False),
         },
         "privacy_rules": [
             "Health, therapy, mood, medication, ledger, family, and relationship details are private unless explicitly cleared.",
@@ -586,6 +604,8 @@ Mission:
 - Use bluesky_status when present: handle/url, follower count, post count, and
   recent posts. Draft conversational Bluesky posts/threads that invite replies,
   but keep publication consent-gated.
+- Use sources.postmaster when available for real correspondence leads and
+  attention items. Do not invent emails. Never claim mail was sent.
 - Stay in story and in character. No generic marketing voice.
 
 Hard rules:
@@ -1094,6 +1114,28 @@ Use this Markdown structure:
 Current data JSON:
 {json.dumps(context, ensure_ascii=False, indent=2, default=str)[:14000]}
 """
+
+
+def normalize_brief_markdown(markdown: str, context: dict[str, Any]) -> str:
+    text = (markdown or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:markdown)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*```$", "", text).strip()
+    header = (
+        f"# Penny Blackletter Content Brief — {context['request']['kind']} — {context['date']}"
+    )
+    if "# Penny Blackletter Content Brief" not in text and "## Editorial Angle" in text:
+        text = f"{header}\n\n{text}"
+    return text
+
+
+def brief_markdown_valid(markdown: str) -> bool:
+    text = (markdown or "").strip()
+    if len(text) < 180:
+        return False
+    if "# Penny Blackletter Content Brief" in text:
+        return True
+    return "## Editorial Angle" in text and "## Platform Draft" in text
 
 
 def call_llm_with_prompt(context: dict[str, Any], prompt: str, *, max_tokens: int = 2200) -> str:
@@ -1654,12 +1696,17 @@ def run_make(player: str, date_str: str, kind: str, topic: str, source: str, *, 
         markdown = fallback_brief(context, "LLM disabled")
     else:
         try:
-            markdown = call_llm_with_prompt(context, prompt_for_brief(context), max_tokens=2600)
-            if not markdown or "# Penny Blackletter Content Brief" not in markdown:
+            markdown = normalize_brief_markdown(
+                call_llm_with_prompt(context, prompt_for_brief(context), max_tokens=2600),
+                context,
+            )
+            if not brief_markdown_valid(markdown):
                 raise RuntimeError("model returned an empty or malformed content brief")
         except Exception as exc:
             llm_error = str(exc)
             markdown = fallback_brief(context, llm_error)
+            if brief_markdown_valid(markdown):
+                llm_error = f"{llm_error} (deterministic fallback used)"
     structured = extract_structured_brief(markdown)
     generated_images: list[str] = []
     if generate_images:
@@ -1729,7 +1776,7 @@ def run_make(player: str, date_str: str, kind: str, topic: str, source: str, *, 
             for image in generated_images:
                 print(f"- {image}")
         if llm_error:
-            print(f"LLM_FALLBACK: {llm_error}", file=sys.stderr)
+            print(f"PENNY_NOTE: {llm_error}", file=sys.stderr)
     return 0
 
 

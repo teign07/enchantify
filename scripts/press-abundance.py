@@ -398,6 +398,18 @@ def bluesky_status_summary() -> dict[str, Any]:
     }
 
 
+def postmaster_context(*, ensure_fresh: bool = True, max_age_hours: float = 6.0) -> dict[str, Any]:
+    try:
+        spec = importlib.util.spec_from_file_location("postmaster", BASE / "scripts" / "postmaster.py")
+        if not spec or not spec.loader:
+            raise RuntimeError("postmaster module unavailable")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.desk_context(ensure_fresh=ensure_fresh, max_age_hours=max_age_hours)
+    except Exception as exc:
+        return {"available": False, "diagnosis": clean(exc, 300)}
+
+
 def collect_context(player: str = "bj") -> dict[str, Any]:
     ensure_dirs()
     capabilities_path = CAPABILITIES if CAPABILITIES.exists() else CAPABILITIES_ALT
@@ -432,6 +444,7 @@ def collect_context(player: str = "bj") -> dict[str, Any]:
         "product_seeds": latest_files(PRODUCT_SEEDS, "*.md", 8, 1000),
         "consent_queue": consent_queue_summary(),
         "social_ledger_tail": read_jsonl(PENNY_SOCIAL_LEDGER, 16),
+        "postmaster": postmaster_context(ensure_fresh=True, max_age_hours=6.0),
     }
 
 
@@ -458,6 +471,7 @@ def prompt_context(context: dict[str, Any]) -> dict[str, Any]:
         "product_seeds": context.get("product_seeds"),
         "consent_queue": context.get("consent_queue"),
         "social_ledger_tail": context.get("social_ledger_tail"),
+        "postmaster": context.get("postmaster"),
     }
 
 
@@ -520,6 +534,10 @@ Hard rules:
 - Mention what Goldweaver should carry into his next offer/product brief.
 - Mention what the latest market research changes about today's strategy. If no
   market research is present, say the Listening Desk needs a fresh run.
+- Use context.postmaster when available. Postmaster Finch surfaces filtered Gmail
+  leads, an attention queue, and goldweaver_reply_suggestions (review-only reply
+  drafts). Fold real business correspondence into Penny's drafts and Goldweaver's
+  offer thinking. Never claim mail was sent.
 
 Use exactly this Markdown structure:
 
@@ -530,6 +548,8 @@ Use exactly this Markdown structure:
 ## Strategic Direction
 
 ## Market Research Read
+
+## Postmaster Finch — Correspondence
 
 ## What Penny Found
 

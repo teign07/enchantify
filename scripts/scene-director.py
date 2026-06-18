@@ -236,6 +236,38 @@ def layer_open_actions() -> str:
     return " | ".join(truncate(hook, 150) for hook in hooks)
 
 
+def layer_seasonal(player_name: str) -> str:
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(_SCRIPT_DIR / "seasonal-director.py"), player_name, "--json"],
+            cwd=WORKSPACE,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        if proc.returncode != 0 or not (proc.stdout or "").strip():
+            return ""
+        packet = json.loads(proc.stdout)
+        if not isinstance(packet, dict):
+            return ""
+    except Exception:
+        return ""
+    names = packet.get("event_names", []) or []
+    season = (packet.get("heartbeat", {}) or {}).get("season", "")
+    atmosphere = packet.get("atmosphere_shift", "")
+    nothing = packet.get("nothing_shift", "")
+    parts = []
+    if names:
+        parts.append("events: " + ", ".join(names[:3]))
+    elif season:
+        parts.append("season: " + truncate(season, 80))
+    if atmosphere:
+        parts.append("atmosphere: " + truncate(atmosphere, 120))
+    if nothing:
+        parts.append("nothing: " + truncate(nothing, 120))
+    return " | ".join(parts)
+
+
 # ── Layer 1: WHO ───────────────────────────────────────────────────────────────
 
 def layer_who() -> str:
@@ -441,49 +473,17 @@ _NOTHING_INTENSITY = {
 }
 
 def layer_nothing(player_name: str = "bj") -> str:
-    """Read nothing-intelligence.md + player file. Return: pressure + strategy + target + engagement gap."""
-    ni_text     = read_safe(WORKSPACE / "lore" / "nothing-intelligence.md")
-    player_text = read_safe(WORKSPACE / "players" / f"{player_name}.md", 60)
+    """Nothing antagonist budget via nothing-director.py (falls back to intelligence file)."""
+    try:
+        import nothing_director
 
-    pressure = first_match(r'Pressure level:\s*(\w+)', ni_text, default="low")
-    strategy = first_match(r'## Current Strategy\n([^\n]+)', ni_text, default="")
-    targets  = []
-    for line in ni_text.splitlines():
-        line = line.strip()
-        if line.startswith("- ") and "Pressure" not in line and strategy[:20] not in line:
-            targets.append(truncate(line.lstrip("- "), 80))
-            if len(targets) >= 2:
-                break
+        return nothing_director.slate_line(nothing_director.assess(player_name))
+    except Exception:
+        pass
 
-    intensity = _NOTHING_INTENSITY.get(pressure.lower(), f"pressure:{pressure}")
-    result    = intensity
-    if strategy:
-        result += f" | strategy: {truncate(strategy, 80)}"
-    if targets:
-        result += f" | targets: {'; '.join(targets)}"
-
-    # Return care — days since last Compass Run.
-    # This is a welcome-back signal, not a shame signal. It should invite
-    # real-world attention without making absence sound like failure.
-    last_run_str = first_match(r'\*\*Last run:\*\*\s*([^\n]+)', player_text, default="never")
-    gap_days = None
-    if last_run_str.strip().lower() not in ("never", "", "n/a"):
-        try:
-            gap_days = (date.today() - datetime.strptime(last_run_str.strip(), "%Y-%m-%d").date()).days
-        except ValueError:
-            pass
-
-    if gap_days is None:
-        result += " | RETURN CARE: no Compass Run on record — offer the first one as an invitation, not a correction"
-    elif gap_days >= 10:
-        result += f" | RETURN CARE: {gap_days}d since Compass Run — warmly offer a tiny Compass Run after welcoming them back"
-    elif gap_days >= 6:
-        result += f" | RETURN CARE: {gap_days}d since Compass Run — outside-world magic is available when they want it"
-    elif gap_days >= 3:
-        result += f" | RETURN CARE: {gap_days}d since Compass Run — let the outside world glimmer gently"
-    # 0–2 days: no note needed
-
-    return result
+    ni_text = read_safe(WORKSPACE / "lore" / "nothing-intelligence.md")
+    pressure = first_match(r"Pressure level:\s*(\w+)", ni_text, default="low")
+    return _NOTHING_INTENSITY.get(pressure.lower(), f"pressure:{pressure}")
 
 
 # ── Layer 4b: RESEARCH ─────────────────────────────────────────────────────────
@@ -886,14 +886,20 @@ def layer_suppress(player_name: str) -> str:
             break
 
     # Nothing strategy suppress — don't do the Nothing's work for it
-    nothing_strat = first_match(r'## Current Strategy\n([^\n]+)', ni_text, default="")
     nothing_suppress = ""
-    if "apathy" in nothing_strat.lower() or "wait" in nothing_strat.lower():
-        nothing_suppress = "flat descriptive prose (apathy is the Nothing's weapon — don't hand it over)"
-    elif "isolat" in nothing_strat.lower():
-        nothing_suppress = "keeping NPCs absent (the Nothing isolates — counter with presence)"
-    elif "erosion" in nothing_strat.lower():
-        nothing_suppress = "losing physical specificity (erosion starts with vague description)"
+    try:
+        import nothing_director
+
+        packet = nothing_director.assess(player_name)
+        nothing_suppress = packet.get("suppress", "")
+    except Exception:
+        nothing_strat = first_match(r"## Current Strategy\n([^\n]+)", ni_text, default="")
+        if "apathy" in nothing_strat.lower() or "wait" in nothing_strat.lower():
+            nothing_suppress = "flat descriptive prose (apathy is the Nothing's weapon — don't hand it over)"
+        elif "isolat" in nothing_strat.lower():
+            nothing_suppress = "keeping NPCs absent (the Nothing isolates — counter with presence)"
+        elif "erosion" in nothing_strat.lower():
+            nothing_suppress = "losing physical specificity (erosion starts with vague description)"
 
     parts = []
     if phase_suppress:
@@ -950,6 +956,7 @@ def build_slate(player_name: str) -> dict:
         "RESEARCH":     layer_research(),        # empty string when no fresh notes
         "PLAYER":       layer_player(player_name),
         "MECHANICS":    layer_mechanics(player_name),
+        "SEASONAL":     layer_seasonal(player_name),
         "SCHEDULE":     layer_schedule(),
         "CLASSROOM":    layer_classroom(player_name),
         "BLEED":        layer_bleed_hooks(),
@@ -960,7 +967,7 @@ def build_slate(player_name: str) -> dict:
 
 
 _SLATE_KEYS = ("SCENE_ANCHOR", "CAST", "CAST_GROUND", "FEEL", "STORY", "TALISMAN", "NOTHING",
-               "RESEARCH", "PLAYER", "MECHANICS", "SCHEDULE", "CLASSROOM", "BLEED", "DREAM", "ACTIONS", "SUPPRESS")
+               "RESEARCH", "PLAYER", "MECHANICS", "SEASONAL", "SCHEDULE", "CLASSROOM", "BLEED", "DREAM", "ACTIONS", "SUPPRESS")
 
 
 def print_slate(player_name: str, slate_only: bool = False):
@@ -1010,6 +1017,7 @@ def main():
             "R": ("RESEARCH",     lambda: layer_research()),
             "5": ("PLAYER",       lambda: layer_player(player_name)),
             "M": ("MECHANICS",    lambda: layer_mechanics(player_name)),
+            "E": ("SEASONAL",     lambda: layer_seasonal(player_name)),
             "6": ("SCHEDULE",     lambda: layer_schedule()),
             "7": ("DREAM",        lambda: layer_dream()),
             "B": ("BLEED",        lambda: layer_bleed_hooks()),
@@ -1020,7 +1028,7 @@ def main():
             print(f"\n[Layer {debug_layer}: {name}]")
             print(fn())
         else:
-            print(f"Unknown layer '{debug_layer}'. Valid: A, 1–7, B, M, T, R, S")
+            print(f"Unknown layer '{debug_layer}'. Valid: A, 1–7, B, E, M, T, R, S")
         return
 
     print_slate(player_name, slate_only=slate_only)

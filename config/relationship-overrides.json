@@ -1,0 +1,44 @@
+{
+  "description": "Hand-curated social edges and agenda overrides. Locked edges survive relationship graph regeneration.",
+  "edges": [
+    {"a": "Zara Finch", "b": "Finn Bridges", "stance": "rivalry", "strength": 60, "notes": "Honorable tension; loyalty vs independence.", "locked": true},
+    {"a": "Zara Finch", "b": "Serenity Brown", "stance": "close_friend", "strength": 75, "notes": "Tidecrest allies; both orbit the player.", "locked": true},
+    {"a": "Finn Bridges", "b": "Wicker Eddies", "stance": "respectful_rival", "strength": 55, "notes": "Antagonists who recognize each other's code.", "locked": true},
+    {"a": "Wicker Eddies", "b": "Melisande Blackwood", "stance": "loyal_crew", "strength": 85, "notes": "Core crew loyalty.", "locked": true},
+    {"a": "Wicker Eddies", "b": "Damien Nights", "stance": "loyal_crew", "strength": 80, "locked": true},
+    {"a": "Wicker Eddies", "b": "Raven Hearts", "stance": "loyal_crew", "strength": 78, "locked": true},
+    {"a": "Wicker Eddies", "b": "Selene Moonfall", "stance": "loyal_crew", "strength": 76, "locked": true},
+    {"a": "Headmistress Seraphina Thorne", "b": "Professor Kyle Momort", "stance": "hidden_alliance", "strength": 70, "notes": "Duskthorn; never surface early.", "locked": true},
+    {"a": "Professor Wellend Thickets", "b": "Professor Kyle Momort", "stance": "hidden_alliance", "strength": 65, "locked": true},
+    {"a": "Professor Cedric Stonebrook", "b": "Headmistress Seraphina Thorne", "stance": "professional", "strength": 50, "locked": true},
+    {"a": "Professor Thaddeus Mook", "b": "Wilbur \"Wordplay\" Lexi", "stance": "teachers_pet", "strength": 68, "notes": "Mook enjoys erudition; Lexi feeds it.", "locked": true},
+    {"a": "Professor Elara Nightshade", "b": "Isolde Firare", "stance": "teachers_pet", "strength": 72, "notes": "Competitive favorite.", "locked": true},
+    {"a": "Professor Lydia Boggle", "b": "Cedric Widden", "stance": "teachers_pet", "strength": 65, "notes": "Pranks meet Notice pedagogy.", "locked": true},
+    {"a": "Professor Archibald Permancer", "b": "Anton Smith", "stance": "teachers_pet", "strength": 70, "notes": "Archives and archaic vocabulary.", "locked": true},
+    {"a": "Professor Kyle Momort", "b": "Finn Bridges", "stance": "faculty_favorite", "strength": 58, "notes": "Momort admires self-reliance; Finn does not know why.", "locked": true},
+    {"a": "Professor Thaddeus Mook", "b": "Aria Silverthorn", "stance": "faculty_wary", "strength": 55, "notes": "Mook finds gentleness inefficient.", "locked": true},
+    {"a": "Professor Ignatius Imatook", "b": "Clarissa \"Clio\" Quibblesnatch", "stance": "faculty_wary", "strength": 48, "notes": "Too much drama for his weather maps.", "locked": true},
+    {"a": "Penny Blackletter", "b": "Professor Bastion Goldweaver", "stance": "ally", "strength": 70, "notes": "Press desk partnership.", "locked": true},
+    {"a": "Index", "b": "Serenity Brown", "stance": "ally", "strength": 40, "locked": true}
+  ],
+  "agenda_overrides": {
+    "Zara Finch": {
+      "goal": "Keep the player's secrets and find the stories in discarded things.",
+      "fear": "That loyalty will cost someone she loves.",
+      "watching": ["Finn Bridges", "Wicker Eddies"],
+      "if_absent_24h": "Sort sea-glass on the Tidecrest windowsill and leave one piece where the player will notice."
+    },
+    "Serenity Brown": {
+      "goal": "Turn the next ordinary hour into an adventure worth telling.",
+      "fear": "Boredom — the quiet kind that eats wonder.",
+      "watching": ["Zara Finch"],
+      "if_absent_24h": "Post a ridiculous but kind rumor on the Riddlewind board about something beautiful in the Climax."
+    },
+    "Wicker Eddies": {
+      "goal": "Keep conflict circulating where belief can be harvested.",
+      "fear": "A story that resolves without friction.",
+      "watching": ["Finn Bridges", "Headmistress Seraphina Thorne"],
+      "if_absent_24h": "Leave a sigil-doodle where Emberheart students study; let them argue whether it means anything."
+    }
+  }
+}

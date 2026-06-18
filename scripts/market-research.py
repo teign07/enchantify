@@ -11,6 +11,7 @@ context instead of pretending to know the market.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -70,6 +71,12 @@ DEFAULT_QUERIES = [
     "local AI agent personal assistant",
     "cozy productivity",
 ]
+
+# Bluesky often 403s unauthenticated search on public.api.bsky.app; api.bsky.app works.
+BLUESKY_SEARCH_HOSTS = (
+    "https://api.bsky.app/xrpc",
+    "https://public.api.bsky.app/xrpc",
+)
 
 DEFAULT_REDDIT = [
     "Journaling",
@@ -208,25 +215,61 @@ def reddit_hot(subreddit: str, limit: int = 8) -> tuple[list[dict[str, Any]], st
     return posts, ""
 
 
+def load_bluesky_adapter():
+    adapter_path = BASE / "scripts" / "bluesky-adapter.py"
+    spec = importlib.util.spec_from_file_location("bluesky_adapter", adapter_path)
+    if not spec or not spec.loader:
+        raise RuntimeError("Could not load scripts/bluesky-adapter.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def bluesky_search_payload(query: str, limit: int = 8) -> tuple[dict[str, Any] | None, str]:
+    params = {"q": query, "limit": max(1, min(limit, 100)), "sort": "latest"}
+    query_string = urllib.parse.urlencode(params)
+    last_err = ""
+    for host in BLUESKY_SEARCH_HOSTS:
+        url = f"{host}/app.bsky.feed.searchPosts?{query_string}"
+        data, err = fetch_json(url)
+        if not err and isinstance(data, dict):
+            return data, ""
+        last_err = err or "empty response"
+    try:
+        adapter = load_bluesky_adapter()
+        data = adapter.request_json(
+            "app.bsky.feed.searchPosts",
+            params=params,
+            token=adapter.access_token(),
+        )
+        if isinstance(data, dict):
+            return data, ""
+    except Exception as exc:
+        return None, last_err or clean(exc, 200)
+    return None, last_err or "Bluesky search unavailable"
+
+
 def bluesky_search(query: str, limit: int = 8) -> tuple[list[dict[str, Any]], str]:
-    params = urllib.parse.urlencode({"q": query, "limit": limit, "sort": "latest"})
-    url = f"https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?{params}"
-    data, err = fetch_json(url)
+    data, err = bluesky_search_payload(query, limit)
     if err:
         return [], err
     rows = []
     for post in (data or {}).get("posts", [])[:limit]:
         rec = post.get("record") or {}
         author = post.get("author") or {}
+        uri = post.get("uri") or ""
+        handle = author.get("handle") or ""
+        post_id = uri.rsplit("/", 1)[-1] if uri else ""
+        url = f"https://bsky.app/profile/{handle}/post/{post_id}" if handle and post_id else uri
         rows.append({
             "platform": "bluesky",
             "source": query,
             "title": clean(rec.get("text"), 280),
-            "author": author.get("handle"),
+            "author": handle,
             "likes": (post.get("likeCount") or 0),
             "reposts": (post.get("repostCount") or 0),
             "replies": (post.get("replyCount") or 0),
-            "url": post.get("uri"),
+            "url": url,
         })
     return rows, ""
 

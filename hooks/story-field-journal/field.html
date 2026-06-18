@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#04060c">
+  <title>Enchantify — Field Graph</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/field.css">
+</head>
+<body>
+  <div id="graph-container"></div>
+
+  <header class="hud">
+    <div class="hud-left">
+      <a href="/" class="back">← Folio</a>
+      <h1>Story-Field</h1>
+      <p class="sub">Present-moment holograph · click nodes to explore</p>
+    </div>
+    <div class="hud-filters" id="filters"></div>
+    <div class="hud-right">
+      <span class="stat" id="stat-nodes">— nodes</span>
+      <span class="stat" id="stat-links">— links</span>
+      <button type="button" class="btn" id="btn-refresh">Refresh</button>
+      <button type="button" class="btn ghost" id="btn-center">Center on you</button>
+    </div>
+  </header>
+
+  <aside class="inspector glass" id="inspector" hidden>
+    <button type="button" class="close" id="btn-close" aria-label="Close">×</button>
+    <p class="kind" id="ins-kind"></p>
+    <h2 id="ins-title"></h2>
+    <p class="ins-body" id="ins-body"></p>
+    <dl class="ins-meta" id="ins-meta"></dl>
+    <div class="ins-image-wrap" id="ins-image-wrap" hidden>
+      <img id="ins-image" alt="">
+    </div>
+    <h3 class="ins-sub">Connected now</h3>
+    <ul class="ins-links" id="ins-links"></ul>
+  </aside>
+
+  <div class="legend glass">
+    <span><i class="dot player"></i> You</span>
+    <span><i class="dot npc"></i> NPC</span>
+    <span><i class="dot thread"></i> Thread</span>
+    <span><i class="dot scene"></i> Scene</span>
+    <span><i class="dot image"></i> Image</span>
+    <span><i class="dot object"></i> Object</span>
+  </div>
+
+  <p class="hint">Drag to orbit · scroll to zoom · click a node · double-click to focus</p>
+
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/3d-force-graph@1.73.0/dist/3d-force-graph.min.js"></script>
+  <script src="/assets/field.js" type="module"></script>
+</body>
+</html>
